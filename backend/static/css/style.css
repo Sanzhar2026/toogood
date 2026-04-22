@@ -1,0 +1,159 @@
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f7f5f0;
+    margin: 0;
+}
+
+/* HEADER */
+header {
+    display: flex;
+    justify-content: space-between;
+    padding: 20px 40px;
+    background: white;
+    border-bottom: 1px solid #eee;
+}
+
+/* HERO */
+.hero {
+    display: flex;
+    justify-content: space-between;
+    padding: 50px;
+    background: #f1eadf;
+    border-radius: 20px;
+    margin: 20px;
+}
+
+.hero-left {
+    max-width: 50%;
+}
+
+.badge {
+    background: #e6f4ea;
+    padding: 8px 12px;
+    border-radius: 20px;
+    display: inline-block;
+    color: #2e7d32;
+}
+
+.hero h1 {
+    font-size: 40px;
+    margin: 20px 0;
+}
+
+.subtitle {
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.location-btn {
+    background: #2e7d32;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: none;
+    font-size: 16px;
+}
+
+/* RIGHT */
+.hero-right {
+    position: relative;
+}
+
+.hero-right img {
+    width: 300px;
+}
+
+.stats {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    background: white;
+    padding: 10px 20px;
+    border-radius: 15px;
+    display: flex;
+    gap: 15px;
+    box-shadow: 0 5px 10px rgba(0,0,0,0.1);
+}
+
+/* FILTERS */
+.filters {
+    display: flex;
+    gap: 10px;
+    padding: 20px;
+}
+
+.filters button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 20px;
+    background: #eee;
+}
+
+.filters .active {
+    background: #2e7d32;
+    color: white;
+}
+
+/* FOOD */
+.foods {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 20px;
+}
+
+.card {
+    background: white;
+    width: 230px;
+    border-radius: 15px;
+    padding: 15px;
+    position: relative;
+    transition: 0.3s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card img {
+    width: 100%;
+    border-radius: 10px;
+}
+
+.discount {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: #2e7d32;
+    color: white;
+    padding: 5px 8px;
+    border-radius: 8px;
+}
+
+.info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #777;
+}
+
+.price {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.old {
+    text-decoration: line-through;
+    color: #aaa;
+}
+
+.card button {
+    width: 100%;
+    margin-top: 10px;
+    background: #2e7d32;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 10px;
+}

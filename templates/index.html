@@ -1,0 +1,113 @@
+{% extends "layout.html" %}
+
+{% block content %}
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <h1>Дәмді тағамдар<br>дүниені құтқарады</h1>
+                    <p>Қалдықсыз болашақ үшін бірге қадам жасайық!</p>
+                    <button class="hero-btn" onclick="getLocation()">
+                        📍 Орналасқан жеріңізді анықтау
+                    </button>
+
+                    <div class="stats">
+                        <div class="stat">
+                            <span class="stat-icon">🛍️</span>
+                            <div>
+                                <div class="stat-number">1250+</div>
+                                <div class="stat-label">Тағам түрі</div>
+                            </div>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-icon">👥</span>
+                            <div>
+                                <div class="stat-number">8900+</div>
+                                <div class="stat-label">Бақытты клиент</div>
+                            </div>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-icon">🌱</span>
+                            <div>
+                                <div class="stat-number">2.5 тонна</div>
+                                <div class="stat-label">Құтқарылған тағам</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hero-image">
+                    <img src="https://picsum.photos/id/1015/600/380" alt="Groceries" style="box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Categories -->
+    <div class="categories container">
+        {% for cat in categories %}
+        <a href="?category={{ cat.id }}&lang={{ lang }}" class="category {% if active_category == cat.id %}active{% endif %}">
+            {{ cat.emoji or '🍽️' }} 
+            {% if lang == "kz" %}{{ cat.name_kz }}{% else %}{{ cat.name_ru }}{% endif %}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Food Grid -->
+    <section class="foods container">
+        {% for food in foods %}
+        <div class="card">
+            <div class="card-img-container">
+                {% if food.discount > 0 %}
+                    <div class="discount">-{{ food.discount }}%</div>
+                {% endif %}
+                <img src="{{ food.image_url }}" alt="{{ food.name_kz }}">
+                <div class="heart" onclick="toggleHeart(this, '{{ food.id }}')">🤍</div>
+            </div>
+            <div class="card-body">
+                <div class="card-title">
+                    {% if lang == "kz" %}{{ food.name_kz }}{% else %}{{ food.name_ru }}{% endif %}
+                </div>
+                <div class="restaurant">{{ food.restaurant }}</div>
+                <div class="meta">
+                    <span>⭐ {{ food.rating }} • {{ food.distance }} км • {{ food.time }} мин</span>
+                </div>
+                <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span class="price">{{ food.price }} ₸</span>
+                        {% if food.old_price %}
+                        <span class="old-price">{{ food.old_price }} ₸</span>
+                        {% endif %}
+                    </div>
+                    <button class="order-btn" onclick="orderFood('{{ food.id }}')">
+                        {% if lang == "kz" %}Сатып алу{% else %}Купить{% endif %}
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+
+    <!-- How it works -->
+    <section class="how-it-works container">
+        <h2 style="text-align:center; margin-bottom:2rem; color:#166534;">Қалай жұмыс істейді?</h2>
+        <div class="steps">
+            <div class="step">
+                <div class="step-icon">📍</div>
+                <h4>1. Орналасқан жеріңізді анықтаңыз</h4>
+                <p>Жақын маңдағы тағамдарды табу үшін</p>
+            </div>
+            <div class="step">
+                <div class="step-icon">🍔</div>
+                <h4>2. Тағамды таңдаңыз</h4>
+                <p>Ұнайтын тағамды таңдап, тапсырыс беріңіз</p>
+            </div>
+            <div class="step">
+                <div class="step-icon">🎉</div>
+                <h4>3. Алып кетіңіз де ләззат алыңыз</h4>
+                <p>Тағамды алып кетіп, дәмді тағамнан ләззат алыңыз</p>
+            </div>
+        </div>
+    </section>
+{% endblock %}

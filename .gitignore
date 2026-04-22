@@ -1,0 +1,6 @@
+venv/
+venva/
+__pycache__/
+*.pyc
+sarqyn.db
+.env

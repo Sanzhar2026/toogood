@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Panel - Sarqyn Food</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #166534;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #166534;
+            margin: 20px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4ade80;
+        }
+        .admin-form {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .admin-form input {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: calc(25% - 10px);
+        }
+        .admin-form button {
+            background: #166534;
+            color: white;
+            padding: 10px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .admin-form button:hover {
+            background: #0f4a27;
+        }
+        .food-item, .order-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .food-info, .order-info {
+            flex: 1;
+        }
+        .food-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #166534;
+        }
+        .food-details {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .delete-btn {
+            background: #dc2626;
+            color: white;
+            padding: 8px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-left: 15px;
+        }
+        .delete-btn:hover {
+            background: #b91c1c;
+        }
+        .location-link {
+            color: #166534;
+            text-decoration: none;
+            margin-left: 10px;
+        }
+        .location-link:hover {
+            text-decoration: underline;
+        }
+        hr {
+            margin: 30px 0;
+            border: none;
+            border-top: 2px solid #e5e7eb;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #166534;
+            text-decoration: none;
+        }
+        .stats {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+        }
+        .stat-box {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            background: #fefce8;
+            border-radius: 8px;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #166534;
+        }
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Басты бетке оралу</a>
+        
+        <h1>⚙️ Admin Panel</h1>
+        
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-number">{{ foods|length }}</div>
+                <div class="stat-label">Барлық тағамдар</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">{{ orders|length }}</div>
+                <div class="stat-label">Барлық заказылар</div>
+            </div>
+        </div>
+
+        <div class="admin-form">
+            <h2>➕ Добавить еду</h2>
+            <form method="post" action="/admin/add-food">
+                <input name="name_ru" placeholder="Название RU" required>
+                <input name="name_kz" placeholder="Название KZ" required>
+                <input name="price" placeholder="Цена" type="number" step="any" required>
+                <input name="image" placeholder="URL картинки" required>
+                <input name="discount" placeholder="Скидка %" type="number" value="0">
+                <button type="submit">Добавить</button>
+            </form>
+        </div>
+
+        <hr>
+<h2>📦 Заказы ({{ orders|length }})</h2>
+{% for order in orders %}
+<div class="order-item">
+    <div class="order-info">
+        <strong>Заказ #{{ order.id }}</strong><br>
+        🍔 Food ID: {{ order.food_id }} | 👤 User ID: {{ order.user_id }}<br>
+        {% if order.address %}
+        📍 <strong>Адрес:</strong> {{ order.address }}<br>
+        {% endif %}
+        📍 Координаты: 
+        {% if order.lat and order.lon %}
+            {{ order.lat|round(4) }}, {{ order.lon|round(4) }}
+            <a href="https://www.google.com/maps?q={{ order.lat }},{{ order.lon }}" target="_blank" class="location-link">🗺️ Картада көрсету</a>
+        {% else %}
+            ❌ Анықталмаған
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<p style="text-align: center; color: #999;">Нет заказов в базе данных</p>
+{% endfor %}
+    </div>
+</body>
+</html>
