@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="kz">
+<html lang="{{ lang }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sarqyn Food</title>
+    <title>Sarqyn Food - {% if lang == 'kz' %}Азық-түлікті құтқарамыз{% else %}Спасаем еду{% endif %}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -13,8 +13,6 @@
             line-height: 1.5;
         }
         .container { max-width: 1280px; margin: 0 auto; padding: 0 1rem; }
-
-        /* Header */
         header {
             background: white;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
@@ -37,13 +35,22 @@
             font-weight: 700;
             color: #166534;
         }
-        .logo img { height: 40px; }
+        .logo span { font-size: 2rem; }
         .location {
             display: flex;
             align-items: center;
             gap: 0.4rem;
             font-size: 0.95rem;
             color: #166534;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 20px;
+            background: #f0fdf4;
+            transition: all 0.3s;
+        }
+        .location:hover {
+            background: #dcfce7;
+            transform: scale(1.02);
         }
         .nav {
             display: flex;
@@ -73,237 +80,93 @@
             font-size: 0.9rem;
             cursor: pointer;
             background: white;
+            text-decoration: none;
+            display: inline-block;
         }
         .lang-btn.active {
             background: #166534;
             color: white;
             border-color: #166534;
         }
-
-        /* Hero */
-        .hero {
-            background: #fefce8;
-            padding: 3rem 1rem;
-            border-radius: 0 0 2rem 2rem;
+        /* User Menu Styles */
+        .user-menu {
             position: relative;
-            overflow: hidden;
+            display: inline-block;
         }
-        .hero-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            align-items: center;
-        }
-        .hero-text h1 {
-            font-size: 2.8rem;
-            line-height: 1.1;
-            color: #166534;
-            margin-bottom: 1rem;
-        }
-        .hero-text p {
-            font-size: 1.1rem;
-            color: #444;
-            margin-bottom: 1.5rem;
-        }
-        .hero-btn {
+        .user-avatar {
+            width: 38px;
+            height: 38px;
             background: #166534;
-            color: white;
-            border: none;
-            padding: 0.9rem 2rem;
-            border-radius: 9999px;
-            font-size: 1.05rem;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .hero-image {
-            text-align: right;
-        }
-        .hero-image img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 1rem;
-        }
-        .stats {
-            display: flex;
-            gap: 2rem;
-            margin-top: 2.5rem;
-            flex-wrap: wrap;
-        }
-        .stat {
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-        }
-        .stat-icon {
-            font-size: 1.8rem;
-        }
-        .stat-number {
-            font-size: 1.4rem;
-            font-weight: 700;
-        }
-        .stat-label {
-            font-size: 0.9rem;
-            color: #666;
-        }
-
-        /* Categories */
-        .categories {
-            display: flex;
-            gap: 0.8rem;
-            overflow-x: auto;
-            padding: 1.2rem 0;
-            scrollbar-width: thin;
-        }
-        .category {
-            padding: 0.6rem 1.4rem;
-            background: white;
-            border-radius: 9999px;
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-weight: 500;
-            border: 1px solid #eee;
-            text-decoration: none;
-            color: #2d3436;
-        }
-        .category.active, .category:hover {
-            background: #166534;
-            color: white;
-            border-color: #166534;
-        }
-
-        /* Food Cards */
-        .foods {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 3rem;
-        }
-        .card {
-            background: white;
-            border-radius: 1rem;
-            overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
-            transition: all 0.3s;
-        }
-        .card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.12);
-        }
-        .card-img-container {
-            position: relative;
-            height: 180px;
-        }
-        .card-img-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        .discount {
-            position: absolute;
-            top: 12px;
-            left: 12px;
-            background: #ef4444;
-            color: white;
-            padding: 0.2rem 0.7rem;
-            border-radius: 9999px;
-            font-size: 0.8rem;
-            font-weight: 700;
-        }
-        .heart {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            background: white;
-            width: 32px;
-            height: 32px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            color: white;
+            font-weight: bold;
             cursor: pointer;
+            transition: all 0.3s;
         }
-        .card-body {
-            padding: 1rem;
+        .user-avatar:hover {
+            background: #0f4a27;
+            transform: scale(1.05);
         }
-        .card-title {
-            font-size: 1.15rem;
-            font-weight: 600;
-            margin-bottom: 0.3rem;
+        .user-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 45px;
+            background: white;
+            min-width: 220px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-radius: 12px;
+            z-index: 100;
+            overflow: hidden;
         }
-        .restaurant {
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 0.4rem;
+        .user-dropdown.show {
+            display: block;
+            animation: fadeIn 0.2s ease;
         }
-        .meta {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.85rem;
-            color: #555;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        .price {
-            font-size: 1.35rem;
-            font-weight: 700;
+        .user-dropdown .user-info {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            background: #f8fafc;
+        }
+        .user-dropdown .user-name {
+            font-weight: bold;
             color: #166534;
         }
-        .old-price {
-            text-decoration: line-through;
-            color: #999;
-            font-size: 0.95rem;
+        .user-dropdown .user-phone {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
         }
-        .order-btn {
-            background: #166534;
-            color: white;
-            border: none;
-            padding: 0.6rem 1.4rem;
-            border-radius: 9999px;
-            cursor: pointer;
-            font-size: 0.9rem;
+        .user-dropdown a {
+            display: block;
+            padding: 12px 15px;
+            text-decoration: none;
+            color: #333;
+            transition: background 0.2s;
+            font-size: 14px;
         }
-        .order-btn:hover {
-            background: #0f4a27;
+        .user-dropdown a:hover {
+            background: #f0fdf4;
         }
-
-        /* How it works */
-        .how-it-works {
-            background: white;
-            padding: 3rem 1rem;
-            border-radius: 1.5rem;
-            margin: 3rem 0;
+        .user-dropdown .logout-link {
+            color: #dc2626;
+            border-top: 1px solid #eee;
         }
-        .steps {
-            display: flex;
-            gap: 2rem;
-            flex-wrap: wrap;
+        .user-dropdown .logout-link:hover {
+            background: #fee2e2;
         }
-        .step {
-            flex: 1;
-            min-width: 220px;
-            text-align: center;
-        }
-        .step-icon {
-            width: 70px;
-            height: 70px;
-            background: #f1f5f9;
-            border-radius: 9999px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            margin: 0 auto 1rem;
-        }
-
-        /* Footer */
         footer {
             background: #f8f9fa;
             padding: 2rem 1rem;
             border-top: 1px solid #eee;
+            margin-top: 3rem;
         }
         .footer-content {
             display: flex;
@@ -312,51 +175,143 @@
             gap: 2rem;
             align-items: center;
         }
-        .download-btns {
-            display: flex;
-            gap: 1rem;
-        }
-        .download-btn {
-            background: #111;
-            color: white;
-            padding: 0.6rem 1.2rem;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            text-decoration: none;
-            font-size: 0.9rem;
+        @media (max-width: 768px) {
+            .header-top { flex-direction: column; text-align: center; }
+            .nav { justify-content: center; }
         }
 
-        @media (max-width: 768px) {
-            .hero-content { grid-template-columns: 1fr; text-align: center; }
-            .hero-image { text-align: center; }
-            .stats { justify-content: center; }
-        }
+        /* User Menu Styles */
+.user-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.user-avatar {
+    width: 38px;
+    height: 38px;
+    background: #166534;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.user-avatar:hover {
+    background: #0f4a27;
+    transform: scale(1.05);
+}
+
+.user-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 45px;
+    background: white;
+    min-width: 200px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-radius: 12px;
+    z-index: 100;
+    overflow: hidden;
+}
+
+.user-dropdown.show {
+    display: block;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.user-dropdown .user-info {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    background: #f8fafc;
+}
+
+.user-dropdown .user-name {
+    font-weight: bold;
+    color: #166534;
+}
+
+.user-dropdown .user-phone {
+    font-size: 11px;
+    color: #666;
+    margin-top: 4px;
+}
+
+.user-dropdown a {
+    display: block;
+    padding: 12px 15px;
+    text-decoration: none;
+    color: #333;
+    transition: background 0.2s;
+    font-size: 14px;
+}
+
+.user-dropdown a:hover {
+    background: #f0fdf4;
+}
+
+.user-dropdown .logout-link {
+    color: #dc2626;
+    border-top: 1px solid #eee;
+}
+
+.user-dropdown .logout-link:hover {
+    background: #fee2e2;
+}
     </style>
 </head>
+
 <body>
     <header>
         <div class="container">
             <div class="header-top">
                 <div class="logo">
-                    <span style="font-size: 2rem;">🌱</span>
+                    <span>🌱</span>
                     <div>
                         <h1 style="font-size: 1.6rem; color: #166534;">Sarqyn Food</h1>
                     </div>
                 </div>
-                <div class="location">📍 <strong>Алматы, Қазақстан</strong></div>
+                <div class="location" id="locationDisplay" onclick="getCurrentLocation()">
+                    📍 <strong>{% if lang == 'kz' %}Алматы, Қазақстан{% else %}Алматы, Казахстан{% endif %}</strong>
+                </div>
                 <div class="nav">
-                    <a href="/" class="active">Басты бет</a>
-                    <a href="/admin">Админ</a>
-                    <a href="#">Таңдамалар</a>
-                    <a href="#">Тапсырыстарым</a>
+                    <a href="/" class="active" id="navHome">{% if lang == 'kz' %}Басты бет{% else %}Главная{% endif %}</a>
+                    <a href="/my-orders" id="navOrders">{% if lang == 'kz' %}Тапсырыстарым{% else %}Мои заказы{% endif %}</a>
+                    <a href="/supplier/login" id="navSupplier">{% if lang == 'kz' %}Дүкен кабинеті{% else %}Кабинет магазина{% endif %}</a>
                 </div>
-                <div class="lang-user">
-                    <button class="lang-btn {% if lang == 'kz' %}active{% endif %}">Қазақша</button>
-                    <button class="lang-btn {% if lang == 'ru' %}active{% endif %}">Русский</button>
-                    <div style="width: 38px; height: 38px; background: #166534; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">👤</div>
-                </div>
+       <div class="lang-user">
+    <button class="lang-btn {% if lang == 'kz' %}active{% endif %}" onclick="switchLanguage('kz')">Қазақша</button>
+    <button class="lang-btn {% if lang == 'ru' %}active{% endif %}" onclick="switchLanguage('ru')">Русский</button>
+    
+    {% if user_logged_in %}
+    <!-- Пользователь авторизован - показываем меню -->
+    <div class="user-menu">
+        <div class="user-avatar" onclick="toggleUserMenu()">
+            {{ user_name[0]|upper if user_name else 'U' }}
+        </div>
+        <div id="userMenu" class="user-dropdown">
+            <div class="user-info">
+                <div class="user-name">{{ user_name or 'User' }}</div>
+                <div class="user-phone">{{ user_phone or '' }}</div>
+            </div>
+            <a href="/my-orders">📦 {% if lang == 'kz' %}Мои заказы{% else %}Мои заказы{% endif %}</a>
+            <a href="/logout" class="logout-link">🚪 {% if lang == 'kz' %}Выйти{% else %}Выйти{% endif %}</a>
+        </div>
+    </div>
+    {% else %}
+    <!-- Пользователь не авторизован -->
+    <a href="/login" class="lang-btn">🔑 {% if lang == 'kz' %}Кіру{% else %}Войти{% endif %}</a>
+    <a href="/register" class="lang-btn" style="background: #166534; color: white;">📝 {% if lang == 'kz' %}Тіркелу{% else %}Регистрация{% endif %}</a>
+    {% endif %}
+</div>
             </div>
         </div>
     </header>
@@ -370,263 +325,276 @@
             <div class="footer-content">
                 <div>
                     <h3>Sarqyn Food</h3>
-                    <p>Қалдықсыз болашақ үшін бірге қадам жасайық!</p>
+                    <p>{% if lang == 'kz' %}Қалдықсыз болашақ үшін бірге{% else %}Вместе к будущему без отходов{% endif %}</p>
                 </div>
                 <div>
-                    <h4>Қосымшаны жүктеп алыңыз</h4>
-                    <div class="download-btns">
-                        <a href="#" class="download-btn">📱 App Store</a>
-                        <a href="#" class="download-btn">📱 Google Play</a>
+                    <h4>{% if lang == 'kz' %}Қосымшаны жүктеп алыңыз{% else %}Скачайте приложение{% endif %}</h4>
+                    <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                        <a href="#" style="background: #111; color: white; padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none;">📱 App Store</a>
+                        <a href="#" style="background: #111; color: white; padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none;">📱 Google Play</a>
                     </div>
-                </div>
-                <div>
-                    <p style="font-size: 0.9rem;">Жақсы ұсыныстар мен жеңілдіктер үшін QR сканерлеңіз</p>
-                    <div style="width: 120px; height: 120px; background: #ddd; margin-top: 0.5rem;"></div>
                 </div>
             </div>
         </div>
     </footer>
 
- <script>
-    // Global variable to store user location
-    let userLocation = { lat: null, lon: null, address: null };
-
-    // Function to convert coordinates to address (Reverse Geocoding)
-async function getAddressFromCoords(lat, lon) {
-    try {
-        const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=${getCurrentLang()}`,
-            {
-                headers: {
-                    // IMPORTANT: Change this to YOUR app's name and your email
-                    "User-Agent": "SarqynFoodApp/1.0 (alish@toogood.kz)"
-                }
-            }
-        );
-        const data = await response.json();
+    <script>
+        var currentLang = '{{ lang }}';
+        var currentCity = '{{ selected_city or "Алматы" }}';
         
-        if (data && data.display_name) {
-            const address = data.display_name.split(',');
-            let shortAddress = address.slice(0, 4).join(', ');
-            return shortAddress;
+        function switchLanguage(lang) {
+            var url = new URL(window.location.href);
+            url.searchParams.set('lang', lang);
+            window.location.href = url.toString();
         }
-        return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-    } catch (error) {
-        console.error('Error getting address:', error);
-        return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+        
+        // Toggle user menu
+        function toggleUserMenu() {
+            var menu = document.getElementById('userMenu');
+            if (menu) {
+                menu.classList.toggle('show');
+            }
+        }
+        
+        // Close menu when clicking outside
+        document.addEventListener('click', function(event) {
+            var menu = document.getElementById('userMenu');
+            var avatar = document.querySelector('.user-avatar');
+            if (menu && avatar && !avatar.contains(event.target) && !menu.contains(event.target)) {
+                menu.classList.remove('show');
+            }
+        });
+        
+        // Get address from coordinates
+        async function getAddressFromCoords(lat, lon) {
+            var langCode = (currentLang === 'kz') ? 'kk' : 'ru';
+            
+            try {
+                var url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=${langCode}&addressdetails=1&zoom=18`;
+                var response = await fetch(url);
+                var data = await response.json();
+                
+                if (data && data.address) {
+                    var addressParts = [];
+                    
+                    if (data.address.road) {
+                        addressParts.push(data.address.road);
+                    } else if (data.address.street) {
+                        addressParts.push(data.address.street);
+                    }
+                    
+                    if (data.address.house_number) {
+                        addressParts.push(data.address.house_number);
+                    }
+                    
+                    if (addressParts.length === 0 && data.address.suburb) {
+                        addressParts.push(data.address.suburb);
+                    }
+                    
+                    var fullAddress = addressParts.join(' ');
+                    
+                    if (!fullAddress || fullAddress.trim() === '') {
+                        fullAddress = data.display_name.split(',')[0];
+                    }
+                    
+                    var city = data.address.city || data.address.town || data.address.village;
+                    
+                    console.log('📍 Толық мекенжай:', fullAddress);
+                    console.log('🏙️ Қала:', city);
+                    
+                    localStorage.setItem('userAddress', fullAddress);
+                    if (city) localStorage.setItem('userCity', city);
+                    
+                    return fullAddress;
+                }
+                
+                return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                
+            } catch(error) {
+                console.error('Geocoding error:', error);
+                return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+            }
+        }
+        
+        // Get current location
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                var locationElement = document.getElementById('locationDisplay');
+                var loadingText = (currentLang === 'kz') ? 'Орналасқан жері анықталуда...' : 'Определение местоположения...';
+                
+                if (locationElement) {
+                    locationElement.innerHTML = '📍 <strong>' + loadingText + '</strong>';
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    async function(position) {
+                        var lat = position.coords.latitude;
+                        var lon = position.coords.longitude;
+                        
+                        var fullAddress = await getAddressFromCoords(lat, lon);
+                        var city = fullAddress.split(',')[0] || 'Алматы';
+                        
+                        if (locationElement) {
+                            locationElement.innerHTML = '📍 <strong>' + fullAddress + '</strong>';
+                        }
+                        
+                        localStorage.setItem('userLat', lat);
+                        localStorage.setItem('userLon', lon);
+                        localStorage.setItem('userAddress', fullAddress);
+                        localStorage.setItem('userCity', city);
+                        
+                        window.location.href = '/?lat=' + lat + '&lon=' + lon + '&address=' + encodeURIComponent(fullAddress) + '&city=' + encodeURIComponent(city) + '&lang=' + currentLang;
+                    },
+                    function(error) {
+                        var errorMsg = (error.code === 1) ? 
+                            ((currentLang === 'kz') ? 'Орналасуды анықтауға рұқсат берілмеді' : 'Разрешение не предоставлено') :
+                            ((currentLang === 'kz') ? 'Орналасуды анықтау мүмкін емес' : 'Невозможно определить местоположение');
+                        alert(errorMsg);
+                    }
+                );
+            } else {
+                alert((currentLang === 'kz') ? 'Сіздің браузеріңіз геолокацияны қолдамайды' : 'Ваш браузер не поддерживает геолокацию');
+            }
+        }
+        
+        // Page load initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load saved address
+            var savedAddress = localStorage.getItem('userAddress');
+            var locationElement = document.getElementById('locationDisplay');
+            
+            if (savedAddress && locationElement) {
+                locationElement.innerHTML = '📍 <strong>' + savedAddress + '</strong>';
+            }
+            
+            // URL parameters check
+            var urlParams = new URLSearchParams(window.location.search);
+            var address = urlParams.get('address');
+            if (address && locationElement) {
+                locationElement.innerHTML = '📍 <strong>' + decodeURIComponent(address) + '</strong>';
+            }
+            
+            // Language buttons
+            var langKzBtn = document.getElementById('langKz');
+            var langRuBtn = document.getElementById('langRu');
+            if(langKzBtn) langKzBtn.addEventListener('click', function() { switchLanguage('kz'); });
+            if(langRuBtn) langRuBtn.addEventListener('click', function() { switchLanguage('ru'); });
+        });
+
+        // Toggle user menu
+function toggleUserMenu() {
+    var menu = document.getElementById('userMenu');
+    if (menu) {
+        menu.classList.toggle('show');
     }
 }
 
-    // Get current language for address
-    function getCurrentLang() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const lang = urlParams.get('lang') || 'kz';
-        return lang === 'kz' ? 'kk' : 'ru'; // Nominatim uses 'kk' for Kazakh, 'ru' for Russian
-    }
 
-    // Update location display on page
-    function updateLocationDisplay() {
-        const locationElement = document.querySelector('.location');
-        if (locationElement && userLocation.address) {
-            locationElement.innerHTML = `📍 <strong>${userLocation.address}</strong>`;
-        } else if (locationElement && userLocation.lat) {
-            locationElement.innerHTML = `📍 <strong>${userLocation.lat.toFixed(4)}, ${userLocation.lon.toFixed(4)}</strong>`;
-        }
-    }
 
-    // Get location function
-    function getLocation() {
-        if (navigator.geolocation) {
-            // Show loading indicator
-            const locationElement = document.querySelector('.location');
-            const originalText = locationElement.innerHTML;
-            locationElement.innerHTML = `📍 <strong>Определение местоположения...</strong>`;
-            
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    userLocation.lat = position.coords.latitude;
-                    userLocation.lon = position.coords.longitude;
-                    
-                    // Get address from coordinates
-                    userLocation.address = await getAddressFromCoords(userLocation.lat, userLocation.lon);
-                    
-                    // Update display with address
-                    updateLocationDisplay();
-                    
-                    // Show detailed alert
-                    alert(`✅ Орналасқан жеріңіз анықталды!\n\n📍 Мекенжай: ${userLocation.address}\n📊 Координаты: ${userLocation.lat.toFixed(4)}, ${userLocation.lon.toFixed(4)}`);
-                    
-                    console.log(`Location: ${userLocation.lat}, ${userLocation.lon}`);
-                    console.log(`Address: ${userLocation.address}`);
-                    
-                    // Save to localStorage
-                    localStorage.setItem('userLat', userLocation.lat);
-                    localStorage.setItem('userLon', userLocation.lon);
-                    localStorage.setItem('userAddress', userLocation.address);
-                },
-                (error) => {
-                    let message = "";
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            message = "Орналасуды анықтауға рұқсат берілмеді";
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            message = "Орналасуды анықтау мүмкін емес";
-                            break;
-                        case error.TIMEOUT:
-                            message = "Уақыт өтіп кетті";
-                            break;
-                        default:
-                            message = "Қате кетті";
-                    }
-                    alert(message);
-                    // Restore original location text
-                    locationElement.innerHTML = originalText;
-                }
-            );
-        } else {
-            alert("Сіздің браузеріңіз геолокацияны қолдамайды");
-        }
-    }
 
-    // Load saved location on page load
-    async function loadSavedLocation() {
-        const savedLat = localStorage.getItem('userLat');
-        const savedLon = localStorage.getItem('userLon');
-        const savedAddress = localStorage.getItem('userAddress');
+// Close menu when clicking outside
+document.addEventListener('click', function(event) {
+    var menu = document.getElementById('userMenu');
+    var avatar = document.querySelector('.user-avatar');
+    if (menu && avatar && !avatar.contains(event.target) && !menu.contains(event.target)) {
+        menu.classList.remove('show');
+    }
+});
+
+// Функция для заказа сюрприза
+// Функция для заказа сюрприза
+async function reserveBag(bagId) {
+    console.log('🛒 reserveBag called for bag ID:', bagId);
+    
+    // Получаем данные о местоположении
+    var lat = localStorage.getItem('userLat');
+    var lon = localStorage.getItem('userLon');
+    var address = localStorage.getItem('userAddress');
+    
+    console.log('📍 Location:', { lat, lon, address });
+    
+    if (!lat || !lon) {
+        var msg = (currentLang === 'kz') 
+            ? 'Тапсырыс беру үшін орналасқан жеріңізді анықтау керек. Анықтайық па?' 
+            : 'Для заказа нужно определить ваше местоположение. Определить?';
         
-        if (savedLat && savedLon) {
-            userLocation.lat = parseFloat(savedLat);
-            userLocation.lon = parseFloat(savedLon);
-            
-            if (savedAddress) {
-                userLocation.address = savedAddress;
-                updateLocationDisplay();
-            } else {
-                // Get address if only coordinates were saved
-                userLocation.address = await getAddressFromCoords(userLocation.lat, userLocation.lon);
-                localStorage.setItem('userAddress', userLocation.address);
-                updateLocationDisplay();
-            }
-            console.log(`Loaded saved location: ${userLocation.address}`);
+        if (confirm(msg)) {
+            getCurrentLocation();
+            return;
         }
+        return;
     }
-
-    // Order food function with address
-    async function orderFood(foodId) {
-        // Try to get current location if not already set
-        if (!userLocation.lat || !userLocation.lon) {
-            await loadSavedLocation();
-            
-            if (!userLocation.lat || !userLocation.lon) {
-                const wantLocation = confirm('Тапсырыс беру үшін орналасқан жеріңізді анықтау керек. Анықтайық па?');
-                if (wantLocation) {
-                    await new Promise((resolve) => {
-                        navigator.geolocation.getCurrentPosition(
-                            async (position) => {
-                                userLocation.lat = position.coords.latitude;
-                                userLocation.lon = position.coords.longitude;
-                                userLocation.address = await getAddressFromCoords(userLocation.lat, userLocation.lon);
-                                localStorage.setItem('userLat', userLocation.lat);
-                                localStorage.setItem('userLon', userLocation.lon);
-                                localStorage.setItem('userAddress', userLocation.address);
-                                updateLocationDisplay();
-                                resolve();
-                            },
-                            () => {
-                                alert('Орналасқан жеріңізді анықтау мүмкін болмады');
-                                resolve();
-                            }
-                        );
-                    });
-                }
-            }
-        }
-        
-        // Prepare data for order
-        const orderData = {
-            food_id: parseInt(foodId),
-            user_id: 1,
-            lat: userLocation.lat || null,
-            lon: userLocation.lon || null,
-            address: userLocation.address || null
-        };
-        
-        // Send order to backend
-        try {
-            const response = await fetch('/api/orders', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(orderData)
-            });
-            
-            if (response.ok) {
-                const result = await response.json();
-                const lang = getCurrentLang();
-                const addressText = orderData.address 
-                    ? `📍 Мекенжай: ${orderData.address}`
-                    : '⚠️ Орналасқан жеріңіз анықталмады';
-                
-                alert(`✅ Тапсырыс берілді! Заказ #${result.order_id}\n\n${addressText}`);
-            } else {
-                alert('❌ Қате кетті. Қайталап көріңіз.');
-            }
-        } catch (error) {
-            console.error('Error placing order:', error);
-            alert('❌ Қате кетті. Интернет байланысын тексеріңіз.');
-        }
-    }
-
-    // Toggle heart/favorite
-    function toggleHeart(element, foodId) {
-        element.classList.toggle('active');
-        if (element.classList.contains('active')) {
-            element.innerHTML = '❤️';
-            const lang = getCurrentLang();
-            alert(lang === 'kk' ? 'Таңдамаларға қосылды!' : 'Добавлено в избранное!');
-        } else {
-            element.innerHTML = '🤍';
-            const lang = getCurrentLang();
-            alert(lang === 'kk' ? 'Таңдамалардан алынды!' : 'Удалено из избранного!');
-        }
-    }
-
-    // Language switching
-    function switchLanguage(lang) {
-        const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('lang', lang);
-        window.location.href = currentUrl.toString();
-    }
-
-    // Load saved location when page loads
-    document.addEventListener('DOMContentLoaded', function() {
-        loadSavedLocation();
-        
-        // Language buttons
-        const langBtns = document.querySelectorAll('.lang-btn');
-        langBtns.forEach(btn => {
-            btn.addEventListener('click', function() {
-                const lang = this.innerText.includes('Қазақша') ? 'kz' : 'ru';
-                switchLanguage(lang);
-            });
+    
+    var orderData = {
+        surprise_bag_id: bagId,
+        customer_lat: parseFloat(lat),
+        customer_lon: parseFloat(lon),
+        customer_address: address || ''
+    };
+    
+    console.log('📦 Sending order:', orderData);
+    
+    try {
+        var response = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderData)
         });
         
-        // Heart buttons
-        const heartBtns = document.querySelectorAll('.heart');
-        heartBtns.forEach((heart, index) => {
-            heart.addEventListener('click', function(e) {
-                e.stopPropagation();
-                toggleHeart(this, index);
-            });
-        });
+        var result = await response.json();
+        console.log('📥 Response:', result);
         
-        // Also update location display on page load if we have saved location
-        if (userLocation.address) {
-            updateLocationDisplay();
+        // ✅ ГЛАВНОЕ ИСПРАВЛЕНИЕ - ПРОВЕРКА НА 401
+        if (result.error === 'Please login first') {
+            var loginMsg = (currentLang === 'kz') 
+                ? '🔐 Тапсырыс беру үшін кіру керек. Кіру бетіне өту керек?'
+                : '🔐 Необходимо войти для оформления заказа. Перейти на страницу входа?';
+            if (confirm(loginMsg)) {
+                window.location.href = '/login?lang=' + currentLang;
+            }
         }
-    });
-</script>
+        else if (response.ok && result.success) {
+            var successMsg = (currentLang === 'kz') 
+                ? '✅ Тапсырыс берілді! Нөмірі: ' + result.order_number
+                : '✅ Заказ оформлен! Номер: ' + result.order_number;
+            alert(successMsg);
+            window.location.href = '/my-orders?lang=' + currentLang;
+        }
+        else {
+            var errorMsg = (currentLang === 'kz') 
+                ? '❌ Қате кетті: ' + (result.error || result.detail || 'Белгісіз қате')
+                : '❌ Ошибка: ' + (result.error || result.detail || 'Неизвестная ошибка');
+            alert(errorMsg);
+        }
+    } catch(error) {
+        console.error('❌ Error:', error);
+        var networkMsg = (currentLang === 'kz') 
+            ? '❌ Желі қатесі. Қайталап көріңіз.'
+            : '❌ Ошибка сети. Попробуйте снова.';
+        alert(networkMsg);
+    }
+}
+
+// Функция для получения cookie
+function getCookie(name) {
+    var value = "; " + document.cookie;
+    var parts = value.split("; " + name + "=");
+    if (parts.length === 2) return parts.pop().split(";").shift();
+    return null;
+}
+
+// Функция для переключения избранного
+function toggleHeart(element, foodId) {
+    element.classList.toggle('active');
+    if (element.classList.contains('active')) {
+        element.innerHTML = '❤️';
+        console.log('Added to favorites:', foodId);
+    } else {
+        element.innerHTML = '🤍';
+    }
+}
+
+
+    </script>
 </body>
 </html>

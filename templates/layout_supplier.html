@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sarqyn Food - {% if lang == 'kz' %}Жеткізуші кабинеті{% else %}Кабинет поставщика{% endif %}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f3f4f6;
+        }
+        .menu-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 101;
+            background: #1a472a;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 280px;
+            height: 100%;
+            background: #1a472a;
+            color: white;
+            padding: 2rem 1.5rem;
+            transition: all 0.3s;
+            overflow-y: auto;
+        }
+        .sidebar .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #2d5a3b;
+        }
+        .sidebar nav a {
+            display: block;
+            padding: 0.75rem 1rem;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+        }
+        .sidebar nav a:hover, .sidebar nav a.active {
+            background: #2d5a3b;
+        }
+        .main-content {
+            margin-left: 280px;
+            padding: 1.5rem;
+            min-height: 100vh;
+        }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.active { transform: translateX(0); }
+            .main-content { margin-left: 0; padding-top: 4rem; }
+            .menu-toggle { display: block; }
+        }
+    </style>
+</head>
+<body>
+    <button class="menu-toggle" id="menuToggleBtn">☰ Меню</button>
+    
+    <div class="sidebar" id="sidebar">
+        <div class="logo">🌱 Sarqyn Food</div>
+        <nav>
+            <a id="navDashboard">📊 {% if lang == 'kz' %}Басты бет{% else %}Главная{% endif %}</a>
+            <a id="navOrders">📦 {% if lang == 'kz' %}Тапсырыстар{% else %}Заказы{% endif %}</a>
+            <a id="navBags">🎁 {% if lang == 'kz' %}Тосын сыйлар{% else %}Сюрпризы{% endif %}</a>
+            <a href="/">🏠 {% if lang == 'kz' %}Негізгі сайт{% else %}Главный сайт{% endif %}</a>
+        </nav>
+    </div>
+    
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+    
+    <script>
+        var currentLang = '{{ lang }}';
+        
+        function toggleSidebar() {
+            var sidebar = document.getElementById('sidebar');
+            if(sidebar) {
+                sidebar.classList.toggle('active');
+            }
+        }
+        
+        function showSection(section) {
+            var sections = ['dashboard', 'orders', 'bags'];
+            for(var i = 0; i < sections.length; i++) {
+                var el = document.getElementById(sections[i] + 'Section');
+                if(el) el.style.display = 'none';
+            }
+            var activeSection = document.getElementById(section + 'Section');
+            if(activeSection) activeSection.style.display = 'block';
+            
+            var navs = ['dashboard', 'orders', 'bags'];
+            for(var j = 0; j < navs.length; j++) {
+                var navLink = document.getElementById('nav' + navs[j].charAt(0).toUpperCase() + navs[j].slice(1));
+                if(navLink) {
+                    if(navs[j] === section) {
+                        navLink.classList.add('active');
+                    } else {
+                        navLink.classList.remove('active');
+                    }
+                }
+            }
+            if(window.innerWidth < 768) {
+                var sidebar = document.getElementById('sidebar');
+                if(sidebar) sidebar.classList.remove('active');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            var menuBtn = document.getElementById('menuToggleBtn');
+            if(menuBtn) {
+                menuBtn.addEventListener('click', toggleSidebar);
+            }
+            
+            var navDashboard = document.getElementById('navDashboard');
+            var navOrders = document.getElementById('navOrders');
+            var navBags = document.getElementById('navBags');
+            
+            if(navDashboard) navDashboard.addEventListener('click', function() { showSection('dashboard'); });
+            if(navOrders) navOrders.addEventListener('click', function() { showSection('orders'); });
+            if(navBags) navBags.addEventListener('click', function() { showSection('bags'); });
+        });
+    </script>
+</body>
+</html>

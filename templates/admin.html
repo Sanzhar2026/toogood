@@ -155,37 +155,53 @@
         <div class="admin-form">
             <h2>➕ Добавить еду</h2>
             <form method="post" action="/admin/add-food">
-                <input name="name_ru" placeholder="Название RU" required>
-                <input name="name_kz" placeholder="Название KZ" required>
-                <input name="price" placeholder="Цена" type="number" step="any" required>
-                <input name="image" placeholder="URL картинки" required>
-                <input name="discount" placeholder="Скидка %" type="number" value="0">
+                <input type="text" name="name_ru" placeholder="Название RU" required>
+                <input type="text" name="name_kz" placeholder="Название KZ" required>
+                <input type="number" name="price" placeholder="Цена" step="any" required>
+                <input type="text" name="image" placeholder="URL картинки" required>
+                <input type="number" name="discount" placeholder="Скидка %" value="0">
                 <button type="submit">Добавить</button>
             </form>
         </div>
 
         <hr>
-<h2>📦 Заказы ({{ orders|length }})</h2>
-{% for order in orders %}
-<div class="order-item">
-    <div class="order-info">
-        <strong>Заказ #{{ order.id }}</strong><br>
-        🍔 Food ID: {{ order.food_id }} | 👤 User ID: {{ order.user_id }}<br>
-        {% if order.address %}
-        📍 <strong>Адрес:</strong> {{ order.address }}<br>
-        {% endif %}
-        📍 Координаты: 
-        {% if order.lat and order.lon %}
-            {{ order.lat|round(4) }}, {{ order.lon|round(4) }}
-            <a href="https://www.google.com/maps?q={{ order.lat }},{{ order.lon }}" target="_blank" class="location-link">🗺️ Картада көрсету</a>
+        
+        <h2>🍕 Еда ({{ foods|length }})</h2>
+        {% for food in foods %}
+        <div class="food-item">
+            <div class="food-info">
+                <div class="food-name">{{ food.name_ru }} / {{ food.name_kz }}</div>
+                <div class="food-details">
+                    Цена: {{ food.price }} ₸ | Скидка: {{ food.discount }}% | ID: {{ food.id }}
+                </div>
+            </div>
+            <a href="/admin/delete-food/{{ food.id }}" class="delete-btn" onclick="return confirm('Удалить?')">🗑 Удалить</a>
+        </div>
+        {% endfor %}
+
+        <hr>
+        
+        <h2>📦 Заказы ({{ orders|length }})</h2>
+        {% for order in orders %}
+        <div class="order-item">
+            <div class="order-info">
+                <strong>Заказ #{{ order.id }}</strong><br>
+                🍔 Food ID: {{ order.food_id }} | 👤 User ID: {{ order.user_id }}<br>
+                {% if order.address %}
+                📍 <strong>Адрес:</strong> {{ order.address }}<br>
+                {% endif %}
+                📍 Координаты: 
+                {% if order.lat and order.lon %}
+                    {{ "%.4f"|format(order.lat) }}, {{ "%.4f"|format(order.lon) }}
+                    <a href="https://www.google.com/maps?q={{ order.lat }},{{ order.lon }}" target="_blank" class="location-link">🗺️ Картада көрсету</a>
+                {% else %}
+                    ❌ Анықталмаған
+                {% endif %}
+            </div>
+        </div>
         {% else %}
-            ❌ Анықталмаған
-        {% endif %}
-    </div>
-</div>
-{% else %}
-<p style="text-align: center; color: #999;">Нет заказов в базе данных</p>
-{% endfor %}
+        <p style="text-align: center; color: #999;">Нет заказов в базе данных</p>
+        {% endfor %}
     </div>
 </body>
 </html>

@@ -1,0 +1,328 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .tracking-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .tracking-header { background: linear-gradient(135deg, #1a472a 0%, #2d5a3b 100%); border-radius: 20px; padding: 20px 30px; margin-bottom: 24px; color: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+    .stat-card { background: white; padding: 20px; border-radius: 16px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+    .stat-value { font-size: 28px; font-weight: 700; color: #1a472a; }
+    .stat-label { font-size: 12px; color: #6b7280; margin-top: 5px; }
+    .map-wrapper { background: white; border-radius: 20px; padding: 12px; margin-bottom: 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+    .map-container { width: 100%; height: 500px; border-radius: 16px; overflow: hidden; }
+    #deliveryMap { width: 100%; height: 100%; }
+    .progress-card { background: white; padding: 20px; border-radius: 16px; margin-bottom: 24px; }
+    .progress-bar { background: #e5e7eb; border-radius: 10px; height: 10px; overflow: hidden; }
+    .progress-fill { background: linear-gradient(90deg, #166534, #22c55e); width: 0%; height: 100%; transition: width 0.3s; }
+    .timeline-card { background: white; padding: 20px; border-radius: 16px; }
+    .timeline-steps { display: flex; justify-content: space-between; position: relative; margin-top: 20px; }
+    .timeline-step { text-align: center; flex: 1; position: relative; z-index: 2; }
+    .step-icon { width: 40px; height: 40px; background: #f3f4f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px; transition: all 0.3s; }
+    .timeline-step.active .step-icon { background: #166534; color: white; box-shadow: 0 0 0 3px rgba(22,101,52,0.2); }
+    .timeline-step.completed .step-icon { background: #10b981; color: white; }
+    .step-label { font-size: 10px; color: #6b7280; }
+    .timeline-step.active .step-label { color: #166534; font-weight: 600; }
+    .timeline-line { position: absolute; top: 20px; left: 0; right: 0; height: 2px; background: #e5e7eb; z-index: 1; }
+    @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+    @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .map-container { height: 350px; } }
+</style>
+
+<div id="trackingData" 
+     data-order-id="{{ order_id }}"
+     data-order-number="{{ order_number }}"
+     data-supplier-name="{{ supplier_name }}"
+     data-supplier-lat="{{ supplier_lat|default(43.238) }}"
+     data-supplier-lon="{{ supplier_lon|default(76.945) }}"
+     data-customer-lat="{{ customer_lat|default(43.258) }}"
+     data-customer-lon="{{ customer_lon|default(76.925) }}"
+     data-customer-address="{{ customer_address }}"
+     data-current-status="{{ current_status|default('pending') }}"
+     data-current-progress="{{ current_progress|default(0) }}"
+     data-total-distance="{{ total_distance|default(3.5) }}"
+     data-total-eta="{{ total_eta|default(5) }}"
+     data-lang="{{ lang|default('ru') }}"
+     style="display: none;">
+</div>
+
+<div class="tracking-container">
+    <div class="tracking-header">
+        <div><h2>🚚 Отслеживание заказа</h2>
+        <p>#<span id="orderNumber">---</span> • <span id="supplierName">---</span></p>
+        <p>📍 <span id="customerAddress">---</span></p></div>
+        <div id="statusBadge" style="background: rgba(255,255,255,0.2); padding: 8px 20px; border-radius: 40px;">---</div>
+    </div>
+    
+    <div class="map-wrapper"><div class="map-container"><div id="deliveryMap"></div></div></div>
+    
+    <div class="stats-grid">
+        <div class="stat-card"><div class="stat-value" id="distance">0.0</div><div class="stat-label">Осталось км</div></div>
+        <div class="stat-card"><div class="stat-value" id="eta">0</div><div class="stat-label">Расчетное время / мин</div></div>
+        <div class="stat-card"><div class="stat-value" id="speed">40</div><div class="stat-label">Средняя скорость</div></div>
+        <div class="stat-card"><div class="stat-value" id="progressPercent">0%</div><div class="stat-label">Прогресс</div></div>
+    </div>
+    
+    <div class="progress-card"><div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div></div>
+    
+    <div class="timeline-card">
+        <h3>📋 Статус заказа</h3>
+        <div class="timeline-steps">
+            <div class="timeline-line"></div>
+            <div class="timeline-step" data-step="0"><div class="step-icon">✅</div><div class="step-label">Принят</div></div>
+            <div class="timeline-step" data-step="1"><div class="step-icon">🍳</div><div class="step-label">Готовится</div></div>
+            <div class="timeline-step" data-step="2"><div class="step-icon">🚚</div><div class="step-label">В пути</div></div>
+            <div class="timeline-step" data-step="3"><div class="step-icon">📍</div><div class="step-label">Рядом</div></div>
+            <div class="timeline-step" data-step="4"><div class="step-icon">🎉</div><div class="step-label">Доставлен</div></div>
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // ДАННЫЕ ИЗ БЭКЕНДА
+// ДАННЫЕ ИЗ БЭКЕНДА
+var dataDiv = document.getElementById('trackingData');
+var orderId = dataDiv.getAttribute('data-order-id');
+var orderNumber = dataDiv.getAttribute('data-order-number');
+var supplierName = dataDiv.getAttribute('data-supplier-name');
+var customerAddress = dataDiv.getAttribute('data-customer-address');
+var currentStatus = dataDiv.getAttribute('data-current-status');
+// var initialProgress = parseInt(dataDiv.getAttribute('data-current-progress') || 0);  // ← ЗАКОММЕНТИРУЙ
+var supplierLat = parseFloat(dataDiv.getAttribute('data-supplier-lat'));
+var supplierLon = parseFloat(dataDiv.getAttribute('data-supplier-lon'));
+var customerLat = parseFloat(dataDiv.getAttribute('data-customer-lat'));
+var customerLon = parseFloat(dataDiv.getAttribute('data-customer-lon'));
+
+document.getElementById('orderNumber').innerText = orderNumber;
+document.getElementById('supplierName').innerText = supplierName;
+document.getElementById('customerAddress').innerText = customerAddress;
+
+var statusNames = {
+    'pending': '⏳ Ожидает', 'confirmed': '✅ Подтвержден', 'preparing': '🍳 Готовится',
+    'ready_for_pickup': '📦 Готов', 'out_for_delivery': '🚚 В пути',
+    'nearby': '📍 Рядом', 'delivered': '🎉 Доставлен'
+};
+document.getElementById('statusBadge').innerText = statusNames[currentStatus] || '⏳ Ожидает';
+
+// ========== ТЕСТОВЫЙ РАБОЧИЙ КОД ==========
+var map, driverMarker, animationInterval;
+var roadPoints = [];
+var currentProgress = 0;  // ← ТОЛЬКО 0, НЕ ИЗ БЭКЕНДА!
+var totalDistance = parseFloat(dataDiv.getAttribute('data-total-distance') || 3.5);
+var totalTime = parseInt(dataDiv.getAttribute('data-total-eta') || 5);
+var isAnimating = false;
+    var ORS_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYyMDU3ZGE4OTkxODQ2M2JhNmVlZDgzM2QzMDE2OTYwIiwiaCI6Im11cm11cjY0In0=";
+    
+    function decodePolyline(str) {
+        var index = 0, lat = 0, lng = 0;
+        var coords = [];
+        while (index < str.length) {
+            var b, shift = 0, result = 0;
+            do {
+                b = str.charCodeAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            var dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+            lat += dlat;
+            
+            shift = 0;
+            result = 0;
+            do {
+                b = str.charCodeAt(index++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            var dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+            lng += dlng;
+            
+            coords.push([lat / 1e5, lng / 1e5]);
+        }
+        return coords;
+    }
+    
+    async function loadRoute() {
+        console.log('🔄 Загрузка маршрута ORS...');
+        
+        try {
+            var response = await fetch('https://api.openrouteservice.org/v2/directions/driving-car', {
+                method: 'POST',
+                headers: {
+                    'Authorization': ORS_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    coordinates: [[supplierLon, supplierLat], [customerLon, customerLat]]
+                })
+            });
+            
+            var data = await response.json();
+            
+            if (data.routes && data.routes[0]) {
+                var route = data.routes[0];
+                var decoded = decodePolyline(route.geometry);
+                
+                roadPoints = [];
+                for (var i = 0; i < decoded.length; i++) {
+                    roadPoints.push({ lat: decoded[i][0], lon: decoded[i][1] });
+                }
+                
+                totalDistance = route.summary.distance / 1000;
+                totalTime = Math.round(route.summary.duration / 60);
+                
+                document.getElementById('distance').innerText = totalDistance.toFixed(1);
+                document.getElementById('eta').innerText = totalTime;
+                
+                // Рисуем маршрут на карте
+                var latlngs = roadPoints.map(p => [p.lat, p.lon]);
+                L.polyline(latlngs, { color: '#fbbf24', weight: 5, dashArray: '8,8' }).addTo(map);
+                map.fitBounds(latlngs, { padding: [50, 50] });
+                
+                console.log('✅ Загружено точек:', roadPoints.length);
+                console.log('📏 Расстояние:', totalDistance, 'км');
+                console.log('⏱️ Время:', totalTime, 'мин');
+            } else {
+                fallbackToStraightLine();
+            }
+        } catch(e) {
+            console.error('ORS ошибка:', e);
+            fallbackToStraightLine();
+        }
+    }
+    
+    function fallbackToStraightLine() {
+        roadPoints = [];
+        for (var i = 0; i <= 100; i++) {
+            var t = i / 100;
+            roadPoints.push({
+                lat: supplierLat + (customerLat - supplierLat) * t,
+                lon: supplierLon + (customerLon - supplierLon) * t
+            });
+        }
+        var dlat = customerLat - supplierLat;
+        var dlon = customerLon - supplierLon;
+        totalDistance = Math.sqrt(dlat*dlat + dlon*dlon) * 111;
+        totalTime = Math.round((totalDistance / 40) * 60);
+        document.getElementById('distance').innerText = totalDistance.toFixed(1);
+        document.getElementById('eta').innerText = totalTime;
+        
+        var latlngs = roadPoints.map(p => [p.lat, p.lon]);
+        L.polyline(latlngs, { color: '#fbbf24', weight: 4, dashArray: '8,8' }).addTo(map);
+        map.fitBounds(latlngs, { padding: [50, 50] });
+        console.log('⚠️ Прямая линия');
+    }
+    
+    function initMap() {
+        var centerLat = (supplierLat + customerLat) / 2;
+        var centerLon = (supplierLon + customerLon) / 2;
+        map = L.map('deliveryMap').setView([centerLat, centerLon], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+        
+        var startIcon = L.divIcon({
+            html: '<div style="background:#166534; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; border:3px solid white;">🏪</div>',
+            iconSize: [40, 40]
+        });
+        L.marker([supplierLat, supplierLon], { icon: startIcon }).addTo(map).bindPopup('🏪 ' + supplierName);
+        
+        var endIcon = L.divIcon({
+            html: '<div style="background:#dc2626; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; border:3px solid white;">🏠</div>',
+            iconSize: [40, 40]
+        });
+        L.marker([customerLat, customerLon], { icon: endIcon }).addTo(map).bindPopup('🏠 ' + customerAddress);
+        
+        var carIcon = L.divIcon({
+            html: '<div style="background:#3b82f6; width:45px; height:45px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:24px; border:3px solid white; box-shadow:0 2px 10px rgba(59,130,246,0.4); animation:bounce 0.5s infinite;">🚚</div>',
+            iconSize: [45, 45]
+        });
+        driverMarker = L.marker([supplierLat, supplierLon], { icon: carIcon }).addTo(map);
+        
+        console.log('✅ КАРТА ИНИЦИАЛИЗИРОВАНА');
+    }
+    
+    function updateCar(progress) {
+        if (!driverMarker || !roadPoints.length) return;
+        var idx = Math.floor((progress / 100) * (roadPoints.length - 1));
+        if (idx >= roadPoints.length) idx = roadPoints.length - 1;
+        if (idx < 0) idx = 0;
+        var p = roadPoints[idx];
+        driverMarker.setLatLng([p.lat, p.lon]);
+    }
+    
+    function updateProgress(progress) {
+        currentProgress = Math.min(100, Math.max(0, progress));
+        var remainingDist = totalDistance * (1 - currentProgress / 100);
+        var remainingTime = Math.round(totalTime * (1 - currentProgress / 100));
+        document.getElementById('distance').innerText = remainingDist.toFixed(1);
+        document.getElementById('eta').innerText = remainingTime;
+        document.getElementById('progressPercent').innerHTML = Math.round(currentProgress) + '%';
+        document.getElementById('progressFill').style.width = currentProgress + '%';
+        updateCar(currentProgress);
+        
+        var stepIndex = Math.floor(currentProgress / 25);
+        if (stepIndex > 4) stepIndex = 4;
+        var steps = document.querySelectorAll('.timeline-step');
+        for (var i = 0; i < steps.length; i++) {
+            steps[i].classList.remove('active', 'completed');
+            if (i < stepIndex) steps[i].classList.add('completed');
+            else if (i === stepIndex) steps[i].classList.add('active');
+        }
+        
+        var statusTexts = ['Ожидает', 'Готовится', 'В пути', 'Рядом', 'Доставлен'];
+        var idx2 = Math.min(Math.floor(currentProgress / 25), 4);
+        if (currentProgress >= 99) idx2 = 4;
+        document.getElementById('statusBadge').innerText = statusTexts[idx2];
+    }
+    
+    function startAnimation() {
+        if (isAnimating) return;
+        isAnimating = true;
+        console.log('🚚 АНИМАЦИЯ ЗАПУЩЕНА!');
+        var steps = 0;
+        var maxSteps = 100 - currentProgress;
+        var delay = (totalTime * 60 * 1000) / maxSteps;
+        if (animationInterval) clearInterval(animationInterval);
+        animationInterval = setInterval(function() {
+            if (steps <= maxSteps) {
+                updateProgress(currentProgress + (steps / maxSteps) * (100 - currentProgress));
+                steps++;
+            } else {
+                clearInterval(animationInterval);
+                isAnimating = false;
+                updateProgress(100);
+                console.log('✅ ДОСТАВКА ЗАВЕРШЕНА!');
+            }
+        }, delay);
+    }
+    
+    function resetAnimation() {
+        if (animationInterval) { clearInterval(animationInterval); isAnimating = false; }
+        currentProgress = 0;
+        updateProgress(0);
+        console.log('🔄 Сброшено');
+    }
+    
+function checkAutoStart() {
+    var autoSignal = localStorage.getItem('auto_start_animation_' + orderId);
+    console.log('🔍 autoSignal:', autoSignal, 'currentStatus:', currentStatus);
+    
+    if (autoSignal === 'true') {
+        localStorage.removeItem('auto_start_animation_' + orderId);
+        console.log('🎬 АНИМАЦИЯ СТАРТУЕТ ПО СИГНАЛУ!');
+        setTimeout(startAnimation, 1000);
+    } else if (currentStatus === 'out_for_delivery') {
+        console.log('🎬 АНИМАЦИЯ СТАРТУЕТ ПО СТАТУСУ!');
+        setTimeout(startAnimation, 1000);
+    } else {
+        console.log('⏳ Ожидание...');
+    }
+}
+    
+    initMap();
+    loadRoute();
+    updateProgress(0);
+    checkAutoStart();
+</script>
+{% endblock %}

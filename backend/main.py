@@ -2,16 +2,36 @@ from fastapi import FastAPI, Request, Depends, Form, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, func
 from backend.database import SessionLocal, engine, get_db
 from backend import models
+from backend.models import Food, User, UserRole, Supplier, SurpriseBag, Order, OrderStatus, DeliveryStatus, OrderTracking, Review
+from datetime import datetime, timedelta
+import secrets
+import os
+import math
+import hashlib
+from typing import Optional
+from pydantic import BaseModel
 
-# Create database tables
+# ============ TWILIO IMPORTS ============
+try:
+    from backend.twilio_service import send_verification_code, verify_code
+    TWILIO_AVAILABLE = True
+except ImportError:
+    TWILIO_AVAILABLE = False
+    print("⚠️ Twilio service not available. SMS verification will use demo mode.")
+
 models.Base.metadata.create_all(bind=engine)
 
+# ============ FASTAPI APP ============
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-# Categories
+# ============ CACHE FOR DELIVERIES ============
+delivery_cache = {}
+
+# ============ CATEGORIES ============
 categories = [
     {"id": "all", "name_kz": "Барлығы", "name_ru": "Все", "emoji": "🍽️"},
     {"id": "main", "name_kz": "Негізгі тағам", "name_ru": "Основные блюда", "emoji": "🍕"},
@@ -20,31 +40,928 @@ categories = [
     {"id": "desserts", "name_kz": "Десерттер", "name_ru": "Десерты", "emoji": "🍰"},
 ]
 
-# Helper to add mock data if database is empty
-def add_mock_data(db: Session):
-    if db.query(models.Food).count() == 0:
-        mock_foods = [
-            models.Food(name_ru="Пицца Маргарита", name_kz="Пицца Маргарита", price=1800, image="https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop", discount=40),
-            models.Food(name_ru="Бургер", name_kz="Бургер", price=1500, image="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop", discount=40),
-            models.Food(name_ru="Суши сет", name_kz="Суши сет", price=2250, image="https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop", discount=25),
-            models.Food(name_ru="Грек салаты", name_kz="Грек салаты", price=975, image="https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400&h=300&fit=crop", discount=35),
-            models.Food(name_ru="Цезарь", name_kz="Цезарь", price=1200, image="https://images.unsplash.com/photo-1550304943-4f24f54dd3b9?w=400&h=300&fit=crop", discount=33),
-            models.Food(name_ru="Чизкейк", name_kz="Чизкейк", price=1200, image="https://picsum.photos/id/132/400/300", discount=20),
-            models.Food(name_ru="Тирамису", name_kz="Тирамису", price=1300, image="https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=400&h=300&fit=crop", discount=23),
-            models.Food(name_ru="Кола", name_kz="Кола", price=400, image="https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=300&fit=crop", discount=33),
-            models.Food(name_ru="Лимонад", name_kz="Лимонад", price=500, image="https://images.unsplash.com/photo-1527960471264-932f39eb36a6?w=400&h=300&fit=crop", discount=28),
-        ]
-        for food in mock_foods:
-            db.add(food)
-        db.commit()
+import httpx
+import json
+import math
 
-# Home page
+ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYyMDU3ZGE4OTkxODQ2M2JhNmVlZDgzM2QzMDE2OTYwIiwiaCI6Im11cm11cjY0In0="
+
+def decode_polyline(encoded):
+    """Декодирует polyline строку в список координат [lat, lon]"""
+    index = 0
+    lat = 0
+    lng = 0
+    coordinates = []
+    
+    while index < len(encoded):
+        result = 1
+        shift = 0
+        while True:
+            b = ord(encoded[index]) - 63
+            index += 1
+            result += (b & 0x1f) << shift
+            shift += 5
+            if b < 0x20:
+                break
+        lat += (result & 1) and ~(result >> 1) or (result >> 1)
+        
+        result = 1
+        shift = 0
+        while True:
+            b = ord(encoded[index]) - 63
+            index += 1
+            result += (b & 0x1f) << shift
+            shift += 5
+            if b < 0x20:
+                break
+        lng += (result & 1) and ~(result >> 1) or (result >> 1)
+        
+        coordinates.append([lat / 100000.0, lng / 100000.0])
+    
+    return coordinates
+
+async def get_ors_route(start_lat, start_lon, end_lat, end_lon):
+    """Получает реальный маршрут от ORS"""
+    async with httpx.AsyncClient() as client:
+        headers = {
+            "Authorization": ORS_API_KEY,
+            "Content-Type": "application/json"
+        }
+        body = {
+            "coordinates": [[start_lon, start_lat], [end_lon, end_lat]]
+        }
+        
+        response = await client.post(
+            "https://api.openrouteservice.org/v2/directions/driving-car",
+            json=body,
+            headers=headers,
+            timeout=30.0
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            route = data['routes'][0]
+            encoded = route['geometry']
+            decoded = decode_polyline(encoded)
+            
+            waypoints = []
+            for point in decoded:
+                waypoints.append({"lat": point[0], "lon": point[1]})
+            
+            distance = route['summary']['distance'] / 1000
+            duration = route['summary']['duration'] / 60
+            
+            print(f"✅ ORS: {len(waypoints)} точек, {distance:.1f} км, {duration:.0f} мин")
+            return waypoints, distance, duration
+        else:
+            print(f"❌ ORS ошибка: {response.status_code}")
+            return [], 0, 0
+@app.get("/simple-map")
+async def simple_map(request: Request):
+    return templates.TemplateResponse("test_ors_animation.html", {
+        "request": request
+    })
+@app.get("/track-order/{order_id}")
+async def track_order_page(request: Request, order_id: int, lang: str = "kz", db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+    
+    supplier_lat = supplier.lat if supplier and supplier.lat else 43.238
+    supplier_lon = supplier.lon if supplier and supplier.lon else 76.945
+    customer_lat = order.customer_lat if order.customer_lat else 43.258
+    customer_lon = order.customer_lon if order.customer_lon else 76.925
+    
+    # Расстояние
+    from math import radians, sin, cos, sqrt, atan2
+    def calc_distance(lat1, lon1, lat2, lon2):
+        R = 6371
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        return R * c
+    
+    distance = calc_distance(supplier_lat, supplier_lon, customer_lat, customer_lon)
+    eta = int((distance / 40) * 60)
+    
+    # Статус и прогресс
+    status_progress = {
+        'pending': 0, 'confirmed': 10, 'preparing': 25,
+        'ready_for_pickup': 50, 'out_for_delivery': 70,
+        'nearby': 85, 'delivered': 100
+    }
+    progress = status_progress.get(order.status.value if order.status else 'pending', 0)
+    
+    status_names = {
+        'pending': 'Ожидает', 'confirmed': 'Подтвержден', 'preparing': 'Готовится',
+        'ready_for_pickup': 'Готов', 'out_for_delivery': 'В пути',
+        'nearby': 'Рядом', 'delivered': 'Доставлен'
+    }
+    
+    return templates.TemplateResponse("delivery_tracking.html", {
+        "request": request,
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "supplier_name": supplier.business_name if supplier else "Sarqyn",
+        "supplier_lat": supplier_lat,
+        "supplier_lon": supplier_lon,
+        "customer_lat": customer_lat,
+        "customer_lon": customer_lon,
+        "customer_address": order.customer_address or "Адрес не указан",
+        "current_status": status_names.get(order.status.value if order.status else 'pending', 'Ожидает'),
+        "current_progress": progress,
+        "total_distance": round(distance, 1),
+        "total_eta": eta,
+        "lang": request.query_params.get("lang", "ru")
+    })
+# ============ PASSWORD HASHING ============
+def hash_password(password: str):
+    return hashlib.sha256(password.encode()).hexdigest()
+# ============ PHONE FORMATTING FUNCTION ============
+def format_phone_number(phone: str) -> str:
+    """Format phone number to international format"""
+    import re
+    digits = re.sub(r'\D', '', phone)
+    
+    # КАЗАХСТАН (+7 или +77 или 8)
+    if digits.startswith('77') and len(digits) == 11:
+        return '+' + digits
+    elif digits.startswith('7') and len(digits) == 11:
+        return '+' + digits
+    elif digits.startswith('8') and len(digits) == 11:
+        return '+7' + digits[1:]  # 87071234567 -> +77071234567
+    elif len(digits) == 10:
+        return '+77' + digits  # 7071234567 -> +77071234567
+    # КЫРГЫЗСТАН (+996)
+    elif digits.startswith('996') and len(digits) == 12:
+        return '+' + digits
+    # УЗБЕКИСТАН (+998)
+    elif digits.startswith('998') and len(digits) == 12:
+        return '+' + digits
+    else:
+        return '+' + digits if digits else phone
+def verify_password(plain_password: str, hashed_password: str):
+    return hash_password(plain_password) == hashed_password
+
+# ============ CREATE DATABASE TABLES ============
+
+# ============ PYDANTIC MODELS ============
+class PhoneVerificationRequest(BaseModel):
+    phone_number: str
+
+class PhoneRegisterRequest(BaseModel):
+    phone_number: str
+    full_name: str
+    password: str
+    verification_code: str
+
+# ============ HELPER FUNCTIONS ============
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """Calculate distance between two points in km"""
+    R = 6371
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return R * c
+
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance in kilometers between two coordinates"""
+    return haversine_distance(lat1, lon1, lat2, lon2)
+
+def calculate_eta(distance_km: float, speed_kmh: float = 40) -> int:
+    """Calculate estimated time in minutes"""
+    time_hours = distance_km / speed_kmh
+    return int(time_hours * 60)
+
+def generate_waypoints(start_lat: float, start_lon: float, end_lat: float, end_lon: float, num_points: int = 100):
+    """Generate intermediate points between start and end coordinates"""
+    waypoints = []
+    for i in range(num_points + 1):
+        t = i / num_points
+        lat = start_lat + (end_lat - start_lat) * t
+        lon = start_lon + (end_lon - start_lon) * t
+        waypoints.append({"lat": lat, "lon": lon, "progress": round(t * 100, 1)})
+    return waypoints
+
+# ============ PHONE REGISTRATION ROUTES ============
+@app.get("/register")
+async def phone_register_page(request: Request, lang: str = "kz"):
+    return templates.TemplateResponse("phone_register.html", {
+        "request": request,
+        "lang": lang
+    })
+
+# В main.py добавьте async к функциям
+from backend.twilio_service import send_verification_code, verify_code
+
+
+# Store verification data temporarily (in production, use Redis or database)
+verification_sessions = {}
+
+@app.post("/api/send-verification")
+async def send_verification(request: Request):
+    """Send SMS verification code"""
+    try:
+        data = await request.json()
+        phone_number = data.get('phone_number')
+        
+        if not phone_number:
+            raise HTTPException(status_code=400, detail="Phone number required")
+        
+        # Store phone number in session temp storage
+        result = await send_verification_code(phone_number)
+        
+        if result['success']:
+            # Store for verification (in production, use Redis with TTL)
+            verification_sessions[phone_number] = {
+                'code': result.get('fallback_code', '123456') if result.get('demo') else None,
+                'expires': datetime.utcnow() + timedelta(minutes=5),
+                'verified': False
+            }
+            
+            return {
+                "success": True,
+                "message": "Verification code sent via SMS",
+                "demo": result.get('demo', False)
+            }
+        else:
+            raise HTTPException(status_code=400, detail=result.get('error', 'Failed to send SMS'))
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/verify-phone")
+async def verify_phone(request: Request):
+    """Verify phone number with code"""
+    try:
+        data = await request.json()
+        phone_number = data.get('phone_number')
+        code = data.get('code')
+        
+        if not phone_number or not code:
+            raise HTTPException(status_code=400, detail="Phone number and code required")
+        
+        # For demo mode, check against stored session
+        if phone_number in verification_sessions:
+            session = verification_sessions[phone_number]
+            if session.get('demo') or session.get('fallback'):
+                is_valid = (code == session.get('code', '123456'))
+                if is_valid and session['expires'] > datetime.utcnow():
+                    session['verified'] = True
+                    return {
+                        "success": True,
+                        "message": "Phone verified successfully"
+                    }
+                else:
+                    raise HTTPException(status_code=400, detail="Code expired or invalid")
+        
+        # Real Twilio verification
+        result = await verify_code(phone_number, code)
+        
+        if result['success']:
+            verification_sessions[phone_number] = {
+                'verified': True,
+                'expires': datetime.utcnow() + timedelta(hours=24)
+            }
+            return {
+                "success": True,
+                "message": "Phone verified successfully"
+            }
+        else:
+            raise HTTPException(status_code=400, detail=result.get('error', 'Invalid verification code'))
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Add this endpoint to your main.py
+
+@app.post("/api/verify-and-register")
+async def verify_and_register(request: Request, db: Session = Depends(get_db)):
+    try:
+        data = await request.json()
+        
+        # Flexible field name handling
+        phone = data.get('phone') or data.get('phone_number')
+        full_name = data.get('full_name') or data.get('fullName') or data.get('name')
+        password = data.get('password')
+        verification_code = data.get('verification_code') or data.get('code') or data.get('verificationCode')
+        
+        # Debug print
+        print(f"📝 Received data: phone={phone}, name={full_name}, has_password={bool(password)}, code={verification_code}")
+        
+        # Validate all fields
+        if not phone:
+            raise HTTPException(status_code=400, detail="Phone number is required")
+        if not full_name:
+            raise HTTPException(status_code=400, detail="Full name is required")
+        if not password:
+            raise HTTPException(status_code=400, detail="Password is required")
+        if not verification_code:
+            raise HTTPException(status_code=400, detail="Verification code is required")
+        
+        # Format phone number - supports Kazakhstan, Kyrgyzstan, Uzbekistan
+        import re
+        digits = re.sub(r'\D', '', phone)
+        
+        # Определяем страну по коду
+        # Казахстан: 77XXXXXXXXX, 7XXXXXXXXX, 870XXXXXXXXX, 7071234567
+        # Кыргызстан: 996XXXXXXXXX
+        # Узбекистан: 998XXXXXXXXX
+        
+        formatted_phone = None
+        
+        # КАЗАХСТАН (+7 или +77 или 8)
+        if digits.startswith('77') and len(digits) == 11:
+            formatted_phone = '+' + digits
+        elif digits.startswith('7') and len(digits) == 11:
+            formatted_phone = '+' + digits
+        elif digits.startswith('8') and len(digits) == 11:
+            formatted_phone = '+7' + digits[1:]  # 87071234567 -> +77071234567
+        elif len(digits) == 10:
+            formatted_phone = '+77' + digits  # 7071234567 -> +77071234567
+        # КЫРГЫЗСТАН (+996)
+        elif digits.startswith('996') and len(digits) == 12:
+            formatted_phone = '+' + digits
+        # УЗБЕКИСТАН (+998)
+        elif digits.startswith('998') and len(digits) == 12:
+            formatted_phone = '+' + digits
+        else:
+            # Если формат не распознан, пытаемся добавить +
+            if digits.startswith('+'):
+                formatted_phone = digits
+            else:
+                formatted_phone = '+' + digits
+        
+        print(f"📞 Original phone: {phone} -> Formatted: {formatted_phone}")
+        
+        # Check if phone already exists
+        existing_user = db.query(User).filter(User.phone == formatted_phone).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Phone number already registered")
+        
+        # Verify code
+        from backend.twilio_service import DEMO_MODE
+        
+        is_verified = False
+        if DEMO_MODE:
+            is_verified = (verification_code == "123456")
+            if not is_verified:
+                # For demo, also accept any 6-digit code for testing
+                is_verified = len(verification_code) == 6 and verification_code.isdigit()
+                if is_verified:
+                    print(f"📱 Demo: Accepting code {verification_code}")
+        
+        if not is_verified and not DEMO_MODE:
+            from backend.twilio_service import verify_code
+            result = await verify_code(formatted_phone, verification_code)
+            is_verified = result.get('success', False)
+        
+        if not is_verified:
+            raise HTTPException(status_code=400, detail="Invalid verification code. Demo code is 123456")
+        
+        # Create user
+        hashed_password = hash_password(password)
+        
+        new_user = User(
+            phone=formatted_phone,
+            full_name=full_name,
+            password=hashed_password,
+            role=UserRole.CUSTOMER,
+            phone_verified=True,
+            is_active=True,
+            created_at=datetime.utcnow()
+        )
+        
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        print(f"✅ User registered: {new_user.id} - {formatted_phone}")
+        
+        return {
+            "success": True,
+            "message": "Registration successful",
+            "user_id": new_user.id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Registration error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+
+@app.post("/api/register-with-phone")
+async def register_with_phone(request: Request, db: Session = Depends(get_db)):
+    """Alternative registration endpoint (without verification check)"""
+    try:
+        data = await request.json()
+        phone = data.get('phone')
+        full_name = data.get('full_name')
+        password = data.get('password')
+        
+        if not phone or not full_name or not password:
+            raise HTTPException(status_code=400, detail="All fields are required")
+        
+        # Format phone number - поддерживает Казахстан, Кыргызстан, Узбекистан
+        import re
+        digits = re.sub(r'\D', '', phone)
+        
+        # Определяем страну по коду
+        # Казахстан: 77XXXXXXXXX, 7XXXXXXXXX, 870XXXXXXXXX
+        # Кыргызстан: 996XXXXXXXXX
+        # Узбекистан: 998XXXXXXXXX
+        
+        formatted_phone = None
+        
+        # Казахстан (+7 или +77 или 8)
+        if digits.startswith('77') and len(digits) == 11:
+            formatted_phone = '+' + digits
+        elif digits.startswith('7') and len(digits) == 11:
+            formatted_phone = '+' + digits
+        elif digits.startswith('8') and len(digits) == 11:
+            # 87071234567 -> +77071234567
+            formatted_phone = '+7' + digits[1:]
+        elif len(digits) == 10 and digits.startswith('7'):
+            # 7071234567 -> +77071234567
+            formatted_phone = '+77' + digits
+        elif len(digits) == 10 and not digits.startswith('7'):
+            # 7012345678 -> +77012345678
+            formatted_phone = '+77' + digits
+        # Кыргызстан (+996)
+        elif digits.startswith('996') and len(digits) == 12:
+            formatted_phone = '+' + digits
+        # Узбекистан (+998)
+        elif digits.startswith('998') and len(digits) == 12:
+            formatted_phone = '+' + digits
+        else:
+            # Если формат не распознан, оставляем как есть с +
+            if not digits.startswith('+'):
+                formatted_phone = '+' + digits
+            else:
+                formatted_phone = digits
+        
+        print(f"📞 Original phone: {phone} -> Formatted: {formatted_phone}")
+        
+        # Check if phone already exists
+        existing_user = db.query(User).filter(User.phone == formatted_phone).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Phone number already registered")
+        
+        # Create user
+        hashed_password = hash_password(password)
+        
+        new_user = User(
+            phone=formatted_phone,
+            full_name=full_name,
+            password=hashed_password,
+            role=UserRole.CUSTOMER,
+            phone_verified=True,
+            is_active=True,
+            created_at=datetime.utcnow()
+        )
+        
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        return {
+            "success": True,
+            "message": "Registration successful",
+            "user_id": new_user.id,
+            "formatted_phone": formatted_phone
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Registration error: {e}")
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+
+
+@app.get("/login")
+async def phone_login_page(request: Request, lang: str = "kz"):
+    return templates.TemplateResponse("phone_login.html", {
+        "request": request,
+        "lang": lang
+    })
+from fastapi.responses import JSONResponse
+
+@app.post("/api/login")
+async def api_login(request: Request, db: Session = Depends(get_db)):
+    try:
+        data = await request.json()
+        phone = data.get("phone")
+        password = data.get("password")
+        
+        # ✅ ФОРМАТИРУЕМ НОМЕР
+        formatted_phone = format_phone_number(phone)
+        
+        print(f"🔐 Login attempt: {phone} -> {formatted_phone}")
+        
+        # Поиск пользователя
+        user = db.query(User).filter(User.phone == formatted_phone).first()
+        
+        if not user or not verify_password(password, user.password):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "Invalid phone or password"}
+            )
+        
+        # Создаем ответ с cookie
+        response = JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "redirect": "/my-orders",
+                "user": {
+                    "id": user.id,
+                    "name": user.full_name,
+                    "phone": user.phone
+                }
+            }
+        )
+        
+        # Устанавливаем secure cookies
+        response.set_cookie(
+            key="user_id", 
+            value=str(user.id),
+            httponly=True,
+            secure=False,  # Для разработки False, для продакшена True
+            samesite="lax",
+            max_age=60*60*24*7
+        )
+        response.set_cookie(
+            key="user_name", 
+            value=user.full_name or "User",
+            httponly=False,
+            secure=False,
+            samesite="lax"
+        )
+        
+        return response
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+        
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie("user_id")
+    response.delete_cookie("user_phone")
+    response.delete_cookie("user_name")
+    return response
+
+# ============ DELIVERY TRACKING ROUTES ============
+@app.post("/api/delivery/{order_id}/start")
+async def start_real_delivery(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    if not order.customer_lat or not order.customer_lon:
+        raise HTTPException(status_code=400, detail="Customer location not available")
+    
+    distance = calculate_distance(supplier.lat, supplier.lon, order.customer_lat, order.customer_lon)
+    eta_minutes = calculate_eta(distance, 40)
+    
+    waypoints = generate_waypoints(supplier.lat, supplier.lon, order.customer_lat, order.customer_lon, 100)
+    
+    delivery_cache[str(order_id)] = {
+        "waypoints": waypoints,
+        "current_index": 0,
+        "total_distance": distance,
+        "eta_minutes": eta_minutes,
+        "is_active": True,
+        "started_at": datetime.utcnow().isoformat()
+    }
+    
+    order.status = OrderStatus.OUT_FOR_DELIVERY
+    order.delivery_status = DeliveryStatus.EN_ROUTE
+    order.driver_lat = supplier.lat
+    order.driver_lon = supplier.lon
+    db.commit()
+    
+    return {
+        "success": True,
+        "order_id": order_id,
+        "distance_km": round(distance, 2),
+        "eta_minutes": eta_minutes
+    }
+
+@app.get("/api/delivery/{order_id}/position")
+async def get_delivery_position(order_id: int, db: Session = Depends(get_db)):
+    cache_key = str(order_id)
+    
+    if cache_key in delivery_cache and delivery_cache[cache_key]["is_active"]:
+        waypoints = delivery_cache[cache_key]["waypoints"]
+        current_index = delivery_cache[cache_key]["current_index"]
+        
+        if current_index < len(waypoints):
+            current_pos = waypoints[current_index]
+            delivery_cache[cache_key]["current_index"] = current_index + 1
+            
+            # Update database
+            order = db.query(Order).filter(Order.id == order_id).first()
+            if order:
+                order.driver_lat = current_pos["lat"]
+                order.driver_lon = current_pos["lon"]
+                db.commit()
+            
+            return {
+                "success": True,
+                "lat": current_pos["lat"],
+                "lon": current_pos["lon"],
+                "progress": current_pos["progress"],
+                "remaining_steps": len(waypoints) - current_index,
+                "is_complete": False
+            }
+        else:
+            delivery_cache[cache_key]["is_active"] = False
+            order = db.query(Order).filter(Order.id == order_id).first()
+            if order:
+                order.status = OrderStatus.DELIVERED
+                order.delivery_status = DeliveryStatus.ARRIVED
+                db.commit()
+            return {"success": True, "is_complete": True}
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if order and order.status == OrderStatus.DELIVERED:
+        return {"success": True, "is_complete": True}
+    
+    return {"success": False, "is_complete": False}
+
+@app.get("/delivery/track/{order_id}")
+async def delivery_tracking(request: Request, order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+    
+    # Координаттарды тексеру
+    supplier_lat = supplier.lat if supplier and supplier.lat else 43.238
+    supplier_lon = supplier.lon if supplier and supplier.lon else 76.945
+    customer_lat = order.customer_lat if order.customer_lat else 43.258
+    customer_lon = order.customer_lon if order.customer_lon else 76.925
+    
+    # Қашықтықты есептеу
+    from math import radians, sin, cos, sqrt, atan2
+    def calc_distance(lat1, lon1, lat2, lon2):
+        R = 6371
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        return R * c
+    
+    distance = calc_distance(supplier_lat, supplier_lon, customer_lat, customer_lon)
+    eta = int((distance / 40) * 60)
+    
+    # Статус бойынша прогресс
+    status_progress = {
+        'pending': 0, 'confirmed': 10, 'preparing': 25,
+        'ready_for_pickup': 50, 'out_for_delivery': 70,
+        'nearby': 85, 'delivered': 100
+    }
+    progress = status_progress.get(order.status.value if order.status else 'pending', 0)
+    
+    status_names = {
+        'pending': 'Күтілуде', 'confirmed': 'Расталды', 'preparing': 'Дайындалуда',
+        'ready_for_pickup': 'Дайын', 'out_for_delivery': 'Жолда',
+        'nearby': 'Жақын жерде', 'delivered': 'Жеткізілді'
+    }
+    
+    return templates.TemplateResponse("delivery_tracking_real.html", {
+        "request": request,
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "supplier_name": supplier.business_name if supplier else "Sarqyn",
+        "supplier_lat": supplier_lat,
+        "supplier_lon": supplier_lon,
+        "customer_lat": customer_lat,
+        "customer_lon": customer_lon,
+        "customer_address": order.customer_address or "Мекенжай көрсетілмеген",
+        "current_status": status_names.get(order.status.value if order.status else 'pending', 'Белгісіз'),
+        "current_progress": progress,
+        "total_distance": round(distance, 1),
+        "total_eta": eta,
+        "lang": request.query_params.get("lang", "ru")
+    })
+        
+    
+
+# ============ ADD MOCK DATA ============
+def add_mock_data(db: Session):
+    try:
+        if db.query(Food).count() == 0:
+            mock_foods = [
+                Food(name_ru="Пицца Маргарита", name_kz="Пицца Маргарита", price=1800, image="https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop", discount=40),
+                Food(name_ru="Бургер", name_kz="Бургер", price=1500, image="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop", discount=40),
+                Food(name_ru="Суши сет", name_kz="Суши сет", price=2250, image="https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop", discount=25),
+                Food(name_ru="Грек салаты", name_kz="Грек салаты", price=975, image="https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400&h=300&fit=crop", discount=35),
+                Food(name_ru="Цезарь", name_kz="Цезарь", price=1200, image="https://images.unsplash.com/photo-1550304943-4f24f54dd3b9?w=400&h=300&fit=crop", discount=33),
+                Food(name_ru="Чизкейк", name_kz="Чизкейк", price=1200, image="https://picsum.photos/id/132/400/300", discount=20),
+                Food(name_ru="Тирамису", name_kz="Тирамису", price=1300, image="https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=400&h=300&fit=crop", discount=23),
+                Food(name_ru="Кола", name_kz="Кола", price=400, image="https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=300&fit=crop", discount=33),
+                Food(name_ru="Лимонад", name_kz="Лимонад", price=500, image="https://images.unsplash.com/photo-1527960471264-932f39eb36a6?w=400&h=300&fit=crop", discount=28),
+            ]
+            for food in mock_foods:
+                db.add(food)
+            db.commit()
+            print("✅ Mock foods added")
+    except Exception as e:
+        print(f"Error adding mock foods: {e}")
+    
+    try:
+        if db.query(Supplier).count() == 0:
+            mock_suppliers = [
+                Supplier(
+                    business_name="Sarqyn Restoran",
+                    business_type="Restaurant",
+                    description="Дәмді тағамдар",
+                    city="Алматы",
+                    address="Алматы, Достык 123",
+                    lat=43.238, lon=76.945,
+                    phone="+7 777 123 4567",
+                    email="info@sarqyn.kz",
+                    rating=4.8,
+                    total_reviews=55,
+                    is_verified=True,
+                    is_active=True,
+                    pickup_start_time="19:30",
+                    pickup_end_time="20:00"
+                )
+            ]
+            for supplier in mock_suppliers:
+                db.add(supplier)
+            db.commit()
+            print("✅ Mock suppliers added")
+    except Exception as e:
+        print(f"Error adding mock suppliers: {e}")
+
+# ============ API ROUTES ============
+@app.get("/api/suppliers")
+async def get_all_suppliers(db: Session = Depends(get_db)):
+    suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
+    result = []
+    for supplier in suppliers:
+        result.append({
+            "id": supplier.id,
+            "business_name": supplier.business_name,
+            "business_type": supplier.business_type,
+            "city": getattr(supplier, 'city', 'Unknown'),
+            "address": supplier.address,
+            "lat": supplier.lat,
+            "lon": supplier.lon,
+            "rating": supplier.rating,
+            "is_active": supplier.is_active
+        })
+    return result
+
+@app.get("/api/surprise-bags")
+async def get_all_surprise_bags(db: Session = Depends(get_db)):
+    bags = db.query(SurpriseBag).filter(SurpriseBag.is_active == True).all()
+    result = []
+    for bag in bags:
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        result.append({
+            "id": bag.id,
+            "supplier_id": bag.supplier_id,
+            "supplier_name": supplier.business_name if supplier else "Unknown",
+            "name": bag.name,
+            "description": bag.description,
+            "original_price": bag.original_price,
+            "discounted_price": bag.discounted_price,
+            "discount_percentage": bag.discount_percentage,
+            "available_quantity": bag.available_quantity,
+            "is_active": bag.is_active
+        })
+    return result
+
+@app.get("/api/surprise-bags/{bag_id}")
+async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+    if not bag:
+        raise HTTPException(status_code=404, detail="Surprise bag not found")
+    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    return {
+        "id": bag.id,
+        "supplier_id": bag.supplier_id,
+        "supplier_name": supplier.business_name if supplier else "Unknown",
+        "name": bag.name,
+        "description": bag.description,
+        "original_price": bag.original_price,
+        "discounted_price": bag.discounted_price,
+        "discount_percentage": bag.discount_percentage,
+        "image_url": bag.image_url,
+        "available_quantity": bag.available_quantity
+    }
+
+@app.get("/api/suppliers/nearby")
+async def get_nearby_suppliers(lat: float, lon: float, radius: float = 50, db: Session = Depends(get_db)):
+    all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
+    nearby = []
+    for supplier in all_suppliers:
+        if supplier.lat and supplier.lon:
+            distance = haversine_distance(lat, lon, supplier.lat, supplier.lon)
+            if distance <= radius:
+                active_bags = db.query(SurpriseBag).filter(
+                    SurpriseBag.supplier_id == supplier.id,
+                    SurpriseBag.is_active == True,
+                    SurpriseBag.available_quantity > 0
+                ).all()
+                nearby.append({
+                    "id": supplier.id,
+                    "business_name": supplier.business_name,
+                    "distance_km": round(distance, 2),
+                    "rating": supplier.rating,
+                    "surprise_bags": [
+                        {
+                            "id": bag.id,
+                            "name": bag.name,
+                            "discounted_price": bag.discounted_price,
+                            "discount_percentage": bag.discount_percentage
+                        } for bag in active_bags
+                    ]
+                })
+    nearby.sort(key=lambda x: x["distance_km"])
+    return {"count": len(nearby), "suppliers": nearby}
+
+# ============ HOME PAGE ============
 @app.get("/")
 async def home(request: Request, lang: str = "kz", category: str = "all", db: Session = Depends(get_db)):
     add_mock_data(db)
     
-    foods = db.query(models.Food).all()
+    lat = request.query_params.get('lat')
+    lon = request.query_params.get('lon')
+    address = request.query_params.get('address', '')
     
+    # Get current user from cookie
+    user_id = request.cookies.get("user_id")
+    user = None
+    if user_id:
+        try:
+            user = db.query(User).filter(User.id == int(user_id)).first()
+        except:
+            pass
+    
+    suppliers_list = []
+    
+    if lat and lon:
+        lat = float(lat)
+        lon = float(lon)
+        all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
+        
+        for supplier in all_suppliers:
+            if supplier.lat and supplier.lon:
+                distance = haversine_distance(lat, lon, supplier.lat, supplier.lon)
+                if distance <= 10:
+                    active_bags = db.query(SurpriseBag).filter(
+                        SurpriseBag.supplier_id == supplier.id,
+                        SurpriseBag.is_active == True,
+                        SurpriseBag.available_quantity > 0
+                    ).all()
+                    
+                    if active_bags:
+                        suppliers_list.append({
+                            "id": supplier.id,
+                            "business_name": supplier.business_name,
+                            "distance": round(distance, 1),
+                            "rating": supplier.rating,
+                            "cover_image": supplier.cover_image,
+                            "surprise_bags": [
+                                {
+                                    "id": bag.id,
+                                    "name": bag.name,
+                                    "original_price": bag.original_price,
+                                    "discounted_price": bag.discounted_price,
+                                    "discount_percentage": bag.discount_percentage,
+                                    "image_url": bag.image_url,
+                                    "available_quantity": bag.available_quantity
+                                } for bag in active_bags
+                            ]
+                        })
+    
+    foods = db.query(Food).all()
     foods_list = []
     for food in foods:
         foods_list.append({
@@ -56,81 +973,218 @@ async def home(request: Request, lang: str = "kz", category: str = "all", db: Se
             "discount": food.discount,
             "image_url": food.image,
             "restaurant": "Sarqyn Food",
-            "rating": 4.5,
-            "distance": 1.0,
-            "time": 20,
+            "rating": 4.5
         })
     
     return templates.TemplateResponse("index.html", {
         "request": request,
         "foods": foods_list,
+        "suppliers": suppliers_list,
         "categories": categories,
         "active_category": category,
-        "lang": lang
+        "lang": lang,
+        "user_address": address,
+        "user_logged_in": user is not None,
+        "user_name": user.full_name if user else None,
+        "user_phone": user.phone if user else None
+    })
+@app.get("/profile")
+async def profile_page(request: Request, db: Session = Depends(get_db)):
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    return templates.TemplateResponse("profile.html", {
+        "request": request,
+        "user": user,
+        "lang": request.query_params.get("lang", "kz")
+    })
+@app.get("/logout")
+async def logout(request: Request):
+    """Выход из системы"""
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie("user_id")
+    response.delete_cookie("user_phone")
+    response.delete_cookie("user_email")
+    response.delete_cookie("user_name")
+    response.delete_cookie("supplier_id")
+    response.delete_cookie("supplier_city")
+    return response
+
+@app.get("/my-orders")
+async def my_orders_page(request: Request, lang: str = "kz", db: Session = Depends(get_db)):
+    """Страница моих заказов"""
+    
+    # Получаем user_id из cookie
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        # Если не авторизован - показываем страницу с предложением войти
+        return templates.TemplateResponse("my_orders.html", {
+            "request": request,
+            "orders": [],
+            "lang": lang,
+            "not_authenticated": True
+        })
+    
+    user_id = int(user_id)
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        response = RedirectResponse(url="/login", status_code=303)
+        response.delete_cookie("user_id")
+        return response
+    
+    # Получаем заказы пользователя
+    orders = db.query(Order).filter(Order.user_id == user_id).order_by(Order.created_at.desc()).all()
+    
+    orders_list = []
+    for order in orders:
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first() if order.supplier_id else None
+        
+        orders_list.append({
+            "id": order.id,
+            "order_number": order.order_number or f"ORD-{order.id}",
+            "bag_name": bag.name if bag else "Surprise Bag",
+            "supplier_name": supplier.business_name if supplier else "Restaurant",
+            "amount_paid": order.amount_paid or 0,
+            "status": order.status.value if order.status else "pending",
+            "created_at": order.created_at,
+            "customer_address": order.customer_address or "Address not specified"
+        })
+    
+    return templates.TemplateResponse("my_orders.html", {
+        "request": request,
+        "orders": orders_list,
+        "lang": lang,
+        "not_authenticated": False,
+        "user_name": user.full_name
     })
 
-# Create order
-@app.post("/order/{food_id}")
-async def create_order(
-    food_id: int, 
-    lat: float = 0, 
-    lon: float = 0, 
-    db: Session = Depends(get_db)
-):
-    food = db.query(models.Food).filter(models.Food.id == food_id).first()
-    if not food:
-        raise HTTPException(status_code=404, detail="Food not found")
-    
-    order = models.Order(
-        user_id=1,
-        food_id=food_id,
-        lat=lat if lat != 0 else None,
-        lon=lon if lon != 0 else None
-    )
-    db.add(order)
-    db.commit()
-    db.refresh(order)
-    
-    return {"message": "Order created", "order_id": order.id}
 
+# ============ TRACK ORDER PAGE ============
 
-# API endpoint for orders (JSON)
 @app.post("/api/orders")
-async def create_order_api(order_data: dict, db: Session = Depends(get_db)):
+async def create_order(request: Request, db: Session = Depends(get_db)):
     try:
-        order = models.Order(
-            user_id=order_data.get("user_id", 1),
-            food_id=order_data["food_id"],
-            lat=order_data.get("lat"),
-            lon=order_data.get("lon"),
-            address=order_data.get("address")  # ADD THIS LINE
+        user_id = request.cookies.get("user_id")
+        
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "Please login first", "redirect": "/login"}
+            )
+        
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "User not found", "redirect": "/login"}
+            )
+        
+        # ✅ ТЕПЕРЬ МОЖНО СОЗДАВАТЬ ЗАКАЗ (У ПОЛЬЗОВАТЕЛЯ ТОЧНО ЕСТЬ ТЕЛЕФОН)
+        data = await request.json()
+        
+        bag_id = data.get("surprise_bag_id")
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+        
+        if not bag:
+            raise HTTPException(status_code=404, detail="Surprise bag not found")
+        
+        if bag.available_quantity <= 0:
+            raise HTTPException(status_code=400, detail="Sold out")
+        
+        import secrets
+        order_number = f"ORD-{secrets.token_hex(4).upper()}"
+        
+        order = Order(
+            user_id=user.id,  # ✅ ТОЛЬКО СУЩЕСТВУЮЩИЙ ПОЛЬЗОВАТЕЛЬ
+            supplier_id=bag.supplier_id,
+            surprise_bag_id=bag.id,
+            order_number=order_number,
+            customer_lat=data.get("customer_lat"),
+            customer_lon=data.get("customer_lon"),
+            customer_address=data.get("customer_address"),
+            pickup_time=bag.pickup_start_time,
+            amount_paid=bag.discounted_price,
+            status=OrderStatus.PENDING,
+            delivery_status=DeliveryStatus.AT_SUPPLIER,
+            created_at=datetime.utcnow()
         )
+        
+        bag.available_quantity -= 1
+        
         db.add(order)
         db.commit()
         db.refresh(order)
-        return {"success": True, "order_id": order.id}
+        
+        return {"success": True, "order_id": order.id, "order_number": order_number}
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
 
-# API endpoint to get foods
-@app.get("/api/foods")
-async def get_foods_api(db: Session = Depends(get_db)):
-    foods = db.query(models.Food).all()
-    return foods
+@app.get("/test-ors")
+async def test_ors():
+    import httpx
+    import json
+    
+    ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYyMDU3ZGE4OTkxODQ2M2JhNmVlZDgzM2QzMDE2OTYwIiwiaCI6Im11cm11cjY0In0="
+    
+    async with httpx.AsyncClient() as client:
+        headers = {
+            "Authorization": ORS_API_KEY,
+            "Content-Type": "application/json"
+        }
+        body = {
+            "coordinates": [[76.945, 43.238], [76.925, 43.258]]
+        }
+        
+        response = await client.post(
+            "https://api.openrouteservice.org/v2/directions/driving-car",
+            json=body,
+            headers=headers,
+            timeout=30.0
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            encoded = data['routes'][0]['geometry']
+            return {"status": "ok", "encoded": encoded[:100]}
+        else:
+            return {"status": "error", "code": response.status_code, "text": response.text}
 
-# Admin panel
+
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    from math import radians, sin, cos, sqrt, atan2
+    R = 6371
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    return R * c
+
+def calculate_eta(distance_km, speed_kmh=40):
+    return int((distance_km / speed_kmh) * 60)
+# ============ ADMIN ROUTES ============
 @app.get("/admin")
 async def admin_panel(request: Request, db: Session = Depends(get_db)):
-    foods = db.query(models.Food).all()
-    orders = db.query(models.Order).all()
-    
+    foods = db.query(Food).all()
+    orders = db.query(Order).all()
     return templates.TemplateResponse("admin.html", {
         "request": request,
         "foods": foods,
         "orders": orders
     })
 
-# Add food from admin
 @app.post("/admin/add-food")
 async def add_food(
     name_ru: str = Form(...),
@@ -140,28 +1194,320 @@ async def add_food(
     discount: int = Form(0),
     db: Session = Depends(get_db)
 ):
-    new_food = models.Food(
-        name_ru=name_ru,
-        name_kz=name_kz,
-        price=price,
-        image=image,
-        discount=discount
-    )
+    new_food = Food(name_ru=name_ru, name_kz=name_kz, price=price, image=image, discount=discount)
     db.add(new_food)
     db.commit()
-    
     return RedirectResponse(url="/admin", status_code=303)
 
-# Delete food
 @app.get("/admin/delete-food/{food_id}")
 async def delete_food(food_id: int, db: Session = Depends(get_db)):
-    food = db.query(models.Food).filter(models.Food.id == food_id).first()
+    food = db.query(Food).filter(Food.id == food_id).first()
     if food:
         db.delete(food)
         db.commit()
-    
     return RedirectResponse(url="/admin", status_code=303)
-import os
+
+# ============ SUPPLIER ROUTES ============
+@app.get("/supplier/register")
+async def supplier_register_page(request: Request, lang: str = "kz"):
+    return templates.TemplateResponse("supplier_register.html", {"request": request, "lang": lang})
+
+@app.post("/supplier/register")
+async def supplier_register(
+    business_name: str = Form(...),
+    business_type: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    city: str = Form(...),
+    address: str = Form(...),
+    lat: float = Form(...),
+    lon: float = Form(...),
+    pickup_start: str = Form(...),
+    pickup_end: str = Form(...),
+    description: str = Form(""),
+    db: Session = Depends(get_db)
+):
+    if password != confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    
+    existing_user = db.query(User).filter(User.email == email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user = User(
+        email=email, phone=phone, password=hash_password(password),
+        full_name=business_name, role=UserRole.SUPPLIER, is_active=True,
+        created_at=datetime.utcnow()
+    )
+    db.add(user)
+    db.flush()
+    
+    supplier = Supplier(
+        user_id=user.id, business_name=business_name, business_type=business_type,
+        description=description, city=city, address=address, lat=lat, lon=lon,
+        phone=phone, email=email, pickup_start_time=pickup_start,
+        pickup_end_time=pickup_end, created_at=datetime.utcnow()
+    )
+    db.add(supplier)
+    db.commit()
+    
+    response = RedirectResponse(url="/supplier/dashboard", status_code=303)
+    response.set_cookie(key="supplier_id", value=str(supplier.id))
+    return response
+
+@app.get("/supplier/login")
+async def supplier_login_page(request: Request, lang: str = "kz"):
+    return templates.TemplateResponse("supplier_login.html", {"request": request, "lang": lang})
+
+@app.post("/supplier/login")
+async def supplier_login(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == email, User.role == UserRole.SUPPLIER).first()
+    if not user or not verify_password(password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    supplier = db.query(Supplier).filter(Supplier.user_id == user.id).first()
+    response = RedirectResponse(url="/supplier/dashboard", status_code=303)
+    response.set_cookie(key="supplier_id", value=str(supplier.id))
+    return response
+@app.get("/supplier/dashboard")
+async def supplier_dashboard(request: Request, db: Session = Depends(get_db)):
+    try:
+        supplier_id = request.cookies.get("supplier_id")
+        
+        if not supplier_id:
+            return RedirectResponse(url="/supplier/login", status_code=303)
+        
+        supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
+        
+        if not supplier:
+            response = RedirectResponse(url="/supplier/login", status_code=303)
+            response.delete_cookie("supplier_id")
+            return response
+        
+        # Get all orders for this supplier
+        all_orders = db.query(Order).filter(Order.supplier_id == supplier.id).order_by(Order.created_at.desc()).all()
+        
+        print(f"📦 Supplier {supplier.business_name} has {len(all_orders)} orders")
+        
+        # Prepare orders list
+        recent_orders_list = []
+        for order in all_orders:
+            bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+            recent_orders_list.append({
+                "id": order.id,
+                "order_number": order.order_number or f"ORD-{order.id}",
+                "customer_address": order.customer_address or "Мекенжай көрсетілмеген",
+                "surprise_bag_name": bag.name if bag else "Тосын сый",
+                "amount_paid": order.amount_paid or 0,
+                "status": order.status.value if order.status else "pending",
+                "created_at": order.created_at
+            })
+        
+        # Statistics
+        total_orders = len(all_orders)
+        pending_orders = len([o for o in all_orders if o.status == OrderStatus.PENDING])
+        today_orders = len([o for o in all_orders if o.created_at and o.created_at.date() == datetime.utcnow().date()])
+        total_revenue = sum([o.amount_paid or 0 for o in all_orders])
+        
+        stats = {
+            "total_orders": total_orders,
+            "pending_orders": pending_orders,
+            "today_orders": today_orders,
+            "total_revenue": total_revenue
+        }
+        
+        # Surprise bags
+        surprise_bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier.id).all()
+        
+        lang = request.query_params.get("lang", "ru")
+        
+        return templates.TemplateResponse("supplier_dashboard.html", {
+            "request": request,
+            "supplier": supplier,
+            "stats": stats,
+            "recent_orders": recent_orders_list,
+            "all_orders": recent_orders_list,
+            "surprise_bags": surprise_bags,
+            "monthly_revenue": total_revenue,
+            "lang": lang
+        })
+        
+    except Exception as e:
+        print(f"❌ Dashboard error: {e}")
+        return templates.TemplateResponse("supplier_dashboard.html", {
+            "request": request,
+            "supplier": None,
+            "stats": {},
+            "recent_orders": [],
+            "all_orders": [],
+            "surprise_bags": [],
+            "monthly_revenue": 0,
+            "lang": "ru"
+        })
+    
+
+
+@app.get("/api/foods")
+async def get_foods(db: Session = Depends(get_db)):
+    """Get all foods for dropdown list"""
+    try:
+        foods = db.query(Food).all()
+        result = []
+        for food in foods:
+            result.append({
+                "id": food.id,
+                "name_ru": food.name_ru,
+                "name_kz": food.name_kz,
+                "price": food.price,
+                "image": food.image,
+                "discount": food.discount
+            })
+        print(f"📦 Returned {len(result)} foods")
+        return result
+    except Exception as e:
+        print(f"❌ Error getting foods: {e}")
+        return []
+@app.get("/api/suppliers/{supplier_id}/orders")
+async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
+    """Get orders for specific supplier"""
+    orders = db.query(Order).filter(Order.supplier_id == supplier_id).all()
+    
+    result = []
+    for order in orders:
+        result.append({
+            "id": order.id,
+            "order_number": order.order_number,
+            "customer_address": order.customer_address,
+            "amount_paid": order.amount_paid,
+            "status": order.status.value if order.status else None,
+            "created_at": order.created_at.isoformat() if order.created_at else None
+        })
+    
+    return result
+@app.post("/api/supplier/surprise-bags")
+async def create_surprise_bag(request: Request, db: Session = Depends(get_db)):
+    data = await request.json()
+    supplier_id = request.cookies.get("supplier_id")
+    if not supplier_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    bag = SurpriseBag(
+        supplier_id=int(supplier_id), name=data.get("name"), description=data.get("description"),
+        original_price=float(data.get("original_price")), discounted_price=float(data.get("discounted_price")),
+        discount_percentage=int(((float(data.get("original_price")) - float(data.get("discounted_price"))) / float(data.get("original_price"))) * 100),
+        image_url=data.get("image_url"), available_quantity=int(data.get("available_quantity", 1)),
+        pickup_start_time=data.get("pickup_start_time"), pickup_end_time=data.get("pickup_end_time"),
+        is_active=True, created_at=datetime.utcnow()
+    )
+    db.add(bag)
+    db.commit()
+    return {"success": True, "bag_id": bag.id}
+@app.put("/api/supplier/orders/{order_id}/status")
+async def update_order_status(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Update order status (for supplier dashboard)"""
+    try:
+        # Get JSON data
+        data = await request.json()
+        new_status = data.get("status")
+        
+        print(f"📝 Received status update: order_id={order_id}, new_status={new_status}")
+        
+        if not new_status:
+            return {"success": False, "error": "Status is required"}
+        
+        # Find the order
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return {"success": False, "error": f"Order {order_id} not found"}
+        
+        print(f"📦 Found order: {order.order_number}, current status: {order.status}")
+        
+        # Update status
+        old_status = order.status.value if order.status else "unknown"
+        order.status = OrderStatus(new_status)
+        
+        # Update delivery status based on order status
+        if new_status == "out_for_delivery":
+            order.delivery_status = "en_route"
+        elif new_status == "nearby":
+            order.delivery_status = "nearby"
+        elif new_status == "delivered":
+            order.delivery_status = "arrived"
+            order.delivered_at = datetime.utcnow()
+        elif new_status == "confirmed":
+            order.confirmed_at = datetime.utcnow()
+        elif new_status == "ready_for_pickup":
+            order.ready_at = datetime.utcnow()
+        
+        # Add tracking record
+        tracking = OrderTracking(
+            order_id=order.id,
+            status=order.status,
+            delivery_status=order.delivery_status,
+            message=f"Status changed from {old_status} to {new_status}",
+            created_at=datetime.utcnow()
+        )
+        db.add(tracking)
+        db.commit()
+        
+        print(f"✅ Order {order.order_number} status updated to {new_status}")
+        
+        return {
+            "success": True,
+            "message": f"Status updated to {new_status}",
+            "order_id": order.id,
+            "new_status": new_status
+        }
+        
+    except Exception as e:
+        print(f"❌ Error updating status: {e}")
+        return {"success": False, "error": str(e)}
+
+
+
+@app.put("/api/supplier/surprise-bags/{bag_id}/toggle")
+async def toggle_bag_status(bag_id: int, db: Session = Depends(get_db)):
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+    if not bag:
+        raise HTTPException(status_code=404, detail="Bag not found")
+    bag.is_active = not bag.is_active
+    db.commit()
+    return {"success": True, "is_active": bag.is_active}
+
+
+
+
+
+
+@app.get("/api/order-statuses")
+async def get_order_statuses():
+    """Get all possible order statuses"""
+    return {
+        "statuses": [
+            {"value": "pending", "label_ru": "Ожидает", "label_kz": "Күтілуде"},
+            {"value": "confirmed", "label_ru": "Подтвержден", "label_kz": "Расталды"},
+            {"value": "preparing", "label_ru": "Готовится", "label_kz": "Дайындалуда"},
+            {"value": "ready_for_pickup", "label_ru": "Готов к выдаче", "label_kz": "Дайын"},
+            {"value": "out_for_delivery", "label_ru": "В пути", "label_kz": "Жолда"},
+            {"value": "nearby", "label_ru": "Рядом", "label_kz": "Жақын жерде"},
+            {"value": "delivered", "label_ru": "Доставлен", "label_kz": "Жеткізілді"},
+            {"value": "cancelled", "label_ru": "Отменен", "label_kz": "Бас тартылды"}
+        ]
+    }
+
+
+
+
+
+
+
+# ============ RUN APP ============
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))

@@ -1,0 +1,261 @@
+<!-- templates/phone_register.html - SMS version -->
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .register-container {
+        max-width: 500px;
+        margin: 50px auto;
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #166534;
+    }
+    input, select {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+    .btn {
+        width: 100%;
+        background: #166534;
+        color: white;
+        padding: 14px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .btn-code {
+        background: #fbbf24;
+        color: #1a472a;
+        margin-top: 10px;
+    }
+    .verification-section {
+        display: none;
+        margin-top: 20px;
+        padding: 20px;
+        background: #f0fdf4;
+        border-radius: 12px;
+    }
+    .code-input {
+        text-align: center;
+        letter-spacing: 5px;
+        font-size: 24px;
+        font-weight: bold;
+    }
+    .timer {
+        color: #ef4444;
+        font-size: 12px;
+        margin-top: 10px;
+        text-align: center;
+    }
+    .sms-hint {
+        font-size: 12px;
+        color: #666;
+        margin-top: 5px;
+        text-align: center;
+    }
+</style>
+
+<div class="register-container">
+    <h2>📱 {% if lang == 'kz' %}SMS арқылы тіркелу{% else %}Регистрация по SMS{% endif %}</h2>
+    
+    <div class="form-group">
+        <label>{% if lang == 'kz' %}Толық аты-жөні{% else %}Полное имя{% endif %} *</label>
+        <input type="text" id="fullName" required>
+    </div>
+    
+    <div class="form-group">
+        <label>📞 {% if lang == 'kz' %}Телефон нөмірі{% else %}Номер телефона{% endif %} *</label>
+        <input type="tel" id="phone" placeholder="+7 777 123 4567" required>
+        <div class="sms-hint">📱 {{ 'Код SMS арқылы келеді' if lang == 'kz' else 'Код придет по SMS' }}</div>
+    </div>
+    
+    <div class="form-group">
+        <label>🔑 {% if lang == 'kz' %}Құпия сөз{% else %}Пароль{% endif %} *</label>
+        <input type="password" id="password" required>
+    </div>
+    
+    <button type="button" class="btn" onclick="sendSMSCode()" id="sendBtn">
+        📱 {% if lang == 'kz' %}SMS код жіберу{% else %}Отправить SMS код{% endif %}
+    </button>
+    
+    <div class="verification-section" id="verificationSection">
+        <div class="form-group">
+            <label>🔢 {% if lang == 'kz' %}SMS коды{% else %}SMS код{% endif %} *</label>
+            <input type="text" id="verificationCode" class="code-input" maxlength="6" placeholder="000000" autocomplete="off">
+            <div class="timer" id="timer"></div>
+        </div>
+        
+        <button type="button" class="btn" onclick="verifyAndRegister()">
+            ✅ {% if lang == 'kz' %}Тіркелу{% else %}Зарегистрироваться{% endif %}
+        </button>
+        
+        <button type="button" class="btn btn-code" onclick="resendCode()">
+            🔄 {% if lang == 'kz' %}Қайта жіберу{% else %}Отправить повторно{% endif %}
+        </button>
+    </div>
+</div>
+
+<script>
+    var currentLang = '{{ lang }}';
+    var countdownTimer;
+    var secondsLeft = 0;
+    function validateAndFormatPhone(phone) {
+    var digits = phone.replace(/\D/g, '');
+    
+    // Казахстан
+    if (digits.length === 11 && (digits.startsWith('77') || digits.startsWith('87'))) {
+        return '+7' + digits.slice(1);
+    }
+    if (digits.length === 10) {
+        return '+77' + digits;
+    }
+    // Кыргызстан
+    if (digits.length === 12 && digits.startsWith('996')) {
+        return '+' + digits;
+    }
+    // Узбекистан
+    if (digits.length === 12 && digits.startsWith('998')) {
+        return '+' + digits;
+    }
+    
+    return phone;
+}
+    function sendSMSCode() {
+        var phone = document.getElementById('phone').value;
+        var fullName = document.getElementById('fullName').value;
+        var password = document.getElementById('password').value;
+        
+        if (!phone || !fullName || !password) {
+            alert(currentLang === 'kz' ? 'Барлық өрістерді толтырыңыз' : 'Заполните все поля');
+            return;
+        }
+        
+        var sendBtn = document.getElementById('sendBtn');
+        sendBtn.disabled = true;
+        sendBtn.textContent = currentLang === 'kz' ? '⏳ Жіберілуде...' : '⏳ Отправка...';
+        
+        fetch('/api/send-verification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone_number: phone })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('verificationSection').style.display = 'block';
+                startCountdown(60);
+                
+                var msg = (currentLang === 'kz') 
+                    ? '✅ SMS код жіберілді! Құпия сөзді тексеріңіз' 
+                    : '✅ SMS код отправлен! Проверьте телефон';
+                alert(msg);
+            } else {
+                alert(data.detail || (currentLang === 'kz' ? 'Қате кетті' : 'Ошибка'));
+                sendBtn.disabled = false;
+                sendBtn.textContent = currentLang === 'kz' ? '📱 SMS код жіберу' : '📱 Отправить SMS код';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // Demo mode fallback
+            document.getElementById('verificationSection').style.display = 'block';
+            startCountdown(60);
+            alert('📱 ДЕМО РЕЖИМ: Код 123456 SMS арқылы келеді (демо)\n📱 ДЕМО РЕЖИМ: Код 123456');
+            sendBtn.disabled = false;
+            sendBtn.textContent = currentLang === 'kz' ? '📱 SMS код жіберу' : '📱 Отправить SMS код';
+        });
+    }
+    
+    function startCountdown(seconds) {
+        secondsLeft = seconds;
+        var timerElement = document.getElementById('timer');
+        
+        if (countdownTimer) clearInterval(countdownTimer);
+        
+        countdownTimer = setInterval(function() {
+            if (secondsLeft <= 0) {
+                clearInterval(countdownTimer);
+                timerElement.innerHTML = '';
+            } else {
+                var msg = (currentLang === 'kz') 
+                    ? '⏱️ Кодтың қолданылу мерзімі: ' + secondsLeft + ' сек'
+                    : '⏱️ Срок действия кода: ' + secondsLeft + ' сек';
+                timerElement.innerHTML = msg;
+                secondsLeft--;
+            }
+        }, 1000);
+    }
+    
+   function verifyAndRegister() {
+    var phone = document.getElementById('phone').value;
+    var fullName = document.getElementById('fullName').value;
+    var password = document.getElementById('password').value;
+    var code = document.getElementById('verificationCode').value;
+    
+    if (!code) {
+        alert(currentLang === 'kz' ? 'SMS кодын енгізіңіз' : 'Введите SMS код');
+        return;
+    }
+    
+    // Show loading
+    var registerBtn = event.target;
+    var originalText = registerBtn.textContent;
+    registerBtn.disabled = true;
+    registerBtn.textContent = currentLang === 'kz' ? '⏳ Тіркелу...' : '⏳ Регистрация...';
+    
+    // Call the correct endpoint
+    fetch('/api/verify-and-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            phone: phone,
+            full_name: fullName,
+            password: password,
+            verification_code: code
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(currentLang === 'kz' ? '✅ Тіркелу сәтті өтті!' : '✅ Регистрация успешна!');
+            window.location.href = '/login';
+        } else {
+            alert(data.detail || (currentLang === 'kz' ? 'Қате кетті' : 'Ошибка'));
+            registerBtn.disabled = false;
+            registerBtn.textContent = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Demo mode fallback
+        if (code === '123456') {
+            alert('✅ ДЕМО РЕЖИМ: Тіркелу сәтті өтті! / Регистрация успешна!');
+            window.location.href = '/login';
+        } else {
+            alert(currentLang === 'kz' ? '❌ Қате. 123456 демо кодын қолданып көріңіз' : '❌ Ошибка. Попробуйте демо код 123456');
+            registerBtn.disabled = false;
+            registerBtn.textContent = originalText;
+        }
+    });
+}
+    
+    function resendCode() {
+        sendSMSCode();
+    }
+</script>
+{% endblock %}

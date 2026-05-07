@@ -1,0 +1,107 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .login-container {
+        max-width: 400px;
+        margin: 100px auto;
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #166534;
+    }
+    input {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+    input:focus {
+        outline: none;
+        border-color: #166534;
+    }
+    .btn-login {
+        width: 100%;
+        background: #166534;
+        color: white;
+        padding: 14px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .btn-login:hover {
+        background: #0f4a27;
+    }
+    h2 {
+        color: #166534;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .register-link {
+        text-align: center;
+        margin-top: 20px;
+    }
+    .error-msg {
+        background: #fee2e2;
+        color: #dc2626;
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+</style>
+
+<div class="login-container">
+    <h2>🏪 {% if lang == 'kz' %}Дүкен кабинетіне кіру{% else %}Вход в кабинет магазина{% endif %}</h2>
+    
+    {% if error %}
+    <div class="error-msg">{{ error }}</div>
+    {% endif %}
+    
+    <form method="post" action="/supplier/login">
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" required autofocus>
+        </div>
+        
+        <div class="form-group">
+            <label>{% if lang == 'kz' %}Құпия сөз{% else %}Пароль{% endif %}</label>
+            <input type="password" name="password" required>
+        </div>
+        
+        <button type="submit" class="btn-login">
+            🔑 {% if lang == 'kz' %}Кіру{% else %}Войти{% endif %}
+        </button>
+        
+        <div class="register-link">
+            <a href="/supplier/register">{% if lang == 'kz' %}Дүкен ретінде тіркелу{% else %}Зарегистрироваться как магазин{% endif %}</a>
+        </div>
+    </form>
+    
+    <div style="margin-top: 30px; padding: 15px; background: #f0fdf4; border-radius: 8px;">
+        <p style="font-size: 13px; color: #166534; text-align: center;">
+            💡 {% if lang == 'kz' %}Тіркелгеннен кейін сіз:<br>
+            - Тосын сыйлар қоса аласыз<br>
+            - Тапсырыстарды басқара аласыз<br>
+            - Статистиканы көре аласыз
+            {% else %}После регистрации вы сможете:<br>
+            - Добавлять сюрпризы<br>
+            - Управлять заказами<br>
+            - Видеть статистику
+            {% endif %}
+        </p>
+    </div>
+</div>
+{% endblock %}

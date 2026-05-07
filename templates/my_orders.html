@@ -1,0 +1,259 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .orders-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 40px 20px;
+    }
+    
+    .orders-header {
+        background: linear-gradient(135deg, #1a472a 0%, #2d5a3b 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 20px;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+    
+    .orders-header h1 {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+    
+    .orders-grid {
+        display: grid;
+        gap: 20px;
+    }
+    
+    .order-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+    
+    .order-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    }
+    
+    .order-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f0f0f0;
+        margin-bottom: 15px;
+    }
+    
+    .order-number {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #166534;
+    }
+    
+    .order-date {
+        color: #666;
+        font-size: 0.85rem;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-confirmed { background: #dbeafe; color: #1e40af; }
+    .status-preparing { background: #e0e7ff; color: #3730a3; }
+    .status-ready_for_pickup { background: #d1fae5; color: #065f46; }
+    .status-out_for_delivery { background: #fed7aa; color: #9a3412; }
+    .status-delivered { background: #d1fae5; color: #065f46; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
+    
+    .order-body {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .order-image {
+        width: 80px;
+        height: 80px;
+        border-radius: 10px;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+    
+    .order-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .order-details {
+        flex: 1;
+    }
+    
+    .order-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 5px;
+    }
+    
+    .order-supplier {
+        color: #666;
+        font-size: 0.85rem;
+        margin-bottom: 5px;
+    }
+    
+    .order-price {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #ef4444;
+    }
+    
+    .order-address {
+        color: #666;
+        font-size: 0.8rem;
+        margin-top: 5px;
+    }
+    
+    .track-btn {
+        background: #fbbf24;
+        color: #1a472a;
+        border: none;
+        padding: 8px 20px;
+        border-radius: 25px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+    
+    .track-btn:hover {
+        background: #f59e0b;
+        transform: scale(1.05);
+    }
+    
+    .empty-orders {
+        text-align: center;
+        padding: 60px 20px;
+        background: white;
+        border-radius: 20px;
+    }
+    
+    .empty-orders h3 {
+        color: #166534;
+        margin-bottom: 15px;
+    }
+    
+    .shop-btn {
+        background: #166534;
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 30px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-top: 20px;
+    }
+    
+    .shop-btn:hover {
+        background: #0f4a27;
+    }
+    
+    @media (max-width: 768px) {
+        .order-body {
+            flex-direction: column;
+            text-align: center;
+        }
+        .order-image {
+            margin: 0 auto;
+        }
+    }
+</style>
+
+<div class="orders-container">
+    <div class="orders-header">
+        <h1>📦 {% if lang == 'kz' %}Менің тапсырыстарым{% else %}Мои заказы{% endif %}</h1>
+        <p>{% if lang == 'kz' %}Тапсырыстарыңыздың тарихы{% else %}История ваших заказов{% endif %}</p>
+    </div>
+    
+    {% if not_authenticated %}
+    <div class="empty-orders">
+        <h3>🔐 {% if lang == 'kz' %}Кіру қажет{% else %}Требуется вход{% endif %}</h3>
+        <p>{% if lang == 'kz' %}Тапсырыстарыңызды көру үшін жүйеге кіріңіз{% else %}Войдите в систему, чтобы увидеть свои заказы{% endif %}</p>
+        <button class="shop-btn" onclick="window.location.href='/login'">🔑 {% if lang == 'kz' %}Кіру{% else %}Войти{% endif %}</button>
+    </div>
+    
+    {% elif orders and orders|length > 0 %}
+    
+    <div class="orders-grid">
+        {% for order in orders %}
+        <div class="order-card">
+            <div class="order-header">
+                <div>
+                    <span class="order-number">{{ order.order_number }}</span>
+                </div>
+                <div>
+                    <span class="status-badge status-{{ order.status }}">
+                        {% if order.status == 'pending' %}{% if lang == 'kz' %}Күтілуде{% else %}Ожидает{% endif %}
+                        {% elif order.status == 'confirmed' %}{% if lang == 'kz' %}Расталды{% else %}Подтвержден{% endif %}
+                        {% elif order.status == 'preparing' %}{% if lang == 'kz' %}Дайындалуда{% else %}Готовится{% endif %}
+                        {% elif order.status == 'ready_for_pickup' %}{% if lang == 'kz' %}Дайын{% else %}Готов к выдаче{% endif %}
+                        {% elif order.status == 'out_for_delivery' %}{% if lang == 'kz' %}Жеткізілуде{% else %}Доставляется{% endif %}
+                        {% elif order.status == 'delivered' %}{% if lang == 'kz' %}Жеткізілді{% else %}Доставлен{% endif %}
+                        {% elif order.status == 'cancelled' %}{% if lang == 'kz' %}Бас тартылды{% else %}Отменен{% endif %}
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="order-body">
+                <div class="order-image">
+                    <img src="{{ order.bag_image }}" alt="{{ order.bag_name }}">
+                </div>
+                
+                <div class="order-details">
+                    <div class="order-name">{{ order.bag_name }}</div>
+                    <div class="order-supplier">🏪 {{ order.supplier_name }}</div>
+                    <div class="order-price">{{ order.amount_paid }} ₸</div>
+                    <div class="order-address">📍 {{ order.customer_address }}</div>
+                    {% if order.pickup_time %}
+                    <div class="order-address">🕐 {% if lang == 'kz' %}Алу уақыты{% else %}Время получения{% endif %}: {{ order.pickup_time }}</div>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <button class="track-btn" onclick="window.location.href='/track-order/{{ order.id }}?lang={{ lang }}'">
+                        🗺️ {% if lang == 'kz' %}Бақылау{% else %}Отследить{% endif %}
+                    </button>
+                </div>
+            </div>
+            
+            <div class="order-date" style="margin-top: 10px; text-align: right;">
+                {{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '' }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% else %}
+    
+    <div class="empty-orders">
+        <h3>🛍️ {% if lang == 'kz' %}Тапсырыстар жоқ{% else %}Нет заказов{% endif %}</h3>
+        <p>{% if lang == 'kz' %}Сізде әлі тапсырыс жоқ. Бірінші тосын сыйыңызды табыңыз!{% else %}У вас пока нет заказов. Найдите свой первый сюрприз!{% endif %}</p>
+        <button class="shop-btn" onclick="window.location.href='/'">🎁 {% if lang == 'kz' %}Сатып алу{% else %}Купить{% endif %}</button>
+    </div>
+    
+    {% endif %}
+</div>
+{% endblock %}

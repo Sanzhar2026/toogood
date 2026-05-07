@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ORS - реальное движение машины</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; }
+        #map { height: 500px; width: 100%; border-radius: 16px; margin-bottom: 20px; border: 1px solid #ddd; }
+        .controls { text-align: center; margin-bottom: 20px; }
+        button { background: #166534; color: white; padding: 12px 28px; border: none; border-radius: 40px; font-size: 16px; cursor: pointer; margin: 0 10px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .info { background: white; padding: 20px; border-radius: 16px; margin-top: 20px; }
+        .progress-bar { background: #e5e7eb; border-radius: 10px; height: 8px; overflow: hidden; margin: 10px 0; }
+        .progress-fill { background: linear-gradient(90deg, #166534, #22c55e); width: 0%; height: 100%; transition: width 0.3s; }
+        .stats { display: flex; justify-content: space-around; margin-top: 15px; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #1a472a; }
+        .stat-label { font-size: 12px; color: #666; }
+        @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+    </style>
+</head>
+<body>
+    <h1>🚚 ORS - машина едет по реальным дорогам</h1>
+    <div id="map"></div>
+    
+    <div class="controls">
+        <button id="startBtn" disabled>▶️ СТАРТ</button>
+        <button id="resetBtn">🔄 СБРОС</button>
+    </div>
+    
+    <div class="info">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="stats">
+            <div><div class="stat-value" id="distance">0.0</div><div class="stat-label">Осталось км</div></div>
+            <div><div class="stat-value" id="progress">0%</div><div class="stat-label">Прогресс</div></div>
+            <div><div class="stat-value" id="eta">0</div><div class="stat-label">Осталось мин</div></div>
+        </div>
+    </div>
+
+    <script>
+        // Координаты Алматы
+        var startLat = 43.238, startLon = 76.945;
+        var endLat = 43.258, endLon = 76.925;
+        
+        var map, driverMarker, animationInterval;
+        var roadPoints = [];  // Точки маршрута
+        var currentProgress = 0;
+        var totalDistance = 0;
+        var totalTime = 0;
+        var isAnimating = false;
+        
+        var ORS_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYyMDU3ZGE4OTkxODQ2M2JhNmVlZDgzM2QzMDE2OTYwIiwiaCI6Im11cm11cjY0In0=";
+        
+        // Декодер polyline
+        function decodePolyline(str) {
+            var index = 0, lat = 0, lng = 0;
+            var coords = [];
+            while (index < str.length) {
+                var b, shift = 0, result = 0;
+                do {
+                    b = str.charCodeAt(index++) - 63;
+                    result |= (b & 0x1f) << shift;
+                    shift += 5;
+                } while (b >= 0x20);
+                var dlat = (result & 1) ? ~(result >> 1) : (result >> 1);
+                lat += dlat;
+                
+                shift = 0;
+                result = 0;
+                do {
+                    b = str.charCodeAt(index++) - 63;
+                    result |= (b & 0x1f) << shift;
+                    shift += 5;
+                } while (b >= 0x20);
+                var dlng = (result & 1) ? ~(result >> 1) : (result >> 1);
+                lng += dlng;
+                
+                coords.push([lat / 1e5, lng / 1e5]);
+            }
+            return coords;
+        }
+        
+        async function loadRoute() {
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('startBtn').textContent = '⏳ ЗАГРУЗКА...';
+            
+            try {
+                var response = await fetch('https://api.openrouteservice.org/v2/directions/driving-car', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': ORS_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        coordinates: [[startLon, startLat], [endLon, endLat]]
+                    })
+                });
+                
+                var data = await response.json();
+                
+                if (data.routes && data.routes[0]) {
+                    var route = data.routes[0];
+                    var decoded = decodePolyline(route.geometry);
+                    
+                    roadPoints = [];
+                    for (var i = 0; i < decoded.length; i++) {
+                        roadPoints.push({ lat: decoded[i][0], lon: decoded[i][1] });
+                    }
+                    
+                    totalDistance = route.summary.distance / 1000;
+                    totalTime = Math.round(route.summary.duration / 60);
+                    
+                    document.getElementById('distance').innerText = totalDistance.toFixed(1);
+                    document.getElementById('eta').innerText = totalTime;
+                    
+                    // Рисуем маршрут на карте
+                    var latlngs = roadPoints.map(p => [p.lat, p.lon]);
+                    L.polyline(latlngs, { color: '#fbbf24', weight: 5, dashArray: '8,8' }).addTo(map);
+                    map.fitBounds(latlngs, { padding: [50, 50] });
+                    
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('startBtn').textContent = '▶️ СТАРТ';
+                    
+                    console.log('✅ Загружено точек:', roadPoints.length);
+                    console.log('📏 Расстояние:', totalDistance, 'км');
+                    console.log('⏱️ Время:', totalTime, 'мин');
+                } else {
+                    throw new Error('Нет маршрута');
+                }
+            } catch(e) {
+                console.error('ORS ошибка:', e);
+                // Fallback - прямая линия
+                roadPoints = [];
+                for (var i = 0; i <= 100; i++) {
+                    var t = i / 100;
+                    roadPoints.push({
+                        lat: startLat + (endLat - startLat) * t,
+                        lon: startLon + (endLon - startLon) * t
+                    });
+                }
+                var dlat = endLat - startLat;
+                var dlon = endLon - startLon;
+                totalDistance = Math.sqrt(dlat*dlat + dlon*dlon) * 111;
+                totalTime = Math.round((totalDistance / 40) * 60);
+                document.getElementById('distance').innerText = totalDistance.toFixed(1);
+                document.getElementById('eta').innerText = totalTime;
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('startBtn').textContent = '▶️ СТАРТ (прямая)';
+                console.log('⚠️ Используется прямая линия');
+            }
+        }
+        
+        function initMap() {
+            map = L.map('map').setView([(startLat+endLat)/2, (startLon+endLon)/2], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+            
+            // Маркер старта
+            var startIcon = L.divIcon({
+                html: '<div style="background:#166534; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; border:3px solid white;">🏪</div>',
+                iconSize: [40, 40]
+            });
+            L.marker([startLat, startLon], { icon: startIcon }).addTo(map).bindPopup('РЕСТОРАН');
+            
+            // Маркер финиша
+            var endIcon = L.divIcon({
+                html: '<div style="background:#dc2626; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; border:3px solid white;">🏠</div>',
+                iconSize: [40, 40]
+            });
+            L.marker([endLat, endLon], { icon: endIcon }).addTo(map).bindPopup('КЛИЕНТ');
+            
+            // Машина
+            var carIcon = L.divIcon({
+                html: '<div style="background:#3b82f6; width:45px; height:45px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:24px; border:3px solid white; box-shadow:0 2px 10px rgba(59,130,246,0.4); animation:bounce 0.5s infinite;">🚚</div>',
+                iconSize: [45, 45]
+            });
+            driverMarker = L.marker([startLat, startLon], { icon: carIcon }).addTo(map);
+        }
+        
+        function updateCar(progress) {
+            if (!driverMarker || !roadPoints.length) return;
+            var idx = Math.floor((progress / 100) * (roadPoints.length - 1));
+            if (idx >= roadPoints.length) idx = roadPoints.length - 1;
+            if (idx < 0) idx = 0;
+            var p = roadPoints[idx];
+            driverMarker.setLatLng([p.lat, p.lon]);
+        }
+        
+        function updateProgress(progress) {
+            currentProgress = Math.min(100, Math.max(0, progress));
+            var remainingDist = totalDistance * (1 - currentProgress / 100);
+            var remainingTime = Math.round(totalTime * (1 - currentProgress / 100));
+            document.getElementById('distance').innerText = remainingDist.toFixed(1);
+            document.getElementById('progress').innerHTML = Math.round(currentProgress) + '%';
+            document.getElementById('eta').innerText = remainingTime;
+            document.getElementById('progressFill').style.width = currentProgress + '%';
+            updateCar(currentProgress);
+        }
+        
+        function startAnimation() {
+            if (isAnimating) return;
+            isAnimating = true;
+            console.log('🚚 АНИМАЦИЯ ЗАПУЩЕНА!');
+            var steps = 0;
+            var maxSteps = 100 - currentProgress;
+            var delay = (totalTime * 60 * 1000) / maxSteps;
+            if (animationInterval) clearInterval(animationInterval);
+            animationInterval = setInterval(function() {
+                if (steps <= maxSteps) {
+                    updateProgress(currentProgress + (steps / maxSteps) * (100 - currentProgress));
+                    steps++;
+                } else {
+                    clearInterval(animationInterval);
+                    isAnimating = false;
+                    updateProgress(100);
+                    console.log('✅ ДОСТАВКА ЗАВЕРШЕНА!');
+                }
+            }, delay);
+        }
+        
+        function resetAnimation() {
+            if (animationInterval) { clearInterval(animationInterval); isAnimating = false; }
+            currentProgress = 0;
+            updateProgress(0);
+            console.log('🔄 Сброшено');
+        }
+        
+        document.getElementById('startBtn').addEventListener('click', startAnimation);
+        document.getElementById('resetBtn').addEventListener('click', resetAnimation);
+        
+        initMap();
+        loadRoute();
+    </script>
+</body>
+</html>

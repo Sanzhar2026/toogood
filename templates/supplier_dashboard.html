@@ -1,0 +1,694 @@
+{% extends "layout_supplier.html" %}
+
+{% block content %}
+<style>
+    .dashboard-header {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .stat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .stat-number {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #1a472a;
+    }
+    .stat-label {
+        color: #666;
+        margin-top: 0.5rem;
+    }
+    .orders-section, .bags-section {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .section-title {
+        font-size: 1.3rem;
+        color: #1a472a;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #fbbf24;
+        display: inline-block;
+    }
+    .table-container {
+        overflow-x: auto;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    th, td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    th {
+        background: #f9fafb;
+        font-weight: 600;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 0.35rem 0.9rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-confirmed { background: #dbeafe; color: #1e40af; }
+    .status-preparing { background: #e0e7ff; color: #3730a3; }
+    .status-ready_for_pickup { background: #d1fae5; color: #065f46; }
+    .status-out_for_delivery { background: #fed7aa; color: #9a3412; }
+    .status-nearby { background: #fef3c7; color: #92400e; }
+    .status-delivered { background: #d1fae5; color: #065f46; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
+    .btn {
+        padding: 0.4rem 0.8rem;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.85rem;
+    }
+    .btn-primary {
+        background: #fbbf24;
+        color: #1a472a;
+    }
+    .btn-track {
+        background: #166534;
+        color: white;
+    }
+    .status-select {
+        padding: 0.5rem;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: white;
+        cursor: pointer;
+        font-size: 0.85rem;
+    }
+    .add-bag-form {
+        background: #f9fafb;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-top: 1.5rem;
+    }
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .form-group label {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    .form-group input, .form-group textarea, .form-group select {
+        padding: 0.6rem;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+    }
+    .submit-btn {
+        background: #166534;
+        color: white;
+        padding: 0.7rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        margin-top: 1rem;
+    }
+    
+    /* Стили для выбора продуктов */
+    .product-select {
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: white;
+        font-size: 14px;
+    }
+    .selected-products-preview {
+        background: #f0fdf4;
+        padding: 12px;
+        border-radius: 10px;
+        margin-top: 15px;
+        font-size: 13px;
+        color: #166534;
+    }
+    .remove-product {
+        background: none;
+        border: none;
+        color: #dc2626;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 0 5px;
+    }
+    .remove-product:hover {
+        color: #991b1b;
+    }
+    .image-preview {
+        margin-top: 10px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .preview-img {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 10px;
+        border: 1px solid #ddd;
+    }
+    .add-product-row {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .quantity-input {
+        width: 80px;
+        padding: 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        text-align: center;
+    }
+    .add-btn {
+        background: #fbbf24;
+        padding: 8px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        color: #1a472a;
+    }
+    .add-btn:hover {
+        background: #f59e0b;
+    }
+    @media (max-width: 768px) {
+        .stats-grid { grid-template-columns: 1fr; }
+        .form-grid { grid-template-columns: 1fr; }
+        th, td { font-size: 12px; padding: 0.5rem; }
+        .status-select { font-size: 11px; }
+        .add-product-row { flex-direction: column; align-items: stretch; }
+        .quantity-input { width: 100%; }
+    }
+</style>
+
+<div id="dashboardData" 
+     data-supplier-id="{{ supplier.id }}"
+     data-supplier-name="{{ supplier.business_name }}"
+     data-lang="{{ lang }}"
+     style="display: none;">
+</div>
+
+<div class="dashboard-header">
+    <div>
+        <h1>🏪 {{ supplier.business_name }}</h1>
+        <p style="color: #666; margin-top: 0.3rem;">{{ supplier.address or 'Адрес не указан' }}</p>
+    </div>
+    <div>
+        <span class="stat-label">⭐ Рейтинг: {{ supplier.rating }}</span>
+        <a href="/supplier/logout" class="btn" style="background: #dc2626; color: white; margin-left: 1rem; text-decoration: none;">🚪 Выйти</a>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total_orders }}</div>
+        <div class="stat-label">Всего заказов</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.pending_orders }}</div>
+        <div class="stat-label">В ожидании</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.today_orders }}</div>
+        <div class="stat-label">Заказов сегодня</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total_revenue }} ₸</div>
+        <div class="stat-label">Общий доход</div>
+    </div>
+</div>
+
+<div class="orders-section">
+    <h2 class="section-title">📋 Тапсырыстар / Заказы</h2>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>№</th>
+                    <th>Клиент / Адрес</th>
+                    <th>Тауар</th>
+                    <th>Сома</th>
+                    <th>Статус</th>
+                    <th>Әрекет / Действие</th>
+                    <th>Карта</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in recent_orders %}
+                <tr data-order-id="{{ order.id }}">
+                    <td><strong>{{ order.order_number }}</strong></td>
+                    <td>{{ order.customer_address|truncate(35) }}</td>
+                    <td>{{ order.surprise_bag_name }}</td>
+                    <td>{{ order.amount_paid }} ₸</td>
+                    <td>
+                        <span class="status-badge status-{{ order.status }}">
+                            {% if order.status == 'pending' %}⏳ Қабылданды / Принят
+                            {% elif order.status == 'confirmed' %}✅ Расталды / Подтвержден
+                            {% elif order.status == 'preparing' %}🍳 Дайындалуда / Готовится
+                            {% elif order.status == 'ready_for_pickup' %}📦 Дайын / Готов
+                            {% elif order.status == 'out_for_delivery' %}🚚 Жолда / В пути
+                            {% elif order.status == 'nearby' %}📍 Жақын жерде / Рядом
+                            {% elif order.status == 'delivered' %}🎉 Жеткізілді / Доставлен
+                            {% elif order.status == 'cancelled' %}❌ Бас тартылды / Отменен
+                            {% else %}{{ order.status }}
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <select class="status-select" data-order-id="{{ order.id }}">
+                            <option value="">📌 Статусты өзгерту</option>
+                            <option value="confirmed">✅ Растау / Подтвердить</option>
+                            <option value="preparing">🍳 Дайындау / Готовить</option>
+                            <option value="ready_for_pickup">📦 Дайын / Готово</option>
+                            <option value="out_for_delivery">🚚 Жолға шығару / Отправить</option>
+                            <option value="nearby">📍 Жақын жерде / Рядом</option>
+                            <option value="delivered">🎉 Жеткізілді / Доставлен</option>
+                            <option value="cancelled">❌ Бас тарту / Отменить</option>
+                        </select>
+                    </td>
+                    <td>
+                        <button class="btn btn-track track-btn" data-order-id="{{ order.id }}">
+                            🗺️ Көрсету
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="bags-section">
+    <h2 class="section-title">🎁 Тосын сыйлар / Сюрпризы</h2>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Атауы / Название</th>
+                    <th>Құрамы / Состав</th>
+                    <th>Бағасы / Цена</th>
+                    <th>Жеңілдікпен / Со скидкой</th>
+                    <th>Қалды / Осталось</th>
+                    <th>Күйі / Статус</th>
+                    <th>Әрекет</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for bag in surprise_bags %}
+                <tr data-bag-id="{{ bag.id }}">
+                    <td>{{ bag.name }}</td>
+                    <td><span style="color: #999;">{{ bag.description[:50] if bag.description else '-' }}</span></td>
+                    <td>{{ bag.original_price }} ₸</td>
+                    <td><strong style="color: #ef4444;">{{ bag.discounted_price }} ₸</strong></td>
+                    <td>{{ bag.available_quantity }}/{{ bag.total_quantity }}</td>
+                    <td>
+                        {% if bag.is_active %}
+                        <span style="color: #10b981;">✅ Белсенді / Активен</span>
+                        {% else %}
+                        <span style="color: #ef4444;">❌ Белсенді емес / Неактивен</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-primary toggle-bag-btn" data-bag-id="{{ bag.id }}">
+                            🔄 Күйін өзгерту
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="add-bag-form">
+        <h3>➕ Жаңа тосын сый қосу / Добавить сюрприз</h3>
+        <form id="addBagForm">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Атауы / Название *</label>
+                    <input type="text" name="name" id="bagName" required placeholder="Кешкі тосын сый">
+                </div>
+                <div class="form-group">
+                    <label>Сипаттама / Описание</label>
+                    <textarea name="description" id="bagDescription" rows="2" placeholder="Қысқаша сипаттама / Краткое описание"></textarea>
+                </div>
+            </div>
+            
+            <!-- Выпадающий список продуктов -->
+            <div class="form-group">
+                <label>🍽️ Тағамдар тізімі / Список блюд</label>
+                <select id="productSelect" class="product-select">
+                    <option value="">-- Таңдаңыз / Выберите --</option>
+                </select>
+                
+                <div class="add-product-row">
+                    <input type="number" id="productQuantity" class="quantity-input" value="1" min="1" max="99" placeholder="Саны">
+                    <button type="button" id="addProductBtn" class="add-btn">➕ Қосу / Добавить</button>
+                </div>
+                
+                <div id="selectedProductsPreview" class="selected-products-preview" style="display: none;">
+                    <strong>📋 Таңдалған тағамдар / Выбранные блюда:</strong>
+                    <div id="selectedProductsList"></div>
+                </div>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Бастапқы баға (₸) / Цена без скидки</label>
+                    <input type="number" name="original_price" id="originalPrice" required step="any" placeholder="Автоматически рассчитывается">
+                </div>
+                <div class="form-group">
+                    <label>Жеңілдікпен баға (₸) / Цена со скидкой</label>
+                    <input type="number" name="discounted_price" id="discountedPrice" required step="any" placeholder="Например: 3500">
+                </div>
+                <div class="form-group">
+                    <label>Саны / Количество</label>
+                    <input type="number" name="available_quantity" id="availableQuantity" value="1" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Алу уақыты (басталуы)</label>
+                    <input type="text" name="pickup_start_time" id="pickupStart" placeholder="19:30">
+                </div>
+                <div class="form-group">
+                    <label>Алу уақыты (аяқталуы)</label>
+                    <input type="text" name="pickup_end_time" id="pickupEnd" placeholder="20:00">
+                </div>
+                <div class="form-group">
+                    <label>Сурет URL / URL картинки</label>
+                    <input type="text" name="image_url" id="imageUrl" placeholder="https://...">
+                    <div class="image-preview" id="imagePreview"></div>
+                </div>
+            </div>
+            
+            <button type="submit" class="submit-btn">✨ Қосу / Добавить</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    var dashboardData = document.getElementById('dashboardData');
+    var supplierId = dashboardData ? parseInt(dashboardData.getAttribute('data-supplier-id')) : 0;
+    var currentLang = dashboardData ? dashboardData.getAttribute('data-lang') : 'ru';
+    
+    // Хранилище выбранных продуктов
+    var selectedProducts = [];
+    
+    // Загрузка списка продуктов
+    async function loadProducts() {
+        try {
+            var response = await fetch('/api/foods');
+            var foods = await response.json();
+            
+            var productSelect = document.getElementById('productSelect');
+            productSelect.innerHTML = '<option value="">-- Таңдаңыз / Выберите --</option>';
+            
+            for (var i = 0; i < foods.length; i++) {
+                var food = foods[i];
+                var option = document.createElement('option');
+                option.value = JSON.stringify({
+                    id: food.id,
+                    name: food.name_ru,
+                    price: food.price,
+                    image: food.image
+                });
+                option.textContent = `${food.name_ru} / ${food.name_kz} - ${food.price} ₸`;
+                productSelect.appendChild(option);
+            }
+            
+            console.log('✅ Загружено продуктов:', foods.length);
+        } catch(e) {
+            console.error('Ошибка загрузки продуктов:', e);
+        }
+    }
+    
+    // Добавление продукта
+    function addProduct() {
+        var select = document.getElementById('productSelect');
+        var selectedValue = select.value;
+        
+        if (!selectedValue) {
+            alert('Выберите блюдо!');
+            return;
+        }
+        
+        var product = JSON.parse(selectedValue);
+        var quantity = parseInt(document.getElementById('productQuantity').value) || 1;
+        
+        var existing = selectedProducts.find(p => p.id === product.id);
+        if (existing) {
+            existing.quantity += quantity;
+        } else {
+            selectedProducts.push({
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                image: product.image,
+                quantity: quantity
+            });
+        }
+        
+        updateSelectedProductsList();
+        select.value = '';
+        document.getElementById('productQuantity').value = 1;
+    }
+    
+    // Обновление списка выбранных продуктов
+    function updateSelectedProductsList() {
+        var previewDiv = document.getElementById('selectedProductsPreview');
+        var listDiv = document.getElementById('selectedProductsList');
+        
+        if (selectedProducts.length > 0) {
+            previewDiv.style.display = 'block';
+            listDiv.innerHTML = '';
+            
+            var totalOriginal = 0;
+            
+            for (var i = 0; i < selectedProducts.length; i++) {
+                var p = selectedProducts[i];
+                totalOriginal += p.price * p.quantity;
+                listDiv.innerHTML += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <img src="${p.image}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 8px;" onerror="this.src='https://via.placeholder.com/40'">
+                            <div>
+                                <strong>${p.name}</strong><br>
+                                <span style="font-size: 12px;">${p.price} ₸ x ${p.quantity} = ${p.price * p.quantity} ₸</span>
+                            </div>
+                        </div>
+                        <button type="button" class="remove-product" onclick="removeProduct(${i})">✖</button>
+                    </div>
+                `;
+            }
+            
+            // Обновляем цену
+            var originalPriceInput = document.getElementById('originalPrice');
+            if (originalPriceInput) {
+                originalPriceInput.value = totalOriginal;
+            }
+            
+            // Автоматическая скидка 70%
+            var discountedPriceInput = document.getElementById('discountedPrice');
+            if (discountedPriceInput && (!discountedPriceInput.value || discountedPriceInput.value == 0)) {
+                discountedPriceInput.value = Math.round(totalOriginal * 0.7);
+            }
+        } else {
+            previewDiv.style.display = 'none';
+            var originalPriceInput = document.getElementById('originalPrice');
+            if (originalPriceInput) {
+                originalPriceInput.value = '';
+            }
+        }
+    }
+    
+    function removeProduct(index) {
+        selectedProducts.splice(index, 1);
+        updateSelectedProductsList();
+    }
+    
+    // Предпросмотр изображения
+    document.getElementById('imageUrl')?.addEventListener('input', function() {
+        var url = this.value;
+        var previewDiv = document.getElementById('imagePreview');
+        if (url && (url.startsWith('http') || url.startsWith('data:'))) {
+            previewDiv.innerHTML = `<img src="${url}" class="preview-img" onerror="this.src='https://via.placeholder.com/80'">`;
+        } else {
+            previewDiv.innerHTML = '';
+        }
+    });
+    
+    async function updateOrderStatus(orderId, status) {
+        if (!status) return;
+        
+        try {
+            var response = await fetch('/api/supplier/orders/' + orderId + '/status', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: status })
+            });
+            
+            var data = await response.json();
+            
+            if (response.ok && data.success) {
+                if (status === 'out_for_delivery') {
+                    localStorage.setItem('auto_start_animation_' + orderId, 'true');
+                    console.log('🎬 Signal saved for order:', orderId);
+                }
+                
+                alert('✅ Статус обновлен!');
+                location.reload();
+            } else {
+                alert('❌ Ошибка: ' + (data.error || 'Unknown'));
+            }
+        } catch(error) {
+            console.error('Error:', error);
+            alert('❌ Ошибка сети');
+        }
+    }
+    
+    async function toggleBagStatus(bagId) {
+        try {
+            var response = await fetch('/api/supplier/surprise-bags/' + bagId + '/toggle', {
+                method: 'PUT'
+            });
+            if (response.ok) {
+                alert('✅ Статус изменен!');
+                location.reload();
+            }
+        } catch(error) {
+            alert('❌ Ошибка');
+        }
+    }
+    
+    function trackOrder(orderId) {
+        window.location.href = '/track-order/' + orderId + '?lang=' + currentLang;
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        loadProducts();
+        
+        document.getElementById('addProductBtn')?.addEventListener('click', addProduct);
+        
+        var statusSelects = document.querySelectorAll('.status-select');
+        for (var i = 0; i < statusSelects.length; i++) {
+            statusSelects[i].addEventListener('change', function() {
+                var orderId = this.getAttribute('data-order-id');
+                var newStatus = this.value;
+                if (newStatus) {
+                    updateOrderStatus(orderId, newStatus);
+                    this.value = '';
+                }
+            });
+        }
+        
+        var trackBtns = document.querySelectorAll('.track-btn');
+        for (var j = 0; j < trackBtns.length; j++) {
+            trackBtns[j].addEventListener('click', function() {
+                trackOrder(this.getAttribute('data-order-id'));
+            });
+        }
+        
+        var toggleBtns = document.querySelectorAll('.toggle-bag-btn');
+        for (var k = 0; k < toggleBtns.length; k++) {
+            toggleBtns[k].addEventListener('click', function() {
+                toggleBagStatus(this.getAttribute('data-bag-id'));
+            });
+        }
+        
+        var addBagForm = document.getElementById('addBagForm');
+        if (addBagForm) {
+            addBagForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                // Проверка обязательных полей
+                var name = document.getElementById('bagName').value;
+                var originalPrice = document.getElementById('originalPrice').value;
+                var discountedPrice = document.getElementById('discountedPrice').value;
+                
+                if (!name) {
+                    alert('Введите название сюрприза!');
+                    return;
+                }
+                
+                if (!originalPrice || originalPrice == 0) {
+                    alert('Добавьте блюда в сюрприз или укажите цену вручную!');
+                    return;
+                }
+                
+                if (!discountedPrice) {
+                    alert('Введите цену со скидкой!');
+                    return;
+                }
+                
+                var formData = new FormData(e.target);
+                var data = {};
+                formData.forEach(function(v, key) { data[key] = v; });
+                data.supplier_id = supplierId;
+                
+                // Сохраняем выбранные продукты в description
+                var descriptionText = data.description || '';
+                data.description = JSON.stringify({
+                    text: descriptionText,
+                    items: selectedProducts
+                });
+                
+                if (data.original_price && data.discounted_price) {
+                    var orig = parseFloat(data.original_price);
+                    var disc = parseFloat(data.discounted_price);
+                    data.discount_percentage = Math.round(((orig - disc) / orig) * 100);
+                }
+                
+                try {
+                    var response = await fetch('/api/supplier/surprise-bags', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    if (response.ok) {
+                        alert('✅ Сюрприз добавлен!');
+                        location.reload();
+                    } else {
+                        var error = await response.json();
+                        alert('❌ Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
+                    }
+                } catch(error) {
+                    console.error('Error:', error);
+                    alert('❌ Ошибка сети');
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

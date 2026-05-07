@@ -1,14 +1,187 @@
 from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional, List
+from enum import Enum
 
-class FoodBase(BaseModel):
-    name_ru: str
-    name_kz: str
-    price: float
-    image: str
-    discount: int
+class UserRole(str, Enum):
+    CUSTOMER = "customer"
+    SUPPLIER = "supplier"
+    ADMIN = "admin"
 
-class Food(FoodBase):
+class OrderStatus(str, Enum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    PREPARING = "preparing"
+    READY_FOR_PICKUP = "ready_for_pickup"
+    OUT_FOR_DELIVERY = "out_for_delivery"
+    DELIVERED = "delivered"
+    CANCELLED = "cancelled"
+
+class DeliveryStatus(str, Enum):
+    AT_SUPPLIER = "at_supplier"
+    EN_ROUTE = "en_route"
+    NEARBY = "nearby"
+    ARRIVED = "arrived"
+
+# ============ USER SCHEMAS ============
+class UserCreate(BaseModel):
+    """For creating a new user"""
+    email: Optional[str] = None  # Made optional - phone is primary
+    phone: str  # REQUIRED - phone number
+    password: str
+    full_name: Optional[str] = None
+    role: UserRole = UserRole.CUSTOMER
+
+class UserResponse(BaseModel):
     id: int
+    email: Optional[str]
+    phone: str
+    full_name: Optional[str]
+    phone_verified: bool
+    role: UserRole
+    is_active: bool
+    created_at: datetime
 
-    class Config:
-        orm_mode = True
+# ============ PHONE VERIFICATION SCHEMAS ============
+class PhoneVerificationRequest(BaseModel):
+    """Request to send SMS verification code"""
+    phone_number: str
+
+class PhoneVerificationResponse(BaseModel):
+    success: bool
+    message: str
+    demo: bool = False
+
+class PhoneRegisterRequest(BaseModel):
+    """Complete registration with phone verification"""
+    phone_number: str
+    full_name: str
+    password: str
+    verification_code: str
+
+class PhoneLoginRequest(BaseModel):
+    """Login with phone number"""
+    phone_number: str
+    password: str
+
+# ============ SUPPLIER SCHEMAS ============
+class SupplierCreate(BaseModel):
+    business_name: str
+    business_type: Optional[str] = None
+    description: Optional[str] = None
+    city: Optional[str] = "Алматы"
+    address: str
+    lat: float
+    lon: float
+    phone: str
+    email: str
+    pickup_start_time: Optional[str] = None
+    pickup_end_time: Optional[str] = None
+
+class SupplierResponse(BaseModel):
+    id: int
+    business_name: str
+    business_type: Optional[str]
+    description: Optional[str]
+    logo: Optional[str]
+    cover_image: Optional[str]
+    city: Optional[str]
+    address: str
+    lat: float
+    lon: float
+    rating: float
+    total_reviews: int
+    is_verified: bool
+    is_active: bool
+    pickup_start_time: Optional[str]
+    pickup_end_time: Optional[str]
+    created_at: Optional[datetime]
+
+# ============ SURPRISE BAG SCHEMAS ============
+class SurpriseBagCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    original_price: float
+    discounted_price: float
+    image_url: Optional[str] = None
+    available_quantity: int = 1
+    pickup_start_time: Optional[str] = None
+    pickup_end_time: Optional[str] = None
+    possible_items: Optional[str] = None
+
+class SurpriseBagResponse(BaseModel):
+    id: int
+    supplier_id: int
+    supplier_name: Optional[str] = None
+    name: str
+    description: Optional[str]
+    original_price: float
+    discounted_price: float
+    discount_percentage: Optional[int]
+    image_url: Optional[str]
+    available_quantity: int
+    total_quantity: Optional[int]
+    pickup_start_time: Optional[str]
+    pickup_end_time: Optional[str]
+    is_active: bool
+    created_at: Optional[datetime]
+
+# ============ ORDER SCHEMAS ============
+class OrderCreate(BaseModel):
+    surprise_bag_id: int
+    customer_lat: float
+    customer_lon: float
+    customer_address: str
+    pickup_time: Optional[str] = None
+    user_id: Optional[int] = 1  # Temporary, will be from auth
+
+class OrderResponse(BaseModel):
+    id: int
+    order_number: str
+    status: OrderStatus
+    delivery_status: Optional[str]
+    customer_address: str
+    amount_paid: float
+    created_at: datetime
+    supplier: Optional[SupplierResponse]
+    surprise_bag: Optional[SurpriseBagResponse]
+
+class OrderTrackingUpdate(BaseModel):
+    order_id: int
+    status: OrderStatus
+    delivery_status: str
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    message: str
+
+# ============ DELIVERY SCHEMAS ============
+class DeliveryPosition(BaseModel):
+    lat: float
+    lon: float
+    progress: float
+    remaining_steps: int
+    is_complete: bool = False
+
+class DeliveryInfo(BaseModel):
+    order_id: int
+    order_number: str
+    supplier_name: str
+    supplier_location: dict
+    customer_location: dict
+    customer_address: str
+    bag_name: str
+    distance_km: float
+    eta_minutes: int
+    status: str
+    progress: Optional[float] = 0
+
+# ============ API RESPONSE SCHEMAS ============
+class APIResponse(BaseModel):
+    success: bool
+    message: str
+    data: Optional[dict] = None
+
+class ErrorResponse(BaseModel):
+    success: bool = False
+    error: str
+    detail: Optional[str] = None

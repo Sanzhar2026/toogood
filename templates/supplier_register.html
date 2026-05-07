@@ -1,0 +1,417 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .register-container {
+        max-width: 700px;
+        margin: 50px auto;
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #166534;
+    }
+    input, select, textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+    input:focus, select:focus {
+        outline: none;
+        border-color: #166534;
+    }
+    .btn-register {
+        width: 100%;
+        background: #166534;
+        color: white;
+        padding: 14px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .btn-register:hover {
+        background: #0f4a27;
+    }
+    h2 {
+        color: #166534;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .login-link {
+        text-align: center;
+        margin-top: 20px;
+    }
+    .location-hint {
+        font-size: 12px;
+        color: #666;
+        margin-top: 5px;
+    }
+    .auto-detect-btn {
+        background: #fbbf24;
+        color: #1a472a;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-top: 5px;
+        font-size: 13px;
+        transition: all 0.3s;
+    }
+    .auto-detect-btn:hover {
+        background: #f59e0b;
+        transform: scale(1.02);
+    }
+    .city-preview {
+        background: #f0fdf4;
+        padding: 10px;
+        border-radius: 8px;
+        margin-top: 5px;
+        font-size: 13px;
+        color: #166534;
+        display: none;
+    }
+    .coordinates-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+    }
+    hr {
+        margin: 20px 0;
+        border: none;
+        border-top: 1px solid #e5e7eb;
+    }
+</style>
+
+<div class="register-container">
+    <h2>🏪 {% if lang == 'kz' %}Дүкен ретінде тіркелу{% else %}Регистрация как магазин{% endif %}</h2>
+    
+    <form method="post" action="/supplier/register" id="registerForm">
+        <div class="form-group">
+            <label>{% if lang == 'kz' %}Дүкен атауы{% else %}Название магазина{% endif %} *</label>
+            <input type="text" name="business_name" required placeholder="e.g., Sarqyn Restoran">
+        </div>
+        
+        <div class="form-group">
+            <label>{% if lang == 'kz' %}Түрі{% else %}Тип{% endif %} *</label>
+            <select name="business_type" required>
+                <option value="Restaurant">{% if lang == 'kz' %}Мейрамхана{% else %}Ресторан{% endif %}</option>
+                <option value="Bakery">{% if lang == 'kz' %}Наубайхана{% else %}Пекарня{% endif %}</option>
+                <option value="Cafe">{% if lang == 'kz' %}Кафе{% else %}Кафе{% endif %}</option>
+                <option value="Supermarket">{% if lang == 'kz' %}Супермаркет{% else %}Супермаркет{% endif %}</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Email *</label>
+            <input type="email" name="email" required>
+        </div>
+        
+        <div class="form-group">
+            <label>{% if lang == 'kz' %}Телефон{% else %}Телефон{% endif %} *</label>
+            <input type="tel" name="phone" required placeholder="+7 777 123 4567">
+        </div>
+        
+        <div class="form-group">
+            <label>{% if lang == 'kz' %}Құпия сөз{% else %}Пароль{% endif %} *</label>
+            <input type="password" name="password" required>
+        </div>
+        
+        <div class="form-group">
+            <label>{% if lang == 'kz' %}Құпия сөзді растау{% else %}Подтверждение пароля{% endif %} *</label>
+            <input type="password" name="confirm_password" required>
+        </div>
+        
+        <hr>
+        
+        <h3 style="color: #166534; font-size: 18px; margin-bottom: 20px;">📍 {% if lang == 'kz' %}Мекенжай және орналасу{% else %}Адрес и расположение{% endif %}</h3>
+        
+        <div class="form-group">
+            <label>{% if lang == 'kz' %}Қала / Город{% endif %} *</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <select name="city" id="citySelect" required style="flex: 1;">
+                    <option value="">{% if lang == 'kz' %}Қаланы таңдаңыз{% else %}Выберите город{% endif %}</option>
+                    <option value="Алматы">Алматы / Almaty</option>
+                    <option value="Астана">Астана / Astana</option>
+                    <option value="Шымкент">Шымкент / Shymkent</option>
+                    <option value="Ақтөбе">Ақтөбе / Aktobe</option>
+                    <option value="Қарағанды">Қарағанды / Karaganda</option>
+                    <option value="Атырау">Атырау / Atyrau</option>
+                    <option value="Өскемен">Өскемен / Oskemen</option>
+                    <option value="Павлодар">Павлодар / Pavlodar</option>
+                    <option value="Тараз">Тараз / Taraz</option>
+                    <option value="Қызылорда">Қызылорда / Kyzylorda</option>
+                </select>
+                <button type="button" class="auto-detect-btn" onclick="detectCityFromLocation()">
+                    📍 {% if lang == 'kz' %}Автоанықтау{% else %}Автоопределение{% endif %}
+                </button>
+            </div>
+            <div class="location-hint">
+                💡 {% if lang == 'kz' %}Немесе "Автоанықтау" батырмасын басыңыз{% else %}Или нажмите "Автоопределение"{% endif %}
+            </div>
+            <div id="cityPreview" class="city-preview"></div>
+        </div>
+        
+        <div class="form-group">
+            <label>{% if lang == 'kz' %}Мекенжай{% else %}Адрес{% endif %} *</label>
+            <input type="text" name="address" id="address" required placeholder="{% if lang == 'kz' %}Көше, үй нөмірі{% else %}Улица, номер дома{% endif %}">
+        </div>
+        
+        <div class="coordinates-row">
+            <div class="form-group">
+                <label>{% if lang == 'kz' %}Ендік (Latitude){% else %}Широта{% endif %} *</label>
+                <input type="number" step="any" name="lat" id="lat" required placeholder="43.238">
+            </div>
+            <div class="form-group">
+                <label>{% if lang == 'kz' %}Бойлық (Longitude){% else %}Долгота{% endif %} *</label>
+                <input type="number" step="any" name="lon" id="lon" required placeholder="76.945">
+            </div>
+        </div>
+        
+        <div class="coordinates-row">
+            <div class="form-group">
+                <label>{% if lang == 'kz' %}Таңдау уақыты (басталу){% else %}Время выдачи (начало){% endif %} *</label>
+                <input type="time" name="pickup_start" required value="19:30">
+            </div>
+            <div class="form-group">
+                <label>{% if lang == 'kz' %}Таңдау уақыты (аяқталу){% else %}Время выдачи (конец){% endif %} *</label>
+                <input type="time" name="pickup_end" required value="20:00">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>{% if lang == 'kz' %}Сипаттама{% else %}Описание{% endif %}</label>
+            <textarea name="description" rows="3" placeholder="{% if lang == 'kz' %}Дүкеніңіз туралы қысқаша ақпарат{% else %}Краткая информация о вашем магазине{% endif %}"></textarea>
+        </div>
+        
+        <button type="submit" class="btn-register">
+            🚀 {% if lang == 'kz' %}Тіркелу{% else %}Зарегистрироваться{% endif %}
+        </button>
+        
+        <div class="login-link">
+            <a href="/supplier/login">{% if lang == 'kz' %}Кабинетіңіз бар ма? Кіру{% else %}Уже есть аккаунт? Войти{% endif %}</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    var currentLang = '{{ lang }}';
+    
+    // City coordinates mapping
+    var cityCoordinates = {
+        'Алматы': { lat: 43.238, lon: 76.945 },
+        'Астана': { lat: 51.169, lon: 71.449 },
+        'Шымкент': { lat: 42.341, lon: 69.590 },
+        'Ақтөбе': { lat: 50.283, lon: 57.167 },
+        'Қарағанды': { lat: 49.801, lon: 73.102 },
+        'Атырау': { lat: 47.115, lon: 51.917 },
+        'Өскемен': { lat: 49.950, lon: 82.618 },
+        'Павлодар': { lat: 52.287, lon: 76.973 },
+        'Тараз': { lat: 42.899, lon: 71.365 },
+        'Қызылорда': { lat: 44.848, lon: 65.482 }
+    };
+    
+    // Detect city from current location
+    function detectCityFromLocation() {
+        var citySelect = document.getElementById('citySelect');
+        var cityPreview = document.getElementById('cityPreview');
+        
+        if (!navigator.geolocation) {
+            var msg = (currentLang === 'kz') ? 
+                '⚠️ Сіздің браузеріңіз геолокацияны қолдамайды' : 
+                '⚠️ Ваш браузер не поддерживает геолокацию';
+            alert(msg);
+            return;
+        }
+        
+        cityPreview.style.display = 'block';
+        cityPreview.innerHTML = '📍 ' + ((currentLang === 'kz') ? 
+            'Орналасқан жеріңіз анықталуда...' : 
+            'Определение местоположения...');
+        cityPreview.style.background = '#fef3c7';
+        
+        navigator.geolocation.getCurrentPosition(async function(position) {
+            var lat = position.coords.latitude;
+            var lon = position.coords.longitude;
+            
+            // Update coordinate fields
+            document.getElementById('lat').value = lat.toFixed(6);
+            document.getElementById('lon').value = lon.toFixed(6);
+            
+            // Get city name from coordinates
+            var city = await getCityFromCoords(lat, lon);
+            
+            if (city && cityCoordinates[city]) {
+                // Select the city in dropdown
+                citySelect.value = city;
+                
+                // Show success preview
+                cityPreview.innerHTML = '✅ ' + ((currentLang === 'kz') ? 
+                    'Қала автоматты түрде анықталды: ' + city : 
+                    'Город автоматически определен: ' + city);
+                cityPreview.style.background = '#d1fae5';
+                
+                // Also try to get address
+                var address = await getAddressFromCoords(lat, lon);
+                if (address) {
+                    document.getElementById('address').value = address;
+                }
+                
+                setTimeout(function() {
+                    cityPreview.style.display = 'none';
+                }, 3000);
+            } else {
+                cityPreview.innerHTML = '⚠️ ' + ((currentLang === 'kz') ? 
+                    'Қала анықталмады. Қолмен таңдаңыз.' : 
+                    'Город не определен. Выберите вручную.');
+                cityPreview.style.background = '#fee2e2';
+                
+                setTimeout(function() {
+                    cityPreview.style.display = 'none';
+                }, 3000);
+            }
+        }, function(error) {
+            var errorMsg = '';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = (currentLang === 'kz') ? 
+                        '⚠️ Орналасуды анықтауға рұқсат берілмеді' : 
+                        '⚠️ Разрешение на определение местоположения не предоставлено';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = (currentLang === 'kz') ? 
+                        '⚠️ Орналасуды анықтау мүмкін емес' : 
+                        '⚠️ Невозможно определить местоположение';
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = (currentLang === 'kz') ? 
+                        '⚠️ Уақыт өтіп кетті' : 
+                        '⚠️ Время ожидания истекло';
+                    break;
+                default:
+                    errorMsg = (currentLang === 'kz') ? 
+                        '⚠️ Қате кетті' : 
+                        '⚠️ Произошла ошибка';
+            }
+            alert(errorMsg);
+            cityPreview.style.display = 'none';
+        });
+    }
+    
+    // Get city name from coordinates using reverse geocoding
+    async function getCityFromCoords(lat, lon) {
+        var langCode = (currentLang === 'kz') ? 'kk' : 'ru';
+        try {
+            var response = await fetch(
+                'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + 
+                '&lon=' + lon + '&accept-language=' + langCode + '&addressdetails=1'
+            );
+            var data = await response.json();
+            
+            if (data && data.address) {
+                // Try to get city from different address fields
+                var city = data.address.city || 
+                          data.address.town || 
+                          data.address.village || 
+                          data.address.state_district ||
+                          data.address.state;
+                
+                // Check if city is in our list
+                for (var knownCity in cityCoordinates) {
+                    if (city && (city.includes(knownCity) || knownCity.includes(city))) {
+                        return knownCity;
+                    }
+                }
+                
+                // Fallback: find closest city by coordinates
+                return findClosestCity(lat, lon);
+            }
+            return null;
+        } catch(error) {
+            console.error('Error getting city:', error);
+            return findClosestCity(lat, lon);
+        }
+    }
+    
+    // Find closest city by coordinates
+    function findClosestCity(lat, lon) {
+        var closestCity = null;
+        var minDistance = Infinity;
+        
+        for (var city in cityCoordinates) {
+            var coords = cityCoordinates[city];
+            var distance = calculateDistance(lat, lon, coords.lat, coords.lon);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestCity = city;
+            }
+        }
+        
+        return (minDistance < 100) ? closestCity : null;
+    }
+    
+    // Calculate distance between two points (km)
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        var R = 6371;
+        var dLat = (lat2 - lat1) * Math.PI / 180;
+        var dLon = (lon2 - lon1) * Math.PI / 180;
+        var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+    
+    // Get full address from coordinates
+    async function getAddressFromCoords(lat, lon) {
+        var langCode = (currentLang === 'kz') ? 'kk' : 'ru';
+        try {
+            var response = await fetch(
+                'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + 
+                '&lon=' + lon + '&accept-language=' + langCode
+            );
+            var data = await response.json();
+            if (data && data.display_name) {
+                var parts = data.display_name.split(',');
+                return parts.slice(0, 4).join(', ');
+            }
+            return '';
+        } catch(error) {
+            return '';
+        }
+    }
+    
+    // When city is manually selected, auto-fill coordinates
+    document.getElementById('citySelect').addEventListener('change', function() {
+        var selectedCity = this.value;
+        if (selectedCity && cityCoordinates[selectedCity]) {
+            document.getElementById('lat').value = cityCoordinates[selectedCity].lat;
+            document.getElementById('lon').value = cityCoordinates[selectedCity].lon;
+            
+            // Show preview
+            var cityPreview = document.getElementById('cityPreview');
+            cityPreview.style.display = 'block';
+            cityPreview.innerHTML = '📍 ' + ((currentLang === 'kz') ? 
+                'Қала таңдалды: ' + selectedCity + ' (координаттар автоматты түрде толтырылды)' : 
+                'Город выбран: ' + selectedCity + ' (координаты заполнены автоматически)');
+            cityPreview.style.background = '#d1fae5';
+            
+            setTimeout(function() {
+                cityPreview.style.display = 'none';
+            }, 2000);
+        }
+    });
+</script>
+{% endblock %}
