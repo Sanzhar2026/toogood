@@ -34,7 +34,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://твой-фронтенд.vercel.app"],
+    allow_origins=["http://localhost:3000", "https://toogood-2ncf.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
