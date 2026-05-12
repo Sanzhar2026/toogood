@@ -30,7 +30,15 @@ templates = Jinja2Templates(directory="templates")
 
 # ============ CACHE FOR DELIVERIES ============
 delivery_cache = {}
+from fastapi.middleware.cors import CORSMiddleware
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "https://твой-фронтенд.vercel.app"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # ============ CATEGORIES ============
 categories = [
     {"id": "all", "name_kz": "Барлығы", "name_ru": "Все", "emoji": "🍽️"},
@@ -204,7 +212,10 @@ def format_phone_number(phone: str) -> str:
     else:
         return '+' + digits if digits else phone
 def verify_password(plain_password: str, hashed_password: str):
-    return hash_password(plain_password) == hashed_password
+    computed_hash = hashlib.sha256(plain_password.encode()).hexdigest()
+    print(f"DEBUG: Computed hash: {computed_hash}")
+    print(f"DEBUG: Stored hash: {hashed_password}")
+    return computed_hash == hashed_password
 
 # ============ CREATE DATABASE TABLES ============
 
@@ -254,7 +265,32 @@ async def phone_register_page(request: Request, lang: str = "kz"):
         "request": request,
         "lang": lang
     })
-
+@app.post("/api/debug-login")
+async def debug_login(request: Request, db: Session = Depends(get_db)):
+    data = await request.json()
+    phone = data.get("phone")
+    password = data.get("password")
+    
+    formatted_phone = format_phone_number(phone)
+    
+    # Найти пользователя
+    user = db.query(User).filter(User.phone == formatted_phone).first()
+    
+    if not user:
+        return {"error": "User not found"}
+    
+    # Хешируем введенный пароль
+    computed_hash = hashlib.sha256(password.encode()).hexdigest()
+    
+    return {
+        "user_phone": user.phone,
+        "stored_hash": user.password,
+        "computed_hash": computed_hash,
+        "hashes_match": computed_hash == user.password,
+        "password_length": len(password),
+        "password_chars": [ord(c) for c in password],
+        "password_repr": repr(password)
+    }
 # В main.py добавьте async к функциям
 from backend.twilio_service import send_verification_code, verify_code
 
@@ -565,18 +601,38 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
         phone = data.get("phone")
         password = data.get("password")
         
-        # ✅ ФОРМАТИРУЕМ НОМЕР
+        # Format phone
         formatted_phone = format_phone_number(phone)
         
+        # DEBUG: Print what we're looking for
         print(f"🔐 Login attempt: {phone} -> {formatted_phone}")
         
-        # Поиск пользователя
+        # DEBUG: Show all users in database
+        all_users = db.query(User).all()
+        print(f"📋 All users in DB:")
+        for u in all_users:
+            print(f"   ID: {u.id}, Phone: {u.phone}, Name: {u.full_name}")
+        
+        # Find user
         user = db.query(User).filter(User.phone == formatted_phone).first()
         
-        if not user or not verify_password(password, user.password):
+        if not user:
+            print(f"❌ User not found with phone: {formatted_phone}")
             return JSONResponse(
                 status_code=401,
-                content={"success": False, "error": "Invalid phone or password"}
+                content={"success": False, "error": "User not found"}
+            )
+        
+        # DEBUG: Check password
+        print(f"✅ User found: {user.phone}")
+        print(f"   Stored hash: {user.password}")
+        print(f"   Input password: {password}")
+        
+        if not verify_password(password, user.password):
+            print(f"❌ Password mismatch for user: {user.phone}")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "Invalid password"}
             )
         
         # Создаем ответ с cookie
@@ -1068,68 +1124,271 @@ async def my_orders_page(request: Request, lang: str = "kz", db: Session = Depen
 
 
 # ============ TRACK ORDER PAGE ============
+# Add these imports at the top
+
+# Add these endpoints to your existing FastAPI app
+@app.get("/api/suppliers/bag/{bag_id}")
+async def get_bag_by_id(bag_id: int, db: Session = Depends(get_db)):
+    bag = db.query(SurpriseBag).filter(
+        SurpriseBag.id == bag_id,
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0
+    ).first()
+    
+    if not bag:
+        raise HTTPException(status_code=404, detail="Surprise bag not found")
+    
+    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    
+    return {
+        "id": bag.id,
+        "name": bag.name,
+        "description": bag.description,
+        "original_price": bag.original_price,
+        "discounted_price": bag.discounted_price,
+        "discount_percentage": bag.discount_percentage,
+        "image_url": bag.image_url,
+        "supplier_name": supplier.business_name if supplier else "",
+        "supplier_id": supplier.id if supplier else None,
+        "available_quantity": bag.available_quantity,
+        "pickup_start_time": bag.pickup_start_time,
+        "pickup_end_time": bag.pickup_end_time,
+        "is_active": bag.is_active
+    }
+
+# Get nearby suppliers
+@app.get("/api/suppliers/nearby")
+async def get_nearby_suppliers(
+    lat: float, 
+    lon: float, 
+    radius: float = 50, 
+    db: Session = Depends(get_db)
+):
+    from math import radians, sin, cos, sqrt, atan2
+    
+    def haversine(lat1, lon1, lat2, lon2):
+        R = 6371  # Earth radius in km
+        lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        return R * c
+    
+    all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
+    
+    nearby = []
+    for supplier in all_suppliers:
+        if supplier.lat and supplier.lon:
+            distance = haversine(lat, lon, supplier.lat, supplier.lon)
+            if distance <= radius:
+                active_bags = db.query(SurpriseBag).filter(
+                    SurpriseBag.supplier_id == supplier.id,
+                    SurpriseBag.is_active == True,
+                    SurpriseBag.available_quantity > 0
+                ).all()
+                nearby.append({
+                    "id": supplier.id,
+                    "business_name": supplier.business_name,
+                    "distance_km": round(distance, 2),
+                    "rating": supplier.rating,
+                    "surprise_bags": [
+                        {
+                            "id": bag.id,
+                            "name": bag.name,
+                            "discounted_price": bag.discounted_price,
+                            "discount_percentage": bag.discount_percentage
+                        } for bag in active_bags
+                    ]
+                })
+    
+    nearby.sort(key=lambda x: x["distance_km"])
+    return {"count": len(nearby), "suppliers": nearby}
+
+class OrderCreate(BaseModel):
+    bag_id: int
+    lat: float
+    lon: float
+    address: str
 
 @app.post("/api/orders")
-async def create_order(request: Request, db: Session = Depends(get_db)):
-    try:
-        user_id = request.cookies.get("user_id")
-        
-        if not user_id:
-            return JSONResponse(
-                status_code=401,
-                content={"success": False, "error": "Please login first", "redirect": "/login"}
-            )
-        
-        user = db.query(User).filter(User.id == int(user_id)).first()
-        if not user:
-            return JSONResponse(
-                status_code=401,
-                content={"success": False, "error": "User not found", "redirect": "/login"}
-            )
-        
-        # ✅ ТЕПЕРЬ МОЖНО СОЗДАВАТЬ ЗАКАЗ (У ПОЛЬЗОВАТЕЛЯ ТОЧНО ЕСТЬ ТЕЛЕФОН)
-        data = await request.json()
-        
-        bag_id = data.get("surprise_bag_id")
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
-        
-        if not bag:
-            raise HTTPException(status_code=404, detail="Surprise bag not found")
-        
-        if bag.available_quantity <= 0:
-            raise HTTPException(status_code=400, detail="Sold out")
-        
-        import secrets
-        order_number = f"ORD-{secrets.token_hex(4).upper()}"
-        
-        order = Order(
-            user_id=user.id,  # ✅ ТОЛЬКО СУЩЕСТВУЮЩИЙ ПОЛЬЗОВАТЕЛЬ
-            supplier_id=bag.supplier_id,
-            surprise_bag_id=bag.id,
-            order_number=order_number,
-            customer_lat=data.get("customer_lat"),
-            customer_lon=data.get("customer_lon"),
-            customer_address=data.get("customer_address"),
-            pickup_time=bag.pickup_start_time,
-            amount_paid=bag.discounted_price,
-            status=OrderStatus.PENDING,
-            delivery_status=DeliveryStatus.AT_SUPPLIER,
-            created_at=datetime.utcnow()
+async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
+    # Check if bag exists
+    bag = db.query(SurpriseBag).filter(
+        SurpriseBag.id == order_data.bag_id,
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0
+    ).first()
+    
+    if not bag:
+        raise HTTPException(status_code=404, detail="Bag not available")
+    
+    # Get or create user with simple method
+    user = db.query(User).filter(User.phone == "temp_user").first()
+    if not user:
+        # Create user without complex hashing for now
+        user = User(
+            phone="temp_user",
+            password="temp_password",  # Change this later
+            full_name="Temporary User",
+            role="customer",
+            is_active=True
         )
-        
-        bag.available_quantity -= 1
-        
-        db.add(order)
+        db.add(user)
         db.commit()
-        db.refresh(order)
+        db.refresh(user)
+    
+    # Check supplier
+    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    # Create order
+    order_number = f"ORD-{secrets.token_hex(4).upper()}"
+    
+    order = Order(
+        user_id=user.id,
+        supplier_id=bag.supplier_id,
+        surprise_bag_id=bag.id,
+        order_number=order_number,
+        status=OrderStatus.PENDING,
+        customer_lat=order_data.lat,
+        customer_lon=order_data.lon,
+        customer_address=order_data.address,
+        lat=order_data.lat,
+        lon=order_data.lon,
+        address=order_data.address,
+        amount_paid=bag.discounted_price,
+        pickup_time=f"{bag.pickup_start_time} - {bag.pickup_end_time}" if bag.pickup_start_time else None,
+        created_at=datetime.utcnow()
+    )
+    
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    
+    # Decrease quantity
+    bag.available_quantity -= 1
+    db.commit()
+    
+    return {
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "status": order.status.value,
+        "message": "Order created successfully"
+    }
+
+class OrderCreate(BaseModel):
+    bag_id: int
+    lat: float
+    lon: float
+    address: str
+
+class OrderResponse(BaseModel):
+    order_id: int
+    status: str
+    message: str
+
+@app.post("/api/orders")
+async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
+    # Check if bag exists and is available
+    bag = db.query(SurpriseBag).filter(
+        SurpriseBag.id == order_data.bag_id,
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0
+    ).first()
+    
+    if not bag:
+        raise HTTPException(status_code=404, detail="Bag not available")
+    
+    # Get supplier
+    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    # Get or create a default user (for now, create one if not exists)
+    # In production, you'd get the authenticated user
+    user = db.query(User).filter(User.phone == "temp_user").first()
+    if not user:
+        # Create temporary user if none exists
+        from passlib.context import CryptContext
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         
-        return {"success": True, "order_id": order.id, "order_number": order_number}
-        
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "error": str(e)}
+        user = User(
+            phone="temp_user",
+            password=pwd_context.hash("temp_password"),
+            full_name="Temporary User",
+            role="customer",
+            is_active=True
         )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    
+    # Generate unique order number
+    order_number = f"ORD-{secrets.token_hex(4).upper()}"
+    
+    # Create order - using fields that exist in your Order model
+    order = Order(
+        user_id=user.id,
+        supplier_id=bag.supplier_id,
+        surprise_bag_id=bag.id,
+        order_number=order_number,
+        status=OrderStatus.PENDING,
+        delivery_status="at_supplier",  # Will use DeliveryStatus enum value
+        customer_lat=order_data.lat,
+        customer_lon=order_data.lon,
+        customer_address=order_data.address,
+        lat=order_data.lat,  # Also set old fields for compatibility
+        lon=order_data.lon,
+        address=order_data.address,
+        amount_paid=bag.discounted_price,
+        pickup_time=f"{bag.pickup_start_time} - {bag.pickup_end_time}" if bag.pickup_start_time else None,
+        created_at=datetime.utcnow()
+    )
+    
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    
+    # Decrease available quantity
+    bag.available_quantity -= 1
+    db.commit()
+    
+    return {
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "status": order.status.value,
+        "message": "Order created successfully"
+    }
+
+# Get order by ID
+@app.get("/api/orders/{order_id}")
+async def get_order(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Get bag and supplier info
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+    supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+    
+    return {
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "status": order.status.value if order.status else "pending",
+        "delivery_status": order.delivery_status.value if order.delivery_status else "at_supplier",
+        "bag_name": bag.name if bag else "",
+        "supplier_name": supplier.business_name if supplier else "",
+        "supplier_address": supplier.address if supplier else "",
+        "customer_lat": order.customer_lat,
+        "customer_lon": order.customer_lon,
+        "customer_address": order.customer_address,
+        "amount_paid": order.amount_paid,
+        "pickup_time": order.pickup_time,
+        "created_at": order.created_at.isoformat()
+    }
 
 @app.get("/test-ors")
 async def test_ors():
@@ -1501,10 +1760,18 @@ async def get_order_statuses():
         ]
     }
 
-
-
-
-
+@app.get("/api/check-auth")
+async def check_auth(request: Request):
+    user_id = request.cookies.get("user_id")
+    user_name = request.cookies.get("user_name")
+    
+    if user_id:
+        return {
+            "authenticated": True,
+            "user_id": int(user_id),
+            "user_name": user_name or "User"
+        }
+    return {"authenticated": False}
 
 
 # ============ RUN APP ============
