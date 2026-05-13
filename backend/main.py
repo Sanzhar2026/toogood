@@ -389,6 +389,7 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         # Flexible field name handling
         phone = data.get('phone') or data.get('phone_number')
         full_name = data.get('full_name') or data.get('fullName') or data.get('name')
+        full_name = full_name.encode('utf-8').decode('utf-8')  
         password = data.get('password')
         verification_code = data.get('verification_code') or data.get('code') or data.get('verificationCode')
         
