@@ -1362,33 +1362,49 @@ async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
         "message": "Order created successfully"
     }
 
-# Get order by ID
+
+
+@app.get("/api/geocode")
+async def geocode(lat: float, lon: float):
+    import httpx
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}&accept-language=ru"
+        )
+        data = response.json()
+        city = data.get('address', {}).get('city', 'Не определен')
+        return {"city": city}
+
+
 @app.get("/api/orders/{order_id}")
-async def get_order(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Get bag and supplier info
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-    supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
-    
-    return {
-        "order_id": order.id,
-        "order_number": order.order_number,
-        "status": order.status.value if order.status else "pending",
-        "delivery_status": order.delivery_status.value if order.delivery_status else "at_supplier",
-        "bag_name": bag.name if bag else "",
-        "supplier_name": supplier.business_name if supplier else "",
-        "supplier_address": supplier.address if supplier else "",
-        "customer_lat": order.customer_lat,
-        "customer_lon": order.customer_lon,
-        "customer_address": order.customer_address,
-        "amount_paid": order.amount_paid,
-        "pickup_time": order.pickup_time,
-        "created_at": order.created_at.isoformat()
-    }
+async def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
+    """Get single order by ID"""
+    try:
+        order = db.query(Order).filter(Order.id == order_id).first()
+        
+        if not order:
+            raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
+        
+        # Get bag and supplier info
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+        
+        return {
+            "order_id": order.id,
+            "order_number": order.order_number or f"ORD-{order.id}",
+            "status": order.status.value if order.status else "pending",
+            "delivery_status": order.delivery_status.value if order.delivery_status else "at_supplier",
+            "bag_name": bag.name if bag else "Surprise Bag",
+            "supplier_name": supplier.business_name if supplier else "Restaurant",
+            "supplier_address": supplier.address if supplier else "",
+            "customer_address": order.customer_address or "Address not specified",
+            "amount_paid": order.amount_paid or 0,
+            "pickup_time": order.pickup_time or "",
+            "created_at": order.created_at.isoformat() if order.created_at else datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        print(f"Error fetching order {order_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/test-ors")
 async def test_ors():
