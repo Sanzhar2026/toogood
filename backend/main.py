@@ -595,6 +595,8 @@ async def phone_login_page(request: Request, lang: str = "kz"):
     })
 from fastapi.responses import JSONResponse
 
+from fastapi.responses import JSONResponse
+
 @app.post("/api/login")
 async def api_login(request: Request, db: Session = Depends(get_db)):
     try:
@@ -602,7 +604,10 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
         phone = data.get("phone")
         password = data.get("password")
         
+        # Format phone
         formatted_phone = format_phone_number(phone)
+        
+        # Find user
         user = db.query(User).filter(User.phone == formatted_phone).first()
         
         if not user or not verify_password(password, user.password):
@@ -611,45 +616,40 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "error": "Invalid credentials"}
             )
         
-        try:
-            response = JSONResponse(
-                status_code=200,
-                content={
-                    "success": True,
-                    "redirect": "/my-orders",
-                    "user": {
-                        "id": user.id,
-                        "name": user.full_name,
-                        "phone": user.phone
-                    }
+        # ✅ ОТВЕТ С ДАННЫМИ ПОЛЬЗОВАТЕЛЯ В JSON (БЕЗ КИРИЛЛИЦЫ В COOKIES)
+        response = JSONResponse(
+            status_code=200,
+            content={
+                "success": True,
+                "redirect": "/",
+                "user": {
+                    "id": user.id,
+                    "phone": user.phone,
+                    "full_name": user.full_name,  # ← Кириллица здесь (в JSON)
+                    "role": user.role.value if user.role else "customer"
                 }
-            )
-            
-            response.set_cookie(
-                key="user_id", 
-                value=str(user.id),
-                httponly=True,
-                secure=False,
-                samesite="lax",
-                max_age=60*60*24*7
-            )
-            response.set_cookie(
-                key="user_name", 
-                value=user.full_name or "User",
-                httponly=False,
-                secure=False,
-                samesite="lax"
-            )
-            
-            print(f"✅ Login successful for user: {user.phone}")
-            return response
-            
-        except Exception as cookie_error:
-            print(f"❌ Cookie/Response error: {cookie_error}")
-            return JSONResponse(
-                status_code=500,
-                content={"success": False, "error": f"Response error: {str(cookie_error)}"}
-            )
+            }
+        )
+        
+        # ✅ ТОЛЬКО БЕЗОПАСНЫЕ КУКИ (без кириллицы)
+        response.set_cookie(
+            key="user_id", 
+            value=str(user.id),
+            httponly=True,      # Нельзя прочитать через JavaScript
+            samesite="lax",     # Защита от CSRF
+            max_age=60*60*24*30 # 30 дней
+        )
+        
+        response.set_cookie(
+            key="phone", 
+            value=user.phone,   # Телефон содержит только цифры и +
+            httponly=True,
+            samesite="lax",
+            max_age=60*60*24*30
+        )
+        
+        print(f"✅ Login successful for user: {user.phone}")
+        return response
         
     except Exception as e:
         print(f"❌ Login error: {e}")
@@ -1761,18 +1761,19 @@ async def get_order_statuses():
     }
 
 @app.get("/api/check-auth")
-async def check_auth(request: Request):
+async def check_auth(request: Request, db: Session = Depends(get_db)):
     user_id = request.cookies.get("user_id")
-    user_name = request.cookies.get("user_name")
     
     if user_id:
-        return {
-            "authenticated": True,
-            "user_id": int(user_id),
-            "user_name": user_name or "User"
-        }
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if user:
+            return {
+                "authenticated": True,
+                "user_id": user.id,
+                "user_name": user.full_name,      # ← Берем из БД, не из cookie
+                "user_phone": user.phone
+            }
     return {"authenticated": False}
-
 
 # ============ RUN APP ============
 if __name__ == "__main__":
