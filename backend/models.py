@@ -66,7 +66,7 @@ class Supplier(Base):
     logo = Column(String(500))
     cover_image = Column(String(500))
     address = Column(String(500))
-    city = Column(String(100), default="Алматы")
+    city = Column(String(100))
     lat = Column(Float)
     lon = Column(Float)
     phone = Column(String(50))
