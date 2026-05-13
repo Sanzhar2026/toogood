@@ -45,7 +45,7 @@ class User(Base):
     phone = Column(String(50), unique=True, nullable=False)
     phone_verified = Column(Boolean, default=False)
     password = Column(String(255), nullable=False)
-    full_name = Column(String(255, collation='utf8mb4_unicode_ci')) 
+    full_name = Column(String(255))
     role = Column(SQLEnum(UserRole), default=UserRole.CUSTOMER)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
