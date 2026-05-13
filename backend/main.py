@@ -602,74 +602,57 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
         phone = data.get("phone")
         password = data.get("password")
         
-        # Format phone
         formatted_phone = format_phone_number(phone)
-        
-        # DEBUG: Print what we're looking for
-        print(f"🔐 Login attempt: {phone} -> {formatted_phone}")
-        
-        # DEBUG: Show all users in database
-        all_users = db.query(User).all()
-        print(f"📋 All users in DB:")
-        for u in all_users:
-            print(f"   ID: {u.id}, Phone: {u.phone}, Name: {u.full_name}")
-        
-        # Find user
         user = db.query(User).filter(User.phone == formatted_phone).first()
         
-        if not user:
-            print(f"❌ User not found with phone: {formatted_phone}")
+        if not user or not verify_password(password, user.password):
             return JSONResponse(
                 status_code=401,
-                content={"success": False, "error": "User not found"}
+                content={"success": False, "error": "Invalid credentials"}
             )
         
-        # DEBUG: Check password
-        print(f"✅ User found: {user.phone}")
-        print(f"   Stored hash: {user.password}")
-        print(f"   Input password: {password}")
-        
-        if not verify_password(password, user.password):
-            print(f"❌ Password mismatch for user: {user.phone}")
-            return JSONResponse(
-                status_code=401,
-                content={"success": False, "error": "Invalid password"}
-            )
-        
-        # Создаем ответ с cookie
-        response = JSONResponse(
-            status_code=200,
-            content={
-                "success": True,
-                "redirect": "/my-orders",
-                "user": {
-                    "id": user.id,
-                    "name": user.full_name,
-                    "phone": user.phone
+        try:
+            response = JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "redirect": "/my-orders",
+                    "user": {
+                        "id": user.id,
+                        "name": user.full_name,
+                        "phone": user.phone
+                    }
                 }
-            }
-        )
-        
-        # Устанавливаем secure cookies
-        response.set_cookie(
-            key="user_id", 
-            value=str(user.id),
-            httponly=True,
-            secure=False,  # Для разработки False, для продакшена True
-            samesite="lax",
-            max_age=60*60*24*7
-        )
-        response.set_cookie(
-            key="user_name", 
-            value=user.full_name or "User",
-            httponly=False,
-            secure=False,
-            samesite="lax"
-        )
-        
-        return response
+            )
+            
+            response.set_cookie(
+                key="user_id", 
+                value=str(user.id),
+                httponly=True,
+                secure=False,
+                samesite="lax",
+                max_age=60*60*24*7
+            )
+            response.set_cookie(
+                key="user_name", 
+                value=user.full_name or "User",
+                httponly=False,
+                secure=False,
+                samesite="lax"
+            )
+            
+            print(f"✅ Login successful for user: {user.phone}")
+            return response
+            
+        except Exception as cookie_error:
+            print(f"❌ Cookie/Response error: {cookie_error}")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": f"Response error: {str(cookie_error)}"}
+            )
         
     except Exception as e:
+        print(f"❌ Login error: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
