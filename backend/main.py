@@ -1770,8 +1770,8 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
             return {
                 "authenticated": True,
                 "user_id": user.id,
-                "user_name": user.full_name,      # ← Берем из БД, не из cookie
-                "user_phone": user.phone
+                "user_name": user.full_name,
+                "user_phone": user.phone   # ← ДОЛЖНО БЫТЬ
             }
     return {"authenticated": False}
 
