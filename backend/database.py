@@ -1,32 +1,31 @@
-from sqlalchemy import create_engine
+
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 DATABASE_URL = "sqlite:///./sarqyn.db?charset=utf8"
 
 
 
-def _add_unicode_support(dbapi_conn, connection_record):
-    dbapi_conn.execute("PRAGMA encoding = 'UTF-8'")
+import sys
+from sqlalchemy import create_engine, event
+
+# Принудительно ставим UTF-8 везде
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
+def set_sqlite_encoding(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA encoding = 'UTF-8';")
+    cursor.execute("PRAGMA foreign_keys = ON;")   # полезно
+    dbapi_conn.commit()
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False, "timeout": 20},
+    connect_args={
+        "check_same_thread": False,
+        "timeout": 20,
+    },
     pool_pre_ping=True,
+    echo=False   # ← важно выключить, если echo=True — часто вызывает ошибку
 )
 
-# Подключаем поддержку UTF-8
-from sqlalchemy import event
-event.listen(engine, 'connect', _add_unicode_support)
-
-
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+event.listen(engine, 'connect', set_sqlite_encoding)
