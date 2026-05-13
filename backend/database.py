@@ -3,14 +3,13 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 DATABASE_URL = "sqlite:///./sarqyn.db?charset=utf8"
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, pool_pre_ping=True,
-    echo=False)
+
 
 def _add_unicode_support(dbapi_conn, connection_record):
     dbapi_conn.execute("PRAGMA encoding = 'UTF-8'")
 
 engine = create_engine(
-    "sqlite:///your_database.db",
+    DATABASE_URL,
     connect_args={"check_same_thread": False, "timeout": 20},
     pool_pre_ping=True,
 )
