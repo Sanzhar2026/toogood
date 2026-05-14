@@ -1055,37 +1055,25 @@ async def logout(request: Request):
     response.delete_cookie("supplier_city")
     return response
 
-@app.get("/my-orders")
-async def my_orders_page(request: Request, lang: str = "kz", db: Session = Depends(get_db)):
-    """Страница моих заказов"""
-    
-    # Получаем user_id из cookie
+# backend/main.py - add this endpoint
+@app.get("/api/my-orders")
+async def get_my_orders_json(request: Request, db: Session = Depends(get_db)):
+    """API endpoint для получения заказов в JSON формате"""
     user_id = request.cookies.get("user_id")
     
     if not user_id:
-        # Если не авторизован - показываем страницу с предложением войти
-        return templates.TemplateResponse("my_orders.html", {
-            "request": request,
-            "orders": [],
-            "lang": lang,
-            "not_authenticated": True
-        })
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Not authenticated", "orders": []}
+        )
     
     user_id = int(user_id)
-    user = db.query(User).filter(User.id == user_id).first()
-    
-    if not user:
-        response = RedirectResponse(url="/login", status_code=303)
-        response.delete_cookie("user_id")
-        return response
-    
-    # Получаем заказы пользователя
     orders = db.query(Order).filter(Order.user_id == user_id).order_by(Order.created_at.desc()).all()
     
     orders_list = []
     for order in orders:
         bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first() if order.supplier_id else None
+        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
         
         orders_list.append({
             "id": order.id,
@@ -1094,17 +1082,11 @@ async def my_orders_page(request: Request, lang: str = "kz", db: Session = Depen
             "supplier_name": supplier.business_name if supplier else "Restaurant",
             "amount_paid": order.amount_paid or 0,
             "status": order.status.value if order.status else "pending",
-            "created_at": order.created_at,
+            "created_at": order.created_at.isoformat() if order.created_at else None,
             "customer_address": order.customer_address or "Address not specified"
         })
     
-    return templates.TemplateResponse("my_orders.html", {
-        "request": request,
-        "orders": orders_list,
-        "lang": lang,
-        "not_authenticated": False,
-        "user_name": user.full_name
-    })
+    return {"orders": orders_list}
 
 
 @app.get("/api/my_orders")
