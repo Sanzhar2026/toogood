@@ -1107,6 +1107,38 @@ async def my_orders_page(request: Request, lang: str = "kz", db: Session = Depen
     })
 
 
+@app.get("/api/my_orders")
+async def get_my_orders_json(request: Request, db: Session = Depends(get_db)):
+    """API endpoint для получения заказов в JSON формате"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Not authenticated", "orders": []}
+        )
+    
+    user_id = int(user_id)
+    orders = db.query(Order).filter(Order.user_id == user_id).order_by(Order.created_at.desc()).all()
+    
+    orders_list = []
+    for order in orders:
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+        
+        orders_list.append({
+            "id": order.id,
+            "order_number": order.order_number or f"ORD-{order.id}",
+            "bag_name": bag.name if bag else "Surprise Bag",
+            "supplier_name": supplier.business_name if supplier else "Restaurant",
+            "amount_paid": order.amount_paid or 0,
+            "status": order.status.value if order.status else "pending",
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "customer_address": order.customer_address or "Address not specified"
+        })
+    
+    return {"orders": orders_list}
+
 # ============ TRACK ORDER PAGE ============
 # Add these imports at the top
 
