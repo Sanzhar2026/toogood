@@ -54,6 +54,111 @@ import math
 
 ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYyMDU3ZGE4OTkxODQ2M2JhNmVlZDgzM2QzMDE2OTYwIiwiaCI6Im11cm11cjY0In0="
 
+
+
+
+# WEBSOCKET
+
+# Добавь это в начало файла (рядом с другими импортами)
+from fastapi import WebSocket, WebSocketDisconnect
+from typing import List
+import asyncio
+import json
+
+# ============ WEBSOCKET MANAGER ============
+# Добавь эту функцию где-нибудь после определения manager
+async def notify_new_surprise(bag_data: dict):
+    """Notify all connected clients about a new surprise bag"""
+    await manager.broadcast({
+        "type": "new_bag",
+        "data": bag_data,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    print(f"📢 Broadcasted new surprise: {bag_data.get('name')}")
+
+async def notify_bag_update(bag_data: dict):
+    """Notify about bag update (price change, quantity change)"""
+    await manager.broadcast({
+        "type": "update_bag",
+        "data": bag_data,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+async def notify_bag_deleted(bag_id: int):
+    """Notify about bag deletion"""
+    await manager.broadcast({
+        "type": "delete_bag",
+        "data": {"bag_id": bag_id},
+        "timestamp": datetime.utcnow().isoformat()
+    })
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        print(f"✅ WebSocket connected. Total connections: {len(self.active_connections)}")
+    
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        print(f"🔌 WebSocket disconnected. Total connections: {len(self.active_connections)}")
+    
+    async def broadcast(self, message: dict):
+        """Send message to all connected clients"""
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except:
+                disconnected.append(connection)
+        
+        # Clean up disconnected clients
+        for connection in disconnected:
+            self.disconnect(connection)
+    
+    async def send_personal_message(self, message: dict, websocket: WebSocket):
+        await websocket.send_json(message)
+
+manager = ConnectionManager()
+
+# ============ WEBSOCKET ENDPOINT ============
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        # Send welcome message
+        await manager.send_personal_message({
+            "type": "connected",
+            "message": "Connected to Sarqyn Food WebSocket"
+        }, websocket)
+        
+        # Keep connection alive and listen for messages
+        while True:
+            data = await websocket.receive_text()
+            print(f"📨 Received from client: {data}")
+            
+            # Handle client messages if needed
+            try:
+                message = json.loads(data)
+                if message.get("type") == "ping":
+                    await manager.send_personal_message({"type": "pong"}, websocket)
+            except:
+                pass
+                
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        manager.disconnect(websocket)
+
+
+
+
+
+
+
 def decode_polyline(encoded):
     """Декодирует polyline строку в список координат [lat, lon]"""
     index = 0
@@ -1659,6 +1764,9 @@ async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
         })
     
     return result
+# Найди существующий эндпоинт @app.post("/api/supplier/surprise-bags")
+# И измени его, добавив уведомление:
+
 @app.post("/api/supplier/surprise-bags")
 async def create_surprise_bag(request: Request, db: Session = Depends(get_db)):
     data = await request.json()
@@ -1666,17 +1774,45 @@ async def create_surprise_bag(request: Request, db: Session = Depends(get_db)):
     if not supplier_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
+    # Get supplier info
+    supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
+    
     bag = SurpriseBag(
-        supplier_id=int(supplier_id), name=data.get("name"), description=data.get("description"),
-        original_price=float(data.get("original_price")), discounted_price=float(data.get("discounted_price")),
+        supplier_id=int(supplier_id),
+        name=data.get("name"),
+        description=data.get("description"),
+        original_price=float(data.get("original_price")),
+        discounted_price=float(data.get("discounted_price")),
         discount_percentage=int(((float(data.get("original_price")) - float(data.get("discounted_price"))) / float(data.get("original_price"))) * 100),
-        image_url=data.get("image_url"), available_quantity=int(data.get("available_quantity", 1)),
-        pickup_start_time=data.get("pickup_start_time"), pickup_end_time=data.get("pickup_end_time"),
-        is_active=True, created_at=datetime.utcnow()
+        image_url=data.get("image_url"),
+        available_quantity=int(data.get("available_quantity", 1)),
+        pickup_start_time=data.get("pickup_start_time"),
+        pickup_end_time=data.get("pickup_end_time"),
+        is_active=True,
+        created_at=datetime.utcnow()
     )
     db.add(bag)
     db.commit()
+    db.refresh(bag)
+    
+    # 👇 ОТПРАВЛЯЕМ WEBSOCKET УВЕДОМЛЕНИЕ
+    await notify_new_surprise({
+        "id": bag.id,
+        "name": bag.name,
+        "supplier_name": supplier.business_name if supplier else "Sarqyn",
+        "discounted_price": bag.discounted_price,
+        "original_price": bag.original_price,
+        "discount_percentage": bag.discount_percentage,
+        "image_url": bag.image_url
+    })
+    
     return {"success": True, "bag_id": bag.id}
+
+
+
+
+
+
 @app.put("/api/supplier/orders/{order_id}/status")
 async def update_order_status(
     order_id: int,
@@ -1744,19 +1880,47 @@ async def update_order_status(
 
 
 
+# Если у тебя есть эндпоинт для обновления сюрприза, добавь туда уведомление:
+# Например:
+
 @app.put("/api/supplier/surprise-bags/{bag_id}/toggle")
 async def toggle_bag_status(bag_id: int, db: Session = Depends(get_db)):
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
     if not bag:
         raise HTTPException(status_code=404, detail="Bag not found")
+    
     bag.is_active = not bag.is_active
     db.commit()
+    
+    # 👇 Если сюрприз скрыли (деактивировали), уведомляем клиентов
+    if not bag.is_active:
+        await notify_bag_deleted(bag_id)
+    else:
+        # Если снова активировали, уведомляем о новом (или обновлении)
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        await notify_new_surprise({
+            "id": bag.id,
+            "name": bag.name,
+            "supplier_name": supplier.business_name if supplier else "Sarqyn",
+            "discounted_price": bag.discounted_price,
+            "original_price": bag.original_price,
+            "discount_percentage": bag.discount_percentage,
+            "image_url": bag.image_url,
+            "is_active": bag.is_active
+        })
+    
     return {"success": True, "is_active": bag.is_active}
 
 
-
-
-
+@app.get("/api/test-websocket")
+async def test_websocket():
+    """Test endpoint to broadcast a test message"""
+    await manager.broadcast({
+        "type": "test",
+        "message": "This is a test broadcast!",
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    return {"success": True, "message": "Test message broadcasted"}
 
 @app.get("/api/order-statuses")
 async def get_order_statuses():
