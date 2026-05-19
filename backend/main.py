@@ -13,7 +13,13 @@ import math
 import hashlib
 from typing import Optional
 from pydantic import BaseModel
-
+from backend.schemas import (
+    OrderCreate, PhoneVerificationRequest, PhoneRegisterRequest
+)
+from backend.models import (
+    CartItem,Food, User, UserRole, Supplier, SurpriseBag, 
+    Order, OrderStatus, DeliveryStatus, OrderTracking, Review
+)
 # ============ TWILIO IMPORTS ============
 try:
     from backend.twilio_service import send_verification_code, verify_code
@@ -65,6 +71,304 @@ from typing import List
 import asyncio
 import json
 
+
+
+
+# ============ CART API ENDPOINTS ============
+
+# backend/main.py - добавь эти эндпоинты
+
+# ============ CART API ENDPOINTS ============
+
+@app.get("/api/cart")
+async def get_cart(request: Request, db: Session = Depends(get_db)):
+    """Get current user's cart"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        return {"success": False, "error": "Not authenticated", "items": [], "total": 0, "count": 0}
+    
+    cart_items = db.query(CartItem).filter(
+        CartItem.user_id == int(user_id)
+    ).all()
+    
+    items = []
+    for item in cart_items:
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == item.surprise_bag_id).first()
+        if bag:
+            supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+            items.append({
+                "id": bag.id,
+                "name": bag.name,
+                "price": bag.discounted_price,
+                "original_price": bag.original_price,
+                "discount_percentage": bag.discount_percentage,
+                "image_url": bag.image_url,
+                "quantity": item.quantity,
+                "businessName": supplier.business_name if supplier else "Sarqyn"
+            })
+    
+    total = sum(item["price"] * item["quantity"] for item in items)
+    count = sum(item["quantity"] for item in items)
+    
+    return {
+        "success": True,
+        "items": items,
+        "total": total,
+        "count": count
+    }
+
+
+@app.post("/api/cart/add")
+async def add_to_cart(request: Request, db: Session = Depends(get_db)):
+    """Add item to cart"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    bag_id = data.get("bag_id")
+    quantity = data.get("quantity", 1)
+    
+    # Check if bag exists and is available
+    bag = db.query(SurpriseBag).filter(
+        SurpriseBag.id == bag_id,
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity >= quantity
+    ).first()
+    
+    if not bag:
+        raise HTTPException(status_code=404, detail="Item not available")
+    
+    # Check if item already in cart
+    existing = db.query(CartItem).filter(
+        CartItem.user_id == int(user_id),
+        CartItem.surprise_bag_id == bag_id
+    ).first()
+    
+    if existing:
+        existing.quantity += quantity
+        existing.updated_at = datetime.utcnow()
+    else:
+        cart_item = CartItem(
+            user_id=int(user_id),
+            surprise_bag_id=bag_id,
+            quantity=quantity
+        )
+        db.add(cart_item)
+    
+    db.commit()
+    
+    # Get updated cart count
+    cart_count = db.query(CartItem).filter(
+        CartItem.user_id == int(user_id)
+    ).with_entities(func.sum(CartItem.quantity)).scalar() or 0
+    
+    return {
+        "success": True, 
+        "message": "Added to cart",
+        "cart_count": cart_count
+    }
+
+
+@app.delete("/api/cart/remove/{bag_id}")
+async def remove_from_cart(bag_id: int, request: Request, db: Session = Depends(get_db)):
+    """Remove item from cart"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    cart_item = db.query(CartItem).filter(
+        CartItem.user_id == int(user_id),
+        CartItem.surprise_bag_id == bag_id
+    ).first()
+    
+    if cart_item:
+        db.delete(cart_item)
+        db.commit()
+    
+    return {"success": True, "message": "Removed from cart"}
+
+
+@app.put("/api/cart/update/{bag_id}")
+async def update_cart_quantity(bag_id: int, request: Request, db: Session = Depends(get_db)):
+    """Update item quantity in cart"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    quantity = data.get("quantity", 1)
+    
+    if quantity <= 0:
+        return await remove_from_cart(bag_id, request, db)
+    
+    cart_item = db.query(CartItem).filter(
+        CartItem.user_id == int(user_id),
+        CartItem.surprise_bag_id == bag_id
+    ).first()
+    
+    if cart_item:
+        cart_item.quantity = quantity
+        cart_item.updated_at = datetime.utcnow()
+        db.commit()
+    
+    return {"success": True, "message": "Cart updated"}
+
+
+@app.delete("/api/cart/clear")
+async def clear_cart(request: Request, db: Session = Depends(get_db)):
+    """Clear all items from cart"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    db.query(CartItem).filter(CartItem.user_id == int(user_id)).delete()
+    db.commit()
+    
+    return {"success": True, "message": "Cart cleared"}
+@app.post("/api/orders/create-from-cart")
+async def create_orders_from_cart(request: Request, db: Session = Depends(get_db)):
+    """Create orders from all items in cart"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    customer_lat = data.get("lat")
+    customer_lon = data.get("lon")
+    customer_address = data.get("address")
+    
+    # Get cart items
+    cart_items = db.query(CartItem).filter(
+        CartItem.user_id == int(user_id)
+    ).all()
+    
+    if not cart_items:
+        raise HTTPException(status_code=400, detail="Cart is empty")
+    
+    orders_created = []
+    total_amount = 0
+    
+    for cart_item in cart_items:
+        bag = db.query(SurpriseBag).filter(
+            SurpriseBag.id == cart_item.surprise_bag_id,
+            SurpriseBag.is_active == True,
+            SurpriseBag.available_quantity >= cart_item.quantity
+        ).first()
+        
+        if not bag:
+            continue
+        
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        
+        # Create order for each item (or group by supplier)
+        order_number = f"ORD-{secrets.token_hex(4).upper()}"
+        amount = bag.discounted_price * cart_item.quantity
+        
+        order = Order(
+            user_id=int(user_id),
+            supplier_id=bag.supplier_id,
+            surprise_bag_id=bag.id,
+            order_number=order_number,
+            status=OrderStatus.PENDING,
+            customer_lat=customer_lat,
+            customer_lon=customer_lon,
+            customer_address=customer_address,
+            amount_paid=amount,
+            total_amount=amount,
+            items=json.dumps([{
+                "bag_id": bag.id,
+                "name": bag.name,
+                "price": bag.discounted_price,
+                "quantity": cart_item.quantity,
+                "original_price": bag.original_price,
+                "image_url": bag.image_url
+            }]),
+            pickup_time=f"{bag.pickup_start_time} - {bag.pickup_end_time}" if bag.pickup_start_time else None,
+            created_at=datetime.utcnow()
+        )
+        
+        db.add(order)
+        
+        # Decrease quantity
+        bag.available_quantity -= cart_item.quantity
+        total_amount += amount
+        orders_created.append(order)
+    
+    # Clear cart
+    for cart_item in cart_items:
+        db.delete(cart_item)
+    
+    db.commit()
+    
+    # Send WebSocket notification
+    await manager.broadcast({
+        "type": "order_created",
+        "user_id": int(user_id),
+        "order_count": len(orders_created),
+        "total_amount": total_amount
+    })
+    
+    return {
+        "success": True,
+        "orders": [
+            {
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "amount": order.amount_paid
+            } for order in orders_created
+        ],
+        "total_amount": total_amount,
+        "message": f"Created {len(orders_created)} order(s)"
+    }
+
+
+@app.get("/api/orders/my")
+async def get_my_orders(request: Request, db: Session = Depends(get_db)):
+    """Get all orders for current user"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    orders = db.query(Order).filter(
+        Order.user_id == int(user_id)
+    ).order_by(Order.created_at.desc()).all()
+    
+    result = []
+    for order in orders:
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+        
+        # Parse items if stored as JSON
+        items = []
+        if order.items:
+            try:
+                items = json.loads(order.items)
+            except:
+                pass
+        
+        result.append({
+            "id": order.id,
+            "order_number": order.order_number,
+            "status": order.status.value if order.status else "pending",
+            "amount": order.amount_paid or 0,
+            "total_amount": order.total_amount or order.amount_paid or 0,
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "customer_address": order.customer_address,
+            "supplier_name": supplier.business_name if supplier else "Sarqyn",
+            "bag_name": bag.name if bag else "Surprise Bag",
+            "items": items,
+            "item_count": len(items) if items else 1
+        })
+    
+    return {"success": True, "orders": result}
 # ============ WEBSOCKET MANAGER ============
 # Добавь эту функцию где-нибудь после определения manager
 async def notify_new_surprise(bag_data: dict):

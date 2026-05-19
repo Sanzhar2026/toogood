@@ -8,6 +8,21 @@ class UserRole(str, enum.Enum):
     CUSTOMER = "customer"
     SUPPLIER = "supplier"
     ADMIN = "admin"
+# Добавь в models.py после класса OrderTracking
+
+class CartItem(Base):
+    __tablename__ = "cart_items"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id"), nullable=False)
+    quantity = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", backref="cart_items")
+    surprise_bag = relationship("SurpriseBag")
 
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
@@ -53,7 +68,7 @@ class User(Base):
     # Relationships
     orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")
     supplier_profile = relationship("Supplier", back_populates="user", uselist=False)
-
+    cart_items = relationship("CartItem", back_populates="user")
 
 class Supplier(Base):
     __tablename__ = "suppliers"
@@ -109,6 +124,7 @@ class SurpriseBag(Base):
     # Relationships
     supplier = relationship("Supplier", back_populates="surprise_bags")
     orders = relationship("Order", back_populates="surprise_bag")
+    cart_items = relationship("CartItem", back_populates="surprise_bag")  # ← ДОБА
 
 
 class Order(Base):
@@ -119,7 +135,8 @@ class Order(Base):
     food_id = Column(Integer, ForeignKey("foods.id"), nullable=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
     surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id"), nullable=True)
-    
+    items = Column(Text, nullable=True)  # JSON строка с товарами
+    total_amount = Column(Float, nullable=True)
     # Order details
     order_number = Column(String(50), unique=True, nullable=True)
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING)
