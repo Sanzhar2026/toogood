@@ -11,6 +11,7 @@ import secrets
 import os
 import math
 import hashlib
+from fastapi.staticfiles import StaticFiles
 from typing import Optional
 from pydantic import BaseModel
 from backend.schemas import (
