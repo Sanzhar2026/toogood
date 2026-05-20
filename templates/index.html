@@ -1,513 +1,74 @@
-{% extends "layout.html" %}
+{% extends "layout_supplier.html" %}
 
 {% block content %}
 <style>
-    .hero {
-        background: linear-gradient(135deg, #1a472a 0%, #2d5a3b 100%);
-        padding: 3rem 1rem;
-        border-radius: 0 0 2rem 2rem;
-        color: white;
-    }
-    .hero-content {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 2rem;
+    .landing {
+        display: flex;
+        flex-direction: column;
         align-items: center;
-    }
-    .hero-text h1 {
-        font-size: 2.8rem;
-        line-height: 1.2;
-        margin-bottom: 1rem;
-    }
-    .hero-text p {
-        font-size: 1.1rem;
-        margin-bottom: 1.5rem;
-    }
-    .location-search {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin: 1.5rem 0;
-    }
-    .search-box {
-        flex: 1;
-        display: flex;
-        background: white;
-        border-radius: 50px;
-        overflow: hidden;
-    }
-    .search-box input {
-        flex: 1;
-        padding: 12px;
-        border: none;
-        outline: none;
-        font-size: 1rem;
-    }
-    .search-btn, .gps-btn {
-        padding: 12px 24px;
-        border: none;
-        border-radius: 50px;
-        cursor: pointer;
-        font-weight: 600;
-        transition: all 0.3s;
-    }
-    .search-btn {
-        background: #fbbf24;
-        color: #1a472a;
-    }
-    .search-btn:hover {
-        background: #f59e0b;
-        transform: scale(1.02);
-    }
-    .gps-btn {
-        background: transparent;
-        border: 2px solid white;
-        color: white;
-    }
-    .gps-btn:hover {
-        background: rgba(255,255,255,0.1);
-        transform: scale(1.02);
-    }
-    .hero-stats {
-        display: flex;
-        gap: 2rem;
-        margin-top: 2rem;
-        flex-wrap: wrap;
-    }
-    .stat-number {
-        font-size: 1.8rem;
-        font-weight: 700;
-    }
-    .categories {
-        display: flex;
-        gap: 0.8rem;
-        overflow-x: auto;
-        padding: 1.2rem 0;
-        scrollbar-width: thin;
-    }
-    .category {
-        padding: 0.6rem 1.4rem;
-        background: white;
-        border-radius: 9999px;
-        text-decoration: none;
-        color: #2d3436;
-        border: 1px solid #eee;
-        white-space: nowrap;
-        transition: all 0.3s;
-    }
-    .category:hover {
-        background: #166534;
-        color: white;
-        border-color: #166534;
-    }
-    .category.active {
-        background: #166534;
-        color: white;
-    }
-    .suppliers-grid {
-        display: grid;
-        gap: 2rem;
-        margin: 2rem 0;
-    }
-    .supplier-card {
-        background: white;
-        border-radius: 1rem;
-        overflow: hidden;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-        transition: transform 0.3s, box-shadow 0.3s;
-    }
-    .supplier-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-    }
-    .supplier-cover {
-        position: relative;
-        height: 200px;
-    }
-    .supplier-cover img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    .verified-badge {
-        position: absolute;
-        top: 1rem;
-        right: 1rem;
-        background: #10b981;
-        color: white;
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: bold;
-    }
-    .supplier-info {
-        padding: 1.5rem;
-    }
-    .supplier-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.5rem;
-        flex-wrap: wrap;
-    }
-    .supplier-header h3 {
-        color: #166534;
-        font-size: 1.3rem;
-    }
-    .pickup-time {
-        background: #fef3c7;
-        padding: 0.5rem 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        color: #92400e;
-        font-size: 0.9rem;
-    }
-    .surprise-bags {
-        display: grid;
-        gap: 1rem;
-    }
-    .bag-card {
-        display: flex;
-        gap: 1rem;
-        background: #f9fafb;
-        border-radius: 12px;
-        padding: 1rem;
-        cursor: pointer;
-        border: 1px solid #e5e7eb;
-        transition: all 0.3s;
-    }
-    .bag-card:hover {
-        background: #f3f4f6;
-        border-color: #fbbf24;
-        transform: scale(1.02);
-    }
-    .bag-image {
-        position: relative;
-        width: 100px;
-        height: 100px;
-        flex-shrink: 0;
-    }
-    .bag-image img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        border-radius: 10px;
-    }
-    .discount-badge {
-        position: absolute;
-        top: 5px;
-        left: 5px;
-        background: #ef4444;
-        color: white;
-        padding: 0.2rem 0.6rem;
-        border-radius: 15px;
-        font-size: 0.7rem;
-        font-weight: bold;
-    }
-    .bag-info {
-        flex: 1;
-    }
-    .bag-info h4 {
-        margin-bottom: 0.3rem;
-        color: #1f2937;
-    }
-    .original-price {
-        text-decoration: line-through;
-        color: #9ca3af;
-        margin-right: 0.5rem;
-        font-size: 0.85rem;
-    }
-    .discounted-price {
-        color: #ef4444;
-        font-weight: 700;
-        font-size: 1.1rem;
-    }
-    .reserve-btn {
-        background: #fbbf24;
-        color: #1a472a;
-        border: none;
-        padding: 0.4rem 1rem;
-        border-radius: 25px;
-        cursor: pointer;
-        font-weight: 600;
-        transition: all 0.3s;
-        margin-top: 0.5rem;
-    }
-    .reserve-btn:hover {
-        background: #f59e0b;
-        transform: scale(1.05);
-    }
-    .steps {
-        display: flex;
-        gap: 2rem;
-        flex-wrap: wrap;
         justify-content: center;
-        padding: 2rem 0;
-    }
-    .step {
-        flex: 1;
-        min-width: 200px;
+        min-height: 70vh;
         text-align: center;
+        padding: 2rem;
     }
-    .step-icon {
-        width: 70px;
-        height: 70px;
-        background: #f1f5f9;
-        border-radius: 50%;
+    
+    .landing h1 {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(135deg, #0f172a 0%, #fbbf24 100%);
+    
+        -webkit-text-fill-color: transparent;
+    }
+    
+    .landing p {
+        color: #64748b;
+        margin-bottom: 2rem;
+        font-size: 1.1rem;
+    }
+    
+    .buttons {
         display: flex;
-        align-items: center;
+        gap: 1rem;
         justify-content: center;
-        font-size: 2rem;
-        margin: 0 auto 1rem;
-        transition: all 0.3s;
+        flex-wrap: wrap;
     }
-    .step:hover .step-icon {
-        background: #166534;
+    
+    .btn-large {
+        padding: 0.8rem 2rem;
+        font-size: 1rem;
+        border-radius: 0.75rem;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+    
+    .btn-primary {
+        background: #fbbf24;
+        color: #0f172a;
+    }
+    
+    .btn-primary:hover {
+        background: #f59e0b;
+        transform: translateY(-2px);
+    }
+    
+    .btn-secondary {
+        background: #0f172a;
         color: white;
-        transform: scale(1.1);
     }
-    @media (max-width: 768px) {
-        .hero-content { grid-template-columns: 1fr; text-align: center; }
-        .location-search { flex-direction: column; }
-        .bag-card { flex-direction: column; }
-        .bag-image { width: 100%; height: 150px; }
-        .supplier-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    
+    .btn-secondary:hover {
+        background: #1e293b;
+        transform: translateY(-2px);
     }
 </style>
 
-<section class="hero">
-    <div class="container">
-        <div class="hero-content">
-            <div class="hero-text">
-                <h1>{% if lang == 'kz' %}Дәмді тағамдарды<br>қалдыққа жібермейік!{% else %}Не дайте вкусной еде<br>пропасть зря!{% endif %}</h1>
-                <p>{% if lang == 'kz' %}Мейрамханалар мен дүкендерден артылған тағамдарды 70% жеңілдікпен сатып алыңыз{% else %}Покупайте излишки еды из ресторанов и магазинов со скидкой до 70%{% endif %}</p>
-                
-                <div class="location-search">
-                    <div class="search-box">
-                        <span style="padding: 12px;">📍</span>
-                        <input type="text" id="locationInput" placeholder="{% if lang == 'kz' %}Мекенжайыңызды енгізіңіз{% else %}Введите ваш адрес{% endif %}" value="{{ user_address or '' }}">
-                        <button class="search-btn" onclick="updateLocation()">{% if lang == 'kz' %}Табу{% else %}Найти{% endif %}</button>
-                    </div>
-                    <button class="gps-btn" onclick="getCurrentLocation()">🎯 {% if lang == 'kz' %}Менің орнымды пайдалану{% else %}Мое местоположение{% endif %}</button>
-                </div>
-
-                <div class="hero-stats">
-                    <div><div class="stat-number">1,250+</div><div>{% if lang == 'kz' %}Құтқарылған тағам{% else %}Спасено блюд{% endif %}</div></div>
-                    <div><div class="stat-number">8,900+</div><div>{% if lang == 'kz' %}Бақытты клиент{% else %}Счастливых клиентов{% endif %}</div></div>
-                    <div><div class="stat-number">2.5 т</div><div>{% if lang == 'kz' %}CO₂ үнемделді{% else %}Сэкономлено CO₂{% endif %}</div></div>
-                </div>
-            </div>
-            <div>
-                <img src="https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=500&h=400&fit=crop" style="border-radius: 1rem; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
-            </div>
-        </div>
+<div class="landing">
+    <h1>🏪 Sarqyt GO</h1>
+    <p>Панель управления для поставщиков</p>
+    <div class="buttons">
+        <a href="/supplier/login" class="btn-large btn-primary">🔑 Войти</a>
+        <a href="/supplier/register" class="btn-large btn-secondary">📝 Зарегистрироваться</a>
     </div>
-</section>
-
-<div class="categories container">
-    {% for cat in categories %}
-    <a href="?category={{ cat.id }}&lang={{ lang }}" class="category {% if active_category == cat.id %}active{% endif %}">
-        {{ cat.emoji }} {% if lang == "kz" %}{{ cat.name_kz }}{% else %}{{ cat.name_ru }}{% endif %}
-    </a>
-    {% endfor %}
 </div>
-
-<section class="container">
-    <h2 style="margin: 1rem 0; color: #166534;">✨ {% if lang == 'kz' %}Жақын маңдағы тосын сыйлар{% else %}Сюрпризы рядом с вами{% endif %}</h2>
-    
-    <div class="suppliers-grid">
-        {% if suppliers and suppliers|length > 0 %}
-            {% for supplier in suppliers %}
-            <div class="supplier-card">
-                <div class="supplier-cover">
-                    <img src="{{ supplier.cover_image or 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&h=200&fit=crop' }}" alt="{{ supplier.business_name }}">
-                    {% if supplier.is_verified %}
-                    <span class="verified-badge">✓ {% if lang == 'kz' %}Тексерілген{% else %}Проверен{% endif %}</span>
-                    {% endif %}
-                </div>
-                <div class="supplier-info">
-                    <div class="supplier-header">
-                        <h3>{{ supplier.business_name }}</h3>
-                        <div>⭐ {{ supplier.rating }} ({{ supplier.total_reviews|default(10) }})</div>
-                    </div>
-                    <div>📏 {{ "%.1f"|format(supplier.distance) }} {% if lang == 'kz' %}км{% else %}км{% endif %}</div>
-                    <div class="pickup-time">🕐 {% if lang == 'kz' %}Алу уақыты{% else %}Время получения{% endif %}: {{ supplier.pickup_start_time }} - {{ supplier.pickup_end_time }}</div>
-                    
-                <!-- ... ваш существующий код ... -->
-
-<div class="surprise-bags">
-    {% for bag in supplier.surprise_bags %}
-    <div class="bag-card" data-bag-id="{{ bag.id }}">
-        <div class="bag-image">
-            <img src="{{ bag.image_url or 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&h=100&fit=crop' }}" alt="{{ bag.name }}">
-            <div class="discount-badge">-{{ bag.discount_percentage }}%</div>
-        </div>
-        <div class="bag-info">
-            <h4>{{ bag.name }}</h4>
-            <p class="bag-description">{{ bag.description|truncate(60) }}</p>
-            <div>
-                <span class="original-price">{{ bag.original_price }} ₸</span>
-                <span class="discounted-price">{{ bag.discounted_price }} ₸</span>
-            </div>
-            <div class="bag-availability">
-                {% if bag.available_quantity > 0 %}
-                <!-- ✅ БЕЗ onclick, только data-bag-id -->
-                <button class="reserve-btn" data-bag-id="{{ bag.id }}">
-                    {% if lang == 'kz' %}Сатып алу →{% else %}Купить →{% endif %}
-                </button>
-                {% else %}
-                <span style="color: #ef4444;">{% if lang == 'kz' %}Сатылып кетті{% else %}Продано{% endif %}</span>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-</div>
-<!-- ... ваш остальной код ... -->
-                </div>
-            </div>
-            {% endfor %}
-        {% else %}
-            <div style="text-align: center; padding: 3rem; background: white; border-radius: 1rem;">
-                <p style="font-size: 1.2rem;">😔 {% if lang == 'kz' %}Жақын маңда тосын сыйлар жоқ{% else %}Рядом с вами нет сюрпризов{% endif %}</p>
-                <p style="color: #666; margin-top: 10px;">
-                    {% if lang == 'kz' %}Жақын маңдағы дүкендерді көру үшін орналасқан жеріңізді анықтаңыз{% else %}Определите свое местоположение, чтобы увидеть ближайшие магазины{% endif %}
-                </p>
-                <button class="gps-btn" onclick="getCurrentLocation()" style="margin-top: 1rem; background: #166534; color: white; border: none; padding: 10px 20px; border-radius: 25px;">
-                    📍 {% if lang == 'kz' %}Менің орнымды анықтау{% else %}Определить мое местоположение{% endif %}
-                </button>
-            </div>
-        {% endif %}
-    </div>
-</section>
-
-<section style="background: white; padding: 3rem 0; margin: 2rem 0;">
-    <div class="container">
-        <h2 style="text-align:center; margin-bottom:2rem; color:#166534;">{% if lang == 'kz' %}Қалай жұмыс істейді?{% else %}Как это работает?{% endif %}</h2>
-        <div class="steps">
-            <div class="step"><div class="step-icon">📍</div><h4>1. {% if lang == 'kz' %}Орналасқан жеріңізді анықтаңыз{% else %}Определите местоположение{% endif %}</h4></div>
-            <div class="step"><div class="step-icon">🎁</div><h4>2. {% if lang == 'kz' %}Тосын сыйды таңдаңыз{% else %}Выберите сюрприз{% endif %}</h4></div>
-            <div class="step"><div class="step-icon">⏰</div><h4>3. {% if lang == 'kz' %}Көрсетілген уақытта алыңыз{% else %}Заберите в указанное время{% endif %}</h4></div>
-            <div class="step"><div class="step-icon">😊</div><h4>4. {% if lang == 'kz' %}Ләззат алыңыз{% else %}Наслаждайтесь{% endif %}</h4></div>
-        </div>
-    </div>
-</section>
-
-<script>
-    var currentLang = '{{ lang }}';
-    
-    function updateLocation() {
-        var address = document.getElementById('locationInput').value;
-        if (address) {
-            var encodedAddress = encodeURIComponent(address);
-            window.location.href = '/?address=' + encodedAddress + '&lang=' + currentLang;
-        }
-    }
-    
-async function showBagDetails(bagId) {
-    try {
-        var response = await fetch('/api/surprise-bags/' + bagId);
-        var bag = await response.json();
-        
-        var modalHtml = `
-            <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;" onclick="this.remove()">
-                <div style="background:white;max-width:500px;width:90%;border-radius:20px;padding:2rem;" onclick="event.stopPropagation()">
-                    <h2>${bag.name}</h2>
-                    <img src="${bag.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'}" style="width:100%;border-radius:12px;margin:1rem 0;">
-                    <p>${bag.description || ''}</p>
-                    <div style="margin:1rem 0;">
-                        <span style="text-decoration:line-through;color:#999;">${bag.original_price} ₸</span>
-                        <span style="color:#ef4444;font-size:1.5rem;font-weight:bold;margin-left:0.5rem;">${bag.discounted_price} ₸</span>
-                    </div>
-                    <button onclick="reserveBag(${bag.id})" style="background:#fbbf24;color:#1a472a;padding:1rem;border:none;border-radius:50px;font-weight:bold;width:100%;cursor:pointer;">
-                        ${currentLang === 'kz' ? 'Тосын сыйды сатып алу →' : 'Купить сюрприз →'}
-                    </button>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    } catch(error) {
-        console.error('Error showing bag details:', error);
-    }
-}
-    document.addEventListener('DOMContentLoaded', function() {
-        // Привязываем кнопки покупки
-        var reserveBtns = document.querySelectorAll('.reserve-btn');
-        for (var i = 0; i < reserveBtns.length; i++) {
-            reserveBtns[i].addEventListener('click', function(e) {
-                e.stopPropagation();
-                var bagId = this.getAttribute('data-bag-id');
-                if (bagId) {
-                    reserveBag(parseInt(bagId));
-                }
-            });
-        }
-        
-        // Привязываем карточки (показ деталей)
-        var bagCards = document.querySelectorAll('.bag-card');
-        for (var i = 0; i < bagCards.length; i++) {
-            bagCards[i].addEventListener('click', function(e) {
-                if (!e.target.classList.contains('reserve-btn')) {
-                    var bagId = this.getAttribute('data-bag-id');
-                    if (bagId) {
-                        showBagDetails(parseInt(bagId));
-                    }
-                }
-            });
-        }
-    });
-async function reserveBag(bagId) {
-    console.log('🛒 reserveBag called, bagId:', bagId);
-    
-    var lat = localStorage.getItem('userLat');
-    var lon = localStorage.getItem('userLon');
-    var address = localStorage.getItem('userAddress');
-    
-    if (!lat || !lon) {
-        var wantLocation = confirm(currentLang === 'kz' ? 
-            'Тапсырыс беру үшін орналасқан жеріңізді анықтау керек. Анықтайық па?' :
-            'Для заказа нужно определить ваше местоположение. Определить?');
-        if (wantLocation) {
-            getCurrentLocation();
-            return;
-        }
-        return;
-    }
-    
-    var orderData = {
-        surprise_bag_id: bagId,
-        customer_lat: parseFloat(lat),
-        customer_lon: parseFloat(lon),
-        customer_address: address || ''
-    };
-    
-    try {
-        var response = await fetch('/api/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(orderData)
-        });
-        
-        var data = await response.json();
-        console.log('Response:', data);
-        
-        // ✅ ТОЧНО ТАК ЖЕ, КАК В РУЧНОЙ КОМАНДЕ
-        if (data.error === 'Please login first') {
-            alert('Redirecting to login...');
-            window.location.href = '/login?lang=' + currentLang;
-        } else if (response.ok && data.success) {
-            alert(currentLang === 'kz' ? 
-                '✅ Тапсырыс берілді! №' + data.order_number :
-                '✅ Заказ оформлен! №' + data.order_number);
-            window.location.href = '/my-orders?lang=' + currentLang;
-        } else {
-            alert(currentLang === 'kz' ? '❌ Қате: ' + (data.error || 'Белгісіз') : '❌ Ошибка: ' + (data.error || 'Неизвестная'));
-        }
-    } catch(error) {
-        console.error('Error:', error);
-        alert(currentLang === 'kz' ? '❌ Интернет байланысын тексеріңіз' : '❌ Проверьте интернет');
-    }
-}
- 
-</script>
 {% endblock %}
