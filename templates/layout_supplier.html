@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sarqyt GO - Панель поставщика</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='icon.png') }}">
     <style>
         * {
             margin: 0;
@@ -36,11 +37,21 @@
         }
         
         .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
             font-size: 1.5rem;
             font-weight: 800;
             background: linear-gradient(135deg, #fff 0%, #fbbf24 100%);
-       
+            -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
+        }
+        
+        .logo img {
+            width: 32px;
+            height: 32px;
+            -webkit-text-fill-color: initial;
         }
         
         .nav-links {
@@ -94,7 +105,10 @@
 </head>
 <body>
     <nav class="navbar">
-        <div class="logo">🏪 Sarqyt GO</div>
+        <div class="logo">
+            <img src="{{ url_for('static', filename='icon.png') }}" alt="Icon">
+            Sarqyt GO
+        </div>
         <div class="nav-links">
             <a href="/supplier/dashboard">📊 Дашборд</a>
             <a href="/supplier/orders">📋 Заказы</a>
