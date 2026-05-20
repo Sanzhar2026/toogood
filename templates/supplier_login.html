@@ -2,106 +2,249 @@
 
 {% block content %}
 <style>
-    .login-container {
-        max-width: 400px;
-        margin: 100px auto;
+    .login-wrapper {
+        min-height: calc(100vh - 73px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    }
+    
+    .login-card {
+        max-width: 440px;
+        width: 100%;
         background: white;
-        border-radius: 20px;
-        padding: 40px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        border-radius: 32px;
+        padding: 48px 40px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        transition: transform 0.3s ease;
     }
+    
+    .login-card:hover {
+        transform: translateY(-4px);
+    }
+    
+    .login-header {
+        text-align: center;
+        margin-bottom: 32px;
+    }
+    
+    .login-icon {
+        width: 72px;
+        height: 72px;
+        background: linear-gradient(135deg, #166534 0%, #22c55e 100%);
+        border-radius: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        box-shadow: 0 10px 25px -5px rgba(22, 101, 52, 0.3);
+    }
+    
+    .login-icon span {
+        font-size: 36px;
+    }
+    
+    .login-header h2 {
+        font-size: 28px;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 8px;
+    }
+    
+    .login-header p {
+        color: #64748b;
+        font-size: 14px;
+    }
+    
     .form-group {
-        margin-bottom: 20px;
+        margin-bottom: 24px;
     }
-    label {
+    
+    .form-group label {
         display: block;
         margin-bottom: 8px;
         font-weight: 600;
-        color: #166534;
-    }
-    input {
-        width: 100%;
-        padding: 12px;
-        border: 1px solid #ddd;
-        border-radius: 8px;
+        color: #334155;
         font-size: 14px;
     }
-    input:focus {
-        outline: none;
-        border-color: #166534;
+    
+    .input-wrapper {
+        position: relative;
     }
+    
+    .input-icon {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 18px;
+    }
+    
+    .form-group input {
+        width: 100%;
+        padding: 14px 16px 14px 44px;
+        border: 2px solid #e2e8f0;
+        border-radius: 16px;
+        font-size: 15px;
+        transition: all 0.2s;
+        outline: none;
+    }
+    
+    .form-group input:focus {
+        border-color: #166534;
+        box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.1);
+    }
+    
     .btn-login {
         width: 100%;
-        background: #166534;
+        background: linear-gradient(135deg, #166534 0%, #22c55e 100%);
         color: white;
-        padding: 14px;
+        padding: 16px;
         border: none;
-        border-radius: 8px;
+        border-radius: 16px;
         font-size: 16px;
-        font-weight: bold;
+        font-weight: 700;
         cursor: pointer;
+        transition: all 0.2s;
+        margin-top: 8px;
     }
+    
     .btn-login:hover {
-        background: #0f4a27;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(22, 101, 52, 0.4);
     }
-    h2 {
-        color: #166534;
-        text-align: center;
-        margin-bottom: 30px;
+    
+    .btn-login:active {
+        transform: translateY(0);
     }
+    
     .register-link {
         text-align: center;
-        margin-top: 20px;
+        margin-top: 28px;
+        padding-top: 24px;
+        border-top: 1px solid #e2e8f0;
     }
-    .error-msg {
-        background: #fee2e2;
+    
+    .register-link a {
+        color: #166534;
+        text-decoration: none;
+        font-weight: 600;
+        transition: color 0.2s;
+    }
+    
+    .register-link a:hover {
+        color: #22c55e;
+        text-decoration: underline;
+    }
+    
+    .info-box {
+        margin-top: 30px;
+        padding: 20px;
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        border-radius: 20px;
+        border-left: 4px solid #166534;
+    }
+    
+    .info-box p {
+        font-size: 13px;
+        color: #166534;
+        line-height: 1.6;
+        margin: 0;
+    }
+    
+    .info-box p:first-child {
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+    
+    .error-message {
+        background: #fef2f2;
         color: #dc2626;
-        padding: 10px;
-        border-radius: 8px;
-        margin-bottom: 20px;
+        padding: 14px;
+        border-radius: 16px;
+        margin-bottom: 24px;
         text-align: center;
+        font-size: 14px;
+        border-left: 4px solid #dc2626;
+    }
+    
+    @media (max-width: 640px) {
+        .login-card {
+            padding: 32px 24px;
+        }
+        
+        .login-header h2 {
+            font-size: 24px;
+        }
+        
+        .login-icon {
+            width: 60px;
+            height: 60px;
+        }
+        
+        .login-icon span {
+            font-size: 30px;
+        }
     }
 </style>
 
-<div class="login-container">
-    <h2>🏪 {% if lang == 'kz' %}Дүкен кабинетіне кіру{% else %}Вход в кабинет магазина{% endif %}</h2>
-    
-    {% if error %}
-    <div class="error-msg">{{ error }}</div>
-    {% endif %}
-    
-    <form method="post" action="/supplier/login">
-        <div class="form-group">
-            <label>Email</label>
-            <input type="email" name="email" required autofocus>
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="login-icon">
+                <span>🏪</span>
+            </div>
+            <h2>{% if lang == 'kz' %}Дүкен кабинеті{% else %}Кабинет магазина{% endif %}</h2>
+            <p>{% if lang == 'kz' %}Дүкеніңізге кіріңіз{% else %}Войдите в свой магазин{% endif %}</p>
         </div>
         
-        <div class="form-group">
-            <label>{% if lang == 'kz' %}Құпия сөз{% else %}Пароль{% endif %}</label>
-            <input type="password" name="password" required>
+        {% if error %}
+        <div class="error-message">
+            ⚠️ {{ error }}
         </div>
+        {% endif %}
         
-        <button type="submit" class="btn-login">
-            🔑 {% if lang == 'kz' %}Кіру{% else %}Войти{% endif %}
-        </button>
+        <form method="post" action="/supplier/login">
+            <div class="form-group">
+                <label>📧 Email</label>
+                <div class="input-wrapper">
+                    <span class="input-icon">📧</span>
+                    <input type="email" name="email" placeholder="your@email.com" required autofocus>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>🔐 {% if lang == 'kz' %}Құпия сөз{% else %}Пароль{% endif %}</label>
+                <div class="input-wrapper">
+                    <span class="input-icon">🔒</span>
+                    <input type="password" name="password" placeholder="••••••••" required>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn-login">
+                🔑 {% if lang == 'kz' %}Кіру{% else %}Войти{% endif %}
+            </button>
+        </form>
         
         <div class="register-link">
-            <a href="/supplier/register">{% if lang == 'kz' %}Дүкен ретінде тіркелу{% else %}Зарегистрироваться как магазин{% endif %}</a>
+            <a href="/supplier/register">
+                ✨ {% if lang == 'kz' %}Дүкен ретінде тіркелу{% else %}Зарегистрироваться как магазин{% endif %}
+            </a>
         </div>
-    </form>
-    
-    <div style="margin-top: 30px; padding: 15px; background: #f0fdf4; border-radius: 8px;">
-        <p style="font-size: 13px; color: #166534; text-align: center;">
-            💡 {% if lang == 'kz' %}Тіркелгеннен кейін сіз:<br>
-            - Тосын сыйлар қоса аласыз<br>
-            - Тапсырыстарды басқара аласыз<br>
-            - Статистиканы көре аласыз
-            {% else %}После регистрации вы сможете:<br>
-            - Добавлять сюрпризы<br>
-            - Управлять заказами<br>
-            - Видеть статистику
+        
+        <div class="info-box">
+            <p>💡 {% if lang == 'kz' %}Тіркелгеннен кейін сіз:</p>
+            <p>✅ Тосын сыйлар қоса аласыз<br>
+            ✅ Тапсырыстарды басқара аласыз<br>
+            ✅ Статистиканы көре аласыз</p>
+            {% else %}<p>💡 После регистрации вы сможете:</p>
+            <p>✅ Добавлять сюрпризы<br>
+            ✅ Управлять заказами<br>
+            ✅ Видеть статистику</p>
             {% endif %}
-        </p>
+        </div>
     </div>
 </div>
 {% endblock %}
