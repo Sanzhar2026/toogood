@@ -1919,6 +1919,8 @@ async def supplier_login(email: str = Form(...), password: str = Form(...), db: 
     response = RedirectResponse(url="/supplier/dashboard", status_code=303)
     response.set_cookie(key="supplier_id", value=str(supplier.id))
     return response
+
+    
 @app.get("/supplier/dashboard")
 async def supplier_dashboard(request: Request, db: Session = Depends(get_db)):
     try:
@@ -1995,7 +1997,11 @@ async def supplier_dashboard(request: Request, db: Session = Depends(get_db)):
             "lang": "ru"
         })
     
-
+@app.post("/supplier/logout")
+async def supplier_logout(request: Request):
+    response = RedirectResponse(url="/supplier/login", status_code=303)
+    response.delete_cookie("supplier_id")
+    return response
 
 @app.get("/api/foods")
 async def get_foods(db: Session = Depends(get_db)):

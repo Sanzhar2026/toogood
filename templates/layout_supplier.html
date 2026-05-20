@@ -18,15 +18,9 @@
             min-height: 100vh;
         }
         
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 0 1rem;
-        }
-        
         /* Navbar */
         .navbar {
-            background: #0a0a0a;
+            background: #0f172a;
             color: white;
             padding: 1rem 2rem;
             display: flex;
@@ -34,7 +28,6 @@
             align-items: center;
             flex-wrap: wrap;
             gap: 1rem;
-            border-bottom: 2px solid #f59e0b;
         }
         
         .logo {
@@ -43,19 +36,16 @@
             gap: 0.5rem;
             font-size: 1.5rem;
             font-weight: 800;
-        }
-        
-        .logo-sarqyt {
-            color: #ffffff;
-        }
-        
-        .logo-go {
-            color: #f59e0b;
+            background: linear-gradient(135deg, #fff 0%, #fbbf24 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
         
         .logo img {
             width: 32px;
             height: 32px;
+            -webkit-text-fill-color: initial;
         }
         
         .nav-links {
@@ -72,7 +62,21 @@
         }
         
         .nav-links a:hover {
-            color: #f59e0b;
+            color: #fbbf24;
+        }
+        
+        .logout-btn {
+            background: #dc2626;
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        
+        .logout-btn:hover {
+            background: #b91c1c;
         }
         
         .lang-switch {
@@ -91,9 +95,17 @@
         }
         
         .lang-btn:hover {
-            background: #f59e0b;
-            color: #0a0a0a;
-            border-color: #f59e0b;
+            background: #fbbf24;
+            color: #0f172a;
+            border-color: #fbbf24;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #fbbf24;
+            font-size: 0.9rem;
         }
         
         @media (max-width: 768px) {
@@ -111,12 +123,21 @@
     <nav class="navbar">
         <div class="logo">
             <img src="/static/images/icon.png" alt="Icon">
-            <span class="logo-sarqyt">Sarqyt</span><span class="logo-go">GO</span>
+            <span>Sarqyt GO</span>
         </div>
         <div class="nav-links">
-            <a href="/supplier/dashboard">📊 Дашборд</a>
-            <a href="/supplier/orders">📋 Заказы</a>
-            <a href="/supplier/bags">🎁 Сюрпризы</a>
+            {% if supplier %}
+                <a href="/supplier/dashboard">📊 Дашборд</a>
+                <a href="/supplier/orders">📋 Заказы</a>
+                <a href="/supplier/bags">🎁 Сюрпризы</a>
+                <div class="user-info">
+                    👤 {{ supplier.business_name }}
+                </div>
+                <button onclick="logout()" class="logout-btn">🚪 Выйти</button>
+            {% else %}
+                <a href="/supplier/login">🔑 Кіру / Войти</a>
+                <a href="/supplier/register">📝 Тіркелу / Регистрация</a>
+            {% endif %}
             <div class="lang-switch">
                 <button class="lang-btn" onclick="switchLang('ru')">РУС</button>
                 <button class="lang-btn" onclick="switchLang('kz')">ҚАЗ</button>
@@ -133,6 +154,18 @@
             var url = new URL(window.location.href);
             url.searchParams.set('lang', lang);
             window.location.href = url.toString();
+        }
+        
+        async function logout() {
+            if (confirm('{% if lang == "kz" %}Шығу керек пе?{% else %}Выйти?{% endif %}')) {
+                const response = await fetch('/supplier/logout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (response.ok) {
+                    window.location.href = '/supplier/login';
+                }
+            }
         }
     </script>
 </body>
