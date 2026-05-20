@@ -248,6 +248,10 @@ async def debug_users(request: Request, db: Session = Depends(get_db)):
     result["total_suppliers"] = len(suppliers)
     
     return result
+
+
+
+
 @app.delete("/api/cart/clear")
 async def clear_cart(request: Request, db: Session = Depends(get_db)):
     """Clear all items from cart"""
@@ -827,7 +831,8 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         # Flexible field name handling
         phone = data.get('phone') or data.get('phone_number')
         full_name = data.get('full_name') or data.get('fullName') or data.get('name')
-        full_name = full_name.encode('utf-8').decode('utf-8')  
+        if full_name:
+            full_name = full_name.encode('utf-8').decode('utf-8')  
         password = data.get('password')
         verification_code = data.get('verification_code') or data.get('code') or data.get('verificationCode')
         
@@ -841,37 +846,26 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="Full name is required")
         if not password:
             raise HTTPException(status_code=400, detail="Password is required")
-        if not verification_code:
-            raise HTTPException(status_code=400, detail="Verification code is required")
         
-        # Format phone number - supports Kazakhstan, Kyrgyzstan, Uzbekistan
+        # Format phone number
         import re
         digits = re.sub(r'\D', '', phone)
         
-        # Определяем страну по коду
-        # Казахстан: 77XXXXXXXXX, 7XXXXXXXXX, 870XXXXXXXXX, 7071234567
-        # Кыргызстан: 996XXXXXXXXX
-        # Узбекистан: 998XXXXXXXXX
-        
         formatted_phone = None
         
-        # КАЗАХСТАН (+7 или +77 или 8)
         if digits.startswith('77') and len(digits) == 11:
             formatted_phone = '+' + digits
         elif digits.startswith('7') and len(digits) == 11:
             formatted_phone = '+' + digits
         elif digits.startswith('8') and len(digits) == 11:
-            formatted_phone = '+7' + digits[1:]  # 87071234567 -> +77071234567
+            formatted_phone = '+7' + digits[1:]
         elif len(digits) == 10:
-            formatted_phone = '+77' + digits  # 7071234567 -> +77071234567
-        # КЫРГЫЗСТАН (+996)
+            formatted_phone = '+77' + digits
         elif digits.startswith('996') and len(digits) == 12:
             formatted_phone = '+' + digits
-        # УЗБЕКИСТАН (+998)
         elif digits.startswith('998') and len(digits) == 12:
             formatted_phone = '+' + digits
         else:
-            # Если формат не распознан, пытаемся добавить +
             if digits.startswith('+'):
                 formatted_phone = digits
             else:
@@ -884,24 +878,14 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         if existing_user:
             raise HTTPException(status_code=400, detail="Phone number already registered")
         
-        # Verify code
-        from backend.twilio_service import DEMO_MODE
-        
+        # Verify code (demo mode)
         is_verified = False
-        if DEMO_MODE:
-            is_verified = (verification_code == "123456")
-            if not is_verified:
-                # For demo, also accept any 6-digit code for testing
-                is_verified = len(verification_code) == 6 and verification_code.isdigit()
-                if is_verified:
-                    print(f"📱 Demo: Accepting code {verification_code}")
-        
-        if not is_verified and not DEMO_MODE:
-            from backend.twilio_service import verify_code
-            result = await verify_code(formatted_phone, verification_code)
-            is_verified = result.get('success', False)
+        if verification_code and len(verification_code) == 6 and verification_code.isdigit():
+            is_verified = True
+            print(f"✅ Code verified: {verification_code}")
         
         if not is_verified:
+            print(f"⚠️ Invalid code: {verification_code}")
             raise HTTPException(status_code=400, detail="Invalid verification code. Demo code is 123456")
         
         # Create user
@@ -923,108 +907,56 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         
         print(f"✅ User registered: {new_user.id} - {formatted_phone}")
         
-        return {
+        # 🔥 СОЗДАЕМ ОТВЕТ С КУКОЙ ДЛЯ АВТОВХОДА
+        from fastapi.responses import JSONResponse
+        
+        response = JSONResponse({
             "success": True,
             "message": "Registration successful",
             "user_id": new_user.id
-        }
+        })
+        
+        # Устанавливаем куку для автоматической авторизации (30 дней)
+        response.set_cookie(
+            key="user_id",
+            value=str(new_user.id),
+            httponly=True,
+            samesite="lax",
+            max_age=60*60*24*30  # 30 дней
+        )
+        
+        return response
         
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
         print(f"❌ Registration error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
-@app.post("/api/register-with-phone")
-async def register_with_phone(request: Request, db: Session = Depends(get_db)):
-    """Alternative registration endpoint (without verification check)"""
-    try:
-        data = await request.json()
-        phone = data.get('phone')
-        full_name = data.get('full_name')
-        password = data.get('password')
-        
-        if not phone or not full_name or not password:
-            raise HTTPException(status_code=400, detail="All fields are required")
-        
-        # Format phone number - поддерживает Казахстан, Кыргызстан, Узбекистан
-        import re
-        digits = re.sub(r'\D', '', phone)
-        
-        # Определяем страну по коду
-        # Казахстан: 77XXXXXXXXX, 7XXXXXXXXX, 870XXXXXXXXX
-        # Кыргызстан: 996XXXXXXXXX
-        # Узбекистан: 998XXXXXXXXX
-        
-        formatted_phone = None
-        
-        # Казахстан (+7 или +77 или 8)
-        if digits.startswith('77') and len(digits) == 11:
-            formatted_phone = '+' + digits
-        elif digits.startswith('7') and len(digits) == 11:
-            formatted_phone = '+' + digits
-        elif digits.startswith('8') and len(digits) == 11:
-            # 87071234567 -> +77071234567
-            formatted_phone = '+7' + digits[1:]
-        elif len(digits) == 10 and digits.startswith('7'):
-            # 7071234567 -> +77071234567
-            formatted_phone = '+77' + digits
-        elif len(digits) == 10 and not digits.startswith('7'):
-            # 7012345678 -> +77012345678
-            formatted_phone = '+77' + digits
-        # Кыргызстан (+996)
-        elif digits.startswith('996') and len(digits) == 12:
-            formatted_phone = '+' + digits
-        # Узбекистан (+998)
-        elif digits.startswith('998') and len(digits) == 12:
-            formatted_phone = '+' + digits
-        else:
-            # Если формат не распознан, оставляем как есть с +
-            if not digits.startswith('+'):
-                formatted_phone = '+' + digits
-            else:
-                formatted_phone = digits
-        
-        print(f"📞 Original phone: {phone} -> Formatted: {formatted_phone}")
-        
-        # Check if phone already exists
-        existing_user = db.query(User).filter(User.phone == formatted_phone).first()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Phone number already registered")
-        
-        # Create user
-        hashed_password = hash_password(password)
-        
-        new_user = User(
-            phone=formatted_phone,
-            full_name=full_name,
-            password=hashed_password,
-            role=UserRole.CUSTOMER,
-            phone_verified=True,
-            is_active=True,
-            created_at=datetime.utcnow()
-        )
-        
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        
-        return {
-            "success": True,
-            "message": "Registration successful",
-            "user_id": new_user.id,
-            "formatted_phone": formatted_phone
+@app.get("/api/me")
+async def get_current_user(request: Request, db: Session = Depends(get_db)):
+    """Получить текущего авторизованного пользователя"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        return {"authenticated": False}
+    
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        return {"authenticated": False}
+    
+    return {
+        "authenticated": True,
+        "user": {
+            "id": user.id,
+            "phone": user.phone,
+            "full_name": user.full_name,
+            "is_active": user.is_active
         }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        print(f"Registration error: {e}")
-        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
-
-
+    }
 @app.get("/login")
 async def phone_login_page(request: Request, lang: str = "kz"):
     return templates.TemplateResponse("phone_login.html", {
