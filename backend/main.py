@@ -936,6 +936,10 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
+
+
+
+
 @app.get("/api/me")
 async def get_current_user(request: Request, db: Session = Depends(get_db)):
     """Получить текущего авторизованного пользователя"""
