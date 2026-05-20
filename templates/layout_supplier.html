@@ -1,137 +1,208 @@
-<!DOCTYPE html>
-<html lang="{{ lang }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sarqyt GO - Панель поставщика</title>
-    <!-- ✅ Fixed: direct path to icon -->
-    <link rel="icon" type="image/png" href="/static/images/icon.png">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-            background: #f1f5f9;
-            min-height: 100vh;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 0 1rem;
-        }
-        
-        /* Navbar */
-        .navbar {
-            background: #0f172a;
-            color: white;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-        
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 1.5rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #fff 0%, #fbbf24 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        .logo img {
-            width: 32px;
-            height: 32px;
-            -webkit-text-fill-color: initial;
-        }
-        
-        .nav-links {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        .nav-links a {
-            color: #94a3b8;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        
-        .nav-links a:hover {
-            color: #fbbf24;
-        }
-        
-        .lang-switch {
-            display: flex;
-            gap: 0.5rem;
-        }
-        
-        .lang-btn {
-            background: transparent;
-            border: 1px solid #334155;
-            color: white;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .lang-btn:hover {
-            background: #fbbf24;
-            color: #0f172a;
-            border-color: #fbbf24;
-        }
-        
-        @media (max-width: 768px) {
-            .navbar {
-                flex-direction: column;
-                text-align: center;
-            }
-            .nav-links {
-                justify-content: center;
-            }
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar">
-        <div class="logo">
-            <!-- ✅ Fixed: direct path to icon image -->
-            <img src="/static/images/icon.png" alt="Icon">
-            Sarqyt GO
-        </div>
-        <div class="nav-links">
-            <a href="/supplier/dashboard">📊 Дашборд</a>
-            <a href="/supplier/orders">📋 Заказы</a>
-            <a href="/supplier/bags">🎁 Сюрпризы</a>
-            <div class="lang-switch">
-                <button class="lang-btn" onclick="switchLang('ru')">РУС</button>
-                <button class="lang-btn" onclick="switchLang('kz')">ҚАЗ</button>
-            </div>
-        </div>
-    </nav>
+{% extends "layout_supplier.html" %}
+
+{% block content %}
+<style>
+    .landing {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 70vh;
+        text-align: center;
+        padding: 2rem;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    }
     
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+    .logo-container {
+        margin-bottom: 2rem;
+    }
     
-    <script>
-        function switchLang(lang) {
-            var url = new URL(window.location.href);
-            url.searchParams.set('lang', lang);
-            window.location.href = url.toString();
+    .logo-large {
+        width: 180px;
+        height: 180px;
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+        border-radius: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.3);
+        border: 3px solid #f59e0b;
+    }
+    
+    .logo-large img {
+        width: 120px;
+        height: 120px;
+        object-fit: contain;
+    }
+    
+    .brand-name {
+        margin-top: 1.5rem;
+        font-size: 3.5rem;
+        font-weight: 800;
+    }
+    
+    .brand-sarqyt {
+        color: #0a0a0a;
+    }
+    
+    .brand-go {
+        color: #f59e0b;
+    }
+    
+    .tagline {
+        color: #64748b;
+        margin-bottom: 2rem;
+        font-size: 1.1rem;
+        margin-top: 0.5rem;
+    }
+    
+    .description {
+        color: #475569;
+        margin-bottom: 2rem;
+        font-size: 1rem;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    .buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .btn-large {
+        padding: 0.9rem 2.2rem;
+        font-size: 1rem;
+        border-radius: 50px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+        color: #0a0a0a;
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(245, 158, 11, 0.4);
+    }
+    
+    .btn-secondary {
+        background: #0a0a0a;
+        color: white;
+        border: 1px solid #f59e0b;
+    }
+    
+    .btn-secondary:hover {
+        background: #1a1a1a;
+        transform: translateY(-3px);
+        border-color: #fbbf24;
+    }
+    
+    .features {
+        display: flex;
+        gap: 2rem;
+        justify-content: center;
+        margin-top: 3rem;
+        flex-wrap: wrap;
+    }
+    
+    .feature {
+        text-align: center;
+        padding: 1rem;
+    }
+    
+    .feature-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .feature-title {
+        font-weight: 600;
+        color: #0a0a0a;
+        margin-bottom: 0.25rem;
+    }
+    
+    .feature-desc {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    
+    @media (max-width: 640px) {
+        .logo-large {
+            width: 140px;
+            height: 140px;
         }
-    </script>
-</body>
-</html>
+        
+        .logo-large img {
+            width: 90px;
+            height: 90px;
+        }
+        
+        .brand-name {
+            font-size: 2.5rem;
+        }
+        
+        .btn-large {
+            padding: 0.7rem 1.5rem;
+            font-size: 0.9rem;
+        }
+    }
+</style>
+
+<div class="landing">
+    <div class="logo-container">
+        <div class="logo-large">
+            <img src="/static/images/icon.png" alt="Sarqyt GO">
+        </div>
+    </div>
+    
+    <div class="brand-name">
+        <span class="brand-sarqyt">Sarqyt</span><span class="brand-go">GO</span>
+    </div>
+    <div class="tagline">{% if lang == 'kz' %}Тағамды құтқарыңыз, пайда табыңыз{% else %}Спасайте еду, зарабатывайте{% endif %}</div>
+    <div class="description">
+        {% if lang == 'kz' %}
+        Тосын сыйларды қосыңыз, тапсырыстарды басқарыңыз және тағам қалдықтарын азайтыңыз
+        {% else %}
+        Добавляйте сюрпризы, управляйте заказами и сокращайте пищевые отходы
+        {% endif %}
+    </div>
+    
+    <div class="buttons">
+        <a href="/supplier/login" class="btn-large btn-primary">
+            🔑 {% if lang == 'kz' %}Кіру{% else %}Войти{% endif %}
+        </a>
+        <a href="/supplier/register" class="btn-large btn-secondary">
+            📝 {% if lang == 'kz' %}Тіркелу{% else %}Зарегистрироваться{% endif %}
+        </a>
+    </div>
+    
+    <div class="features">
+        <div class="feature">
+            <div class="feature-icon">🎁</div>
+            <div class="feature-title">{% if lang == 'kz' %}Тосын сыйлар{% else %}Сюрпризы{% endif %}</div>
+            <div class="feature-desc">{% if lang == 'kz' %}Қалған тағамдарды сатыңыз{% else %}Продавайте остатки еды{% endif %}</div>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">📊</div>
+            <div class="feature-title">{% if lang == 'kz' %}Статистика{% else %}Статистика{% endif %}</div>
+            <div class="feature-desc">{% if lang == 'kz' %}Сатуларды бақылаңыз{% else %}Отслеживайте продажи{% endif %}</div>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">🌍</div>
+            <div class="feature-title">{% if lang == 'kz' %}Экология{% else %}Экология{% endif %}</div>
+            <div class="feature-desc">{% if lang == 'kz' %}Қалдықтарды азайтыңыз{% else %}Сокращайте отходы{% endif %}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
