@@ -33,7 +33,7 @@ models.Base.metadata.create_all(bind=engine)
 # ============ FASTAPI APP ============
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-
+app.mount("/static", StaticFiles(directory="static"), name="static")
 # ============ CACHE FOR DELIVERIES ============
 delivery_cache = {}
 from fastapi.middleware.cors import CORSMiddleware
