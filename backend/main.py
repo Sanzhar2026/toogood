@@ -218,7 +218,36 @@ async def update_cart_quantity(bag_id: int, request: Request, db: Session = Depe
     
     return {"success": True, "message": "Cart updated"}
 
+# backend/main.py - добавь этот эндпоинт для проверки
 
+@app.get("/api/debug/users")
+async def debug_users(request: Request, db: Session = Depends(get_db)):
+    """Проверка пользователей в БД (только для отладки)"""
+    
+    # Получаем всех пользователей
+    users = db.query(User).all()
+    
+    result = {
+        "total_users": len(users),
+        "users": []
+    }
+    
+    for user in users:
+        result["users"].append({
+            "id": user.id,
+            "phone": user.phone,
+            "full_name": user.full_name,
+            "is_active": user.is_active,
+            "phone_verified": user.phone_verified,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "last_login": user.last_login.isoformat() if hasattr(user, 'last_login') and user.last_login else None
+        })
+    
+    # Также проверь таблицу suppliers
+    suppliers = db.query(Supplier).all()
+    result["total_suppliers"] = len(suppliers)
+    
+    return result
 @app.delete("/api/cart/clear")
 async def clear_cart(request: Request, db: Session = Depends(get_db)):
     """Clear all items from cart"""
