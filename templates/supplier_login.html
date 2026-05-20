@@ -1,4 +1,4 @@
-{% extends "layout.html" %}
+{% extends "layout_supplier.html" %}
 
 {% block content %}
 <style>
@@ -8,7 +8,7 @@
         align-items: center;
         justify-content: center;
         padding: 2rem;
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
     }
     
     .login-card {
@@ -33,13 +33,14 @@
     .login-icon {
         width: 72px;
         height: 72px;
-        background: linear-gradient(135deg, #166534 0%, #22c55e 100%);
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
         border-radius: 60px;
         display: flex;
         align-items: center;
         justify-content: center;
         margin: 0 auto 20px;
-        box-shadow: 0 10px 25px -5px rgba(22, 101, 52, 0.3);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        border: 2px solid #f59e0b;
     }
     
     .login-icon span {
@@ -49,8 +50,12 @@
     .login-header h2 {
         font-size: 28px;
         font-weight: 700;
-        color: #0f172a;
+        color: #0a0a0a;
         margin-bottom: 8px;
+    }
+    
+    .login-header h2 span {
+        color: #f59e0b;
     }
     
     .login-header p {
@@ -90,16 +95,17 @@
         font-size: 15px;
         transition: all 0.2s;
         outline: none;
+        background: white;
     }
     
     .form-group input:focus {
-        border-color: #166534;
-        box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.1);
+        border-color: #f59e0b;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
     }
     
     .btn-login {
         width: 100%;
-        background: linear-gradient(135deg, #166534 0%, #22c55e 100%);
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
         color: white;
         padding: 16px;
         border: none;
@@ -109,11 +115,13 @@
         cursor: pointer;
         transition: all 0.2s;
         margin-top: 8px;
+        border: 1px solid #f59e0b;
     }
     
     .btn-login:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 25px -5px rgba(22, 101, 52, 0.4);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+        background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
     }
     
     .btn-login:active {
@@ -128,28 +136,28 @@
     }
     
     .register-link a {
-        color: #166534;
+        color: #f59e0b;
         text-decoration: none;
         font-weight: 600;
         transition: color 0.2s;
     }
     
     .register-link a:hover {
-        color: #22c55e;
+        color: #fbbf24;
         text-decoration: underline;
     }
     
     .info-box {
         margin-top: 30px;
         padding: 20px;
-        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
         border-radius: 20px;
-        border-left: 4px solid #166534;
+        border-left: 4px solid #f59e0b;
     }
     
     .info-box p {
         font-size: 13px;
-        color: #166534;
+        color: #0a0a0a;
         line-height: 1.6;
         margin: 0;
     }
@@ -196,8 +204,8 @@
             <div class="login-icon">
                 <span>🏪</span>
             </div>
-            <h2>{% if lang == 'kz' %}Дүкен кабинеті{% else %}Кабинет магазина{% endif %}</h2>
-            <p>{% if lang == 'kz' %}Дүкеніңізге кіріңіз{% else %}Войдите в свой магазин{% endif %}</p>
+            <h2><span>Sarqyt</span>GO</h2>
+            <p>{% if lang == 'kz' %}Дүкен кабинетіне кіріңіз{% else %}Войдите в кабинет магазина{% endif %}</p>
         </div>
         
         {% if error %}

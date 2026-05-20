@@ -1,11 +1,11 @@
-{% extends "layout.html" %}
+{% extends "layout_supplier.html" %}
 
 {% block content %}
 <style>
     .register-wrapper {
         min-height: calc(100vh - 73px);
         padding: 2rem;
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
     }
     
     .register-card {
@@ -25,13 +25,14 @@
     .register-icon {
         width: 72px;
         height: 72px;
-        background: linear-gradient(135deg, #166534 0%, #22c55e 100%);
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
         border-radius: 60px;
         display: flex;
         align-items: center;
         justify-content: center;
         margin: 0 auto 20px;
-        box-shadow: 0 10px 25px -5px rgba(22, 101, 52, 0.3);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        border: 2px solid #f59e0b;
     }
     
     .register-icon span {
@@ -41,8 +42,12 @@
     .register-header h2 {
         font-size: 28px;
         font-weight: 700;
-        color: #0f172a;
+        color: #0a0a0a;
         margin-bottom: 8px;
+    }
+    
+    .register-header h2 span {
+        color: #f59e0b;
     }
     
     .register-header p {
@@ -96,8 +101,8 @@
     .form-group input:focus,
     .form-group select:focus,
     .form-group textarea:focus {
-        border-color: #166534;
-        box-shadow: 0 0 0 3px rgba(22, 101, 52, 0.1);
+        border-color: #f59e0b;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
     }
     
     .coordinates-row {
@@ -109,15 +114,15 @@
     .section-title {
         font-size: 18px;
         font-weight: 700;
-        color: #166534;
+        color: #0a0a0a;
         margin: 30px 0 20px 0;
         padding-bottom: 10px;
-        border-bottom: 2px solid #e2e8f0;
+        border-bottom: 2px solid #f59e0b;
     }
     
     .btn-register {
         width: 100%;
-        background: linear-gradient(135deg, #166534 0%, #22c55e 100%);
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
         color: white;
         padding: 16px;
         border: none;
@@ -127,11 +132,13 @@
         cursor: pointer;
         transition: all 0.2s;
         margin-top: 24px;
+        border: 1px solid #f59e0b;
     }
     
     .btn-register:hover {
         transform: translateY(-2px);
-        box-shadow: 0 10px 25px -5px rgba(22, 101, 52, 0.4);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+        background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
     }
     
     .login-link {
@@ -142,20 +149,20 @@
     }
     
     .login-link a {
-        color: #166534;
+        color: #f59e0b;
         text-decoration: none;
         font-weight: 600;
         transition: color 0.2s;
     }
     
     .login-link a:hover {
-        color: #22c55e;
+        color: #fbbf24;
         text-decoration: underline;
     }
     
     .auto-detect-btn {
-        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-        color: #1a472a;
+        background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+        color: #0a0a0a;
         padding: 10px 20px;
         border: none;
         border-radius: 12px;
@@ -168,7 +175,7 @@
     
     .auto-detect-btn:hover {
         transform: scale(1.02);
-        box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
     }
     
     .location-hint {
@@ -178,14 +185,14 @@
     }
     
     .city-preview {
-        background: #d1fae5;
+        background: #fef3c7;
         padding: 10px 14px;
         border-radius: 12px;
         margin-top: 10px;
         font-size: 13px;
-        color: #166534;
+        color: #0a0a0a;
         display: none;
-        border-left: 3px solid #166534;
+        border-left: 3px solid #f59e0b;
     }
     
     hr {
@@ -221,8 +228,8 @@
             <div class="register-icon">
                 <span>🏪</span>
             </div>
-            <h2>{% if lang == 'kz' %}Дүкен ретінде тіркелу{% else %}Регистрация как магазин{% endif %}</h2>
-            <p>{% if lang == 'kz' %}Тосын сыйлар сатуды бастаңыз{% else %}Начните продавать сюрпризы{% endif %}</p>
+            <h2><span>Sarqyt</span>GO</h2>
+            <p>{% if lang == 'kz' %}Дүкен ретінде тіркелу{% else %}Регистрация как магазин{% endif %}</p>
         </div>
         
         <form method="post" action="/supplier/register" id="registerForm">
@@ -363,7 +370,7 @@
                     <textarea name="description" rows="3" placeholder="{% if lang == 'kz' %}Дүкеніңіз туралы қысқаша ақпарат{% else %}Краткая информация о вашем магазине{% endif %}"></textarea>
                 </div>
             </div>
-            
+            html
             <button type="submit" class="btn-register">
                 🚀 {% if lang == 'kz' %}Тіркелу{% else %}Зарегистрироваться{% endif %}
             </button>
