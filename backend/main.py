@@ -972,33 +972,99 @@ manager = ConnectionManager()
 # ============ WEBSOCKET ENDPOINT ============
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    """Main WebSocket endpoint for real-time updates"""
     await manager.connect(websocket)
+    
     try:
         # Send welcome message
         await manager.send_personal_message({
             "type": "connected",
-            "message": "Connected to Sarqyn Food WebSocket"
+            "message": "Connected to Sarqyn Food WebSocket",
+            "timestamp": datetime.utcnow().isoformat(),
+            "channels": ["surprise_bags", "orders", "all"]
+        }, websocket)
+        
+        # Send initial data (optional)
+        await manager.send_personal_message({
+            "type": "ready",
+            "message": "Ready to receive updates",
+            "timestamp": datetime.utcnow().isoformat()
         }, websocket)
         
         # Keep connection alive and listen for messages
         while True:
+            # Wait for messages from client
             data = await websocket.receive_text()
             print(f"📨 Received from client: {data}")
             
-            # Handle client messages if needed
             try:
                 message = json.loads(data)
-                if message.get("type") == "ping":
-                    await manager.send_personal_message({"type": "pong"}, websocket)
-            except:
-                pass
+                msg_type = message.get("type")
+                
+                # Handle different message types
+                if msg_type == "ping":
+                    # Respond to heartbeat ping
+                    await manager.send_personal_message({
+                        "type": "pong",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }, websocket)
+                    print("💓 Heartbeat pong sent")
+                
+                elif msg_type == "subscribe":
+                    # Subscribe to channel
+                    channel = message.get("channel")
+                    if channel:
+                        await manager.subscribe(websocket, channel)
+                    else:
+                        await manager.send_personal_message({
+                            "type": "error",
+                            "message": "Channel name required for subscription",
+                            "timestamp": datetime.utcnow().isoformat()
+                        }, websocket)
+                
+                elif msg_type == "unsubscribe":
+                    # Unsubscribe from channel
+                    channel = message.get("channel")
+                    if channel:
+                        await manager.unsubscribe(websocket, channel)
+                
+                elif msg_type == "get_status":
+                    # Send connection status
+                    await manager.send_personal_message({
+                        "type": "status",
+                        "connected": True,
+                        "connections": len(manager.active_connections),
+                        "timestamp": datetime.utcnow().isoformat()
+                    }, websocket)
+                
+                else:
+                    # Unknown message type
+                    await manager.send_personal_message({
+                        "type": "unknown",
+                        "message": f"Unknown message type: {msg_type}",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }, websocket)
+                    
+            except json.JSONDecodeError:
+                print(f"❌ Invalid JSON received: {data}")
+                await manager.send_personal_message({
+                    "type": "error",
+                    "message": "Invalid JSON format",
+                    "timestamp": datetime.utcnow().isoformat()
+                }, websocket)
+            except Exception as e:
+                print(f"❌ Error processing message: {e}")
+                await manager.send_personal_message({
+                    "type": "error",
+                    "message": f"Error processing message: {str(e)}",
+                    "timestamp": datetime.utcnow().isoformat()
+                }, websocket)
                 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        print(f"❌ WebSocket error: {e}")
         manager.disconnect(websocket)
-
 
 
 
