@@ -1545,7 +1545,6 @@ async def phone_login_page(request: Request, lang: str = "kz"):
 from fastapi.responses import JSONResponse
 
 from fastapi.responses import JSONResponse
-
 @app.post("/api/login")
 async def api_login(request: Request, db: Session = Depends(get_db)):
     try:
@@ -1553,10 +1552,7 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
         phone = data.get("phone")
         password = data.get("password")
         
-        # Format phone
         formatted_phone = format_phone_number(phone)
-        
-        # Find user
         user = db.query(User).filter(User.phone == formatted_phone).first()
         
         if not user or not verify_password(password, user.password):
@@ -1565,39 +1561,40 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "error": "Invalid credentials"}
             )
         
-        # ✅ ОТВЕТ С ДАННЫМИ ПОЛЬЗОВАТЕЛЯ В JSON (БЕЗ КИРИЛЛИЦЫ В COOKIES)
-        response = JSONResponse(
-            status_code=200,
-            content={
-                "success": True,
-                "redirect": "/",
-                "user": {
-                    "id": user.id,
-                    "phone": user.phone,
-                    "full_name": user.full_name,  # ← Кириллица здесь (в JSON)
-                    "role": user.role.value if user.role else "customer"
-                }
+        # ✅ СОЗДАЕМ ОТВЕТ С COOKIE
+        response = JSONResponse({
+            "success": True,
+            "redirect": "/",
+            "user": {
+                "id": user.id,
+                "phone": user.phone,
+                "full_name": user.full_name,
+                "role": user.role.value if user.role else "customer"
             }
-        )
+        })
         
-        # ✅ ТОЛЬКО БЕЗОПАСНЫЕ КУКИ (без кириллицы)
+        # ✅ УСТАНАВЛИВАЕМ COOKIE ПРАВИЛЬНО
         response.set_cookie(
-            key="user_id", 
+            key="user_id",
             value=str(user.id),
-            httponly=True,      # Нельзя прочитать через JavaScript
-            samesite="lax",     # Защита от CSRF
-            max_age=60*60*24*30 # 30 дней
-        )
-        
-        response.set_cookie(
-            key="phone", 
-            value=user.phone,   # Телефон содержит только цифры и +
             httponly=True,
             samesite="lax",
+            secure=True,  # ← ВАЖНО для HTTPS (Render.com)
+            domain=None,   # Автоматически использует текущий домен
+            max_age=60*60*24*30  # 30 дней
+        )
+        
+        # Дополнительная cookie для отладки
+        response.set_cookie(
+            key="user_phone",
+            value=user.phone,
+            httponly=True,
+            samesite="lax",
+            secure=True,
             max_age=60*60*24*30
         )
         
-        print(f"✅ Login successful for user: {user.phone}")
+        print(f"✅ Login successful for user: {user.phone}, cookie set")
         return response
         
     except Exception as e:
@@ -1606,7 +1603,6 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
             status_code=500,
             content={"success": False, "error": str(e)}
         )
-        
 @app.get("/logout")
 async def logout():
     response = RedirectResponse(url="/", status_code=303)
