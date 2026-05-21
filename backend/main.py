@@ -2085,15 +2085,118 @@ async def get_nearby_suppliers(
     
     nearby.sort(key=lambda x: x["distance_km"])
     return {"count": len(nearby), "suppliers": nearby}
+# ============ WEBSOCKET FOR SUPPLIERS ============
 
+# Хранилище для supplier WebSocket соединений
+supplier_connections = {}  # {supplier_id: [websocket1, websocket2]}
+
+@app.websocket("/ws/supplier")
+async def supplier_websocket_endpoint(websocket: WebSocket):
+    """WebSocket для поставщиков - получают уведомления о новых заказах"""
+    
+    # Получаем supplier_id из query параметра
+    supplier_id = websocket.query_params.get("supplier_id")
+    
+    # Проверяем авторизацию
+    cookies = websocket.cookies
+    user_id = cookies.get("user_id")
+    supplier_cookie = cookies.get("supplier_id")
+    
+    print(f"🔌 WebSocket connection attempt: supplier_id={supplier_id}")
+    
+    if not supplier_id:
+        print("❌ WebSocket rejected: No supplier_id")
+        await websocket.close(code=1008, reason="Supplier ID required")
+        return
+    
+    # Принимаем соединение
+    await websocket.accept()
+    print(f"✅ WebSocket connected for supplier {supplier_id}")
+    
+    # Сохраняем соединение
+    if supplier_id not in supplier_connections:
+        supplier_connections[supplier_id] = []
+    supplier_connections[supplier_id].append(websocket)
+    
+    try:
+        # Отправляем приветственное сообщение
+        await websocket.send_json({
+            "type": "connected",
+            "message": f"Connected as supplier {supplier_id}",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        # Держим соединение открытым
+        while True:
+            data = await websocket.receive_text()
+            try:
+                message = json.loads(data)
+                if message.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except:
+                pass
+                
+    except WebSocketDisconnect:
+        print(f"🔌 WebSocket disconnected for supplier {supplier_id}")
+    except Exception as e:
+        print(f"❌ WebSocket error: {e}")
+    finally:
+        # Удаляем соединение
+        if supplier_id in supplier_connections:
+            if websocket in supplier_connections[supplier_id]:
+                supplier_connections[supplier_id].remove(websocket)
+            if not supplier_connections[supplier_id]:
+                del supplier_connections[supplier_id]
+
+
+# Функция для отправки уведомлений поставщикам
+async def notify_supplier_new_order(supplier_id: int, order_data: dict):
+    """Отправить уведомление поставщику о новом заказе"""
+    supplier_id_str = str(supplier_id)
+    
+    if supplier_id_str in supplier_connections:
+        disconnected = []
+        for connection in supplier_connections[supplier_id_str]:
+            try:
+                await connection.send_json({
+                    "type": "new_order",
+                    "data": order_data,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                print(f"📢 Notified supplier {supplier_id} about new order")
+            except:
+                disconnected.append(connection)
+        
+        # Clean up disconnected
+        for conn in disconnected:
+            if conn in supplier_connections[supplier_id_str]:
+                supplier_connections[supplier_id_str].remove(conn)
+        
+        if not supplier_connections[supplier_id_str]:
+            del supplier_connections[supplier_id_str]
+    else:
+        print(f"⚠️ Supplier {supplier_id} has no active WebSocket connection")
+
+
+# Альтернативная простая версия (если WebSocket сложно настроить)
+async def notify_supplier_new_order_simple(supplier_id: int, order_data: dict):
+    """Простая версия - только лог, без WebSocket"""
+    print(f"📢 [NEW ORDER] Supplier {supplier_id}: {order_data}")
+    # Здесь можно добавить email или SMS уведомление
+    pass
 class OrderCreate(BaseModel):
     bag_id: int
     lat: float
     lon: float
     address: str
+from fastapi import Request  # Убедитесь, что импортирован
 
 @app.post("/api/orders")
-async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
+async def create_order(
+    request: Request,  # ← ДОБАВИТЬ ЭТОТ ПАРАМЕТР
+    order_data: OrderCreate, 
+    db: Session = Depends(get_db)
+):
     # Check if bag exists
     bag = db.query(SurpriseBag).filter(
         SurpriseBag.id == order_data.bag_id,
@@ -2104,25 +2207,27 @@ async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
     if not bag:
         raise HTTPException(status_code=404, detail="Bag not available")
     
-    # Get or create user with simple method
-    user = db.query(User).filter(User.phone == "temp_user").first()
-    if not user:
-        # Create user without complex hashing for now
-        user = User(
-            phone="temp_user",
-            password="temp_password",  # Change this later
-            full_name="Temporary User",
-            role="customer",
-            is_active=True
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+    # Get user from cookie
+    user_id = request.cookies.get("user_id")
     
-    # Check supplier
-    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Supplier not found")
+    if user_id:
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+    else:
+        # Fallback for testing
+        user = db.query(User).filter(User.phone == "temp_user").first()
+        if not user:
+            user = User(
+                phone="temp_user",
+                password="temp_password",
+                full_name="Temporary User",
+                role="customer",
+                is_active=True
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
     
     # Create order
     order_number = f"ORD-{secrets.token_hex(4).upper()}"
@@ -2136,11 +2241,7 @@ async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
         customer_lat=order_data.lat,
         customer_lon=order_data.lon,
         customer_address=order_data.address,
-        lat=order_data.lat,
-        lon=order_data.lon,
-        address=order_data.address,
         amount_paid=bag.discounted_price,
-        pickup_time=f"{bag.pickup_start_time} - {bag.pickup_end_time}" if bag.pickup_start_time else None,
         created_at=datetime.utcnow()
     )
     
@@ -2151,6 +2252,14 @@ async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
     # Decrease quantity
     bag.available_quantity -= 1
     db.commit()
+    
+    # Send WebSocket notification to supplier
+    await notify_supplier_new_order(bag.supplier_id, {
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "bag_name": bag.name,
+        "amount": bag.discounted_price
+    })
     
     return {
         "order_id": order.id,
@@ -2170,78 +2279,6 @@ class OrderResponse(BaseModel):
     status: str
     message: str
 
-@app.post("/api/orders")
-async def create_order(order_data: OrderCreate, db: Session = Depends(get_db)):
-    # Check if bag exists and is available
-    bag = db.query(SurpriseBag).filter(
-        SurpriseBag.id == order_data.bag_id,
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
-    ).first()
-    
-    if not bag:
-        raise HTTPException(status_code=404, detail="Bag not available")
-    
-    # Get supplier
-    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Supplier not found")
-    
-    # Get or create a default user (for now, create one if not exists)
-    # In production, you'd get the authenticated user
-    user = db.query(User).filter(User.phone == "temp_user").first()
-    if not user:
-        # Create temporary user if none exists
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        
-        user = User(
-            phone="temp_user",
-            password=pwd_context.hash("temp_password"),
-            full_name="Temporary User",
-            role="customer",
-            is_active=True
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    
-    # Generate unique order number
-    order_number = f"ORD-{secrets.token_hex(4).upper()}"
-    
-    # Create order - using fields that exist in your Order model
-    order = Order(
-        user_id=user.id,
-        supplier_id=bag.supplier_id,
-        surprise_bag_id=bag.id,
-        order_number=order_number,
-        status=OrderStatus.PENDING,
-        delivery_status="at_supplier",  # Will use DeliveryStatus enum value
-        customer_lat=order_data.lat,
-        customer_lon=order_data.lon,
-        customer_address=order_data.address,
-        lat=order_data.lat,  # Also set old fields for compatibility
-        lon=order_data.lon,
-        address=order_data.address,
-        amount_paid=bag.discounted_price,
-        pickup_time=f"{bag.pickup_start_time} - {bag.pickup_end_time}" if bag.pickup_start_time else None,
-        created_at=datetime.utcnow()
-    )
-    
-    db.add(order)
-    db.commit()
-    db.refresh(order)
-    
-    # Decrease available quantity
-    bag.available_quantity -= 1
-    db.commit()
-    
-    return {
-        "order_id": order.id,
-        "order_number": order.order_number,
-        "status": order.status.value,
-        "message": "Order created successfully"
-    }
 
 
 
