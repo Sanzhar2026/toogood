@@ -185,3 +185,88 @@ class ErrorResponse(BaseModel):
     success: bool = False
     error: str
     detail: Optional[str] = None
+
+    # backend/schemas.py - Add these schemas
+
+from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional, List
+from enum import Enum
+
+# ... existing code ...
+
+# ============ PAYMENT SCHEMAS ============
+
+class PaymentMethod(str, Enum):
+    KASPI = "kaspi"
+    HALYK = "halyk"
+    MASTERCARD = "mastercard"
+    VISA = "visa"
+
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    PAID = "paid"
+    FAILED = "failed"
+    REFUNDED = "refunded"
+
+class PaymentRequest(BaseModel):
+    """Payment initiation request"""
+    order_id: int
+    payment_method: PaymentMethod
+    amount: float
+    card_number: Optional[str] = None
+    card_expiry: Optional[str] = None
+    card_cvv: Optional[str] = None
+    card_holder: Optional[str] = None
+
+class PaymentResponse(BaseModel):
+    """Payment response"""
+    success: bool
+    payment_id: str
+    transaction_id: str
+    amount: float
+    status: str
+    message: str
+    payment_method: str
+    timestamp: str
+
+class PaymentStatusResponse(BaseModel):
+    """Payment status check response"""
+    payment_id: str
+    order_id: int
+    order_number: str
+    amount: float
+    status: str
+    payment_method: str
+    card_last4: Optional[str] = None
+    timestamp: str
+
+class PaymentHistoryItem(BaseModel):
+    """Single payment history item"""
+    order_id: int
+    order_number: str
+    amount: float
+    payment_method: str
+    payment_id: Optional[str]
+    paid_at: Optional[datetime]
+    status: str
+
+class PaymentHistoryResponse(BaseModel):
+    """Payment history response"""
+    history: List[PaymentHistoryItem]
+
+# Update OrderResponse to include payment info
+class OrderResponse(BaseModel):
+    id: int
+    order_number: str
+    status: OrderStatus
+    delivery_status: Optional[str]
+    customer_address: str
+    amount_paid: float
+    created_at: datetime
+    supplier: Optional[SupplierResponse]
+    surprise_bag: Optional[SurpriseBagResponse]
+    # Payment fields
+    payment_status: Optional[str] = None
+    payment_method: Optional[str] = None
+    paid_at: Optional[datetime] = None

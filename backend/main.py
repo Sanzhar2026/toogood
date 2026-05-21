@@ -74,7 +74,515 @@ import json
 
 
 
+# ============ PAYMENT IMITATION SYSTEM ============
+import uuid
+from datetime import datetime
+from enum import Enum
+from pydantic import BaseModel
+from typing import Optional, Literal
 
+class PaymentMethod(str, Enum):
+    KASPI = "kaspi"
+    HALYK = "halyk"
+    MASTERCARD = "mastercard"
+    VISA = "visa"
+
+class PaymentRequest(BaseModel):
+    order_id: int
+    payment_method: PaymentMethod
+    amount: float
+    card_number: Optional[str] = None
+    card_expiry: Optional[str] = None
+    card_cvv: Optional[str] = None
+    card_holder: Optional[str] = None
+
+class PaymentResponse(BaseModel):
+    success: bool
+    payment_id: str
+    transaction_id: str
+    amount: float
+    status: str  # completed, failed, pending
+    message: str
+    payment_method: str
+    timestamp: str
+
+# Store payment transactions (in production, use database)
+payment_transactions = {}
+
+
+# backend/main.py - Add all payment endpoints
+
+# ============ PAYMENT SYSTEM (IMITATION MODE) ============
+import uuid
+import asyncio
+import random
+from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional, Literal
+from backend.schemas import PaymentRequest, PaymentResponse, PaymentMethod
+
+# Store payment transactions (in production, move to database)
+payment_transactions = {}
+
+# Payment configuration
+PAYMENT_CONFIG = {
+    "mode": "demo",  # Change to "production" when using real APIs
+    "demo_success_rate": 0.95,  # 95% success rate for demo
+    "kaspi": {
+        "merchant_id": os.getenv("KASPI_MERCHANT_ID", "demo_merchant_123"),
+        "secret_key": os.getenv("KASPI_SECRET_KEY", "demo_secret_456"),
+        "api_url": os.getenv("KASPI_API_URL", "https://api.kaspi.kz/payment/v1"),
+        "enabled": False  # Set to True when ready
+    },
+    "halyk": {
+        "merchant_id": os.getenv("HALYK_MERCHANT_ID", "demo_merchant_789"),
+        "secret_key": os.getenv("HALYK_SECRET_KEY", "demo_secret_000"),
+        "api_url": os.getenv("HALYK_API_URL", "https://epay.halykbank.kz"),
+        "enabled": False  # Set to True when ready
+    }
+}
+
+@app.post("/api/payment/initiate")
+async def initiate_payment(request: Request, payment_data: PaymentRequest, db: Session = Depends(get_db)):
+    """
+    Initiate payment - IMITATION MODE
+    When real APIs are available, switch PAYMENT_CONFIG["mode"] to "production"
+    """
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Verify order exists and belongs to user
+    order = db.query(Order).filter(
+        Order.id == payment_data.order_id,
+        Order.user_id == int(user_id)
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Check if order is already paid
+    if order.payment_status == "paid":
+        return PaymentResponse(
+            success=True,
+            payment_id=order.payment_id or f"PAY-{uuid.uuid4().hex[:12].upper()}",
+            transaction_id=order.transaction_id or f"TXN-{uuid.uuid4().hex[:16].upper()}",
+            amount=payment_data.amount,
+            status="completed",
+            message="Order already paid",
+            payment_method=payment_data.payment_method.value,
+            timestamp=datetime.utcnow().isoformat()
+        ).dict()
+    
+    # Generate unique IDs
+    payment_id = f"PAY-{uuid.uuid4().hex[:12].upper()}"
+    transaction_id = f"TXN-{uuid.uuid4().hex[:16].upper()}"
+    
+    # Simulate payment processing delay
+    await asyncio.sleep(1.5)
+    
+    # DEMO MODE: Simulate payment result
+    if PAYMENT_CONFIG["mode"] == "demo":
+        # 95% success rate for realistic testing
+        is_successful = random.random() < PAYMENT_CONFIG["demo_success_rate"]
+        
+        if is_successful:
+            # Update order with payment info
+            order.payment_id = payment_id
+            order.transaction_id = transaction_id
+            order.payment_status = "paid"
+            order.payment_method = payment_data.payment_method.value
+            order.paid_at = datetime.utcnow()
+            order.payment_amount = payment_data.amount
+            order.status = OrderStatus.CONFIRMED  # Auto-confirm after payment
+            order.confirmed_at = datetime.utcnow()
+            db.commit()
+            
+            # Create tracking record
+            tracking = OrderTracking(
+                order_id=order.id,
+                status=order.status,
+                delivery_status=order.delivery_status,
+                message=f"✅ Payment completed via {payment_data.payment_method.value} (Demo Mode)",
+                created_at=datetime.utcnow()
+            )
+            db.add(tracking)
+            db.commit()
+            
+            # Store transaction for reference
+            payment_transactions[payment_id] = {
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "amount": payment_data.amount,
+                "payment_method": payment_data.payment_method.value,
+                "card_last4": payment_data.card_number[-4:] if payment_data.card_number else "0000",
+                "status": "completed",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            result = PaymentResponse(
+                success=True,
+                payment_id=payment_id,
+                transaction_id=transaction_id,
+                amount=payment_data.amount,
+                status="completed",
+                message=f"✅ Payment successful via {payment_data.payment_method.value}",
+                payment_method=payment_data.payment_method.value,
+                timestamp=datetime.utcnow().isoformat()
+            )
+        else:
+            # Simulate payment failure
+            result = PaymentResponse(
+                success=False,
+                payment_id=payment_id,
+                transaction_id=transaction_id,
+                amount=payment_data.amount,
+                status="failed",
+                message="❌ Payment failed. Insufficient funds or card declined. Please try another card.",
+                payment_method=payment_data.payment_method.value,
+                timestamp=datetime.utcnow().isoformat()
+            )
+        
+        return result.dict()
+    
+    # PRODUCTION MODE: Real API integration
+    else:
+        # This will be implemented when you get real API keys
+        if payment_data.payment_method == PaymentMethod.KASPI and PAYMENT_CONFIG["kaspi"]["enabled"]:
+            return await process_real_kaspi_payment(order, payment_data, payment_id, transaction_id, db)
+        elif payment_data.payment_method == PaymentMethod.HALYK and PAYMENT_CONFIG["halyk"]["enabled"]:
+            return await process_real_halyk_payment(order, payment_data, payment_id, transaction_id, db)
+        else:
+            # Fallback to demo if real API not configured
+            return {
+                "success": False,
+                "message": f"Real {payment_data.payment_method.value} API not configured yet. Please enable in production."
+            }
+
+async def process_real_kaspi_payment(order: Order, payment_data: PaymentRequest, payment_id: str, transaction_id: str, db: Session):
+    """Process real Kaspi payment (to be implemented when you have API keys)"""
+    # TODO: Implement when you get Kaspi API credentials
+    # Example structure:
+    """
+    async with httpx.AsyncClient() as client:
+        payload = {
+            "merchantId": PAYMENT_CONFIG["kaspi"]["merchant_id"],
+            "orderId": order.order_number,
+            "amount": payment_data.amount,
+            "currency": "KZT",
+            "cardNumber": payment_data.card_number,
+            "expiryDate": payment_data.card_expiry,
+            "cvv": payment_data.card_cvv
+        }
+        
+        # Generate signature
+        signature = generate_kaspi_signature(payload)
+        payload["signature"] = signature
+        
+        response = await client.post(
+            f"{PAYMENT_CONFIG['kaspi']['api_url']}/pay",
+            json=payload,
+            timeout=30.0
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("success"):
+                # Update order...
+                return PaymentResponse(success=True, ...)
+    """
+    return {"success": False, "message": "Kaspi API integration pending"}
+
+async def process_real_halyk_payment(order: Order, payment_data: PaymentRequest, payment_id: str, transaction_id: str, db: Session):
+    """Process real Halyk payment (to be implemented when you have API keys)"""
+    # TODO: Implement when you get Halyk API credentials
+    return {"success": False, "message": "Halyk API integration pending"}
+
+@app.get("/api/payment/status/{payment_id}")
+async def get_payment_status(payment_id: str, db: Session = Depends(get_db)):
+    """Get payment status by payment_id"""
+    
+    # First check database
+    order = db.query(Order).filter(Order.payment_id == payment_id).first()
+    
+    if order:
+        return {
+            "payment_id": payment_id,
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "amount": order.payment_amount or order.amount_paid,
+            "status": order.payment_status,
+            "payment_method": order.payment_method,
+            "card_last4": None,
+            "timestamp": order.paid_at.isoformat() if order.paid_at else None
+        }
+    
+    # Check transaction cache
+    transaction = payment_transactions.get(payment_id)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    
+    return {
+        "payment_id": payment_id,
+        "order_id": transaction["order_id"],
+        "order_number": transaction["order_number"],
+        "amount": transaction["amount"],
+        "status": transaction["status"],
+        "payment_method": transaction["payment_method"],
+        "card_last4": transaction["card_last4"],
+        "timestamp": transaction["timestamp"]
+    }
+
+@app.get("/api/payment/history")
+async def get_payment_history(request: Request, db: Session = Depends(get_db)):
+    """Get user's payment history"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    orders = db.query(Order).filter(
+        Order.user_id == int(user_id),
+        Order.payment_status == "paid"
+    ).order_by(Order.paid_at.desc()).all()
+    
+    history = []
+    for order in orders:
+        history.append({
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "amount": order.payment_amount or order.amount_paid,
+            "payment_method": order.payment_method,
+            "payment_id": order.payment_id,
+            "paid_at": order.paid_at.isoformat() if order.paid_at else None,
+            "status": order.payment_status
+        })
+    
+    return {"history": history}
+
+@app.get("/api/payment/receipt/{order_id}")
+async def get_payment_receipt(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Generate payment receipt for order"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.user_id == int(user_id)
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.payment_status != "paid":
+        raise HTTPException(status_code=400, detail="Order not paid yet")
+    
+    supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+    
+    return {
+        "receipt": {
+            "receipt_number": f"RCP-{order.order_number}",
+            "order_number": order.order_number,
+            "date": order.paid_at.isoformat() if order.paid_at else order.created_at.isoformat(),
+            "supplier_name": supplier.business_name if supplier else "Sarqyn Food",
+            "supplier_address": supplier.address if supplier else "Almaty, Kazakhstan",
+            "items": [
+                {
+                    "name": bag.name if bag else "Surprise Bag",
+                    "quantity": 1,
+                    "price": order.amount_paid,
+                    "total": order.amount_paid
+                }
+            ],
+            "subtotal": order.amount_paid,
+            "total": order.amount_paid,
+            "payment_method": order.payment_method,
+            "payment_id": order.payment_id,
+            "transaction_id": order.transaction_id,
+            "status": order.payment_status
+        }
+    }
+
+# Helper endpoint to switch payment mode (admin only - add security in production)
+@app.post("/api/admin/payment-mode")
+async def set_payment_mode(request: Request):
+    """Switch between demo and production payment mode"""
+    data = await request.json()
+    mode = data.get("mode", "demo")
+    
+    if mode in ["demo", "production"]:
+        PAYMENT_CONFIG["mode"] = mode
+        return {"success": True, "mode": mode, "message": f"Payment mode switched to {mode}"}
+    
+    raise HTTPException(status_code=400, detail="Invalid mode. Use 'demo' or 'production'")
+
+@app.post("/api/payment/initiate")
+async def initiate_payment(request: Request, payment_data: PaymentRequest, db: Session = Depends(get_db)):
+    """Initiate payment - IMITATION MODE (ready for real API)"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Verify order exists
+    order = db.query(Order).filter(
+        Order.id == payment_data.order_id,
+        Order.user_id == int(user_id)
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Generate unique IDs
+    payment_id = f"PAY-{uuid.uuid4().hex[:12].upper()}"
+    transaction_id = f"TXN-{uuid.uuid4().hex[:16].upper()}"
+    
+    # Simulate payment processing (2 seconds delay)
+    await asyncio.sleep(1)  # Simulate network delay
+    
+    # IMITATION: Always succeed (with 95% success rate for realism)
+    import random
+    is_successful = random.random() < 0.95  # 95% success rate
+    
+    if is_successful:
+        # Update order with payment info
+        order.payment_id = payment_id
+        order.payment_status = "paid"
+        order.payment_method = payment_data.payment_method.value
+        order.paid_at = datetime.utcnow()
+        order.status = OrderStatus.CONFIRMED
+        db.commit()
+        
+        # Create tracking record
+        tracking = OrderTracking(
+            order_id=order.id,
+            status=order.status,
+            delivery_status=order.delivery_status,
+            message=f"✅ Payment completed via {payment_data.payment_method.value} (Imitation)",
+            created_at=datetime.utcnow()
+        )
+        db.add(tracking)
+        db.commit()
+        
+        # Store transaction for reference
+        payment_transactions[payment_id] = {
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "amount": payment_data.amount,
+            "payment_method": payment_data.payment_method.value,
+            "card_last4": payment_data.card_number[-4:] if payment_data.card_number else "0000",
+            "status": "completed",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        result = PaymentResponse(
+            success=True,
+            payment_id=payment_id,
+            transaction_id=transaction_id,
+            amount=payment_data.amount,
+            status="completed",
+            message=f"✅ Payment successful via {payment_data.payment_method.value}",
+            payment_method=payment_data.payment_method.value,
+            timestamp=datetime.utcnow().isoformat()
+        )
+    else:
+        # Simulate payment failure
+        result = PaymentResponse(
+            success=False,
+            payment_id=payment_id,
+            transaction_id=transaction_id,
+            amount=payment_data.amount,
+            status="failed",
+            message="❌ Payment failed. Insufficient funds or card declined.",
+            payment_method=payment_data.payment_method.value,
+            timestamp=datetime.utcnow().isoformat()
+        )
+    
+    return result.dict()
+
+@app.get("/api/payment/status/{payment_id}")
+async def get_payment_status(payment_id: str):
+    """Get payment status"""
+    transaction = payment_transactions.get(payment_id)
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    
+    return {
+        "payment_id": payment_id,
+        "order_id": transaction["order_id"],
+        "order_number": transaction["order_number"],
+        "amount": transaction["amount"],
+        "status": transaction["status"],
+        "payment_method": transaction["payment_method"],
+        "card_last4": transaction["card_last4"],
+        "timestamp": transaction["timestamp"]
+    }
+
+
+
+# ============ FUTURE: REAL BANK API INTEGRATION (Template) ============
+
+"""
+Future implementation for real Kaspi API:
+
+class RealKaspiPayment:
+    def __init__(self):
+        self.merchant_id = os.getenv("KASPI_MERCHANT_ID")
+        self.secret_key = os.getenv("KASPI_SECRET_KEY")
+        self.api_url = os.getenv("KASPI_API_URL", "https://api.kaspi.kz/payment/v1")
+    
+    async def process_payment(self, order, card_details, amount):
+        async with httpx.AsyncClient() as client:
+            payload = {
+                "merchantId": self.merchant_id,
+                "orderId": order.order_number,
+                "amount": amount,
+                "currency": "KZT",
+                "cardNumber": card_details["number"],
+                "expiryDate": card_details["expiry"],
+                "cvv": card_details["cvv"]
+            }
+            
+            # Generate signature
+            signature = self.generate_signature(payload)
+            payload["signature"] = signature
+            
+            response = await client.post(f"{self.api_url}/pay", json=payload)
+            return response.json()
+    
+    def generate_signature(self, payload):
+        # Kaspi signature generation logic
+        pass
+
+Future implementation for real Halyk API:
+
+class RealHalykPayment:
+    def __init__(self):
+        self.merchant_id = os.getenv("HALYK_MERCHANT_ID")
+        self.api_url = os.getenv("HALYK_API_URL", "https://epay.halykbank.kz")
+    
+    async def process_payment(self, order, card_details, amount):
+        async with httpx.AsyncClient() as client:
+            payload = {
+                "merchant_id": self.merchant_id,
+                "order_id": order.order_number,
+                "amount": amount,
+                "currency": "KZT",
+                "card": {
+                    "number": card_details["number"],
+                    "expiry": card_details["expiry"],
+                    "cvv": card_details["cvv"]
+                }
+            }
+            
+            response = await client.post(f"{self.api_url}/payment", json=payload)
+            return response.json()
+"""
 # ============ CART API ENDPOINTS ============
 
 # backend/main.py - добавь эти эндпоинты

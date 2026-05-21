@@ -132,6 +132,8 @@ class SurpriseBag(Base):
     cart_items = relationship("CartItem", back_populates="surprise_bag")  # ← ДОБАВЬ
 
 
+# backend/models.py - Add these to Order class
+
 class Order(Base):
     __tablename__ = "orders"
 
@@ -147,6 +149,14 @@ class Order(Base):
     order_number = Column(String(50), unique=True, nullable=True)
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING)
     delivery_status = Column(SQLEnum(DeliveryStatus), default=DeliveryStatus.AT_SUPPLIER)
+    
+    # ============ PAYMENT FIELDS ============
+    payment_id = Column(String(100), nullable=True)  # Уникальный ID платежа
+    payment_status = Column(String(50), default="pending")  # pending, paid, failed, refunded
+    payment_method = Column(String(50), nullable=True)  # kaspi, halyk, mastercard, visa
+    paid_at = Column(DateTime, nullable=True)  # Когда был совершен платеж
+    payment_amount = Column(Float, nullable=True)  # Сумма платежа (может отличаться от amount_paid)
+    transaction_id = Column(String(100), nullable=True)  # ID транзакции от банка
     
     # Customer location
     customer_lat = Column(Float, nullable=True)
@@ -179,7 +189,7 @@ class Order(Base):
     surprise_bag = relationship("SurpriseBag", back_populates="orders")
     tracking_updates = relationship("OrderTracking", back_populates="order")
 
-
+    
 class OrderTracking(Base):
     __tablename__ = "order_tracking"
     
