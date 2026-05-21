@@ -462,41 +462,51 @@
 
         <!-- Add Bag Form (hidden by default) -->
         <div class="add-bag-form" id="addBagForm" style="display: none;">
-            <h3>➕ Новый сюрприз</h3>
-            <form id="createBagForm">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Название *</label>
-                        <input type="text" id="bagName" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Описание</label>
-                        <textarea id="bagDescription" rows="2"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Цена (ориг.)</label>
-                        <input type="number" id="originalPrice" step="any">
-                    </div>
-                    <div class="form-group">
-                        <label>Цена (скидка)</label>
-                        <input type="number" id="discountedPrice" step="any">
-                    </div>
-                    <div class="form-group">
-                        <label>Количество</label>
-                        <input type="number" id="availableQuantity" value="5">
-                    </div>
-                    <div class="form-group">
-                        <label>Время выдачи</label>
-                        <input type="text" id="pickupTime" placeholder="19:30 - 20:00">
-                    </div>
-                    <div class="form-group">
-                        <label>URL фото</label>
-                        <input type="text" id="imageUrl" placeholder="https://...">
-                    </div>
-                </div>
-                <button type="submit" class="submit-btn">✨ Создать сюрприз</button>
-            </form>
+    <h3>➕ Новый сюрприз</h3>
+    <form id="createBagForm">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>🍽️ Категория *</label>
+                <select id="bagCategory" required>
+                    <option value="">Выберите категорию</option>
+                    <option value="main">🍕 Негізгі тағам / Основные блюда</option>
+                    <option value="salads">🥗 Салаттар / Салаты</option>
+                    <option value="drinks">🥤 Сусындар / Напитки</option>
+                    <option value="desserts">🍰 Десерттер / Десерты</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>🏷️ Название *</label>
+                <input type="text" id="bagName" required placeholder="e.g., Вечерний сюрприз">
+            </div>
+            <div class="form-group">
+                <label>📝 Описание</label>
+                <textarea id="bagDescription" rows="2" placeholder="Что внутри?"></textarea>
+            </div>
+            <div class="form-group">
+                <label>💰 Оригинальная цена</label>
+                <input type="number" id="originalPrice" step="any" placeholder="3000">
+            </div>
+            <div class="form-group">
+                <label>🏷️ Цена со скидкой</label>
+                <input type="number" id="discountedPrice" step="any" placeholder="1800">
+            </div>
+            <div class="form-group">
+                <label>📦 Количество</label>
+                <input type="number" id="availableQuantity" value="5">
+            </div>
+            <div class="form-group">
+                <label>🕐 Время выдачи</label>
+                <input type="text" id="pickupTime" placeholder="19:30 - 20:00">
+            </div>
+            <div class="form-group">
+                <label>🖼️ URL фото</label>
+                <input type="text" id="imageUrl" placeholder="https://...">
+            </div>
         </div>
+        <button type="submit" class="submit-btn">✨ Создать сюрприз</button>
+    </form>
+</div>
     </div>
 </div>
 
