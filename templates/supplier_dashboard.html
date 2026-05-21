@@ -461,14 +461,14 @@
         </div>
 
         <!-- Add Bag Form (hidden by default) -->
-        <div class="add-bag-form" id="addBagForm" style="display: none;">
-    <h3>➕ Новый сюрприз</h3>
+<div class="add-bag-form" id="addBagForm" style="display: none;">
+    <h3>➕ Жаңа тосын сый қосу / Добавить сюрприз</h3>
     <form id="createBagForm">
         <div class="form-grid">
             <div class="form-group">
-                <label>🍽️ Категория *</label>
+                <label>🍽️ Категория / Санат *</label>
                 <select id="bagCategory" required>
-                    <option value="">Выберите категорию</option>
+                    <option value="">Таңдаңыз / Выберите</option>
                     <option value="main">🍕 Негізгі тағам / Основные блюда</option>
                     <option value="salads">🥗 Салаттар / Салаты</option>
                     <option value="drinks">🥤 Сусындар / Напитки</option>
@@ -476,35 +476,69 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>🏷️ Название *</label>
-                <input type="text" id="bagName" required placeholder="e.g., Вечерний сюрприз">
-            </div>
-            <div class="form-group">
-                <label>📝 Описание</label>
-                <textarea id="bagDescription" rows="2" placeholder="Что внутри?"></textarea>
-            </div>
-            <div class="form-group">
-                <label>💰 Оригинальная цена</label>
-                <input type="number" id="originalPrice" step="any" placeholder="3000">
-            </div>
-            <div class="form-group">
-                <label>🏷️ Цена со скидкой</label>
-                <input type="number" id="discountedPrice" step="any" placeholder="1800">
-            </div>
-            <div class="form-group">
-                <label>📦 Количество</label>
-                <input type="number" id="availableQuantity" value="5">
-            </div>
-            <div class="form-group">
-                <label>🕐 Время выдачи</label>
-                <input type="text" id="pickupTime" placeholder="19:30 - 20:00">
-            </div>
-            <div class="form-group">
-                <label>🖼️ URL фото</label>
-                <input type="text" id="imageUrl" placeholder="https://...">
+                <label>Атауы / Название *</label>
+                <input type="text" id="bagName" required placeholder="Кешкі тосын сый">
             </div>
         </div>
-        <button type="submit" class="submit-btn">✨ Создать сюрприз</button>
+
+        <div class="form-group">
+            <label>Сипаттама / Описание</label>
+            <textarea id="bagDescription" rows="2" placeholder="Қысқаша сипаттама / Краткое описание"></textarea>
+        </div>
+
+        <!-- Выпадающий список продуктов -->
+        <div class="form-group">
+            <label>🍽️ Тағамдар тізімі / Список блюд</label>
+            <select id="productSelect" class="product-select">
+                <option value="">-- Таңдаңыз / Выберите --</option>
+                <option value="1">🍕 Маргарита пиццасы - 2500 ₸</option>
+                <option value="2">🍔 Гамбургер - 1800 ₸</option>
+                <option value="3">🍣 Суши сет - 3000 ₸</option>
+                <option value="4">🥗 Грек салаты - 1500 ₸</option>
+                <option value="5">🥤 Кока-кола - 500 ₸</option>
+                <option value="6">🍰 Чизкейк - 1200 ₸</option>
+            </select>
+
+            <div class="add-product-row" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                <input type="number" id="productQuantity" class="quantity-input" value="1" min="1" max="99" placeholder="Саны" style="flex: 0 0 80px; padding: 0.5rem;">
+                <button type="button" id="addProductBtn" class="add-btn" style="background: #0f172a; color: white; padding: 0.5rem 1rem; border: none; border-radius: 0.5rem; cursor: pointer;">➕ Қосу / Добавить</button>
+            </div>
+
+            <div id="selectedProductsPreview" class="selected-products-preview" style="display: none; margin-top: 1rem; padding: 0.75rem; background: #f8fafc; border-radius: 0.5rem;">
+                <strong>📋 Таңдалған тағамдар / Выбранные блюда:</strong>
+                <div id="selectedProductsList" style="margin-top: 0.5rem;"></div>
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Бастапқы баға (₸) / Цена без скидки</label>
+                <input type="number" id="originalPrice" step="any" placeholder="Автоматически рассчитывается" readonly style="background: #f1f5f9;">
+            </div>
+            <div class="form-group">
+                <label>Жеңілдікпен баға (₸) / Цена со скидкой</label>
+                <input type="number" id="discountedPrice" step="any" required placeholder="Мысалы: 3500">
+            </div>
+            <div class="form-group">
+                <label>Саны / Количество</label>
+                <input type="number" id="availableQuantity" value="1" min="1">
+            </div>
+            <div class="form-group">
+                <label>Алу уақыты (басталуы)</label>
+                <input type="text" id="pickupStart" placeholder="19:30">
+            </div>
+            <div class="form-group">
+                <label>Алу уақыты (аяқталуы)</label>
+                <input type="text" id="pickupEnd" placeholder="20:00">
+            </div>
+            <div class="form-group">
+                <label>Сурет URL / URL картинки</label>
+                <input type="text" id="imageUrl" placeholder="https://...">
+                <div id="imagePreview" style="margin-top: 0.5rem;"></div>
+            </div>
+        </div>
+
+        <button type="submit" class="submit-btn" style="background: #0f172a; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 0.5rem; cursor: pointer; margin-top: 1rem; width: 100%;">✨ Қосу / Добавить</button>
     </form>
 </div>
     </div>
@@ -513,6 +547,19 @@
 <script>
     var supplierId = parseInt(document.getElementById('supplierData').getAttribute('data-supplier-id'));
     var ws = null;
+    var selectedProducts = [];
+    
+    // Product list for dropdown
+    var productOptions = {
+        '1': { name: 'Маргарита пиццасы', nameKz: 'Маргарита пиццасы', nameRu: 'Пицца Маргарита', price: 2500 },
+        '2': { name: 'Гамбургер', nameKz: 'Гамбургер', nameRu: 'Гамбургер', price: 1800 },
+        '3': { name: 'Суши сет', nameKz: 'Суши сет', nameRu: 'Суши сет', price: 3000 },
+        '4': { name: 'Грек салаты', nameKz: 'Грек салаты', nameRu: 'Грек салаты', price: 1500 },
+        '5': { name: 'Кока-кола', nameKz: 'Кока-кола', nameRu: 'Кока-кола', price: 500 },
+        '6': { name: 'Чизкейк', nameKz: 'Чизкейк', nameRu: 'Чизкейк', price: 1200 },
+        '7': { name: 'Цезарь салаты', nameKz: 'Цезарь салаты', nameRu: 'Салат Цезарь', price: 2200 },
+        '8': { name: 'Картошка фри', nameKz: 'Картоп фри', nameRu: 'Картошка фри', price: 800 }
+    };
     
     // WebSocket Connection
     function connectWebSocket() {
@@ -528,7 +575,7 @@
         ws.onmessage = function(event) {
             var data = JSON.parse(event.data);
             if (data.type === 'new_order') {
-                showNotification('🆕 Новый заказ!', 'success');
+                showNotification('🆕 Жаңа тапсырыс! / Новый заказ!', 'success');
                 refreshOrders();
             }
         };
@@ -543,10 +590,12 @@
     function showNotification(message, type) {
         var notification = document.createElement('div');
         notification.className = 'notification';
-        notification.innerHTML = (type === 'success' ? '🎉' : 'ℹ️') + ' ' + message;
+        notification.innerHTML = (type === 'success' ? '🎉' : '⚠️') + ' ' + message;
         document.body.appendChild(notification);
         setTimeout(function() { notification.remove(); }, 3000);
     }
+    
+    // ============ ORDERS FUNCTIONS ============
     
     async function refreshOrders() {
         try {
@@ -639,6 +688,196 @@
         }
     }
     
+    // ============ BAGS FUNCTIONS ============
+    
+    async function refreshBags() {
+        try {
+            var response = await fetch('/api/supplier/surprise-bags');
+            var data = await response.json();
+            if (!data.success) return;
+            
+            var tbody = document.getElementById('bagsTableBody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            for (var i = 0; i < data.bags.length; i++) {
+                var bag = data.bags[i];
+                var row = '<tr>' +
+                    '<td><strong>' + escapeHtml(bag.name) + '</strong></td>' +
+                    '<td>' + escapeHtml(bag.description || '-') + '</td>' +
+                    '<td>' + bag.original_price + ' ₸</td>' +
+                    '<td><strong style="color: #ef4444;">' + bag.discounted_price + ' ₸</strong></td>' +
+                    '<td>' + bag.available_quantity + '/' + bag.total_quantity + '</td>' +
+                    '<td>' + (bag.is_active ? '<span style="color: #10b981;">✅ Активен</span>' : '<span style="color: #ef4444;">❌ Неактивен</span>') + '</td>' +
+                    '<td><button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">🔄 Сменить статус</button></td>' +
+                '</tr>';
+                tbody.innerHTML += row;
+            }
+            
+            attachBagHandlers();
+        } catch(error) {
+            console.error('Refresh bags error:', error);
+        }
+    }
+    
+    function attachBagHandlers() {
+        document.querySelectorAll('.toggle-bag-btn').forEach(function(btn) {
+            btn.removeEventListener('click', btn._handler);
+            btn._handler = async function() {
+                var bagId = this.getAttribute('data-bag-id');
+                await fetch('/api/supplier/surprise-bags/' + bagId + '/toggle', { method: 'PUT' });
+                refreshBags();
+            };
+            btn.addEventListener('click', btn._handler);
+        });
+    }
+    
+    // ============ PRODUCT SELECTION FUNCTIONS ============
+    
+    function updateTotalPrice() {
+        var total = 0;
+        for (var i = 0; i < selectedProducts.length; i++) {
+            total += selectedProducts[i].price * selectedProducts[i].quantity;
+        }
+        var originalPriceInput = document.getElementById('originalPrice');
+        if (originalPriceInput) {
+            originalPriceInput.value = total;
+        }
+    }
+    
+    function renderSelectedProducts() {
+        var container = document.getElementById('selectedProductsList');
+        var preview = document.getElementById('selectedProductsPreview');
+        
+        if (!container || !preview) return;
+        
+        if (selectedProducts.length === 0) {
+            preview.style.display = 'none';
+            return;
+        }
+        
+        preview.style.display = 'block';
+        container.innerHTML = '';
+        
+        for (var i = 0; i < selectedProducts.length; i++) {
+            var p = selectedProducts[i];
+            var div = document.createElement('div');
+            div.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;';
+            div.innerHTML = '<span>🍽️ ' + escapeHtml(p.name) + ' x' + p.quantity + ' = <strong>' + (p.price * p.quantity) + ' ₸</strong></span>' +
+                '<button type="button" onclick="removeProduct(' + i + ')" style="background: #ef4444; color: white; border: none; border-radius: 0.3rem; padding: 0.2rem 0.5rem; cursor: pointer;">✖</button>';
+            container.appendChild(div);
+        }
+    }
+    
+    function removeProduct(index) {
+        selectedProducts.splice(index, 1);
+        renderSelectedProducts();
+        updateTotalPrice();
+    }
+    
+    function addProduct() {
+        var select = document.getElementById('productSelect');
+        if (!select) return;
+        
+        var productId = select.value;
+        var quantityInput = document.getElementById('productQuantity');
+        var quantity = quantityInput ? parseInt(quantityInput.value) || 1 : 1;
+        
+        if (!productId) {
+            showNotification('Тағамды таңдаңыз / Выберите блюдо', 'error');
+            return;
+        }
+        
+        var product = productOptions[productId];
+        if (!product) return;
+        
+        var existingIndex = -1;
+        for (var i = 0; i < selectedProducts.length; i++) {
+            if (selectedProducts[i].id === productId) {
+                existingIndex = i;
+                break;
+            }
+        }
+        
+        if (existingIndex !== -1) {
+            selectedProducts[existingIndex].quantity += quantity;
+        } else {
+            selectedProducts.push({
+                id: productId,
+                name: product.name,
+                price: product.price,
+                quantity: quantity
+            });
+        }
+        
+        renderSelectedProducts();
+        updateTotalPrice();
+        select.value = '';
+        if (quantityInput) quantityInput.value = '1';
+    }
+    
+    // ============ FORM SUBMIT ============
+    
+    async function submitBagForm() {
+        var category = document.getElementById('bagCategory') ? document.getElementById('bagCategory').value : '';
+        var name = document.getElementById('bagName') ? document.getElementById('bagName').value : '';
+        var description = document.getElementById('bagDescription') ? document.getElementById('bagDescription').value : '';
+        var discountedPrice = document.getElementById('discountedPrice') ? parseFloat(document.getElementById('discountedPrice').value) : 0;
+        var availableQuantity = document.getElementById('availableQuantity') ? parseInt(document.getElementById('availableQuantity').value) : 1;
+        var pickupStart = document.getElementById('pickupStart') ? document.getElementById('pickupStart').value : '';
+        var pickupEnd = document.getElementById('pickupEnd') ? document.getElementById('pickupEnd').value : '';
+        var imageUrl = document.getElementById('imageUrl') ? document.getElementById('imageUrl').value : '';
+        
+        if (!category) {
+            showNotification('Категорияны таңдаңыз / Выберите категорию', 'error');
+            return;
+        }
+        
+        if (!name) {
+            showNotification('Атауын енгізіңіз / Введите название', 'error');
+            return;
+        }
+        
+        if (selectedProducts.length === 0) {
+            showNotification('Кем дегенде бір тағам қосыңыз / Добавьте хотя бы одно блюдо', 'error');
+            return;
+        }
+        
+        var data = {
+            name: name,
+            description: description,
+            original_price: parseFloat(document.getElementById('originalPrice').value) || 0,
+            discounted_price: discountedPrice,
+            available_quantity: availableQuantity,
+            pickup_start_time: pickupStart,
+            pickup_end_time: pickupEnd,
+            image_url: imageUrl,
+            category: category,
+            products: selectedProducts,
+            supplier_id: supplierId
+        };
+        
+        try {
+            var response = await fetch('/api/supplier/surprise-bags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            if (response.ok) {
+                showNotification('✅ Сюрприз қосылды / Сюрприз добавлен!');
+                location.reload();
+            } else {
+                var error = await response.json();
+                showNotification('❌ Қате / Ошибка: ' + (error.detail || 'Қайталап көріңіз'), 'error');
+            }
+        } catch(error) {
+            showNotification('❌ Желі қатесі / Ошибка сети', 'error');
+        }
+    }
+    
+    // ============ ESCAPE HTML ============
+    
     function escapeHtml(str) {
         if (!str) return '';
         return str.replace(/[&<>]/g, function(m) {
@@ -646,48 +885,75 @@
         });
     }
     
-    // Event Listeners
-    document.getElementById('refreshOrdersBtn').addEventListener('click', refreshOrders);
-    document.getElementById('toggleAddBagBtn').addEventListener('click', function() {
-        var form = document.getElementById('addBagForm');
-        form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    });
+    // ============ EVENT LISTENERS ============
     
-    document.querySelectorAll('.toggle-bag-btn').forEach(function(btn) {
-        btn.addEventListener('click', async function() {
-            var bagId = this.getAttribute('data-bag-id');
-            await fetch('/api/supplier/surprise-bags/' + bagId + '/toggle', { method: 'PUT' });
-            location.reload();
-        });
-    });
-    
-    document.getElementById('createBagForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        var data = {
-            name: document.getElementById('bagName').value,
-            description: document.getElementById('bagDescription').value,
-            original_price: parseFloat(document.getElementById('originalPrice').value),
-            discounted_price: parseFloat(document.getElementById('discountedPrice').value),
-            available_quantity: parseInt(document.getElementById('availableQuantity').value),
-            pickup_start_time: document.getElementById('pickupTime').value?.split('-')[0]?.trim(),
-            pickup_end_time: document.getElementById('pickupTime').value?.split('-')[1]?.trim(),
-            image_url: document.getElementById('imageUrl').value,
-            supplier_id: supplierId
-        };
-        var response = await fetch('/api/supplier/surprise-bags', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        if (response.ok) {
-            showNotification('✅ Сюрприз добавлен!');
-            location.reload();
+    function initEventListeners() {
+        var refreshBtn = document.getElementById('refreshOrdersBtn');
+        if (refreshBtn) refreshBtn.addEventListener('click', refreshOrders);
+        
+        var toggleAddBagBtn = document.getElementById('toggleAddBagBtn');
+        if (toggleAddBagBtn) {
+            toggleAddBagBtn.addEventListener('click', function() {
+                var form = document.getElementById('addBagForm');
+                if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+            });
         }
-    });
+        
+        var addProductBtn = document.getElementById('addProductBtn');
+        if (addProductBtn) addProductBtn.addEventListener('click', addProduct);
+        
+        var createBagForm = document.getElementById('createBagForm');
+        if (createBagForm) createBagForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitBagForm();
+        });
+        
+        var imageUrlInput = document.getElementById('imageUrl');
+        if (imageUrlInput) {
+            imageUrlInput.addEventListener('input', function() {
+                var url = this.value;
+                var preview = document.getElementById('imagePreview');
+                if (preview) {
+                    if (url) {
+                        preview.innerHTML = '<img src="' + url + '" style="max-width: 100px; max-height: 80px; border-radius: 0.5rem;">';
+                    } else {
+                        preview.innerHTML = '';
+                    }
+                }
+            });
+        }
+        
+        var discountedPriceInput = document.getElementById('discountedPrice');
+        if (discountedPriceInput) {
+            discountedPriceInput.addEventListener('input', function() {
+                var val = parseFloat(this.value);
+                var originalPrice = parseFloat(document.getElementById('originalPrice').value);
+                if (originalPrice > 0 && val > 0) {
+                    var discountPercent = Math.round((1 - val / originalPrice) * 100);
+                    if (!isNaN(discountPercent) && discountPercent > 0) {
+                        document.getElementById('discountPercent').innerText = discountPercent + '%';
+                    }
+                }
+            });
+        }
+    }
     
-    // Initial load
-    attachOrderHandlers();
-    connectWebSocket();
-    setInterval(refreshOrders, 30000);
+    // ============ INITIALIZATION ============
+    
+    function init() {
+        initEventListeners();
+        refreshOrders();
+        refreshBags();
+        connectWebSocket();
+        attachOrderHandlers();
+        attachBagHandlers();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(refreshOrders, 30000);
+        setInterval(refreshBags, 60000);
+    }
+    
+    // Start the app
+    init();
 </script>
 {% endblock %}
