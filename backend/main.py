@@ -2338,7 +2338,45 @@ async def get_supplier_couriers(request: Request, db: Session = Depends(get_db))
     
     return {"couriers": result}
 
-
+@app.get("/supplier/couriers")
+async def supplier_couriers_page(request: Request, db: Session = Depends(get_db)):
+    # Проверка авторизации поставщика
+    supplier_id = request.cookies.get("supplier_id")
+    
+    if not supplier_id:
+        return RedirectResponse(url="/supplier/login", status_code=303)
+    
+    supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
+    if not supplier:
+        response = RedirectResponse(url="/supplier/login", status_code=303)
+        response.delete_cookie("supplier_id")
+        return response
+    
+    # Получаем курьеров этого поставщика
+    courier_profiles = db.query(CourierProfile).filter(
+        CourierProfile.supplier_id == int(supplier_id)
+    ).all()
+    
+    couriers = []
+    for cp in courier_profiles:
+        user = db.query(User).filter(User.id == cp.user_id).first()
+        if user:
+            couriers.append({
+                "id": user.id,
+                "full_name": user.full_name,
+                "phone": user.phone,
+                "car_model": cp.car_model,
+                "car_number": cp.car_number,
+                "is_active": user.is_active,
+                "created_at": cp.created_at
+            })
+    
+    return templates.TemplateResponse("supplier_couriers.html", {
+        "request": request,
+        "supplier": supplier,
+        "couriers": couriers,
+        "lang": request.query_params.get("lang", "ru")
+    })
 
 
 
