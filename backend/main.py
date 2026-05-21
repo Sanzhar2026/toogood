@@ -2588,23 +2588,74 @@ async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
 # Найди существующий эндпоинт @app.post("/api/supplier/surprise-bags")
 # И измени его, добавив уведомление:
 
+
+@app.get("/api/supplier/surprise-bags")
+async def get_supplier_surprise_bags(request: Request, db: Session = Depends(get_db)):
+    """Get all surprise bags for the authenticated supplier"""
+    supplier_id = request.cookies.get("supplier_id")
+    
+    if not supplier_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    bags = db.query(SurpriseBag).filter(
+        SurpriseBag.supplier_id == int(supplier_id)
+    ).order_by(SurpriseBag.created_at.desc()).all()
+    
+    result = []
+    for bag in bags:
+        result.append({
+            "id": bag.id,
+            "name": bag.name,
+            "description": bag.description,
+            "original_price": bag.original_price,
+            "discounted_price": bag.discounted_price,
+            "discount_percentage": bag.discount_percentage,
+            "image_url": bag.image_url,
+            "available_quantity": bag.available_quantity,
+            "is_active": bag.is_active,
+            "pickup_start_time": bag.pickup_start_time,
+            "pickup_end_time": bag.pickup_end_time,
+            "created_at": bag.created_at.isoformat() if bag.created_at else None
+        })
+    
+    return {"bags": result}
+
+
+
+
+
+
 @app.post("/api/supplier/surprise-bags")
 async def create_surprise_bag(request: Request, db: Session = Depends(get_db)):
     data = await request.json()
     supplier_id = request.cookies.get("supplier_id")
+    
     if not supplier_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     # Get supplier info
     supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
     
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    # Calculate discount percentage
+    original_price = float(data.get("original_price"))
+    discounted_price = float(data.get("discounted_price"))
+    
+    if discounted_price > original_price:
+        raise HTTPException(status_code=400, detail="Discounted price cannot be greater than original price")
+    
+    discount_percentage = int(((original_price - discounted_price) / original_price) * 100)
+    
+    # Create bag
     bag = SurpriseBag(
         supplier_id=int(supplier_id),
         name=data.get("name"),
         description=data.get("description"),
-        original_price=float(data.get("original_price")),
-        discounted_price=float(data.get("discounted_price")),
-        discount_percentage=int(((float(data.get("original_price")) - float(data.get("discounted_price"))) / float(data.get("original_price"))) * 100),
+        original_price=original_price,
+        discounted_price=discounted_price,
+        discount_percentage=discount_percentage,
         image_url=data.get("image_url"),
         available_quantity=int(data.get("available_quantity", 1)),
         pickup_start_time=data.get("pickup_start_time"),
@@ -2612,22 +2663,94 @@ async def create_surprise_bag(request: Request, db: Session = Depends(get_db)):
         is_active=True,
         created_at=datetime.utcnow()
     )
+    
     db.add(bag)
     db.commit()
     db.refresh(bag)
     
-    # 👇 ОТПРАВЛЯЕМ WEBSOCKET УВЕДОМЛЕНИЕ
+    # Send WebSocket notification to all clients
     await notify_new_surprise({
         "id": bag.id,
         "name": bag.name,
-        "supplier_name": supplier.business_name if supplier else "Sarqyn",
+        "supplier_name": supplier.business_name,
         "discounted_price": bag.discounted_price,
         "original_price": bag.original_price,
         "discount_percentage": bag.discount_percentage,
         "image_url": bag.image_url
     })
     
-    return {"success": True, "bag_id": bag.id}
+    return {"success": True, "bag_id": bag.id, "bag": bag}
+
+@app.get("/api/supplier/orders")
+async def get_supplier_orders(request: Request, db: Session = Depends(get_db)):
+    """Get all orders for the authenticated supplier"""
+    supplier_id = request.cookies.get("supplier_id")
+    
+    if not supplier_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    orders = db.query(Order).filter(
+        Order.supplier_id == int(supplier_id)
+    ).order_by(Order.created_at.desc()).all()
+    
+    result = []
+    for order in orders:
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        result.append({
+            "id": order.id,
+            "order_number": order.order_number or f"ORD-{order.id}",
+            "bag_name": bag.name if bag else "Surprise Bag",
+            "customer_address": order.customer_address or "Address not specified",
+            "customer_phone": order.customer_phone,
+            "amount_paid": float(order.amount_paid) if order.amount_paid else 0,
+            "status": order.status.value if order.status else "pending",
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "pickup_time": order.pickup_time
+        })
+    
+    return {"orders": result}
+
+
+@app.get("/api/supplier/stats")
+async def get_supplier_stats(request: Request, db: Session = Depends(get_db)):
+    """Get statistics for the authenticated supplier"""
+    supplier_id = request.cookies.get("supplier_id")
+    
+    if not supplier_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Get all orders
+    orders = db.query(Order).filter(Order.supplier_id == int(supplier_id)).all()
+    
+    total_orders = len(orders)
+    pending_orders = len([o for o in orders if o.status == OrderStatus.PENDING])
+    confirmed_orders = len([o for o in orders if o.status == OrderStatus.CONFIRMED])
+    completed_orders = len([o for o in orders if o.status == OrderStatus.DELIVERED])
+    
+    total_revenue = sum([o.amount_paid or 0 for o in orders])
+    
+    # Today's orders
+    today = datetime.utcnow().date()
+    today_orders = len([o for o in orders if o.created_at and o.created_at.date() == today])
+    
+    # Get active bags count
+    active_bags = db.query(SurpriseBag).filter(
+        SurpriseBag.supplier_id == int(supplier_id),
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0
+    ).count()
+    
+    return {
+        "stats": {
+            "total_orders": total_orders,
+            "pending_orders": pending_orders,
+            "confirmed_orders": confirmed_orders,
+            "completed_orders": completed_orders,
+            "today_orders": today_orders,
+            "total_revenue": total_revenue,
+            "active_bags": active_bags
+        }
+    }
 
 
 
@@ -2700,24 +2823,55 @@ async def update_order_status(
         return {"success": False, "error": str(e)}
 
 
-
+@app.delete("/api/supplier/surprise-bags/{bag_id}")
+async def delete_surprise_bag(bag_id: int, request: Request, db: Session = Depends(get_db)):
+    """Delete a surprise bag (hard delete)"""
+    supplier_id = request.cookies.get("supplier_id")
+    
+    if not supplier_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    bag = db.query(SurpriseBag).filter(
+        SurpriseBag.id == bag_id,
+        SurpriseBag.supplier_id == int(supplier_id)
+    ).first()
+    
+    if not bag:
+        raise HTTPException(status_code=404, detail="Bag not found")
+    
+    db.delete(bag)
+    db.commit()
+    
+    # Notify clients
+    await notify_bag_deleted(bag_id)
+    
+    return {"success": True, "message": "Bag deleted"}
 # Если у тебя есть эндпоинт для обновления сюрприза, добавь туда уведомление:
 # Например:
 
 @app.put("/api/supplier/surprise-bags/{bag_id}/toggle")
-async def toggle_bag_status(bag_id: int, db: Session = Depends(get_db)):
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+async def toggle_bag_status(bag_id: int, request: Request, db: Session = Depends(get_db)):
+    """Toggle surprise bag active status (activate/deactivate)"""
+    supplier_id = request.cookies.get("supplier_id")
+    
+    if not supplier_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    bag = db.query(SurpriseBag).filter(
+        SurpriseBag.id == bag_id,
+        SurpriseBag.supplier_id == int(supplier_id)
+    ).first()
+    
     if not bag:
         raise HTTPException(status_code=404, detail="Bag not found")
     
     bag.is_active = not bag.is_active
     db.commit()
     
-    # 👇 Если сюрприз скрыли (деактивировали), уведомляем клиентов
+    # Notify clients
     if not bag.is_active:
         await notify_bag_deleted(bag_id)
     else:
-        # Если снова активировали, уведомляем о новом (или обновлении)
         supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
         await notify_new_surprise({
             "id": bag.id,
@@ -2731,6 +2885,7 @@ async def toggle_bag_status(bag_id: int, db: Session = Depends(get_db)):
         })
     
     return {"success": True, "is_active": bag.is_active}
+
 
 
 @app.get("/api/test-websocket")
