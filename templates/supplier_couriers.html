@@ -1,0 +1,143 @@
+{% extends "layout_supplier.html" %}
+
+{% block content %}
+<style>
+    .couriers-container { max-width: 800px; margin: 0 auto; padding: 20px; }
+    .courier-card { background: white; border-radius: 20px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+    .btn-add { background: #166534; color: white; padding: 12px 24px; border: none; border-radius: 12px; cursor: pointer; }
+    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background: white; padding: 30px; border-radius: 24px; width: 400px; }
+</style>
+
+<div class="couriers-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h1 class="text-2xl font-bold">🚚 Мои курьеры</h1>
+        <button onclick="openModal()" class="btn-add">➕ Добавить курьера</button>
+    </div>
+    
+    {% if couriers %}
+        {% for courier in couriers %}
+        <div class="courier-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 class="font-bold text-lg">{{ courier.full_name }}</h3>
+                    <p class="text-gray-500 text-sm">📞 {{ courier.phone }}</p>
+                    <p class="text-gray-500 text-sm">🚗 {{ courier.car_model }} • {{ courier.car_number }}</p>
+                    <p class="text-xs text-gray-400">📅 Добавлен: {{ courier.created_at.strftime('%d.%m.%Y') }}</p>
+                </div>
+                <div>
+                    <span class="px-3 py-1 rounded-full text-xs 
+                        {% if courier.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                        {% if courier.is_active %}Активен{% else %}Неактивен{% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="mt-4 flex gap-3">
+                <button onclick="toggleCourierStatus('{{ courier.id }}')" class="text-sm px-4 py-2 rounded-xl bg-gray-100">
+                    🔄 {% if courier.is_active %}Деактивировать{% else %}Активировать{% endif %}
+                </button>
+                <button onclick="showCourierOrders('{{ courier.id }}')" class="text-sm px-4 py-2 rounded-xl bg-emerald-100 text-emerald-700">
+                    📋 История заказов
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="text-center py-16 bg-white rounded-3xl">
+            <div className="text-6xl mb-4">🚚</div>
+            <p class="text-gray-500">У вас пока нет курьеров</p>
+            <button onclick="openModal()" class="mt-4 bg-emerald-600 text-white px-6 py-3 rounded-xl">➕ Добавить первого курьера</button>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal добавления курьера -->
+<div id="addCourierModal" class="modal">
+    <div class="modal-content">
+        <h2 class="text-xl font-bold mb-4">➕ Добавить курьера</h2>
+        <form id="addCourierForm">
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">👤 ФИО *</label>
+                <input type="text" name="full_name" required class="w-full p-3 border rounded-xl">
+            </div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">📞 Телефон *</label>
+                <input type="tel" name="phone" required class="w-full p-3 border rounded-xl" placeholder="+77071234567">
+            </div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">🔑 Пароль *</label>
+                <input type="password" name="password" required class="w-full p-3 border rounded-xl">
+            </div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">🚗 Модель авто</label>
+                <input type="text" name="car_model" class="w-full p-3 border rounded-xl">
+            </div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium mb-1">🚘 Номер авто</label>
+                <input type="text" name="car_number" class="w-full p-3 border rounded-xl">
+            </div>
+            <div class="flex gap-3 mt-4">
+                <button type="submit" class="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-semibold">✅ Добавить</button>
+                <button type="button" onclick="closeModal()" class="flex-1 bg-gray-200 py-3 rounded-xl font-semibold">Отмена</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openModal() {
+        document.getElementById('addCourierModal').style.display = 'flex';
+    }
+    
+    function closeModal() {
+        document.getElementById('addCourierModal').style.display = 'none';
+    }
+    
+    document.getElementById('addCourierForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = {
+            full_name: formData.get('full_name'),
+            phone: formData.get('phone'),
+            password: formData.get('password'),
+            car_model: formData.get('car_model'),
+            car_number: formData.get('car_number')
+        };
+        
+        const response = await fetch('/supplier/couriers/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            alert('Ошибка при добавлении курьера');
+        }
+    });
+    
+    async function toggleCourierStatus(courierId) {
+        const response = await fetch(`/supplier/couriers/${courierId}/toggle`, { 
+            method: 'POST' 
+        });
+        if (response.ok) {
+            window.location.reload();
+        }
+    }
+    
+    async function showCourierOrders(courierId) {
+        const response = await fetch(`/supplier/couriers/${courierId}/orders`);
+        const data = await response.json();
+        alert(`📦 Заказов выполнено: ${data.count || 0}`);
+    }
+    
+    // Закрыть модалку при клике вне окна
+    window.onclick = function(event) {
+        const modal = document.getElementById('addCourierModal');
+        if (event.target === modal) {
+            closeModal();
+        }
+    }
+</script>
+{% endblock %}

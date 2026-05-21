@@ -206,3 +206,47 @@ class Review(Base):
     rating = Column(Integer)
     comment = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+
+    # Добавьте в models.py
+class SupplierCourier(Base):
+    __tablename__ = "supplier_couriers"
+    
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"))
+    courier_id = Column(Integer, ForeignKey("users.id"))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# В модели CourierProfile добавьте supplier_id
+class CourierProfile(Base):
+    __tablename__ = "courier_profiles"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    car_model = Column(String(100), nullable=True)
+    car_number = Column(String(50), nullable=True)
+    is_verified = Column(Boolean, default=False)
+    rating = Column(Float, default=5.0)
+    total_deliveries = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", backref="courier_profile")
+    supplier = relationship("Supplier", backref="couriers")
+
+class AssignedOrder(Base):
+    __tablename__ = "assigned_orders"
+    
+    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.id"))
+    courier_id = Column(Integer, ForeignKey("users.id"))
+    status = Column(String(50), default="assigned")
+    assigned_at = Column(DateTime, default=datetime.utcnow)
+    delivered_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    order = relationship("Order", backref="assignments")
+    courier = relationship("User", backref="assignments")

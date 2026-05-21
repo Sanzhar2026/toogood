@@ -19,7 +19,7 @@ from backend.schemas import (
 )
 from backend.models import (
     CartItem,Food, User, UserRole, Supplier, SurpriseBag, 
-    Order, OrderStatus, DeliveryStatus, OrderTracking, Review
+    Order, OrderStatus, DeliveryStatus, OrderTracking, Review, CourierProfile, AssignedOrder 
 )
 # ============ TWILIO IMPORTS ============
 try:
@@ -2228,6 +2228,121 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
                 "user_phone": user.phone   # ← ДОЛЖНО БЫТЬ
             }
     return {"authenticated": False}
+
+
+
+
+# В main.py
+
+@app.post("/supplier/couriers/add")
+async def add_courier(request: Request, db: Session = Depends(get_db)):
+    supplier_id = request.cookies.get("supplier_id")
+    if not supplier_id:
+        return JSONResponse(status_code=401, content={"error": "Not authenticated"})
+    
+    data = await request.json()
+    phone = format_phone_number(data.get("phone"))
+    full_name = data.get("full_name")
+    password = data.get("password")
+    car_model = data.get("car_model")
+    car_number = data.get("car_number")
+    
+    # Проверяем, нет ли уже такого пользователя
+    existing_user = db.query(User).filter(User.phone == phone).first()
+    
+    if existing_user:
+        # Если пользователь уже есть, просто привязываем к поставщику
+        courier_profile = db.query(CourierProfile).filter(CourierProfile.user_id == existing_user.id).first()
+        if courier_profile:
+            courier_profile.supplier_id = int(supplier_id)
+        else:
+            courier_profile = CourierProfile(
+                user_id=existing_user.id,
+                supplier_id=int(supplier_id),
+                car_model=car_model,
+                car_number=car_number
+            )
+            db.add(courier_profile)
+    else:
+        # Создаем нового пользователя
+        new_user = User(
+            phone=phone,
+            full_name=full_name,
+            password=hash_password(password),
+            role=UserRole.COURIER,
+            is_active=True,
+            created_at=datetime.utcnow()
+        )
+        db.add(new_user)
+        db.flush()
+        
+        courier_profile = CourierProfile(
+            user_id=new_user.id,
+            supplier_id=int(supplier_id),
+            car_model=car_model,
+            car_number=car_number
+        )
+        db.add(courier_profile)
+    
+    db.commit()
+    return {"success": True}
+
+
+@app.get("/api/courier/orders")
+async def get_courier_orders(request: Request, db: Session = Depends(get_db)):
+    courier_id = request.cookies.get("courier_id")
+    if not courier_id:
+        return JSONResponse(status_code=401, content={"error": "Not authenticated"})
+    
+    # Находим, к какому поставщику привязан курьер
+    courier_profile = db.query(CourierProfile).filter(
+        CourierProfile.user_id == int(courier_id)
+    ).first()
+    
+    if not courier_profile or not courier_profile.supplier_id:
+        return {"orders": []}
+    
+    # Получаем заказы ТОЛЬКО этого поставщика
+    orders = db.query(Order).filter(
+        Order.supplier_id == courier_profile.supplier_id,
+        Order.status.in_([OrderStatus.OUT_FOR_DELIVERY, OrderStatus.PENDING])
+    ).all()
+    
+    return {"orders": [...]}
+
+
+
+@app.get("/supplier/couriers")
+async def get_supplier_couriers(request: Request, db: Session = Depends(get_db)):
+    supplier_id = request.cookies.get("supplier_id")
+    if not supplier_id:
+        return JSONResponse(status_code=401, content={"error": "Not authenticated"})
+    
+    couriers = db.query(CourierProfile).filter(
+        CourierProfile.supplier_id == int(supplier_id)
+    ).all()
+    
+    result = []
+    for c in couriers:
+        user = db.query(User).filter(User.id == c.user_id).first()
+        if user:
+            result.append({
+                "id": user.id,
+                "full_name": user.full_name,
+                "phone": user.phone,
+                "car_model": c.car_model,
+                "car_number": c.car_number,
+                "is_active": user.is_active,
+                "created_at": c.created_at
+            })
+    
+    return {"couriers": result}
+
+
+
+
+
+
 
 # ============ RUN APP ============
 if __name__ == "__main__":
