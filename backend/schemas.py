@@ -270,3 +270,21 @@ class OrderResponse(BaseModel):
     payment_status: Optional[str] = None
     payment_method: Optional[str] = None
     paid_at: Optional[datetime] = None
+
+# ============ ADMIN SCHEMAS ============
+class AdminCreate(BaseModel):
+    username: str
+    password: str
+
+class AdminLogin(BaseModel):
+    username: str
+    password: str
+
+class AdminResponse(BaseModel):
+    id: int
+    username: str
+    created_at: datetime
+
+class AdminUpdatePassword(BaseModel):
+    old_password: str
+    new_password: str

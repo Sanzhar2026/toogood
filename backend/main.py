@@ -29,6 +29,10 @@ except ImportError:
     TWILIO_AVAILABLE = False
     print("⚠️ Twilio service not available. SMS verification will use demo mode.")
 
+
+
+
+
 models.Base.metadata.create_all(bind=engine)
 
 # ============ FASTAPI APP ============
@@ -72,6 +76,820 @@ from typing import List
 import asyncio
 import json
 
+# ============ REFUND SYSTEM ============
+
+class RefundRequest(BaseModel):
+    order_id: int
+    reason: str
+
+
+# ============ АДМИН: ПОДТВЕРЖДЕНИЕ ОПЛАТЫ ============
+@app.post("/admin/api/order/{order_id}/confirm-payment")
+async def admin_confirm_payment(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Админ подтверждает оплату и запускает доставку"""
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.payment_status != "paid":
+        raise HTTPException(status_code=400, detail="Order not paid yet")
+    
+    # Подтверждаем и запускаем доставку
+    now = datetime.utcnow()
+    order.status = OrderStatus.CONFIRMED
+    order.delivery_started_at = now
+    order.delivery_deadline = now + timedelta(minutes=30)
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Payment confirmed, delivery started",
+        "delivery_deadline": order.delivery_deadline.isoformat()
+    }
+
+
+# ============ КЛИЕНТ: ПОЛУЧИЛ ЗАКАЗ ============
+@app.post("/api/order/{order_id}/receive")
+async def customer_receive_order(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Клиент подтверждает, что получил заказ → статус меняется на DELIVERED"""
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.user_id == int(user_id)
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Проверяем, что заказ в доставке
+    if order.status != OrderStatus.OUT_FOR_DELIVERY:
+        raise HTTPException(status_code=400, detail="Order is not in delivery")
+    
+    # Проверяем, не истек ли дедлайн
+    if order.delivery_deadline and datetime.utcnow() > order.delivery_deadline:
+        raise HTTPException(status_code=400, detail="Delivery deadline expired. Auto-refund initiated.")
+    
+    # Автоматически завершаем заказ
+    order.status = OrderStatus.DELIVERED
+    order.delivery_status = DeliveryStatus.ARRIVED
+    order.delivered_at = datetime.utcnow()
+    db.commit()
+    
+    return {"success": True, "message": "Order received successfully"}
+
+
+# ============ КЛИЕНТ: ОТКАЗ ОТ ЗАКАЗА ============
+@app.post("/api/order/{order_id}/reject")
+async def customer_reject_order(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Клиент отказывается от заказа → отправляет запрос админу на возврат"""
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    reason = data.get("reason", "Не указана")
+    
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.user_id == int(user_id)
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Проверяем, что заказ в доставке
+    if order.status != OrderStatus.OUT_FOR_DELIVERY:
+        raise HTTPException(status_code=400, detail="Cannot reject order at this stage")
+    
+    # Создаем запрос на возврат
+    order.refund_requested_by_customer = True
+    order.refund_requested_at = datetime.utcnow()
+    order.refund_reason = reason
+    order.refund_status = "requested"
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Refund requested. Admin will process.",
+        "refund_request_id": order.id
+    }
+
+
+# ============ АДМИН: ПОДТВЕРДИТЬ ВОЗВРАТ ============
+@app.post("/admin/api/order/{order_id}/approve-refund")
+async def admin_approve_refund(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Админ подтверждает возврат денег (деньги отправлены клиенту)"""
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.refund_status != "requested":
+        raise HTTPException(status_code=400, detail="No refund request found")
+    
+    # Выполняем возврат (имитация)
+    order.refund_status = "completed"
+    order.refund_processed_at = datetime.utcnow()
+    order.refund_amount = order.amount_paid
+    order.payment_status = "refunded"
+    order.status = OrderStatus.CANCELLED
+    order.refund_transaction_id = f"REF-{secrets.token_hex(8).upper()}"
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Refund approved for order {order.order_number}",
+        "refund_amount": order.refund_amount
+    }
+
+
+# ============ АДМИН: ОТКЛОНИТЬ ВОЗВРАТ ============
+@app.post("/admin/api/order/{order_id}/reject-refund")
+async def admin_reject_refund(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Админ отклоняет запрос на возврат"""
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    data = await request.json()
+    reject_reason = data.get("reason", "No reason provided")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.refund_status != "requested":
+        raise HTTPException(status_code=400, detail="No refund request found")
+    
+    order.refund_status = "rejected"
+    order.refund_reason = f"{order.refund_reason}\nОтказ: {reject_reason}"
+    
+    db.commit()
+    
+    return {"success": True, "message": "Refund request rejected"}
+
+
+# ============ АВТОМАТИЧЕСКИЙ ВОЗВРАТ ПО ТАЙМЕРУ ============
+async def auto_refund_on_deadline():
+    """Каждую минуту проверяем: если 30 минут истекли и клиент не подтвердил получение → авто-возврат"""
+    while True:
+        try:
+            await asyncio.sleep(60)  # Каждую минуту
+            
+            db = SessionLocal()
+            now = datetime.utcnow()
+            
+            # Заказы в доставке, у которых дедлайн истек
+            expired_orders = db.query(Order).filter(
+                Order.status == OrderStatus.OUT_FOR_DELIVERY,
+                Order.delivery_deadline <= now,
+                Order.auto_refund_processed == False
+            ).all()
+            
+            for order in expired_orders:
+                print(f"⏰ АВТО-ВОЗВРАТ: Заказ {order.order_number} не получен за 30 минут")
+                
+                order.auto_refund_processed = True
+                order.refund_status = "completed"
+                order.refund_processed_at = now
+                order.refund_amount = order.amount_paid
+                order.payment_status = "refunded"
+                order.status = OrderStatus.CANCELLED
+                order.refund_transaction_id = f"AUTO-REF-{secrets.token_hex(8).upper()}"
+                order.refund_reason = "Автоматический возврат: заказ не получен в течение 30 минут"
+                
+                db.commit()
+                
+                # Уведомление через WebSocket
+                await manager.broadcast({
+                    "type": "auto_refund",
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "amount": order.amount_paid,
+                    "message": "Заказ не получен вовремя. Деньги возвращены."
+                })
+            
+            db.close()
+            
+        except Exception as e:
+            print(f"❌ Ошибка auto_refund: {e}")
+
+# Запуск при старте
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(auto_refund_on_deadline())
+    print("✅ Auto-refund checker started")
+# Клиент запрашивает возврат
+@app.post("/api/refund/request")
+async def request_refund(
+    request: Request,
+    refund_data: RefundRequest,
+    db: Session = Depends(get_db)
+):
+    """Клиент запрашивает возврат денег"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    order = db.query(Order).filter(
+        Order.id == refund_data.order_id,
+        Order.user_id == int(user_id)
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Проверки
+    if order.payment_status != "paid":
+        raise HTTPException(status_code=400, detail="Order not paid yet")
+    
+    if order.refund_status != "none":
+        raise HTTPException(status_code=400, detail="Refund already requested or processed")
+    
+    # Проверка времени (возврат возможен только в течение 1 часа после оплаты)
+    if order.paid_at and (datetime.utcnow() - order.paid_at).total_seconds() > 3600:
+        raise HTTPException(status_code=400, detail="Refund period expired (1 hour)")
+    
+    # Создаем запрос на возврат
+    order.refund_status = "requested"
+    order.refund_requested_at = datetime.utcnow()
+    order.refund_reason = refund_data.reason
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Refund requested. Admin will process it shortly.",
+        "refund_id": order.id
+    }
+
+# Админ просматривает все запросы на возврат
+@app.get("/admin/api/refund/requests")
+async def admin_get_refund_requests(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    orders = db.query(Order).filter(
+        Order.refund_status.in_(["requested", "processing"])
+    ).all()
+    
+    result = []
+    for order in orders:
+        user = db.query(User).filter(User.id == order.user_id).first()
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        
+        result.append({
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "user_name": user.full_name if user else "Unknown",
+            "user_phone": user.phone if user else "—",
+            "amount": order.amount_paid or 0,
+            "refund_status": order.refund_status,
+            "refund_reason": order.refund_reason,
+            "requested_at": order.refund_requested_at.isoformat() if order.refund_requested_at else None,
+            "bag_name": bag.name if bag else "Surprise Bag"
+        })
+    
+    return {"requests": result}
+
+# Админ обрабатывает возврат (подтверждает)
+@app.post("/admin/api/refund/approve/{order_id}")
+async def admin_approve_refund(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.refund_status not in ["requested", "processing"]:
+        raise HTTPException(status_code=400, detail="Refund not requested or already processed")
+    
+    # ========== ИМИТАЦИЯ ВОЗВРАТА ДЕНЕГ ==========
+    # В реальном проекте здесь будет вызов API банка
+    # await bank_api.refund(order.payment_id, order.amount_paid)
+    
+    # Обновляем статус заказа
+    order.refund_status = "completed"
+    order.refund_processed_at = datetime.utcnow()
+    order.refund_amount = order.amount_paid
+    order.payment_status = "refunded"
+    order.status = OrderStatus.CANCELLED
+    
+    # Генерируем ID транзакции возврата
+    order.refund_transaction_id = f"REF-{secrets.token_hex(8).upper()}"
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Refund approved for order {order.order_number}",
+        "refund_amount": order.refund_amount,
+        "refund_transaction_id": order.refund_transaction_id
+    }
+
+# Админ отклоняет возврат
+@app.post("/admin/api/refund/reject/{order_id}")
+async def admin_reject_refund(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    data = await request.json()
+    reject_reason = data.get("reason", "No reason provided")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.refund_status != "requested":
+        raise HTTPException(status_code=400, detail="Refund not requested")
+    
+    order.refund_status = "rejected"
+    order.refund_reason = f"{order.refund_reason}\nRejection reason: {reject_reason}"
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Refund rejected for order {order.order_number}"
+    }
+
+# BACKEND WITH BOOKING
+# ============ АДМИН-ПАНЕЛЬ (НАЧАЛО) ============
+
+from backend.models import Admin
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return hash_password(plain) == hashed
+
+# ⚠️ ВАШИ ДАННЫЕ (измените перед запуском) ⚠️
+MY_LOGIN = "ACCOUNTA@#$26"        # ← ВАШ ЛОГИН
+MY_PASSWORD = "CEVONICQW%&%y*"  # ← ВАШ ПАРОЛЬ
+
+def create_my_admin():
+    """Создает админа ТОЛЬКО при ПЕРВОМ запуске"""
+    db = SessionLocal()
+    try:
+        # Проверяем, есть ли вообще админы
+        admin_exists = db.query(Admin).first()
+        
+        if not admin_exists:
+            admin = Admin(
+                username=MY_LOGIN,
+                password_hash=hash_password(MY_PASSWORD)
+            )
+            db.add(admin)
+            db.commit()
+            print("\n" + "="*50)
+            print("✅ АДМИН-ПАНЕЛЬ АКТИВИРОВАНА!")
+            print(f"🔐 Логин: {MY_LOGIN}")
+            print(f"🔐 Пароль: {MY_PASSWORD}")
+            print("⚠️ ЗАПОМНИТЕ ПАРОЛЬ! ВОССТАНОВИТЬ НЕВОЗМОЖНО!")
+            print("="*50 + "\n")
+        else:
+            print("✅ Админ уже существует. Пропускаем создание.")
+            
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+    finally:
+        db.close()
+
+# ВЫЗЫВАЕМ (после создания таблиц)
+create_my_admin()
+
+# ============ СЕССИИ АДМИНОВ ============
+admin_sessions = {}
+
+def get_current_admin(request: Request):
+    token = request.cookies.get("admin_token")
+    if not token or token not in admin_sessions:
+        return None
+    session = admin_sessions[token]
+    if session["expires_at"] < datetime.utcnow():
+        del admin_sessions[token]
+        return None
+    return session
+
+# ============ СТРАНИЦА ВХОДА ============
+@app.get("/admin/login")
+async def admin_login_page(request: Request):
+    return templates.TemplateResponse("admin_login.html", {"request": request})
+
+@app.post("/admin/login")
+async def admin_login(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    admin = db.query(Admin).filter(Admin.username == username).first()
+    
+    if not admin or not verify_password(password, admin.password_hash):
+        return templates.TemplateResponse(
+            "admin_login.html",
+            {"request": request, "error": "Неверный логин или пароль"}
+        )
+    
+    token = secrets.token_urlsafe(32)
+    admin_sessions[token] = {
+        "admin_id": admin.id,
+        "username": admin.username,
+        "expires_at": datetime.utcnow() + timedelta(hours=8)
+    }
+    
+    response = RedirectResponse(url="/admin/dashboard", status_code=303)
+    response.set_cookie(key="admin_token", value=token, httponly=True, max_age=8*60*60)
+    return response
+
+@app.get("/admin/logout")
+async def admin_logout(request: Request):
+    token = request.cookies.get("admin_token")
+    if token in admin_sessions:
+        del admin_sessions[token]
+    response = RedirectResponse(url="/admin/login", status_code=303)
+    response.delete_cookie("admin_token")
+    return response
+
+# ============ АДМИН-ДАШБОРД ============
+@app.get("/admin/dashboard")
+async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
+    admin = get_current_admin(request)
+    if not admin:
+        return RedirectResponse(url="/admin/login", status_code=303)
+    
+    # Статистика
+    total_orders = db.query(Order).count()
+    paid_orders = db.query(Order).filter(Order.payment_status == "paid").count()
+    pending_payment = db.query(Order).filter(Order.payment_status == "pending").count()
+    total_revenue = db.query(func.sum(Order.amount_paid)).filter(Order.payment_status == "paid").scalar() or 0
+    
+    # Заказы
+    orders = db.query(Order).order_by(Order.created_at.desc()).all()
+    orders_data = []
+    for order in orders:
+        user = db.query(User).filter(User.id == order.user_id).first()
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        orders_data.append({
+            "id": order.id,
+            "order_number": order.order_number or f"ORD-{order.id}",
+            "user_name": user.full_name if user else "Неизвестно",
+            "user_phone": user.phone if user else "—",
+            "amount": order.amount_paid or 0,
+            "payment_status": order.payment_status or "pending",
+            "order_status": order.status.value if order.status else "pending",
+            "bag_name": bag.name if bag else "Surprise Bag",
+            "created_at": order.created_at.strftime("%Y-%m-%d %H:%M") if order.created_at else "—",
+        })
+    
+    stats = {
+        "total_orders": total_orders,
+        "paid_orders": paid_orders,
+        "pending_payment": pending_payment,
+        "total_revenue": total_revenue
+    }
+    
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "stats": stats,
+        "orders": orders_data,
+        "admin": admin
+    })
+
+# ============ API ДЛЯ ОБНОВЛЕНИЯ ============
+@app.post("/admin/api/order/{order_id}/payment-status")
+async def admin_update_payment_status(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    data = await request.json()
+    new_status = data.get("payment_status")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    order.payment_status = new_status
+    if new_status == "paid" and not order.paid_at:
+        order.paid_at = datetime.utcnow()
+        order.status = OrderStatus.CONFIRMED
+    
+    db.commit()
+    return {"success": True}
+
+@app.post("/admin/api/order/{order_id}/status")
+async def admin_update_order_status(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Админ меняет статус заказа (с проверками и триггерами)"""
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    data = await request.json()
+    new_status = data.get("status")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    old_status = order.status.value if order.status else "unknown"
+    
+    # ============ ЛОГИКА ПРИ СМЕНЕ СТАТУСА ============
+    
+    if new_status == "confirmed":
+        # Админ подтверждает оплату (но доставка еще не начата)
+        order.confirmed_at = datetime.utcnow()
+        
+    elif new_status == "out_for_delivery":
+        # Админ запускает доставку → устанавливаем дедлайн 30 минут
+        if order.payment_status != "paid":
+            raise HTTPException(status_code=400, detail="Cannot start delivery: order not paid")
+        if order.status != OrderStatus.CONFIRMED:
+            raise HTTPException(status_code=400, detail="Cannot start delivery: order not confirmed")
+        
+        now = datetime.utcnow()
+        order.delivery_started_at = now
+        order.delivery_deadline = now + timedelta(minutes=30)
+        order.delivery_status = DeliveryStatus.EN_ROUTE
+        
+    elif new_status == "delivered":
+        # Админ вручную отмечает доставку (если клиент не нажал кнопку)
+        order.delivered_at = datetime.utcnow()
+        order.delivery_status = DeliveryStatus.ARRIVED
+        
+    elif new_status == "cancelled":
+        # Админ отменяет заказ (если есть основания)
+        if order.payment_status == "paid":
+            # Если оплачен, нужно вернуть деньги
+            order.refund_status = "completed"
+            order.refund_processed_at = datetime.utcnow()
+            order.refund_amount = order.amount_paid
+            order.payment_status = "refunded"
+            order.refund_reason = f"Отменено администратором. Причина: {data.get('reason', 'Не указана')}"
+            order.refund_transaction_id = f"ADMIN-REF-{secrets.token_hex(8).upper()}"
+    
+    # Обновляем статус
+    order.status = OrderStatus(new_status)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Статус заказа {order.order_number} изменен с {old_status} на {new_status}",
+        "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None
+    }
+
+# Добавьте эти эндпоинты в ваш backend/main.py
+
+from datetime import datetime, timedelta
+from pydantic import BaseModel
+from typing import Optional
+
+class BookingRequest(BaseModel):
+    bag_id: int
+
+class BookingResponse(BaseModel):
+    success: bool
+    expires_at: Optional[str] = None
+    remaining_seconds: int = 0
+    message: str
+
+@app.post("/api/bookings/create")
+async def create_booking(
+    request: Request,
+    booking_data: BookingRequest,
+    db: Session = Depends(get_db)
+):
+    """Забронировать сюрприз-пакет на 15 минут"""
+    
+    # Get user from cookie
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Check if bag exists and is available
+    bag = db.query(SurpriseBag).filter(
+        SurpriseBag.id == booking_data.bag_id,
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0
+    ).first()
+    
+    if not bag:
+        return {
+            "success": False,
+            "message": "Пакет недоступен"
+        }
+    
+    # Check if there's an active booking (pending order less than 15 min old)
+    existing_booking = db.query(Order).filter(
+        Order.surprise_bag_id == booking_data.bag_id,
+        Order.status == OrderStatus.PENDING,
+        Order.payment_status == "pending",
+        Order.created_at > datetime.utcnow() - timedelta(minutes=15)
+    ).first()
+    
+    if existing_booking:
+        expires_at = existing_booking.created_at + timedelta(minutes=15)
+        remaining = int((expires_at - datetime.utcnow()).total_seconds())
+        return {
+            "success": False,
+            "message": "Этот пакет уже забронирован",
+            "remaining_seconds": remaining
+        }
+    
+    # Create booking (pending order)
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
+    order_number = f"BOOK-{secrets.token_hex(4).upper()}"
+    
+    order = Order(
+        user_id=int(user_id),
+        supplier_id=bag.supplier_id,
+        surprise_bag_id=bag.id,
+        order_number=order_number,
+        status=OrderStatus.PENDING,
+        payment_status="pending",
+        amount_paid=bag.discounted_price,
+        created_at=datetime.utcnow()
+    )
+    
+    db.add(order)
+    
+    # Decrease available quantity
+    bag.available_quantity -= 1
+    
+    db.commit()
+    db.refresh(order)
+    
+    return {
+        "success": True,
+        "expires_at": expires_at.isoformat(),
+        "remaining_seconds": 15 * 60,
+        "message": f"Пакет '{bag.name}' забронирован на 15 минут",
+        "order_id": order.id
+    }
+
+
+@app.get("/api/bookings/check/{bag_id}")
+async def check_booking(
+    bag_id: int,
+    db: Session = Depends(get_db)
+):
+    """Проверить статус бронирования"""
+    
+    booking = db.query(Order).filter(
+        Order.surprise_bag_id == bag_id,
+        Order.status == OrderStatus.PENDING,
+        Order.payment_status == "pending",
+        Order.created_at > datetime.utcnow() - timedelta(minutes=15)
+    ).first()
+    
+    if not booking:
+        return {
+            "is_booked": False,
+            "remaining_seconds": 0
+        }
+    
+    expires_at = booking.created_at + timedelta(minutes=15)
+    remaining = int((expires_at - datetime.utcnow()).total_seconds())
+    
+    return {
+        "is_booked": True,
+        "remaining_seconds": max(0, remaining),
+        "expires_at": expires_at.isoformat(),
+        "order_id": booking.id
+    }
+
+
+@app.delete("/api/bookings/release/{bag_id}")
+async def release_booking(
+    bag_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Освободить бронь (если пользователь отменил)"""
+    
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Find active booking
+    booking = db.query(Order).filter(
+        Order.surprise_bag_id == bag_id,
+        Order.user_id == int(user_id),
+        Order.status == OrderStatus.PENDING,
+        Order.payment_status == "pending"
+    ).first()
+    
+    if booking:
+        # Return quantity to bag
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+        if bag:
+            bag.available_quantity += 1
+        
+        booking.status = OrderStatus.CANCELLED
+        db.commit()
+        
+        return {"success": True, "message": "Бронирование отменено"}
+    
+    return {"success": False, "message": "Бронь не найдена"}
+
+
+# Обновите эндпоинт получения сюрприз-пакетов, чтобы исключить забронированные
+@app.get("/api/surprise-bags")
+async def get_all_surprise_bags(db: Session = Depends(get_db)):
+    """Get available surprise bags (excluding booked ones)"""
+    
+    # Get all active bags
+    bags = db.query(SurpriseBag).filter(
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0
+    ).all()
+    
+    # Get IDs of booked bags
+    booked_bag_ids = db.query(Order.surprise_bag_id).filter(
+        Order.status == OrderStatus.PENDING,
+        Order.payment_status == "pending",
+        Order.created_at > datetime.utcnow() - timedelta(minutes=15)
+    ).distinct().all()
+    
+    booked_ids = [b[0] for b in booked_bag_ids]
+    
+    result = []
+    for bag in bags:
+        if bag.id not in booked_ids:
+            supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+            result.append({
+                "id": bag.id,
+                "supplier_id": bag.supplier_id,
+                "supplier_name": supplier.business_name if supplier else "Unknown",
+                "name": bag.name,
+                "description": bag.description,
+                "original_price": bag.original_price,
+                "discounted_price": bag.discounted_price,
+                "discount_percentage": bag.discount_percentage,
+                "image_url": bag.image_url,
+                "available_quantity": bag.available_quantity,
+                "is_active": bag.is_active
+            })
+    
+    return result
 
 
 # ============ PAYMENT IMITATION SYSTEM ============
@@ -80,6 +898,7 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel
 from typing import Optional, Literal
+
 
 class PaymentMethod(str, Enum):
     KASPI = "kaspi"

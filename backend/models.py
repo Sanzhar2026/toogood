@@ -151,12 +151,12 @@ class Order(Base):
     delivery_status = Column(SQLEnum(DeliveryStatus), default=DeliveryStatus.AT_SUPPLIER)
     
     # ============ PAYMENT FIELDS ============
-    payment_id = Column(String(100), nullable=True)  # Уникальный ID платежа
+    payment_id = Column(String(100), nullable=True)
     payment_status = Column(String(50), default="pending")  # pending, paid, failed, refunded
-    payment_method = Column(String(50), nullable=True)  # kaspi, halyk, mastercard, visa
-    paid_at = Column(DateTime, nullable=True)  # Когда был совершен платеж
-    payment_amount = Column(Float, nullable=True)  # Сумма платежа (может отличаться от amount_paid)
-    transaction_id = Column(String(100), nullable=True)  # ID транзакции от банка
+    payment_method = Column(String(50), nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+    payment_amount = Column(Float, nullable=True)
+    transaction_id = Column(String(100), nullable=True)
     
     # Customer location
     customer_lat = Column(Float, nullable=True)
@@ -173,22 +173,36 @@ class Order(Base):
     driver_lon = Column(Float, nullable=True)
     last_location_update = Column(DateTime, nullable=True)
     
+    # Delivery deadline (30 minutes)
+    delivery_started_at = Column(DateTime, nullable=True)   # Когда курьер выехал
+    delivery_deadline = Column(DateTime, nullable=True)     # Дедлайн доставки (started_at + 30 мин)
+    auto_refund_processed = Column(Boolean, default=False)  # Был ли авто-возврат
+    
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
-    confirmed_at = Column(DateTime, nullable=True)
+    confirmed_at = Column(DateTime, nullable=True)          # Админ подтвердил оплату
     ready_at = Column(DateTime, nullable=True)
-    delivered_at = Column(DateTime, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)          # Клиент подтвердил получение
     pickup_time = Column(String(50))
     
     # Pricing
     amount_paid = Column(Float, nullable=True)
+    
+    # ============ REFUND FIELDS ============
+    refund_status = Column(String(50), default="none")      # none, requested, completed, rejected
+    refund_requested_by_customer = Column(Boolean, default=False)  # Клиент запросил возврат
+    refund_requested_at = Column(DateTime, nullable=True)   # Когда клиент запросил
+    refund_processed_at = Column(DateTime, nullable=True)   # Когда админ обработал
+    refund_amount = Column(Float, nullable=True)            # Сумма возврата
+    refund_reason = Column(Text, nullable=True)             # Причина от клиента
+    refund_transaction_id = Column(String(100), nullable=True)  # ID транзакции возврата
+    refund_rejection_reason = Column(Text, nullable=True)   # Причина отказа админа
     
     # Relationships
     user = relationship("User", back_populates="orders", foreign_keys=[user_id])
     supplier = relationship("Supplier", back_populates="orders", foreign_keys=[supplier_id])
     surprise_bag = relationship("SurpriseBag", back_populates="orders")
     tracking_updates = relationship("OrderTracking", back_populates="order")
-
     
 class OrderTracking(Base):
     __tablename__ = "order_tracking"
@@ -260,3 +274,12 @@ class AssignedOrder(Base):
     # Relationships
     order = relationship("Order", backref="assignments")
     courier = relationship("User", backref="assignments")
+
+# ============ ADMIN MODEL ============
+class Admin(Base):
+    __tablename__ = "admins"
+    
+    id = Column(Integer, primary_key=True)
+    username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
