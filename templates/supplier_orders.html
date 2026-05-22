@@ -1,0 +1,272 @@
+{% extends "layout_supplier.html" %}
+
+{% block content %}
+<style>
+    .orders-container {
+        padding: 2rem;
+    }
+    
+    .header-section {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-radius: 1.5rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        color: white;
+    }
+    
+    .nav-links {
+        background: white;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 0 2rem;
+        margin-bottom: 2rem;
+        display: flex;
+        gap: 2rem;
+        overflow-x: auto;
+    }
+    
+    .nav-links a {
+        padding: 1rem 0;
+        text-decoration: none;
+        color: #64748b;
+        font-weight: 500;
+    }
+    
+    .nav-links a:hover {
+        color: #0f172a;
+    }
+    
+    .nav-links a.active {
+        color: #0f172a;
+        border-bottom: 2px solid #fbbf24;
+    }
+    
+    .orders-table {
+        background: white;
+        border-radius: 1rem;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    th, td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    th {
+        background: #f8fafc;
+        font-weight: 600;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 2rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-confirmed { background: #dbeafe; color: #1e40af; }
+    .status-preparing { background: #e0e7ff; color: #3730a3; }
+    .status-ready_for_pickup { background: #d1fae5; color: #065f46; }
+    .status-out_for_delivery { background: #fed7aa; color: #9a3412; }
+    .status-delivered { background: #d1fae5; color: #065f46; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
+    
+    .status-select {
+        padding: 0.4rem;
+        border-radius: 0.5rem;
+        border: 1px solid #e2e8f0;
+        background: white;
+        cursor: pointer;
+    }
+    
+    .filter-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+    
+    .filter-select {
+        padding: 0.5rem 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        background: white;
+    }
+    
+    @media (max-width: 768px) {
+        .orders-container {
+            padding: 1rem;
+        }
+        .nav-links {
+            padding: 0 1rem;
+            gap: 1rem;
+        }
+        th, td {
+            font-size: 12px;
+            padding: 0.5rem;
+        }
+    }
+</style>
+
+<div class="orders-container">
+    <div class="header-section">
+        <h1>📦 Все заказы</h1>
+        <p>Управление заказами вашего ресторана</p>
+    </div>
+
+    <div class="nav-links">
+        <a href="/supplier/dashboard">📊 Дашборд</a>
+        <a href="/supplier/couriers">🚚 Курьеры</a>
+        <a href="/supplier/orders" class="active">📦 Заказы</a>
+        <a href="/supplier/surprise-bags">🎁 Сюрпризы</a>
+    </div>
+
+    <div class="filter-bar">
+        <select id="statusFilter" class="filter-select">
+            <option value="all">Все статусы</option>
+            <option value="pending">⏳ Ожидает</option>
+            <option value="confirmed">✅ Подтвержден</option>
+            <option value="preparing">🍳 Готовится</option>
+            <option value="ready_for_pickup">📦 Готов к выдаче</option>
+            <option value="out_for_delivery">🚚 В пути</option>
+            <option value="delivered">🎉 Доставлен</option>
+            <option value="cancelled">❌ Отменен</option>
+        </select>
+        <button class="refresh-btn" id="refreshBtn">🔄 Обновить</button>
+    </div>
+
+    <div class="orders-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>№ заказа</th>
+                    <th>Клиент</th>
+                    <th>Адрес</th>
+                    <th>Товар</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                    <th>Дата</th>
+                    <th>Курьер</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody id="ordersTableBody">
+                <tr><td colspan="9" style="text-align: center; padding: 2rem;">Загрузка...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    async function loadOrders(statusFilter = 'all') {
+        try {
+            const response = await fetch('/api/supplier/orders');
+            const data = await response.json();
+            
+            if (!data.success) return;
+            
+            let orders = data.orders;
+            
+            if (statusFilter !== 'all') {
+                orders = orders.filter(o => o.status === statusFilter);
+            }
+            
+            const tbody = document.getElementById('ordersTableBody');
+            
+            if (orders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #94a3b8;">📭 Нет заказов</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            for (let order of orders) {
+                const row = `
+                    <tr>
+                        <td><strong>${escapeHtml(order.order_number)}</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#${order.id}</span></td>
+                        <td>${escapeHtml(order.customer_name || '—')}</td>
+                        <td style="max-width: 200px;">${escapeHtml(order.customer_address || '—')}</td>
+                        <td>${escapeHtml(order.bag_name)}</td>
+                        <td><strong>${order.amount_paid}</strong> ₸</td>
+                        <td><span class="status-badge status-${order.status}">${getStatusText(order.status)}</span></td>
+                        <td>${new Date(order.created_at).toLocaleString()}</td>
+                        <td>${order.assigned_courier_name ? '🚚 ' + escapeHtml(order.assigned_courier_name) : '—'}</td>
+                        <td>
+                            <select class="status-select" data-order-id="${order.id}">
+                                <option value="">📌 Изменить статус</option>
+                                <option value="confirmed">✅ Подтвердить</option>
+                                <option value="preparing">🍳 Готовить</option>
+                                <option value="ready_for_pickup">📦 Готов к выдаче</option>
+                                <option value="out_for_delivery">🚚 Отправить</option>
+                                <option value="delivered">🎉 Доставлен</option>
+                                <option value="cancelled">❌ Отменить</option>
+                            </select>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            }
+            
+            attachStatusHandlers();
+        } catch (error) {
+            console.error('Error loading orders:', error);
+        }
+    }
+    
+    function getStatusText(status) {
+        const texts = {
+            pending: '⏳ Ожидает', confirmed: '✅ Подтвержден', preparing: '🍳 Готовится',
+            ready_for_pickup: '📦 Готов', out_for_delivery: '🚚 В пути',
+            delivered: '🎉 Доставлен', cancelled: '❌ Отменен'
+        };
+        return texts[status] || status;
+    }
+    
+    function attachStatusHandlers() {
+        document.querySelectorAll('.status-select').forEach(select => {
+            select.removeEventListener('change', select._handler);
+            select._handler = async function() {
+                const orderId = this.getAttribute('data-order-id');
+                const newStatus = this.value;
+                if (!newStatus) return;
+                
+                const res = await fetch(`/api/supplier/orders/${orderId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                
+                if (res.ok) {
+                    alert(`✅ Статус изменен на ${getStatusText(newStatus)}`);
+                    loadOrders(document.getElementById('statusFilter').value);
+                } else {
+                    alert('❌ Ошибка');
+                }
+                this.value = '';
+            };
+            select.addEventListener('change', select._handler);
+        });
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
+    }
+    
+    document.getElementById('statusFilter')?.addEventListener('change', (e) => {
+        loadOrders(e.target.value);
+    });
+    
+    document.getElementById('refreshBtn')?.addEventListener('click', () => {
+        loadOrders(document.getElementById('statusFilter').value);
+    });
+    
+    loadOrders();
+</script>
+{% endblock %}

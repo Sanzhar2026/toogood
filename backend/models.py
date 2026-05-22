@@ -203,7 +203,12 @@ class Order(Base):
     supplier = relationship("Supplier", back_populates="orders", foreign_keys=[supplier_id])
     surprise_bag = relationship("SurpriseBag", back_populates="orders")
     tracking_updates = relationship("OrderTracking", back_populates="order")
-    
+    assigned_courier_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    assigned_courier = relationship("User", foreign_keys=[assigned_courier_id])
+
+
+
+
 class OrderTracking(Base):
     __tablename__ = "order_tracking"
     
@@ -243,23 +248,7 @@ class SupplierCourier(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-# В модели CourierProfile добавьте supplier_id
-class CourierProfile(Base):
-    __tablename__ = "courier_profiles"
-    
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
-    car_model = Column(String(100), nullable=True)
-    car_number = Column(String(50), nullable=True)
-    is_verified = Column(Boolean, default=False)
-    rating = Column(Float, default=5.0)
-    total_deliveries = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    user = relationship("User", backref="courier_profile")
-    supplier = relationship("Supplier", backref="couriers")
+
 
 class AssignedOrder(Base):
     __tablename__ = "assigned_orders"
@@ -283,3 +272,23 @@ class Admin(Base):
     username = Column(String(50), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class CourierProfile(Base):
+    __tablename__ = "courier_profiles"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    car_model = Column(String(100), nullable=True)
+    car_number = Column(String(50), nullable=True)
+    is_verified = Column(Boolean, default=False)  # ← ПОДТВЕРЖДЕН АДМИНОМ
+    is_active = Column(Boolean, default=True)
+    rating = Column(Float, default=5.0)
+    total_deliveries = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    verified_at = Column(DateTime, nullable=True)  # ← ДАТА ПОДТВЕРЖДЕНИЯ
+    rejected_reason = Column(Text, nullable=True)  # ← ПРИЧИНА ОТКАЗА
+    
+    # Relationships
+    user = relationship("User", backref="courier_profile")
+    supplier = relationship("Supplier", backref="couriers")

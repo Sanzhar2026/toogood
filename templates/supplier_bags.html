@@ -1,0 +1,195 @@
+{% extends "layout_supplier.html" %}
+
+{% block content %}
+<style>
+    .bags-container {
+        padding: 2rem;
+    }
+    
+    .header-section {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-radius: 1.5rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        color: white;
+    }
+    
+    .nav-links {
+        background: white;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 0 2rem;
+        margin-bottom: 2rem;
+        display: flex;
+        gap: 2rem;
+        overflow-x: auto;
+    }
+    
+    .nav-links a {
+        padding: 1rem 0;
+        text-decoration: none;
+        color: #64748b;
+        font-weight: 500;
+    }
+    
+    .nav-links a:hover {
+        color: #0f172a;
+    }
+    
+    .nav-links a.active {
+        color: #0f172a;
+        border-bottom: 2px solid #fbbf24;
+    }
+    
+    .bags-table {
+        background: white;
+        border-radius: 1rem;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    th, td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    th {
+        background: #f8fafc;
+        font-weight: 600;
+    }
+    
+    .btn {
+        padding: 0.4rem 0.8rem;
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+    }
+    
+    .btn-primary {
+        background: #fbbf24;
+        color: #0f172a;
+    }
+    
+    .btn-primary:hover {
+        background: #f59e0b;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #94a3b8;
+    }
+    
+    @media (max-width: 768px) {
+        .bags-container {
+            padding: 1rem;
+        }
+        .nav-links {
+            padding: 0 1rem;
+            gap: 1rem;
+        }
+        th, td {
+            font-size: 12px;
+            padding: 0.5rem;
+        }
+    }
+</style>
+
+<div class="bags-container">
+    <div class="header-section">
+        <h1>🎁 Управление сюрпризами</h1>
+        <p>Список ваших сюрприз-пакетов</p>
+    </div>
+
+    <div class="nav-links">
+        <a href="/supplier/dashboard">📊 Дашборд</a>
+        <a href="/supplier/couriers">🚚 Курьеры</a>
+        <a href="/supplier/orders">📦 Заказы</a>
+        <a href="/supplier/surprise-bags" class="active">🎁 Сюрпризы</a>
+    </div>
+
+    <div class="bags-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Описание</th>
+                    <th>Цена</th>
+                    <th>Со скидкой</th>
+                    <th>Скидка</th>
+                    <th>Осталось</th>
+                    <th>Статус</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody id="bagsTableBody">
+                <tr><td colspan="9" class="empty-state">Загрузка...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    async function loadBags() {
+        try {
+            const response = await fetch('/api/supplier/surprise-bags');
+            const data = await response.json();
+            
+            if (!data.success) return;
+            
+            const tbody = document.getElementById('bagsTableBody');
+            
+            if (!data.bags || data.bags.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">🎁 Нет сюрприз-пакетов. Добавьте на главной странице</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = '';
+            for (let bag of data.bags) {
+                const row = `
+                    <tr>
+                        <td>#${bag.id}</td>
+                        <td><strong>${escapeHtml(bag.name)}</strong></td>
+                        <td style="max-width: 200px;">${escapeHtml(bag.description || '—')}</td>
+                        <td>${bag.original_price} ₸</td>
+                        <td><strong style="color: #ef4444;">${bag.discounted_price} ₸</strong></td>
+                        <td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.7rem;">-${bag.discount_percentage || 0}%</span></td>
+                        <td>${bag.available_quantity}/${bag.total_quantity}</td>
+                        <td>${bag.is_active ? '<span style="color: #10b981;">✅ Активен</span>' : '<span style="color: #ef4444;">❌ Неактивен</span>'}</td>
+                        <td><button class="btn btn-primary" onclick="toggleBag(${bag.id})">🔄 Сменить статус</button></td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            }
+        } catch (error) {
+            console.error('Error loading bags:', error);
+        }
+    }
+    
+    async function toggleBag(bagId) {
+        if (confirm('Изменить статус сюрприз-пакета?')) {
+            const res = await fetch(`/api/supplier/surprise-bags/${bagId}/toggle`, { method: 'PUT' });
+            if (res.ok) {
+                alert('✅ Статус изменен');
+                loadBags();
+            } else {
+                alert('❌ Ошибка');
+            }
+        }
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
+    }
+    
+    loadBags();
+</script>
+{% endblock %}

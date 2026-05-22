@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ КОД -->
+<!-- templates/supplier_dashboard.html - ПОЛНОСТЬЮ ОБНОВЛЕННЫЙ -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -7,7 +7,6 @@
         padding: 2rem;
     }
     
-    /* Header */
     .dashboard-header {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
         border-radius: 1.5rem;
@@ -39,7 +38,33 @@
         text-decoration: none;
     }
     
-    /* Stats */
+    .nav-links {
+        background: white;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 0 2rem;
+        margin-bottom: 2rem;
+        display: flex;
+        gap: 2rem;
+        overflow-x: auto;
+    }
+    
+    .nav-links a {
+        padding: 1rem 0;
+        text-decoration: none;
+        color: #64748b;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .nav-links a:hover {
+        color: #0f172a;
+    }
+    
+    .nav-links a.active {
+        color: #0f172a;
+        border-bottom: 2px solid #fbbf24;
+    }
+    
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -72,7 +97,6 @@
         margin-top: 0.5rem;
     }
     
-    /* Sections */
     .orders-section, .bags-section {
         background: white;
         border-radius: 1rem;
@@ -126,7 +150,6 @@
         background: #e2e8f0;
     }
     
-    /* Tables */
     .table-container {
         overflow-x: auto;
     }
@@ -147,7 +170,6 @@
         font-weight: 600;
     }
     
-    /* Status Badges */
     .status-badge {
         display: inline-block;
         padding: 0.3rem 0.8rem;
@@ -163,7 +185,6 @@
     .status-delivered { background: #d1fae5; color: #065f46; }
     .status-cancelled { background: #fee2e2; color: #991b1b; }
     
-    /* Buttons */
     .btn {
         padding: 0.4rem 0.8rem;
         border: none;
@@ -201,7 +222,30 @@
         font-size: 0.75rem;
     }
     
-    /* Add Bag Form */
+    .auto-assign-btn {
+        background: #10b981;
+        color: white;
+    }
+    
+    .auto-assign-btn:hover {
+        background: #059669;
+    }
+    
+    .manual-assign-btn {
+        background: #3b82f6;
+        color: white;
+    }
+    
+    .manual-assign-btn:hover {
+        background: #2563eb;
+    }
+    
+    .delivery-timer {
+        font-family: monospace;
+        font-size: 0.7rem;
+        margin-top: 0.25rem;
+    }
+    
     .add-bag-form {
         background: #f8fafc;
         padding: 1.5rem;
@@ -248,7 +292,6 @@
         background: #1e293b;
     }
     
-    /* Discount Buttons */
     .discount-preset-btn {
         transition: transform 0.2s, opacity 0.2s;
         padding: 0.5rem 1rem;
@@ -263,11 +306,6 @@
         opacity: 0.9;
     }
     
-    .discount-preset-btn:active {
-        transform: translateY(0);
-    }
-    
-    /* Product Selection */
     .add-product-row {
         display: flex;
         gap: 0.5rem;
@@ -297,7 +335,6 @@
         border-radius: 0.5rem;
     }
     
-    /* WebSocket Indicator */
     .ws-indicator {
         position: fixed;
         bottom: 1rem;
@@ -328,7 +365,6 @@
         background: #ef4444;
     }
     
-    /* Notification */
     .notification {
         position: fixed;
         top: 1rem;
@@ -358,6 +394,13 @@
             font-size: 12px;
             padding: 0.5rem;
         }
+        .nav-links {
+            padding: 0 1rem;
+            gap: 1rem;
+        }
+        .nav-links a {
+            font-size: 12px;
+        }
     }
 </style>
 
@@ -381,6 +424,14 @@
             <span style="color: #fbbf24;">⭐ Рейтинг: {{ supplier.rating or 0 }}</span>
             <a href="/supplier/logout" class="logout-btn" style="margin-left: 1rem;">🚪 Выйти</a>
         </div>
+    </div>
+
+    <!-- Navigation Links -->
+    <div class="nav-links">
+        <a href="/supplier/dashboard" class="active">📊 Дашборд</a>
+        <a href="/supplier/couriers">🚚 Курьеры</a>
+        <a href="/supplier/orders">📦 Заказы</a>
+        <a href="/supplier/surprise-bags">🎁 Сюрпризы</a>
     </div>
 
     <!-- Stats -->
@@ -421,6 +472,7 @@
                         <th>Товар</th>
                         <th>Сумма</th>
                         <th>Статус</th>
+                        <th>Курьер</th>
                         <th>Действие</th>
                         <th>Карта</th>
                     </tr>
@@ -431,7 +483,7 @@
                         <td><strong>{{ order.order_number }}</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#{{ order.id }}</span></td>
                         <td>{{ order.customer_address|truncate(35) }}<br><span style="font-size:0.65rem;color:#94a3b8;">{{ order.created_at.strftime('%d.%m.%Y %H:%M') if order.created_at else '' }}</span></td>
                         <td>{{ order.surprise_bag_name }}</td>
-                        <td><strong>{{ order.amount_paid }}</strong> ₸</td>
+                        <td><strong>{{ order.amount_paid }}</strong> ₸</span></td>
                         <td>
                             <span class="status-badge status-{{ order.status }}">
                                 {% if order.status == 'pending' %}⏳ Ожидает
@@ -445,16 +497,40 @@
                                 {% endif %}
                             </span>
                         </td>
+                        <td id="courier-cell-{{ order.id }}">
+                            {% if order.assigned_courier_name %}
+                                🚚 {{ order.assigned_courier_name }}
+                            {% else %}
+                                <span class="text-gray-400">—</span>
+                            {% endif %}
+                        </td>
                         <td>
-                            <select class="status-select" data-order-id="{{ order.id }}">
-                                <option value="">📌 Изменить статус</option>
-                                <option value="confirmed">✅ Подтвердить</option>
-                                <option value="preparing">🍳 Готовить</option>
-                                <option value="ready_for_pickup">📦 Готов к выдаче</option>
-                                <option value="out_for_delivery">🚚 Отправить</option>
-                                <option value="delivered">🎉 Доставлен</option>
-                                <option value="cancelled">❌ Отменить</option>
-                            </select>
+                            {% if order.status == 'confirmed' %}
+                                <div class="flex flex-col gap-1">
+                                    <button class="auto-assign-btn btn" data-order-id="{{ order.id }}">
+                                        🚚 Автоназначить
+                                    </button>
+                                    <button class="manual-assign-btn btn" data-order-id="{{ order.id }}">
+                                        🔧 Выбрать вручную
+                                    </button>
+                                </div>
+                            {% elif order.status == 'out_for_delivery' %}
+                                <div class="text-sm">
+                                    <div class="delivery-timer" data-deadline="{{ order.delivery_deadline }}"></div>
+                                </div>
+                            {% elif order.status == 'delivered' %}
+                                <span class="text-green-600 text-sm">✅ Доставлен</span>
+                            {% else %}
+                                <select class="status-select" data-order-id="{{ order.id }}">
+                                    <option value="">📌 Изменить статус</option>
+                                    <option value="confirmed">✅ Подтвердить</option>
+                                    <option value="preparing">🍳 Готовить</option>
+                                    <option value="ready_for_pickup">📦 Готов к выдаче</option>
+                                    <option value="out_for_delivery">🚚 Отправить</option>
+                                    <option value="delivered">🎉 Доставлен</option>
+                                    <option value="cancelled">❌ Отменить</option>
+                                </select>
+                            {% endif %}
                         </td>
                         <td>
                             <button class="btn btn-track track-btn" data-order-id="{{ order.id }}">🗺️ Карта</button>
@@ -491,10 +567,10 @@
                     <tr data-bag-id="{{ bag.id }}">
                         <td><strong>{{ bag.name }}</strong></td>
                         <td>{{ bag.description[:50] if bag.description else '-' }}</td>
-                        <td>{{ bag.original_price }} ₸</td>
+                        <td>{{ bag.original_price }} ₸</span></td>
                         <td><strong style="color: #ef4444;">{{ bag.discounted_price }} ₸</strong></td>
                         <td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.7rem;">-{{ bag.discount_percentage }}%</span></td>
-                        <td>{{ bag.available_quantity }}/{{ bag.total_quantity }}</td>
+                        <td>{{ bag.available_quantity }}/{{ bag.total_quantity }}</span></td>
                         <td>
                             {% if bag.is_active %}
                             <span style="color: #10b981;">✅ Активен</span>
@@ -515,86 +591,75 @@
 
         <!-- Add Bag Form (hidden by default) -->
         <div class="add-bag-form" id="addBagForm" style="display: none;">
-            <h3>➕ Жаңа тосын сый қосу / Добавить сюрприз</h3>
+            <h3>➕ Добавить сюрприз</h3>
             <form id="createBagForm">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>🍽️ Категория / Санат *</label>
+                        <label>🍽️ Категория *</label>
                         <select id="bagCategory" required>
-                            <option value="">Таңдаңыз / Выберите</option>
-                            <option value="main">🍕 Негізгі тағам / Основные блюда</option>
-                            <option value="salads">🥗 Салаттар / Салаты</option>
-                            <option value="drinks">🥤 Сусындар / Напитки</option>
-                            <option value="desserts">🍰 Десерттер / Десерты</option>
+                            <option value="">-- Выберите --</option>
+                            <option value="main">🍕 Основные блюда</option>
+                            <option value="salads">🥗 Салаты</option>
+                            <option value="drinks">🥤 Напитки</option>
+                            <option value="desserts">🍰 Десерты</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Атауы / Название *</label>
-                        <input type="text" id="bagName" required placeholder="Кешкі тосын сый">
+                        <label>Название *</label>
+                        <input type="text" id="bagName" required placeholder="Вечерний сюрприз">
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label>Сипаттама / Описание</label>
-                    <textarea id="bagDescription" rows="2" placeholder="Қысқаша сипаттама / Краткое описание"></textarea>
+                    <label>Описание</label>
+                    <textarea id="bagDescription" rows="2" placeholder="Краткое описание"></textarea>
                 </div>
 
-                <!-- Выпадающий список продуктов -->
                 <div class="form-group">
-                    <label>🍽️ Тағамдар тізімі / Список блюд</label>
-                    <select id="productSelect" class="product-select">
-                        <option value="">-- Таңдаңыз / Выберите --</option>
-                        <option value="1">🍕 Маргарита пиццасы - 2500 ₸</option>
-                        <option value="2">🍕 Пепперони пиццасы - 3200 ₸</option>
-                        <option value="3">🍕 Гавай пиццасы - 3000 ₸</option>
-                        <option value="4">🍕 Мясная пиццасы - 3800 ₸</option>
-                        <option value="5">🍕 Вегетариан пиццасы - 2800 ₸</option>
-                        <option value="6">🍕 Морепродукты пиццасы - 4200 ₸</option>
-                        <option value="7">🍔 Гамбургер - 1800 ₸</option>
-                        <option value="8">🍔 Чизбургер - 2100 ₸</option>
-                        <option value="9">🍔 Дабл чизбургер - 2800 ₸</option>
-                        <option value="10">🍔 Чикен бургер - 1900 ₸</option>
-                        <option value="11">🍔 Бекон бургер - 2600 ₸</option>
-                        <option value="12">🍣 Суши сет - 3000 ₸</option>
-                        <option value="13">🍣 Филадельфия ролл - 4200 ₸</option>
-                        <option value="14">🍣 Калифорния ролл - 3800 ₸</option>
-                        <option value="15">🍣 Унаги ролл - 4500 ₸</option>
-                        <option value="16">🥗 Грек салаты - 1500 ₸</option>
-                        <option value="17">🥗 Цезарь салаты - 2200 ₸</option>
-                        <option value="18">🥗 Көкөніс салаты - 1300 ₸</option>
-                        <option value="19">🥗 Цезарь с креветкой - 2900 ₸</option>
-                        <option value="20">🥤 Кока-кола - 500 ₸</option>
-                        <option value="21">🥤 Спрайт - 500 ₸</option>
-                        <option value="22">🥤 Фанта - 500 ₸</option>
-                        <option value="23">🥤 Лимонад - 800 ₸</option>
-                        <option value="24">🍰 Чизкейк - 1200 ₸</option>
-                        <option value="25">🍰 Тирамису - 1400 ₸</option>
-                        <option value="26">🍰 Брауни - 1100 ₸</option>
-                        <option value="27">🍰 Макарун - 900 ₸</option>
-                        <option value="28">🍟 Картошка фри - 800 ₸</option>
-                        <option value="29">🍗 Куриные крылья - 1800 ₸</option>
-                        <option value="30">🧀 Сырные палочки - 1500 ₸</option>
+                    <label>🍽️ Список блюд</label>
+                    <select id="productSelect">
+                        <option value="">-- Выберите блюдо --</option>
+                        <option value="1">🍕 Маргарита пицца - 2500 ₸</option>
+                        <option value="2">🍕 Пепперони пицца - 3200 ₸</option>
+                        <option value="3">🍕 Гавайская пицца - 3000 ₸</option>
+                        <option value="4">🍕 Мясная пицца - 3800 ₸</option>
+                        <option value="5">🍕 Вегетарианская пицца - 2800 ₸</option>
+                        <option value="6">🍔 Гамбургер - 1800 ₸</option>
+                        <option value="7">🍔 Чизбургер - 2100 ₸</option>
+                        <option value="8">🍔 Чикен бургер - 1900 ₸</option>
+                        <option value="9">🍣 Суши сет - 3000 ₸</option>
+                        <option value="10">🍣 Филадельфия ролл - 4200 ₸</option>
+                        <option value="11">🍣 Калифорния ролл - 3800 ₸</option>
+                        <option value="12">🥗 Греческий салат - 1500 ₸</option>
+                        <option value="13">🥗 Цезарь салат - 2200 ₸</option>
+                        <option value="14">🥤 Кока-кола - 500 ₸</option>
+                        <option value="15">🥤 Лимонад - 800 ₸</option>
+                        <option value="16">🍰 Чизкейк - 1200 ₸</option>
+                        <option value="17">🍰 Тирамису - 1400 ₸</option>
+                        <option value="18">🍟 Картошка фри - 800 ₸</option>
+                        <option value="19">🍗 Куриные крылья - 1800 ₸</option>
+                        <option value="20">🧀 Сырные палочки - 1500 ₸</option>
                     </select>
 
                     <div class="add-product-row">
-                        <input type="number" id="productQuantity" class="quantity-input" value="1" min="1" max="99" placeholder="Саны">
-                        <button type="button" id="addProductBtn" class="add-btn">➕ Қосу / Добавить</button>
+                        <input type="number" id="productQuantity" class="quantity-input" value="1" min="1" max="99">
+                        <button type="button" id="addProductBtn" class="add-btn">➕ Добавить</button>
                     </div>
 
                     <div id="selectedProductsPreview" class="selected-products-preview" style="display: none;">
-                        <strong>📋 Таңдалған тағамдар / Выбранные блюда:</strong>
+                        <strong>📋 Выбранные блюда:</strong>
                         <div id="selectedProductsList" style="margin-top: 0.5rem;"></div>
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Бастапқы баға (₸) / Цена без скидки</label>
+                        <label>Цена без скидки (₸)</label>
                         <input type="number" id="originalPrice" step="any" readonly style="background: #f1f5f9;">
                     </div>
                     <div class="form-group">
-                        <label>💰 Жеңілдік пайызы / Процент скидки</label>
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                        <label>💰 Процент скидки</label>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button type="button" class="discount-preset-btn" data-percent="30" style="background: #ef4444; color: white;">-30%</button>
                             <button type="button" class="discount-preset-btn" data-percent="40" style="background: #f97316; color: white;">-40%</button>
                             <button type="button" class="discount-preset-btn" data-percent="50" style="background: #eab308; color: white;">-50%</button>
@@ -603,30 +668,30 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Жеңілдікпен баға (₸) / Цена со скидкой</label>
-                        <input type="number" id="discountedPrice" step="any" required placeholder="Мысалы: 3500">
+                        <label>Цена со скидкой (₸)</label>
+                        <input type="number" id="discountedPrice" step="any" required>
                         <div id="discountInfo" style="margin-top: 0.5rem; font-size: 0.85rem;"></div>
                     </div>
                     <div class="form-group">
-                        <label>Саны / Количество</label>
+                        <label>Количество</label>
                         <input type="number" id="availableQuantity" value="1" min="1">
                     </div>
                     <div class="form-group">
-                        <label>Алу уақыты (басталуы)</label>
+                        <label>Время выдачи (начало)</label>
                         <input type="text" id="pickupStart" placeholder="19:30">
                     </div>
                     <div class="form-group">
-                        <label>Алу уақыты (аяқталуы)</label>
+                        <label>Время выдачи (конец)</label>
                         <input type="text" id="pickupEnd" placeholder="20:00">
                     </div>
                     <div class="form-group">
-                        <label>Сурет URL / URL картинки</label>
+                        <label>URL картинки</label>
                         <input type="text" id="imageUrl" placeholder="https://...">
-                        <div id="imagePreview" style="margin-top: 0.5rem;"></div>
+                        <div id="imagePreview"></div>
                     </div>
                 </div>
 
-                <button type="submit" class="submit-btn">✨ Қосу / Добавить</button>
+                <button type="submit" class="submit-btn">✨ Добавить сюрприз</button>
             </form>
         </div>
     </div>
@@ -637,38 +702,27 @@
     var ws = null;
     var selectedProducts = [];
     
-    // Product list with descriptions
     var productOptions = {
-        '1': { name: 'Маргарита пиццасы', nameKz: 'Маргарита пиццасы', nameRu: 'Пицца Маргарита', price: 2500, description: 'Томатный соус, моцарелла, базилик' },
-        '2': { name: 'Пепперони пиццасы', nameKz: 'Пепперони пиццасы', nameRu: 'Пицца Пепперони', price: 3200, description: 'Пепперони, моцарелла, томатный соус' },
-        '3': { name: 'Гавай пиццасы', nameKz: 'Гавай пиццасы', nameRu: 'Пицца Гавайская', price: 3000, description: 'Курица, ананас, моцарелла' },
-        '4': { name: 'Мясная пиццасы', nameKz: 'Мясная пиццасы', nameRu: 'Пицца Мясная', price: 3800, description: 'Ветчина, пепперони, бекон, говядина' },
-        '5': { name: 'Вегетариан пиццасы', nameKz: 'Вегетариан пиццасы', nameRu: 'Пицца Вегетарианская', price: 2800, description: 'Перец, грибы, оливки, помидоры' },
-        '6': { name: 'Морепродукты пиццасы', nameKz: 'Морепродукты пиццасы', nameRu: 'Пицца с морепродуктами', price: 4200, description: 'Креветки, кальмары, мидии' },
-        '7': { name: 'Гамбургер', nameKz: 'Гамбургер', nameRu: 'Гамбургер', price: 1800, description: 'Говяжья котлета, салат, соус' },
-        '8': { name: 'Чизбургер', nameKz: 'Чизбургер', nameRu: 'Чизбургер', price: 2100, description: 'Котлета, сыр чеддер, салат, соус' },
-        '9': { name: 'Дабл чизбургер', nameKz: 'Дабл чизбургер', nameRu: 'Двойной чизбургер', price: 2800, description: 'Две котлеты, двойной сыр' },
-        '10': { name: 'Чикен бургер', nameKz: 'Чикен бургер', nameRu: 'Куриный бургер', price: 1900, description: 'Куриная котлета, салат, майонез' },
-        '11': { name: 'Бекон бургер', nameKz: 'Бекон бургер', nameRu: 'Бургер с беконом', price: 2600, description: 'Говядина, бекон, сыр, соус BBQ' },
-        '12': { name: 'Суши сет', nameKz: 'Суши сет', nameRu: 'Суши сет', price: 3000, description: '8 штук: лосось, тунец, огурец' },
-        '13': { name: 'Филадельфия ролл', nameKz: 'Филадельфия ролл', nameRu: 'Ролл Филадельфия', price: 4200, description: 'Лосось, сливочный сыр, огурец' },
-        '14': { name: 'Калифорния ролл', nameKz: 'Калифорния ролл', nameRu: 'Ролл Калифорния', price: 3800, description: 'Краб, авокадо, огурец, икра тобико' },
-        '15': { name: 'Унаги ролл', nameKz: 'Унаги ролл', nameRu: 'Ролл с угрём', price: 4500, description: 'Угорь, огурец, соус унаги' },
-        '16': { name: 'Грек салаты', nameKz: 'Грек салаты', nameRu: 'Греческий салат', price: 1500, description: 'Сыр фета, оливки, овощи' },
-        '17': { name: 'Цезарь салаты', nameKz: 'Цезарь салаты', nameRu: 'Салат Цезарь', price: 2200, description: 'Курица, пармезан, сухарики, соус Цезарь' },
-        '18': { name: 'Көкөніс салаты', nameKz: 'Көкөніс салаты', nameRu: 'Овощной салат', price: 1300, description: 'Свежие овощи, зелень, оливковое масло' },
-        '19': { name: 'Цезарь с креветкой', nameKz: 'Цезарь с креветкой', nameRu: 'Цезарь с креветками', price: 2900, description: 'Креветки, пармезан, сухарики' },
-        '20': { name: 'Кока-кола', nameKz: 'Кока-кола', nameRu: 'Кока-кола', price: 500, description: '0.5л' },
-        '21': { name: 'Спрайт', nameKz: 'Спрайт', nameRu: 'Спрайт', price: 500, description: '0.5л' },
-        '22': { name: 'Фанта', nameKz: 'Фанта', nameRu: 'Фанта', price: 500, description: '0.5л' },
-        '23': { name: 'Лимонад', nameKz: 'Лимонад', nameRu: 'Лимонад', price: 800, description: 'Домашний, лимон-мята' },
-        '24': { name: 'Чизкейк', nameKz: 'Чизкейк', nameRu: 'Чизкейк', price: 1200, description: 'Нью-Йорк чизкейк' },
-        '25': { name: 'Тирамису', nameKz: 'Тирамису', nameRu: 'Тирамису', price: 1400, description: 'Классический итальянский' },
-        '26': { name: 'Брауни', nameKz: 'Брауни', nameRu: 'Брауни', price: 1100, description: 'Шоколадный пирожное с орехами' },
-        '27': { name: 'Макарун', nameKz: 'Макарун', nameRu: 'Макарун', price: 900, description: 'Французское пирожное' },
-        '28': { name: 'Картошка фри', nameKz: 'Картоп фри', nameRu: 'Картошка фри', price: 800, description: 'Хрустящий картофель' },
-        '29': { name: 'Куриные крылья', nameKz: 'Тауық қанаты', nameRu: 'Куриные крылья', price: 1800, description: 'Острые крылья BBQ' },
-        '30': { name: 'Сырные палочки', nameKz: 'Ірімшік таяқшалары', nameRu: 'Сырные палочки', price: 1500, description: 'Сыр моцарелла в панировке' }
+        '1': { name: 'Маргарита пицца', price: 2500, description: 'Томатный соус, моцарелла, базилик' },
+        '2': { name: 'Пепперони пицца', price: 3200, description: 'Пепперони, моцарелла, томатный соус' },
+        '3': { name: 'Гавайская пицца', price: 3000, description: 'Курица, ананас, моцарелла' },
+        '4': { name: 'Мясная пицца', price: 3800, description: 'Ветчина, пепперони, бекон' },
+        '5': { name: 'Вегетарианская пицца', price: 2800, description: 'Перец, грибы, оливки' },
+        '6': { name: 'Гамбургер', price: 1800, description: 'Говяжья котлета, салат, соус' },
+        '7': { name: 'Чизбургер', price: 2100, description: 'Котлета, сыр чеддер, салат' },
+        '8': { name: 'Чикен бургер', price: 1900, description: 'Куриная котлета, салат' },
+        '9': { name: 'Суши сет', price: 3000, description: '8 штук: лосось, тунец' },
+        '10': { name: 'Филадельфия ролл', price: 4200, description: 'Лосось, сливочный сыр' },
+        '11': { name: 'Калифорния ролл', price: 3800, description: 'Краб, авокадо, икра' },
+        '12': { name: 'Греческий салат', price: 1500, description: 'Сыр фета, оливки' },
+        '13': { name: 'Цезарь салат', price: 2200, description: 'Курица, пармезан, сухарики' },
+        '14': { name: 'Кока-кола', price: 500, description: '0.5л' },
+        '15': { name: 'Лимонад', price: 800, description: 'Домашний лимонад' },
+        '16': { name: 'Чизкейк', price: 1200, description: 'Нью-Йорк чизкейк' },
+        '17': { name: 'Тирамису', price: 1400, description: 'Классический итальянский' },
+        '18': { name: 'Картошка фри', price: 800, description: 'Хрустящий картофель' },
+        '19': { name: 'Куриные крылья', price: 1800, description: 'Острые крылья BBQ' },
+        '20': { name: 'Сырные палочки', price: 1500, description: 'Сыр моцарелла в панировке' }
     };
     
     // ============ WEB SOCKET ============
@@ -685,7 +739,7 @@
         ws.onmessage = function(event) {
             var data = JSON.parse(event.data);
             if (data.type === 'new_order') {
-                showNotification('🆕 Жаңа тапсырыс! / Новый заказ!', 'success');
+                showNotification('🆕 Новый заказ!', 'success');
                 refreshOrders();
             }
         };
@@ -721,21 +775,14 @@
                 var order = orders[i];
                 if (order.status === 'pending') pendingCount++;
                 
-                var row = '<tr>' +
+                var row = '<tr data-order-id="' + order.id + '">' +
                     '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#' + order.id + '</span></td>' +
                     '<td>' + escapeHtml(order.customer_address || 'Адрес не указан') + '<br><span style="font-size:0.65rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
                     '<td>' + escapeHtml(order.bag_name) + '</td>' +
                     '<td><strong>' + order.amount_paid + '</strong> ₸</td>' +
                     '<td><span class="status-badge status-' + order.status + '">' + getStatusIcon(order.status) + ' ' + getStatusText(order.status) + '</span></td>' +
-                    '<td><select class="status-select" data-order-id="' + order.id + '">' +
-                        '<option value="">📌 Изменить статус</option>' +
-                        '<option value="confirmed">✅ Подтвердить</option>' +
-                        '<option value="preparing">🍳 Готовить</option>' +
-                        '<option value="ready_for_pickup">📦 Готов к выдаче</option>' +
-                        '<option value="out_for_delivery">🚚 Отправить</option>' +
-                        '<option value="delivered">🎉 Доставлен</option>' +
-                        '<option value="cancelled">❌ Отменить</option>' +
-                    '</select></td>' +
+                    '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? '🚚 ' + escapeHtml(order.assigned_courier_name) : '<span style="color:#94a3b8;">—</span>') + '</td>' +
+                    '<td>' + getActionButtons(order) + '</td>' +
                     '<td><button class="btn btn-track track-btn" data-order-id="' + order.id + '">🗺️ Карта</button></td>' +
                 '</tr>';
                 tbody.innerHTML += row;
@@ -759,6 +806,29 @@
         return texts[status] || status;
     }
     
+    function getActionButtons(order) {
+        if (order.status === 'confirmed') {
+            return '<div class="flex flex-col gap-1">' +
+                '<button class="auto-assign-btn btn" data-order-id="' + order.id + '">🚚 Автоназначить</button>' +
+                '<button class="manual-assign-btn btn" data-order-id="' + order.id + '">🔧 Выбрать вручную</button>' +
+                '</div>';
+        } else if (order.status === 'out_for_delivery') {
+            return '<div class="text-sm"><div class="delivery-timer" data-deadline="' + order.delivery_deadline + '"></div></div>';
+        } else if (order.status === 'delivered') {
+            return '<span class="text-green-600 text-sm">✅ Доставлен</span>';
+        } else {
+            return '<select class="status-select" data-order-id="' + order.id + '">' +
+                '<option value="">📌 Изменить статус</option>' +
+                '<option value="confirmed">✅ Подтвердить</option>' +
+                '<option value="preparing">🍳 Готовить</option>' +
+                '<option value="ready_for_pickup">📦 Готов к выдаче</option>' +
+                '<option value="out_for_delivery">🚚 Отправить</option>' +
+                '<option value="delivered">🎉 Доставлен</option>' +
+                '<option value="cancelled">❌ Отменить</option>' +
+                '</select>';
+        }
+    }
+    
     function attachOrderHandlers() {
         document.querySelectorAll('.status-select').forEach(function(select) {
             select.removeEventListener('change', select._handler);
@@ -776,6 +846,59 @@
             btn._handler = function() {
                 var orderId = this.getAttribute('data-order-id');
                 window.location.href = '/track-order/' + orderId;
+            };
+            btn.addEventListener('click', btn._handler);
+        });
+        
+        document.querySelectorAll('.auto-assign-btn').forEach(function(btn) {
+            btn.removeEventListener('click', btn._handler);
+            btn._handler = async function() {
+                var orderId = this.getAttribute('data-order-id');
+                if (confirm('Автоматически назначить лучшего курьера?')) {
+                    var res = await fetch('/api/supplier/auto-assign-courier/' + orderId, { method: 'POST' });
+                    var data = await res.json();
+                    if (data.success) {
+                        alert('✅ ' + data.message + '\n📞 Телефон: ' + data.courier.phone + '\n🚗 Авто: ' + (data.courier.car_model || '—'));
+                        location.reload();
+                    } else {
+                        alert('❌ ' + data.message);
+                    }
+                }
+            };
+            btn.addEventListener('click', btn._handler);
+        });
+        
+        document.querySelectorAll('.manual-assign-btn').forEach(function(btn) {
+            btn.removeEventListener('click', btn._handler);
+            btn._handler = async function() {
+                var orderId = this.getAttribute('data-order-id');
+                var res = await fetch('/api/supplier/available-couriers');
+                var data = await res.json();
+                
+                if (!data.couriers.length) {
+                    alert('❌ Нет доступных курьеров');
+                    return;
+                }
+                
+                var message = 'Выберите курьера:\n\n';
+                data.couriers.forEach(function(c) {
+                    message += c.id + ': ' + c.name + ' (⭐ ' + c.rating + ') - доставок: ' + c.total_deliveries + '\n';
+                });
+                
+                var courierId = prompt(message + '\n\nВведите ID курьера:');
+                if (courierId) {
+                    var assignRes = await fetch('/api/supplier/assign-courier', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order_id: orderId, courier_profile_id: parseInt(courierId) })
+                    });
+                    if (assignRes.ok) {
+                        alert('✅ Курьер назначен');
+                        location.reload();
+                    } else {
+                        alert('❌ Ошибка');
+                    }
+                }
             };
             btn.addEventListener('click', btn._handler);
         });
@@ -813,10 +936,10 @@
                 var row = '<tr data-bag-id="' + bag.id + '">' +
                     '<td><strong>' + escapeHtml(bag.name) + '</strong></td>' +
                     '<td>' + escapeHtml(bag.description || '-') + '</td>' +
-                    '<td>' + bag.original_price + ' ₸</td>' +
+                    '<td>' + bag.original_price + ' ₸</span></td>' +
                     '<td><strong style="color: #ef4444;">' + bag.discounted_price + ' ₸</strong></td>' +
                     '<td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.7rem;">-' + (bag.discount_percentage || 0) + '%</span></td>' +
-                    '<td>' + bag.available_quantity + '/' + bag.total_quantity + '</td>' +
+                    '<td>' + bag.available_quantity + '/' + bag.total_quantity + '</span></td>' +
                     '<td>' + (bag.is_active ? '<span style="color: #10b981;">✅ Активен</span>' : '<span style="color: #ef4444;">❌ Неактивен</span>') + '</td>' +
                     '<td><button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">🔄 Сменить статус</button></td>' +
                 '</tr>';
@@ -841,68 +964,19 @@
         });
     }
     
-    // ============ PRODUCT SELECTION FUNCTIONS ============
-    
+    // ============ PRODUCT SELECTION ============
     function updateTotalPrice() {
         var total = 0;
         for (var i = 0; i < selectedProducts.length; i++) {
             total += selectedProducts[i].price * selectedProducts[i].quantity;
         }
         var originalPriceInput = document.getElementById('originalPrice');
-        if (originalPriceInput) {
-            originalPriceInput.value = total;
-        }
-        
-        // Auto-update discount info
-        var discountedPriceInput = document.getElementById('discountedPrice');
-        if (discountedPriceInput && discountedPriceInput.value) {
-            var discounted = parseFloat(discountedPriceInput.value);
-            if (!isNaN(discounted) && total > 0 && discounted < total) {
-                var percent = Math.round((1 - discounted / total) * 100);
-                var saved = total - discounted;
-                var discountInfo = document.getElementById('discountInfo');
-                if (discountInfo) {
-                    discountInfo.innerHTML = '🔥 Сіз үнемдейсіз / Вы экономите: ' + saved + ' ₸ (' + percent + '%)';
-                    discountInfo.style.color = '#ef4444';
-                    discountInfo.style.fontWeight = 'bold';
-                }
-            } else if (discounted === total) {
-                var discountInfo = document.getElementById('discountInfo');
-                if (discountInfo) {
-                    discountInfo.innerHTML = '💰 Жеңілдік жоқ / Без скидки';
-                    discountInfo.style.color = '#6b7280';
-                }
-            }
-        }
-    }
-    
-    function generateAutoDescription() {
-        var descriptionInput = document.getElementById('bagDescription');
-        if (!descriptionInput) return;
-        
-        if (selectedProducts.length === 0) {
-            descriptionInput.value = '';
-            return;
-        }
-        
-        var productNames = [];
-        for (var i = 0; i < selectedProducts.length; i++) {
-            productNames.push(selectedProducts[i].name + ' x' + selectedProducts[i].quantity);
-        }
-        
-        var total = 0;
-        for (var i = 0; i < selectedProducts.length; i++) {
-            total += selectedProducts[i].price * selectedProducts[i].quantity;
-        }
-        
-        var description = 'Тосын сыйға кіреді: ' + productNames.join(', ') + '. Жалпы құны: ' + total + ' ₸';
-        descriptionInput.value = description;
+        if (originalPriceInput) originalPriceInput.value = total;
     }
     
     function renderSelectedProducts() {
         var container = document.getElementById('selectedProductsList');
         var preview = document.getElementById('selectedProductsPreview');
-        
         if (!container || !preview) return;
         
         if (selectedProducts.length === 0) {
@@ -927,19 +1001,15 @@
         selectedProducts.splice(index, 1);
         renderSelectedProducts();
         updateTotalPrice();
-        generateAutoDescription();
     }
     
     function addProduct() {
         var select = document.getElementById('productSelect');
-        if (!select) return;
-        
         var productId = select.value;
-        var quantityInput = document.getElementById('productQuantity');
-        var quantity = quantityInput ? parseInt(quantityInput.value) || 1 : 1;
+        var quantity = parseInt(document.getElementById('productQuantity').value) || 1;
         
         if (!productId) {
-            showNotification('Тағамды таңдаңыз / Выберите блюдо', 'error');
+            alert('Выберите блюдо');
             return;
         }
         
@@ -960,98 +1030,59 @@
             selectedProducts.push({
                 id: productId,
                 name: product.name,
-                nameKz: product.nameKz,
-                nameRu: product.nameRu,
                 price: product.price,
                 quantity: quantity,
                 description: product.description
             });
         }
         
-        generateAutoDescription();
         renderSelectedProducts();
         updateTotalPrice();
         select.value = '';
-        if (quantityInput) quantityInput.value = '1';
     }
     
-    // ============ DISCOUNT PRESET BUTTONS ============
-    
+    // ============ DISCOUNT BUTTONS ============
     function applyDiscount(percent) {
         var originalPriceInput = document.getElementById('originalPrice');
         var discountedPriceInput = document.getElementById('discountedPrice');
-        
-        if (!originalPriceInput || !discountedPriceInput) return;
-        
         var originalPrice = parseFloat(originalPriceInput.value);
+        
         if (isNaN(originalPrice) || originalPrice <= 0) {
-            showNotification('Алдымен тағамдарды қосыңыз / Сначала добавьте блюда', 'error');
+            alert('Сначала добавьте блюда');
             return;
         }
         
-        var discountedPrice;
-        if (percent === 0) {
-            discountedPrice = originalPrice;
-        } else {
-            discountedPrice = originalPrice * (1 - percent / 100);
-        }
-        
+        var discountedPrice = percent === 0 ? originalPrice : originalPrice * (1 - percent / 100);
         discountedPriceInput.value = Math.round(discountedPrice);
-        
-        var event = new Event('input');
-        discountedPriceInput.dispatchEvent(event);
         
         var discountInfo = document.getElementById('discountInfo');
         if (discountInfo) {
             if (percent === 0) {
-                discountInfo.innerHTML = '💰 Жеңілдік жоқ / Без скидки';
-                discountInfo.style.color = '#6b7280';
+                discountInfo.innerHTML = '💰 Без скидки';
             } else {
                 var saved = originalPrice - discountedPrice;
-                discountInfo.innerHTML = '🔥 Сіз үнемдейсіз / Вы экономите: ' + Math.round(saved) + ' ₸ (' + percent + '%)';
-                discountInfo.style.color = '#ef4444';
-                discountInfo.style.fontWeight = 'bold';
+                discountInfo.innerHTML = '🔥 Вы экономите: ' + Math.round(saved) + ' ₸ (' + percent + '%)';
             }
         }
     }
     
-    function initDiscountButtons() {
-        var buttons = document.querySelectorAll('.discount-preset-btn');
-        for (var i = 0; i < buttons.length; i++) {
-            var btn = buttons[i];
-            btn.removeEventListener('click', btn._handler);
-            btn._handler = function() {
-                var percent = parseInt(this.getAttribute('data-percent'));
-                applyDiscount(percent);
-            };
-            btn.addEventListener('click', btn._handler);
-        }
-    }
-    
     // ============ FORM SUBMIT ============
-    
     async function submitBagForm() {
-        var category = document.getElementById('bagCategory') ? document.getElementById('bagCategory').value : '';
-        var name = document.getElementById('bagName') ? document.getElementById('bagName').value : '';
-        var description = document.getElementById('bagDescription') ? document.getElementById('bagDescription').value : '';
-        var discountedPrice = document.getElementById('discountedPrice') ? parseFloat(document.getElementById('discountedPrice').value) : 0;
-        var availableQuantity = document.getElementById('availableQuantity') ? parseInt(document.getElementById('availableQuantity').value) : 1;
-        var pickupStart = document.getElementById('pickupStart') ? document.getElementById('pickupStart').value : '';
-        var pickupEnd = document.getElementById('pickupEnd') ? document.getElementById('pickupEnd').value : '';
-        var imageUrl = document.getElementById('imageUrl') ? document.getElementById('imageUrl').value : '';
-        
-        if (!category) {
-            showNotification('Категорияны таңдаңыз / Выберите категорию', 'error');
-            return;
-        }
+        var name = document.getElementById('bagName').value;
+        var description = document.getElementById('bagDescription').value;
+        var discountedPrice = parseFloat(document.getElementById('discountedPrice').value);
+        var availableQuantity = parseInt(document.getElementById('availableQuantity').value);
+        var pickupStart = document.getElementById('pickupStart').value;
+        var pickupEnd = document.getElementById('pickupEnd').value;
+        var imageUrl = document.getElementById('imageUrl').value;
         
         if (!name) {
-            showNotification('Атауын енгізіңіз / Введите название', 'error');
+            alert('Введите название');
             return;
         }
         
         if (selectedProducts.length === 0) {
-            showNotification('Кем дегенде бір тағам қосыңыз / Добавьте хотя бы одно блюдо', 'error');
+            alert('Добавьте хотя бы одно блюдо');
             return;
         }
         
@@ -1076,7 +1107,6 @@
             pickup_start_time: pickupStart,
             pickup_end_time: pickupEnd,
             image_url: imageUrl,
-            category: category,
             products: selectedProducts,
             supplier_id: supplierId
         };
@@ -1089,19 +1119,17 @@
             });
             
             if (response.ok) {
-                showNotification('✅ Сюрприз қосылды / Сюрприз добавлен!');
+                alert('✅ Сюрприз добавлен!');
                 location.reload();
             } else {
-                var error = await response.json();
-                showNotification('❌ Қате / Ошибка: ' + (error.detail || 'Қайталап көріңіз'), 'error');
+                alert('❌ Ошибка');
             }
         } catch(error) {
-            showNotification('❌ Желі қатесі / Ошибка сети', 'error');
+            alert('❌ Ошибка сети');
         }
     }
     
     // ============ ESCAPE HTML ============
-    
     function escapeHtml(str) {
         if (!str) return '';
         return str.replace(/[&<>]/g, function(m) {
@@ -1109,78 +1137,57 @@
         });
     }
     
-    // ============ EVENT LISTENERS ============
+    // ============ TIMER ============
+    function updateDeliveryTimers() {
+        document.querySelectorAll('.delivery-timer').forEach(function(el) {
+            var deadlineStr = el.getAttribute('data-deadline');
+            if (!deadlineStr) return;
+            
+            var deadline = new Date(deadlineStr);
+            var now = new Date();
+            
+            if (now >= deadline) {
+                el.innerHTML = '<span class="text-red-600 font-bold">⏰ Время истекло!</span>';
+            } else {
+                var diff = deadline - now;
+                var minutes = Math.floor(diff / 60000);
+                var seconds = Math.floor((diff % 60000) / 1000);
+                el.innerHTML = '⏱️ Осталось: ' + minutes + ':' + seconds.toString().padStart(2, '0');
+            }
+        });
+    }
     
+    // ============ EVENT LISTENERS ============
     function initEventListeners() {
-        var refreshBtn = document.getElementById('refreshOrdersBtn');
-        if (refreshBtn) refreshBtn.addEventListener('click', refreshOrders);
-        
-        var toggleAddBagBtn = document.getElementById('toggleAddBagBtn');
-        if (toggleAddBagBtn) {
-            toggleAddBagBtn.addEventListener('click', function() {
-                var form = document.getElementById('addBagForm');
-                if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
-            });
-        }
-        
-        var addProductBtn = document.getElementById('addProductBtn');
-        if (addProductBtn) addProductBtn.addEventListener('click', addProduct);
-        
-        var createBagForm = document.getElementById('createBagForm');
-        if (createBagForm) createBagForm.addEventListener('submit', function(e) {
+        document.getElementById('refreshOrdersBtn').addEventListener('click', refreshOrders);
+        document.getElementById('toggleAddBagBtn').addEventListener('click', function() {
+            var form = document.getElementById('addBagForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        });
+        document.getElementById('addProductBtn').addEventListener('click', addProduct);
+        document.getElementById('createBagForm').addEventListener('submit', function(e) {
             e.preventDefault();
             submitBagForm();
         });
         
-        var imageUrlInput = document.getElementById('imageUrl');
-        if (imageUrlInput) {
-            imageUrlInput.addEventListener('input', function() {
-                var url = this.value;
-                var preview = document.getElementById('imagePreview');
-                if (preview) {
-                    if (url) {
-                        preview.innerHTML = '<img src="' + url + '" style="max-width: 100px; max-height: 80px; border-radius: 0.5rem;">';
-                    } else {
-                        preview.innerHTML = '';
-                    }
-                }
+        document.querySelectorAll('.discount-preset-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var percent = parseInt(this.getAttribute('data-percent'));
+                applyDiscount(percent);
             });
-        }
+        });
         
-        var discountedPriceInput = document.getElementById('discountedPrice');
-        var originalPriceInput = document.getElementById('originalPrice');
-        if (discountedPriceInput && originalPriceInput) {
-            function updateDiscountPercent() {
-                var original = parseFloat(originalPriceInput.value) || 0;
-                var discounted = parseFloat(discountedPriceInput.value) || 0;
-                var display = document.getElementById('discountInfo');
-                if (display && original > 0 && discounted > 0 && discounted < original) {
-                    var percent = Math.round((1 - discounted / original) * 100);
-                    display.innerHTML = '🔥 Сіз үнемдейсіз / Вы экономите: ' + Math.round(original - discounted) + ' ₸ (' + percent + '%)';
-                    display.style.color = '#ef4444';
-                    display.style.fontWeight = 'bold';
-                } else if (display && discounted === original && original > 0) {
-                    display.innerHTML = '💰 Жеңілдік жоқ / Без скидки';
-                    display.style.color = '#6b7280';
-                }
-            }
-            discountedPriceInput.addEventListener('input', updateDiscountPercent);
-        }
+        setInterval(updateDeliveryTimers, 1000);
+        setInterval(refreshOrders, 30000);
+        setInterval(refreshBags, 60000);
     }
     
     // ============ INITIALIZATION ============
-    
     function init() {
         initEventListeners();
-        initDiscountButtons();
         refreshOrders();
         refreshBags();
         connectWebSocket();
-        attachOrderHandlers();
-        attachBagHandlers();
-        
-        setInterval(refreshOrders, 30000);
-        setInterval(refreshBags, 60000);
     }
     
     init();

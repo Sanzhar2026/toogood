@@ -1,8 +1,8 @@
-<!-- templates/admin_dashboard.html -->
+<!-- templates/admin_dashboard.html - ПОЛНОСТЬЮ ОБНОВЛЕННЫЙ -->
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Админ-панель | Управление заказами</title>
+    <title>Админ-панель | Управление заказами и курьерами</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -13,7 +13,7 @@
             <div class="max-w-7xl mx-auto flex justify-between items-center">
                 <div>
                     <h1 class="text-xl font-bold">🔐 Админ-панель</h1>
-                    <p class="text-emerald-100 text-sm">Управление заказами</p>
+                    <p class="text-emerald-100 text-sm">Управление заказами и курьерами</p>
                 </div>
                 <div class="flex items-center gap-4">
                     <span class="text-sm">👤 {{ admin.username }}</span>
@@ -26,165 +26,347 @@
             <!-- Статистика -->
             <div class="grid grid-cols-4 gap-4 mb-8">
                 <div class="bg-white rounded-xl p-4 shadow-sm">
-                    <div class="text-2xl font-bold text-emerald-600">{{ stats.total_orders }}</div>
+                    <div class="text-2xl font-bold text-emerald-600" id="totalOrders">0</div>
                     <div class="text-sm text-gray-500">Всего заказов</div>
                 </div>
                 <div class="bg-white rounded-xl p-4 shadow-sm">
-                    <div class="text-2xl font-bold text-green-600">{{ stats.paid_orders }}</div>
+                    <div class="text-2xl font-bold text-green-600" id="paidOrders">0</div>
                     <div class="text-sm text-gray-500">Оплачено</div>
                 </div>
                 <div class="bg-white rounded-xl p-4 shadow-sm">
-                    <div class="text-2xl font-bold text-yellow-600">{{ stats.pending_payment }}</div>
+                    <div class="text-2xl font-bold text-yellow-600" id="pendingPayment">0</div>
                     <div class="text-sm text-gray-500">Ожидают оплаты</div>
                 </div>
                 <div class="bg-white rounded-xl p-4 shadow-sm">
-                    <div class="text-2xl font-bold text-emerald-600">{{ stats.total_revenue }} ₸</div>
+                    <div class="text-2xl font-bold text-emerald-600" id="totalRevenue">0 ₸</div>
                     <div class="text-sm text-gray-500">Общая выручка</div>
                 </div>
             </div>
 
-            <!-- Таблица заказов -->
-            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-100">
-                    <h2 class="font-bold text-lg">📋 Все заказы</h2>
+            <!-- Вкладки -->
+            <div class="mb-8">
+                <div class="flex gap-2 border-b border-gray-200">
+                    <button class="tab-btn px-4 py-2 text-sm font-medium text-gray-600 hover:text-emerald-600 border-b-2 border-transparent" data-tab="orders">
+                        📋 Заказы
+                    </button>
+                    <button class="tab-btn px-4 py-2 text-sm font-medium text-gray-600 hover:text-emerald-600 border-b-2 border-transparent" data-tab="couriers">
+                        🚚 Курьеры
+                        <span id="pendingCouriersBadge" class="hidden ml-1 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full"></span>
+                    </button>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Заказ</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Клиент</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Товар</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Сумма</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Статус оплаты</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Действия</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Возврат</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            {% for order in orders %}
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-3 text-sm font-mono">{{ order.order_number }}</td>
-                                <td class="px-4 py-3 text-sm">{{ order.user_name }}<br><span class="text-xs text-gray-400">{{ order.user_phone }}</span></td>
-                                <td class="px-4 py-3 text-sm">{{ order.bag_name }}</td>
-                                <td class="px-4 py-3 text-sm font-bold">{{ order.amount }} ₸</td>
-                                <td class="px-4 py-3">
-                                    <select class="payment-status-select text-sm px-2 py-1 rounded-full border-0 font-medium bg-gray-100" data-order-id="{{ order.id }}">
-                                        <option value="pending" {% if order.payment_status == 'pending' %}selected{% endif %} class="text-yellow-600">⏳ Ожидает</option>
-                                        <option value="paid" {% if order.payment_status == 'paid' %}selected{% endif %} class="text-green-600">✅ Оплачен</option>
-                                    </select>
-                                </td>
-                                <td class="px-4 py-3">
-                                    {% if order.payment_status == 'paid' and order.order_status == 'pending' %}
-                                        <button class="confirm-payment-btn bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs" data-order-id="{{ order.id }}">
-                                            🚚 Подтвердить и доставить
-                                        </button>
-                                    {% elif order.order_status == 'out_for_delivery' %}
-                                        <span class="text-indigo-600 text-sm">⏱️ В доставке</span>
-                                    {% elif order.order_status == 'delivered' %}
-                                        <span class="text-green-600 text-sm">✅ Доставлен</span>
-                                    {% endif %}
-                                </td>
-                                <td class="px-4 py-3">
-                                    {% if order.refund_status == 'requested' %}
-                                        <div class="flex gap-1">
-                                            <button class="approve-refund-btn bg-green-600 text-white px-2 py-1 rounded-lg text-xs" data-order-id="{{ order.id }}">
-                                                ✅ Одобрить возврат
-                                            </button>
-                                            <button class="reject-refund-btn bg-red-600 text-white px-2 py-1 rounded-lg text-xs" data-order-id="{{ order.id }}">
-                                                ❌ Отклонить
-                                            </button>
-                                        </div>
-                                    {% elif order.refund_status == 'completed' %}
-                                        <span class="text-red-600 text-sm">💰 Возврат выполнен</span>
-                                    {% else %}
-                                        <span class="text-gray-400 text-sm">—</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+            </div>
+
+            <!-- Вкладка ЗАКАЗЫ -->
+            <div id="ordersTab" class="tab-content">
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100">
+                        <h2 class="font-bold text-lg">📋 Все заказы</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Заказ</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Клиент</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Товар</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Сумма</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Статус оплаты</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Статус заказа</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersTableBody" class="divide-y divide-gray-100">
+                                <tr><td colspan="7" class="text-center py-8 text-gray-500">Загрузка...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка КУРЬЕРЫ -->
+            <div id="couriersTab" class="tab-content hidden">
+                <div class="space-y-6">
+                    <!-- Заявки на подтверждение -->
+                    <div class="bg-white rounded-xl p-6 shadow-sm">
+                        <h2 class="font-bold text-lg mb-4">⏳ Заявки на подтверждение</h2>
+                        <div id="pendingRequestsContainer" class="space-y-3">
+                            <div class="text-center py-8 text-gray-500">Загрузка...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Подтвержденные курьеры -->
+                    <div class="bg-white rounded-xl p-6 shadow-sm">
+                        <h2 class="font-bold text-lg mb-4">✅ Подтвержденные курьеры</h2>
+                        <div id="verifiedCouriersContainer" class="space-y-3">
+                            <div class="text-center py-8 text-gray-500">Загрузка...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // ============ ОБНОВЛЕНИЕ СТАТУСА ОПЛАТЫ ============
-        document.querySelectorAll('.payment-status-select').forEach(select => {
-            select.addEventListener('change', async (e) => {
-                const orderId = select.dataset.orderId;
-                const newStatus = select.value;
+        // ============ ЗАГРУЗКА ЗАКАЗОВ ============
+        async function loadOrders() {
+            try {
+                const res = await fetch('/admin/api/orders');
+                const data = await res.json();
                 
-                const res = await fetch(`/admin/api/order/${orderId}/payment-status`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ payment_status: newStatus })
+                const tbody = document.getElementById('ordersTableBody');
+                const orders = data.orders || [];
+                
+                let total = 0, paid = 0, pending = 0, revenue = 0;
+                orders.forEach(o => {
+                    total++;
+                    if (o.payment_status === 'paid') { paid++; revenue += o.amount; }
+                    if (o.payment_status === 'pending') pending++;
                 });
                 
-                if (res.ok) {
-                    alert('✅ Статус оплаты обновлен');
-                    location.reload();
-                } else {
-                    alert('❌ Ошибка');
+                document.getElementById('totalOrders').innerText = total;
+                document.getElementById('paidOrders').innerText = paid;
+                document.getElementById('pendingPayment').innerText = pending;
+                document.getElementById('totalRevenue').innerText = revenue.toLocaleString() + ' ₸';
+                
+                if (orders.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-500">Нет заказов</td></tr>';
+                    return;
                 }
-            });
-        });
-
-        // ============ ПОДТВЕРЖДЕНИЕ ОПЛАТЫ И ЗАПУСК ДОСТАВКИ ============
-        document.querySelectorAll('.confirm-payment-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                if (confirm('Подтвердить оплату и запустить доставку?')) {
-                    const res = await fetch(`/admin/api/order/${btn.dataset.orderId}/confirm-payment`, {
-                        method: 'POST'
-                    });
-                    if (res.ok) {
-                        alert('✅ Оплата подтверждена, доставка начата');
-                        location.reload();
-                    } else {
-                        alert('❌ Ошибка');
-                    }
-                }
-            });
-        });
-
-        // ============ ОДОБРИТЬ ВОЗВРАТ ============
-        document.querySelectorAll('.approve-refund-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                if (confirm('Подтвердить возврат денег клиенту?')) {
-                    const res = await fetch(`/admin/api/order/${btn.dataset.orderId}/approve-refund`, {
-                        method: 'POST'
-                    });
-                    if (res.ok) {
-                        alert('✅ Возврат подтвержден');
-                        location.reload();
-                    } else {
-                        alert('❌ Ошибка');
-                    }
-                }
-            });
-        });
-
-        // ============ ОТКЛОНИТЬ ВОЗВРАТ ============
-        document.querySelectorAll('.reject-refund-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const reason = prompt('Причина отказа в возврате:');
-                if (reason) {
-                    const res = await fetch(`/admin/api/order/${btn.dataset.orderId}/reject-refund`, {
+                
+                tbody.innerHTML = orders.map(order => `
+                    <tr>
+                        <td class="px-4 py-3 text-sm font-mono">${escapeHtml(order.order_number)}</td>
+                        <td class="px-4 py-3 text-sm">${escapeHtml(order.user_name)}<br><span class="text-xs text-gray-400">${escapeHtml(order.user_phone)}</span></td>
+                        <td class="px-4 py-3 text-sm">${escapeHtml(order.bag_name)}</td>
+                        <td class="px-4 py-3 text-sm font-bold">${order.amount} ₸</td>
+                        <td class="px-4 py-3">
+                            <select class="payment-status-select text-sm px-2 py-1 rounded-full border-0 font-medium bg-gray-100" data-order-id="${order.id}">
+                                <option value="pending" ${order.payment_status === 'pending' ? 'selected' : ''} class="text-yellow-600">⏳ Ожидает</option>
+                                <option value="paid" ${order.payment_status === 'paid' ? 'selected' : ''} class="text-green-600">✅ Оплачен</option>
+                            </select>
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="text-xs px-2 py-1 rounded-full ${getOrderStatusClass(order.order_status)}">
+                                ${getOrderStatusText(order.order_status)}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <button class="confirm-btn bg-emerald-600 text-white px-3 py-1 rounded-lg text-xs" data-order-id="${order.id}">✅ Подтвердить</button>
+                            <button class="cancel-btn bg-red-600 text-white px-3 py-1 rounded-lg text-xs ml-1" data-order-id="${order.id}">❌ Отменить</button>
+                        </td>
+                    </tr>
+                `).join('');
+                
+                attachOrderHandlers();
+            } catch (error) {
+                console.error('Error loading orders:', error);
+            }
+        }
+        
+        function getOrderStatusClass(status) {
+            const classes = {
+                confirmed: 'bg-green-100 text-green-700',
+                delivered: 'bg-blue-100 text-blue-700',
+                cancelled: 'bg-red-100 text-red-700',
+                pending: 'bg-gray-100 text-gray-700'
+            };
+            return classes[status] || 'bg-gray-100 text-gray-700';
+        }
+        
+        function getOrderStatusText(status) {
+            const texts = {
+                pending: '⏳ Ожидает',
+                confirmed: '✅ Подтвержден',
+                preparing: '🍳 Готовится',
+                ready_for_pickup: '📦 Готов',
+                out_for_delivery: '🚚 В пути',
+                delivered: '🎉 Доставлен',
+                cancelled: '❌ Отменен'
+            };
+            return texts[status] || status;
+        }
+        
+        function attachOrderHandlers() {
+            document.querySelectorAll('.payment-status-select').forEach(select => {
+                select.removeEventListener('change', select._handler);
+                select._handler = async function() {
+                    const orderId = this.dataset.orderId;
+                    const newStatus = this.value;
+                    const res = await fetch(`/admin/api/order/${orderId}/payment-status`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ reason: reason })
+                        body: JSON.stringify({ payment_status: newStatus })
                     });
-                    if (res.ok) {
-                        alert('❌ Возврат отклонен');
-                        location.reload();
-                    } else {
-                        alert('❌ Ошибка');
-                    }
+                    if (res.ok) { alert('✅ Статус обновлен'); loadOrders(); }
+                    else alert('❌ Ошибка');
+                };
+                select.addEventListener('change', select._handler);
+            });
+            
+            document.querySelectorAll('.confirm-btn').forEach(btn => {
+                btn.removeEventListener('click', btn._handler);
+                btn._handler = async function() {
+                    const orderId = this.dataset.orderId;
+                    const res = await fetch(`/admin/api/order/${orderId}/status`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'confirmed' })
+                    });
+                    if (res.ok) { alert('✅ Заказ подтвержден'); loadOrders(); }
+                    else alert('❌ Ошибка');
+                };
+                btn.addEventListener('click', btn._handler);
+            });
+            
+            document.querySelectorAll('.cancel-btn').forEach(btn => {
+                btn.removeEventListener('click', btn._handler);
+                btn._handler = async function() {
+                    if (!confirm('Отменить заказ?')) return;
+                    const orderId = this.dataset.orderId;
+                    const res = await fetch(`/admin/api/order/${orderId}/status`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'cancelled' })
+                    });
+                    if (res.ok) { alert('❌ Заказ отменен'); loadOrders(); }
+                    else alert('❌ Ошибка');
+                };
+                btn.addEventListener('click', btn._handler);
+            });
+        }
+        
+        // ============ ЗАГРУЗКА ЗАЯВОК КУРЬЕРОВ ============
+        async function loadPendingCourierRequests() {
+            try {
+                const res = await fetch('/admin/api/courier-requests');
+                const data = await res.json();
+                const container = document.getElementById('pendingRequestsContainer');
+                const badge = document.getElementById('pendingCouriersBadge');
+                
+                if (!data.requests || data.requests.length === 0) {
+                    container.innerHTML = '<div class="text-center py-8 text-gray-500">Нет новых заявок</div>';
+                    if (badge) badge.classList.add('hidden');
+                    return;
+                }
+                
+                if (badge) {
+                    badge.textContent = data.requests.length;
+                    badge.classList.remove('hidden');
+                }
+                
+                container.innerHTML = data.requests.map(req => `
+                    <div class="border border-gray-200 rounded-xl p-4">
+                        <div class="flex justify-between items-start flex-wrap gap-3">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-lg">${escapeHtml(req.full_name)}</span>
+                                    <span class="text-xs bg-yellow-100 text-yellow-600 px-2 py-0.5 rounded-full">⏳ Ожидает</span>
+                                </div>
+                                <p class="text-gray-500 text-sm mt-1">📞 ${escapeHtml(req.phone)}</p>
+                                <div class="flex gap-4 mt-2 text-sm">
+                                    <span>🚗 ${escapeHtml(req.car_model || '—')}</span>
+                                    <span>🔢 ${escapeHtml(req.car_number || '—')}</span>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-2">Заявка от: ${new Date(req.created_at).toLocaleString()}</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="approveCourier(${req.id})" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition">✅ Подтвердить</button>
+                                <button onclick="rejectCourier(${req.id})" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition">❌ Отклонить</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading pending requests:', error);
+            }
+        }
+        
+        async function loadVerifiedCouriers() {
+            try {
+                const res = await fetch('/admin/api/verified-couriers');
+                const data = await res.json();
+                const container = document.getElementById('verifiedCouriersContainer');
+                
+                if (!data.couriers || data.couriers.length === 0) {
+                    container.innerHTML = '<div class="text-center py-8 text-gray-500">Нет подтвержденных курьеров</div>';
+                    return;
+                }
+                
+                container.innerHTML = data.couriers.map(c => `
+                    <div class="border border-gray-200 rounded-xl p-4">
+                        <div class="flex justify-between items-start flex-wrap gap-3">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-lg">${escapeHtml(c.full_name)}</span>
+                                    <span class="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full">✅ Активен</span>
+                                </div>
+                                <p class="text-gray-500 text-sm mt-1">📞 ${escapeHtml(c.phone)}</p>
+                                <div class="flex gap-4 mt-2 text-sm">
+                                    <span>🚗 ${escapeHtml(c.car_model || '—')}</span>
+                                    <span>🔢 ${escapeHtml(c.car_number || '—')}</span>
+                                </div>
+                                <div class="flex gap-4 mt-2 text-sm">
+                                    <span>📦 Доставок: ${c.total_deliveries}</span>
+                                    <span>⭐ Рейтинг: ${c.rating}</span>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-2">Подтвержден: ${c.verified_at ? new Date(c.verified_at).toLocaleString() : '—'}</p>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading verified couriers:', error);
+            }
+        }
+        
+        async function approveCourier(profileId) {
+            if (!confirm('Подтвердить регистрацию курьера?')) return;
+            const res = await fetch(`/admin/api/courier/approve/${profileId}`, { method: 'POST' });
+            if (res.ok) {
+                alert('✅ Курьер подтвержден');
+                loadPendingCourierRequests();
+                loadVerifiedCouriers();
+            } else { alert('❌ Ошибка'); }
+        }
+        
+        async function rejectCourier(profileId) {
+            const reason = prompt('Причина отказа:');
+            if (!reason) return;
+            if (!confirm('Отклонить заявку?')) return;
+            const res = await fetch(`/admin/api/courier/reject/${profileId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: reason })
+            });
+            if (res.ok) {
+                alert('❌ Заявка отклонена');
+                loadPendingCourierRequests();
+            } else { alert('❌ Ошибка'); }
+        }
+        
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
+        }
+        
+        // Переключение вкладок
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('border-emerald-500', 'text-emerald-600'));
+                btn.classList.add('border-emerald-500', 'text-emerald-600');
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+                document.getElementById(`${tab}Tab`).classList.remove('hidden');
+                if (tab === 'couriers') {
+                    loadPendingCourierRequests();
+                    loadVerifiedCouriers();
                 }
             });
         });
+        
+        // Инициализация
+        loadOrders();
+        document.querySelector('.tab-btn').classList.add('border-emerald-500', 'text-emerald-600');
     </script>
 </body>
 </html>

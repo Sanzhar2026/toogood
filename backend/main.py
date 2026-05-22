@@ -76,11 +76,620 @@ from typing import List
 import asyncio
 import json
 
+
+
+
+
+
+
+
+courier_sessions = {}
+
+
+
+@app.get("/api/courier/me")
+async def get_courier_info(request: Request, db: Session = Depends(get_db)):
+    """Получить информацию о текущем курьере"""
+    token = request.cookies.get("courier_token")
+    if not token or token not in courier_sessions:
+        return {"authenticated": False}
+    
+    session = courier_sessions[token]
+    if session["expires_at"] < datetime.utcnow():
+        del courier_sessions[token]
+        return {"authenticated": False}
+    
+    user = db.query(User).filter(User.id == session["courier_id"]).first()
+    courier_profile = db.query(CourierProfile).filter(CourierProfile.user_id == session["courier_id"]).first()
+    
+    if not user or not courier_profile:
+        return {"authenticated": False}
+    
+    return {
+        "authenticated": True,
+        "courier": {
+            "id": user.id,
+            "full_name": user.full_name,
+            "phone": user.phone,
+            "car_model": courier_profile.car_model,
+            "car_number": courier_profile.car_number,
+            "rating": courier_profile.rating,
+            "total_deliveries": courier_profile.total_deliveries
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@app.post("/api/courier/login")
+async def courier_login(request: Request, db: Session = Depends(get_db)):
+    """Вход для курьеров (только подтвержденные)"""
+    data = await request.json()
+    phone = data.get("phone")
+    password = data.get("password")
+    
+    formatted_phone = format_phone_number(phone)
+    
+    # Ищем пользователя
+    user = db.query(User).filter(
+        User.phone == formatted_phone,
+        User.role == UserRole.COURIER
+    ).first()
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Неверный телефон или пароль")
+    
+    # Проверяем пароль
+    if not verify_password(password, user.password):
+        raise HTTPException(status_code=401, detail="Неверный телефон или пароль")
+    
+    # Проверяем, подтвержден ли курьер админом
+    courier_profile = db.query(CourierProfile).filter(
+        CourierProfile.user_id == user.id
+    ).first()
+    
+    if not courier_profile or not courier_profile.is_verified:
+        raise HTTPException(status_code=403, detail="Ваша учетная запись еще не подтверждена администратором")
+    
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Учетная запись заблокирована")
+
+
+
+
+
+    # Создаем сессию
+    token = secrets.token_urlsafe(32)
+    courier_sessions[token] = {
+        "courier_id": user.id,
+        "courier_profile_id": courier_profile.id,
+        "expires_at": datetime.utcnow() + timedelta(hours=8)
+    }
+    
+    response = JSONResponse({
+        "success": True,
+        "message": "Вход выполнен",
+        "courier": {
+            "id": user.id,
+            "full_name": user.full_name,
+            "phone": user.phone,
+            "car_model": courier_profile.car_model,
+            "car_number": courier_profile.car_number,
+            "rating": courier_profile.rating,
+            "total_deliveries": courier_profile.total_deliveries
+        }
+    })
+    
+    response.set_cookie(
+        key="courier_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=True,
+        max_age=8*60*60
+    )
+    
+    return response
+
+@app.post("/courier/register")
+async def courier_register(request: Request, db: Session = Depends(get_db)):
+    """Регистрация нового курьера (требует подтверждения админом)"""
+    data = await request.json()
+    
+    phone = format_phone_number(data.get("phone"))
+    full_name = data.get("full_name")
+    password = data.get("password")
+    car_model = data.get("car_model")
+    car_number = data.get("car_number")
+    
+    # Проверка на существующего пользователя
+    existing = db.query(User).filter(User.phone == phone).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Пользователь с таким номером уже существует")
+    
+    # Создаем пользователя (НЕАКТИВЕН до подтверждения)
+    hashed_password = hash_password(password)
+    new_user = User(
+        phone=phone,
+        full_name=full_name,
+        password=hashed_password,
+        role=UserRole.COURIER,
+        is_active=False,  # ← НЕАКТИВЕН ДО ПОДТВЕРЖДЕНИЯ!
+        created_at=datetime.utcnow()
+    )
+    db.add(new_user)
+    db.flush()
+    
+    # Создаем профиль курьера (НЕ ПОДТВЕРЖДЕН)
+    courier_profile = CourierProfile(
+        user_id=new_user.id,
+        car_model=car_model,
+        car_number=car_number,
+        is_verified=False,  # ← НЕ ПОДТВЕРЖДЕН
+        rating=5.0,
+        total_deliveries=0,
+        created_at=datetime.utcnow()
+    )
+    db.add(courier_profile)
+    db.commit()
+    
+    return {
+        "success": True, 
+        "message": "Заявка на регистрацию отправлена. Дождитесь подтверждения администратора.",
+        "user_id": new_user.id,
+        "pending_verification": True
+    }
+
+
+
+# ============ АДМИН: УПРАВЛЕНИЕ ЗАЯВКАМИ КУРЬЕРОВ ============
+
+@app.get("/admin/api/courier-requests")
+async def admin_get_courier_requests(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Админ получает список неподтвержденных курьеров"""
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    # Ищем курьеров, которые не подтверждены
+    pending_couriers = db.query(CourierProfile).filter(
+        CourierProfile.is_verified == False
+    ).all()
+    
+    result = []
+    for cp in pending_couriers:
+        user = db.query(User).filter(User.id == cp.user_id).first()
+        if user:
+            result.append({
+                "id": cp.id,
+                "user_id": user.id,
+                "full_name": user.full_name,
+                "phone": user.phone,
+                "car_model": cp.car_model,
+                "car_number": cp.car_number,
+                "created_at": cp.created_at.isoformat() if cp.created_at else None,
+                "status": "pending"
+            })
+    
+    return {"requests": result}
+
+
+@app.get("/admin/api/verified-couriers")
+async def admin_get_verified_couriers(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Админ получает список подтвержденных курьеров"""
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    verified_couriers = db.query(CourierProfile).filter(
+        CourierProfile.is_verified == True
+    ).all()
+    
+    result = []
+    for cp in verified_couriers:
+        user = db.query(User).filter(User.id == cp.user_id).first()
+        if user:
+            result.append({
+                "id": cp.id,
+                "user_id": user.id,
+                "full_name": user.full_name,
+                "phone": user.phone,
+                "car_model": cp.car_model,
+                "car_number": cp.car_number,
+                "total_deliveries": cp.total_deliveries,
+                "rating": cp.rating,
+                "verified_at": cp.verified_at.isoformat() if cp.verified_at else None,
+                "status": "verified"
+            })
+    
+    return {"couriers": result}
+
+@app.post("/admin/api/courier/approve/{courier_profile_id}")
+async def admin_approve_courier(
+    courier_profile_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Админ подтверждает курьера"""
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    courier_profile = db.query(CourierProfile).filter(
+        CourierProfile.id == courier_profile_id
+    ).first()
+    
+    if not courier_profile:
+        raise HTTPException(status_code=404, detail="Courier profile not found")
+    
+    if courier_profile.is_verified:
+        raise HTTPException(status_code=400, detail="Courier already verified")
+    
+    # Обновляем статус
+    courier_profile.is_verified = True
+    courier_profile.verified_at = datetime.utcnow()
+    
+    # Активируем пользователя
+    user = db.query(User).filter(User.id == courier_profile.user_id).first()
+    if user:
+        user.is_active = True
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Курьер {user.full_name if user else ''} подтвержден",
+        "courier_id": courier_profile.id
+    }
+
+@app.post("/admin/api/courier/reject/{courier_profile_id}")
+async def admin_reject_courier(
+    courier_profile_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Админ отклоняет заявку курьера"""
+    admin = get_current_admin(request)
+    if not admin:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    data = await request.json()
+    reason = data.get("reason", "Не указана")
+    
+    courier_profile = db.query(CourierProfile).filter(
+        CourierProfile.id == courier_profile_id
+    ).first()
+    
+    if not courier_profile:
+        raise HTTPException(status_code=404, detail="Courier profile not found")
+    
+    if courier_profile.is_verified:
+        raise HTTPException(status_code=400, detail="Courier already verified")
+    
+    # Сохраняем причину отказа
+    courier_profile.rejected_reason = reason
+    
+    # Удаляем или помечаем как отклоненного
+    user = db.query(User).filter(User.id == courier_profile.user_id).first()
+    if user:
+        user.is_active = False
+    
+    db.delete(courier_profile)
+    db.delete(user)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Заявка курьера отклонена. Причина: {reason}"
+    }
+
+
+
 # ============ REFUND SYSTEM ============
 
 class RefundRequest(BaseModel):
     order_id: int
     reason: str
+
+
+
+
+# ============ АВТОМАТИЧЕСКОЕ НАЗНАЧЕНИЕ КУРЬЕРА ============
+
+def find_best_courier(supplier_id: int, db: Session):
+    """Находит лучшего доступного курьера (с наименьшим количеством активных заказов и самым высоким рейтингом)"""
+    
+    couriers = db.query(CourierProfile).filter(
+        CourierProfile.supplier_id == supplier_id
+    ).all()
+    
+    if not couriers:
+        return None
+    
+    courier_stats = []
+    for courier in couriers:
+        user = db.query(User).filter(User.id == courier.user_id, User.is_active == True).first()
+        if not user:
+            continue
+            
+        active_orders_count = db.query(AssignedOrder).filter(
+            AssignedOrder.courier_id == courier.user_id,
+            AssignedOrder.status == "assigned"
+        ).count()
+        
+        courier_stats.append({
+            "profile": courier,
+            "user": user,
+            "active_orders": active_orders_count,
+            "rating": courier.rating or 5.0
+        })
+    
+    if not courier_stats:
+        return None
+    
+    courier_stats.sort(key=lambda x: (x["active_orders"], -x["rating"]))
+    
+    return courier_stats[0]
+
+
+@app.post("/api/supplier/auto-assign-courier/{order_id}")
+async def auto_assign_courier(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Автоматически назначает лучшего курьера на заказ"""
+    supplier_id = request.cookies.get("supplier_id")
+    if not supplier_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.supplier_id == int(supplier_id)
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.status != OrderStatus.CONFIRMED:
+        raise HTTPException(status_code=400, detail="Order not confirmed yet")
+    
+    best_courier_data = find_best_courier(int(supplier_id), db)
+    
+    if not best_courier_data:
+        return {
+            "success": False,
+            "message": "Нет доступных курьеров. Добавьте курьера в разделе 'Курьеры'"
+        }
+    
+    best_courier = best_courier_data["profile"]
+    courier_user = best_courier_data["user"]
+    
+    # Создаем назначение
+    assignment = AssignedOrder(
+        order_id=order_id,
+        courier_id=best_courier.user_id,
+        status="assigned",
+        assigned_at=datetime.utcnow()
+    )
+    db.add(assignment)
+    
+    # Обновляем статус заказа
+    order.status = OrderStatus.OUT_FOR_DELIVERY
+    order.delivery_started_at = datetime.utcnow()
+    order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
+    order.assigned_courier_id = best_courier.user_id
+    
+    # Увеличиваем счетчик доставок курьера
+    best_courier.total_deliveries = (best_courier.total_deliveries or 0) + 1
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Курьер {courier_user.full_name} автоматически назначен",
+        "courier": {
+            "id": best_courier.id,
+            "name": courier_user.full_name,
+            "phone": courier_user.phone,
+            "car_model": best_courier.car_model,
+            "car_number": best_courier.car_number,
+            "rating": best_courier.rating
+        }
+    }
+
+
+@app.get("/api/supplier/available-couriers")
+async def get_available_couriers(request: Request, db: Session = Depends(get_db)):
+    """Получить список доступных курьеров для поставщика"""
+    supplier_id = request.cookies.get("supplier_id")
+    if not supplier_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    couriers = db.query(CourierProfile).filter(
+        CourierProfile.supplier_id == int(supplier_id)
+    ).all()
+    
+    result = []
+    for c in couriers:
+        user = db.query(User).filter(User.id == c.user_id, User.is_active == True).first()
+        if user:
+            active_orders = db.query(AssignedOrder).filter(
+                AssignedOrder.courier_id == c.user_id,
+                AssignedOrder.status == "assigned"
+            ).count()
+            
+            result.append({
+                "id": c.id,
+                "user_id": user.id,
+                "name": user.full_name,
+                "phone": user.phone,
+                "car_model": c.car_model,
+                "car_number": c.car_number,
+                "rating": c.rating or 5.0,
+                "total_deliveries": c.total_deliveries or 0,
+                "active_orders": active_orders
+            })
+    
+    return {"couriers": result}
+
+
+@app.post("/api/supplier/assign-courier")
+async def assign_courier_to_order(request: Request, db: Session = Depends(get_db)):
+    """Ручное назначение курьера на заказ"""
+    supplier_id = request.cookies.get("supplier_id")
+    if not supplier_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    order_id = data.get("order_id")
+    courier_profile_id = data.get("courier_profile_id")
+    
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.supplier_id == int(supplier_id)
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.status != OrderStatus.CONFIRMED:
+        raise HTTPException(status_code=400, detail="Order not confirmed yet")
+    
+    courier_profile = db.query(CourierProfile).filter(
+        CourierProfile.id == courier_profile_id,
+        CourierProfile.supplier_id == int(supplier_id)
+    ).first()
+    
+    if not courier_profile:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    user = db.query(User).filter(User.id == courier_profile.user_id).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=400, detail="Courier not active")
+    
+    # Создаем назначение
+    assignment = AssignedOrder(
+        order_id=order_id,
+        courier_id=courier_profile.user_id,
+        status="assigned",
+        assigned_at=datetime.utcnow()
+    )
+    db.add(assignment)
+    
+    # Обновляем статус заказа
+    order.status = OrderStatus.OUT_FOR_DELIVERY
+    order.delivery_started_at = datetime.utcnow()
+    order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
+    order.assigned_courier_id = courier_profile.user_id
+    
+    # Увеличиваем счетчик доставок курьера
+    courier_profile.total_deliveries = (courier_profile.total_deliveries or 0) + 1
+    
+    db.commit()
+    
+    return {
+        "success": True, 
+        "message": f"Курьер {user.full_name} назначен на заказ {order.order_number}",
+        "courier": {
+            "name": user.full_name,
+            "phone": user.phone
+        }
+    }
+
+
+@app.get("/api/order/{order_id}/delivery-status")
+async def get_delivery_status(order_id: int, db: Session = Depends(get_db)):
+    """Клиент получает информацию о курьере и доставке"""
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.assigned_courier_id:
+        courier = db.query(User).filter(User.id == order.assigned_courier_id).first()
+        courier_profile = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+        
+        remaining_seconds = 0
+        if order.delivery_deadline:
+            remaining = order.delivery_deadline - datetime.utcnow()
+            remaining_seconds = max(0, int(remaining.total_seconds()))
+        
+        return {
+            "success": True,
+            "has_courier": True,
+            "courier": {
+                "name": courier.full_name if courier else None,
+                "phone": courier.phone if courier else None,
+                "car_model": courier_profile.car_model if courier_profile else None,
+                "car_number": courier_profile.car_number if courier_profile else None,
+                "rating": courier_profile.rating if courier_profile else None
+            },
+            "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None,
+            "remaining_seconds": remaining_seconds,
+            "status": order.status.value if order.status else None
+        }
+    
+    return {"success": True, "has_courier": False}
+
+
+# В main.py добавьте этот эндпоинт
+@app.get("/api/order/{order_id}/delivery-info")
+async def get_delivery_info(order_id: int, db: Session = Depends(get_db)):
+    """Клиент получает полную информацию о доставке"""
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    result = {
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "status": order.status.value if order.status else "pending",
+        "payment_status": order.payment_status,
+        "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None,
+        "has_courier": False
+    }
+    
+    if order.assigned_courier_id:
+        courier = db.query(User).filter(User.id == order.assigned_courier_id).first()
+        courier_profile = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+        
+        remaining_seconds = 0
+        if order.delivery_deadline:
+            remaining = order.delivery_deadline - datetime.utcnow()
+            remaining_seconds = max(0, int(remaining.total_seconds()))
+        
+        result["has_courier"] = True
+        result["courier"] = {
+            "name": courier.full_name if courier else None,
+            "phone": courier.phone if courier else None,
+            "car_model": courier_profile.car_model if courier_profile else None,
+            "car_number": courier_profile.car_number if courier_profile else None,
+            "rating": courier_profile.rating if courier_profile else None
+        }
+        result["remaining_seconds"] = remaining_seconds
+    
+    return result
+
+
 
 
 # ============ АДМИН: ПОДТВЕРЖДЕНИЕ ОПЛАТЫ ============
@@ -3871,27 +4480,106 @@ async def add_courier(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/api/courier/orders")
 async def get_courier_orders(request: Request, db: Session = Depends(get_db)):
-    courier_id = request.cookies.get("courier_id")
-    if not courier_id:
-        return JSONResponse(status_code=401, content={"error": "Not authenticated"})
+    """Получить заказы, назначенные курьеру"""
+    token = request.cookies.get("courier_token")
+    if not token or token not in courier_sessions:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # Находим, к какому поставщику привязан курьер
-    courier_profile = db.query(CourierProfile).filter(
-        CourierProfile.user_id == int(courier_id)
-    ).first()
+    session = courier_sessions[token]
+    courier_id = session["courier_id"]
     
-    if not courier_profile or not courier_profile.supplier_id:
-        return {"orders": []}
-    
-    # Получаем заказы ТОЛЬКО этого поставщика
-    orders = db.query(Order).filter(
-        Order.supplier_id == courier_profile.supplier_id,
-        Order.status.in_([OrderStatus.OUT_FOR_DELIVERY, OrderStatus.PENDING])
+    # Находим заказы, назначенные этому курьеру
+    assignments = db.query(AssignedOrder).filter(
+        AssignedOrder.courier_id == courier_id,
+        AssignedOrder.status == "assigned"
     ).all()
     
-    return {"orders": [...]}
+    order_ids = [a.order_id for a in assignments]
+    
+    orders = db.query(Order).filter(Order.id.in_(order_ids)).order_by(Order.created_at.desc()).all()
+    
+    result = []
+    for order in orders:
+        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+        result.append({
+            "id": order.id,
+            "order_number": order.order_number,
+            "customer_address": order.customer_address,
+            "customer_lat": order.customer_lat,
+            "customer_lon": order.customer_lon,
+            "supplier_name": supplier.business_name if supplier else "",
+            "supplier_address": supplier.address if supplier else "",
+            "supplier_lat": supplier.lat if supplier else 0,
+            "supplier_lon": supplier.lon if supplier else 0,
+            "status": order.status.value if order.status else "pending",
+            "amount": order.amount_paid or 0,
+            "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None
+        })
+    
+    return {"orders": result}
 
 
+
+@app.post("/api/courier/orders/{order_id}/status")
+async def update_courier_order_status(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Курьер обновляет статус заказа"""
+    token = request.cookies.get("courier_token")
+    if not token or token not in courier_sessions:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    new_status = data.get("status")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if new_status == "picked_up":
+        order.status = OrderStatus.OUT_FOR_DELIVERY
+    elif new_status == "delivered":
+        order.status = OrderStatus.DELIVERED
+        order.delivered_at = datetime.utcnow()
+    
+    db.commit()
+    
+    return {"success": True, "message": f"Status updated to {new_status}"}
+
+@app.post("/api/courier/location")
+async def update_courier_location(request: Request, db: Session = Depends(get_db)):
+    """Обновление GPS-координат курьера"""
+    token = request.cookies.get("courier_token")
+    if not token or token not in courier_sessions:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    order_id = data.get("order_id")
+    lat = data.get("lat")
+    lon = data.get("lon")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if order:
+        order.driver_lat = lat
+        order.driver_lon = lon
+        order.last_location_update = datetime.utcnow()
+        db.commit()
+    
+    return {"success": True}
+
+
+@app.post("/api/courier/logout")
+async def courier_logout(request: Request):
+    """Выход курьера"""
+    token = request.cookies.get("courier_token")
+    if token in courier_sessions:
+        del courier_sessions[token]
+    
+    response = JSONResponse({"success": True})
+    response.delete_cookie("courier_token")
+    return response
 
 @app.get("/supplier/couriers")
 async def get_supplier_couriers(request: Request, db: Session = Depends(get_db)):
@@ -3960,9 +4648,37 @@ async def supplier_couriers_page(request: Request, db: Session = Depends(get_db)
     })
 
 
+@app.get("/supplier/orders")
+async def supplier_orders_page(request: Request, db: Session = Depends(get_db)):
+    """Страница всех заказов поставщика"""
+    supplier_id = request.cookies.get("supplier_id")
+    if not supplier_id:
+        return RedirectResponse(url="/supplier/login", status_code=303)
+    
+    supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
+    if not supplier:
+        return RedirectResponse(url="/supplier/login", status_code=303)
+    
+    return templates.TemplateResponse("supplier_orders.html", {
+        "request": request,
+        "supplier": supplier
+    })
 
-
-
+@app.get("/supplier/surprise-bags")
+async def supplier_bags_page(request: Request, db: Session = Depends(get_db)):
+    """Страница управления сюрпризами поставщика"""
+    supplier_id = request.cookies.get("supplier_id")
+    if not supplier_id:
+        return RedirectResponse(url="/supplier/login", status_code=303)
+    
+    supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
+    if not supplier:
+        return RedirectResponse(url="/supplier/login", status_code=303)
+    
+    return templates.TemplateResponse("supplier_bags.html", {
+        "request": request,
+        "supplier": supplier
+    })
 # ============ RUN APP ============
 if __name__ == "__main__":
     import uvicorn
