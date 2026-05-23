@@ -90,6 +90,292 @@ import json
 courier_sessions = {}
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# backend/main.py - добавьте WebSocket для курьеров
+
+@app.websocket("/ws/courier-tracking")
+async def courier_tracking_websocket(websocket: WebSocket):
+    """WebSocket для отслеживания курьеров в реальном времени"""
+    await websocket.accept()
+    
+    # Получаем ID курьера из cookies
+    user_id = websocket.cookies.get("user_id")
+    
+    if not user_id:
+        print("❌ WebSocket: нет user_id в cookies")
+        await websocket.close(code=1008, reason="Not authenticated")
+        return
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    
+    if not courier:
+        print(f"❌ WebSocket: курьер с user_id {user_id} не найден")
+        await websocket.close(code=1008, reason="Courier not found")
+        return
+    
+    courier_id = courier.id
+    print(f"✅ WebSocket подключен для курьера {courier_id}")
+    
+    # Добавляем в список активных соединений
+    if courier_id not in courier_connections:
+        courier_connections[courier_id] = []
+    courier_connections[courier_id].append(websocket)
+    
+    try:
+        # Отправляем приветственное сообщение
+        await websocket.send_json({
+            "type": "connected",
+            "message": "Connected to courier tracking",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        # Держим соединение открытым
+        while True:
+            data = await websocket.receive_text()
+            try:
+                message = json.loads(data)
+                if message.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except:
+                pass
+                
+    except WebSocketDisconnect:
+        print(f"🔌 WebSocket отключен для курьера {courier_id}")
+    except Exception as e:
+        print(f"❌ WebSocket ошибка: {e}")
+    finally:
+        # Удаляем соединение
+        if courier_id in courier_connections:
+            if websocket in courier_connections[courier_id]:
+                courier_connections[courier_id].remove(websocket)
+            if not courier_connections[courier_id]:
+                del courier_connections[courier_id]
+
+# Глобальный словарь для WebSocket соединений курьеров
+courier_connections = {}
+
+
+# ============ ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ============
+
+@app.get("/api/courier/available-orders")
+async def get_available_orders_for_courier(request: Request, db: Session = Depends(get_db)):
+    """Получить список доступных заказов для курьера"""
+    
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Проверяем, что пользователь - курьер
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    
+    if not courier:
+        raise HTTPException(status_code=403, detail="Not a courier")
+    
+    # Получаем текущую позицию курьера
+    courier_lat = courier.current_lat
+    courier_lon = courier.current_lon
+    
+    if not courier_lat or not courier_lon:
+        # Если нет позиции, возвращаем пустой список
+        return {"success": True, "orders": [], "message": "Позиция не определена"}
+    
+    # Ищем заказы со статусом PENDING и CONFIRMED
+    available_orders = db.query(Order).filter(
+        Order.status.in_([OrderStatus.PENDING, OrderStatus.CONFIRMED]),
+        Order.assigned_courier_id == None
+    ).all()
+    
+    available_orders_list = []
+    
+    for order in available_orders:
+        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+        
+        if supplier and supplier.lat and supplier.lon:
+            # Рассчитываем расстояние до ресторана
+            distance = haversine_distance(
+                courier_lat, courier_lon,
+                supplier.lat, supplier.lon
+            )
+            
+            # Показываем заказы в радиусе 10 км
+            if distance <= 10.0:
+                bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+                
+                available_orders_list.append({
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "supplier_name": supplier.business_name,
+                    "supplier_address": supplier.address,
+                    "distance_km": round(distance, 2),
+                    "estimated_time_minutes": int((distance / courier.speed_kmh) * 60),
+                    "amount": order.amount_paid or 0,
+                    "bag_name": bag.name if bag else "Surprise Bag",
+                    "customer_address": order.customer_address
+                })
+    
+    # Сортируем по расстоянию
+    available_orders_list.sort(key=lambda x: x["distance_km"])
+    
+    return {
+        "success": True,
+        "orders": available_orders_list[:10],  # Максимум 10 заказов
+        "count": len(available_orders_list)
+    }
+
+
+@app.get("/api/couriers/online")
+async def get_online_couriers(db: Session = Depends(get_db)):
+    """Получить всех онлайн курьеров для карты"""
+    
+    couriers = db.query(CourierProfile).filter(
+        CourierProfile.is_online == True,
+        CourierProfile.is_verified == True
+    ).all()
+    
+    result = []
+    for c in couriers:
+        result.append({
+            "id": c.id,
+            "user_id": c.user_id,
+            "first_name": c.first_name,
+            "last_name": c.last_name,
+            "phone": c.phone,
+            "courier_type": c.courier_type,
+            "car_model": c.car_model,
+            "car_number": c.car_number,
+            "current_lat": c.current_lat,
+            "current_lon": c.current_lon,
+            "current_order_status": c.current_order_status,
+            "rating": c.rating,
+            "total_deliveries": c.total_deliveries
+        })
+    
+    return {"success": True, "couriers": result}
+
+
+@app.post("/api/courier/respond-to-proposal")
+async def respond_to_proposal(request: Request, db: Session = Depends(get_db)):
+    """Курьер отвечает на предложение заказа"""
+    
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    response = data.get("response")  # "accept" или "decline"
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    if not courier.proposed_order_id:
+        return {"success": False, "message": "Нет предложенных заказов"}
+    
+    # Проверяем, не истекло ли предложение
+    if courier.proposed_order_expires_at and courier.proposed_order_expires_at < datetime.utcnow():
+        courier.proposed_order_id = None
+        db.commit()
+        return {"success": False, "message": "Предложение истекло"}
+    
+    if response == "accept":
+        order = db.query(Order).filter(Order.id == courier.proposed_order_id).first()
+        if order and order.status == OrderStatus.PENDING:
+            order.assigned_courier_id = courier.user_id
+            order.status = OrderStatus.CONFIRMED
+            
+            if courier.current_order_id:
+                # Ставим в очередь
+                message = "Заказ добавлен в очередь"
+            else:
+                courier.current_order_id = courier.proposed_order_id
+                courier.current_order_status = "assigned"
+                courier.is_available = False
+                message = "Заказ назначен!"
+            
+            courier.proposed_order_id = None
+            db.commit()
+            
+            # Уведомляем через WebSocket
+            await manager.broadcast({
+                "type": "order_assigned",
+                "order_id": order.id,
+                "courier_id": courier.id
+            }, channel="orders")
+            
+            return {"success": True, "message": message, "order_id": order.id}
+    
+    else:  # decline
+        courier.proposed_order_id = None
+        db.commit()
+        return {"success": True, "message": "Предложение отклонено"}
+    
+    return {"success": False, "message": "Ошибка"}
+
+
+@app.post("/api/courier/accept-order/{order_id}")
+async def courier_accept_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Курьер принимает заказ из списка"""
+    
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.status not in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
+        raise HTTPException(status_code=400, detail="Заказ уже назначен")
+    
+    if courier.current_order_id:
+        raise HTTPException(status_code=400, detail="У вас уже есть активный заказ")
+    
+    # Назначаем заказ
+    order.assigned_courier_id = courier.user_id
+    order.status = OrderStatus.CONFIRMED
+    courier.current_order_id = order_id
+    courier.current_order_status = "assigned"
+    courier.is_available = False
+    
+    db.commit()
+    
+    return {"success": True, "message": "Заказ принят", "order_id": order_id}
+
+
+
+
+
+
+
+
+
+
+
+
 # backend/main.py - добавьте
 
 @app.get("/api/cart/reservation")
