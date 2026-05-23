@@ -412,6 +412,8 @@ async def courier_complete_order(order_id: int, request: Request, db: Session = 
 # backend/main.py - убедитесь что эндпоинт возвращает success
 # backend/main.py - исправьте эндпоинт логина курьера
 
+# backend/main.py - исправленный эндпоинт
+
 @app.post("/api/courier/login")
 async def courier_login(request: Request, db: Session = Depends(get_db)):
     """Логин для курьеров"""
@@ -421,58 +423,44 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
     
     print(f"🔐 Попытка входа курьера: {phone}")
     
-    # Ищем пользователя с ролью курьера
+    # Ищем пользователя
     user = db.query(User).filter(
         User.phone == phone,
         User.role == UserRole.COURIER
     ).first()
     
     if not user:
-        print(f"❌ Курьер не найден: {phone}")
         raise HTTPException(status_code=401, detail="Неверный телефон или пароль")
     
     if not verify_password(password, user.password):
-        print(f"❌ Неверный пароль для: {phone}")
         raise HTTPException(status_code=401, detail="Неверный телефон или пароль")
     
-    # Проверяем верификацию
     courier = db.query(CourierProfile).filter(CourierProfile.user_id == user.id).first()
     
-    if not courier:
-        raise HTTPException(status_code=401, detail="Профиль курьера не найден")
+    if not courier or not courier.is_verified:
+        raise HTTPException(status_code=403, detail="Аккаунт не подтвержден")
     
-    if not courier.is_verified:
-        print(f"⏳ Курьер не верифицирован: {phone}")
-        raise HTTPException(status_code=403, detail="Ваша заявка на рассмотрении")
-    
-    if not user.is_active:
-        print(f"⏳ Аккаунт не активен: {phone}")
-        raise HTTPException(status_code=403, detail="Аккаунт не активирован")
-    
-    print(f"✅ Успешный вход курьера: {phone}")
-    
-    # ✅ СОЗДАЕМ ОТВЕТ С КУКАМИ (ВАЖНО: domain и secure)
+    # ✅ СОЗДАЕМ ОТВЕТ С ПРАВИЛЬНЫМИ КУКАМИ
     response = JSONResponse({
         "success": True,
-        "message": "Вход выполнен успешно",
+        "message": "Вход выполнен",
         "courier": {
-            "id": user.id,
+            "id": courier.id,
             "first_name": courier.first_name,
             "last_name": courier.last_name,
             "phone": user.phone,
-            "is_verified": courier.is_verified,
-            "courier_type": courier.courier_type
+            "is_verified": courier.is_verified
         }
     })
     
-    # ✅ ПРАВИЛЬНАЯ УСТАНОВКА COOKIE
+    # ✅ Устанавливаем cookie с правильными параметрами
     response.set_cookie(
         key="user_id",
         value=str(user.id),
         httponly=True,
-        samesite="lax",
-        secure=True,  # Важно для HTTPS
-        max_age=60*60*24*30,  # 30 дней
+        samesite="none",  # ← ВАЖНО для cross-domain
+        secure=True,       # ← ВАЖНО для HTTPS
+        max_age=60*60*24*30,
         path="/"
     )
     
@@ -480,18 +468,7 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
         key="courier_id",
         value=str(courier.id),
         httponly=True,
-        samesite="lax",
-        secure=True,
-        max_age=60*60*24*30,
-        path="/"
-    )
-    
-    # ✅ ДОБАВЛЯЕМ КУКУ ДЛЯ ОТЛАДКИ
-    response.set_cookie(
-        key="courier_logged_in",
-        value="true",
-        httponly=False,  # Чтобы можно было прочитать в JS
-        samesite="lax",
+        samesite="none",
         secure=True,
         max_age=60*60*24*30,
         path="/"
