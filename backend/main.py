@@ -125,49 +125,296 @@ async def get_courier_info(request: Request, db: Session = Depends(get_db)):
 
 
 
+# backend/main.py - добавьте в конец файла
+
+# ============ COURIER ENDPOINTS ============
+
+@app.post("/courier/register")
+async def courier_register(request: Request, db: Session = Depends(get_db)):
+    """Регистрация курьера"""
+    data = await request.json()
+    
+    first_name = data.get("first_name")
+    last_name = data.get("last_name")
+    phone = format_phone_number(data.get("phone"))
+    password = data.get("password")
+    courier_type = data.get("courier_type", "pedestrian")
+    car_model = data.get("car_model", "")
+    car_number = data.get("car_number", "")
+    
+    if not first_name or not last_name or not phone or not password:
+        raise HTTPException(status_code=400, detail="Все поля обязательны")
+    
+    existing = db.query(User).filter(User.phone == phone).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Пользователь с таким номером уже существует")
+    
+    speed = 5.0 if courier_type == "pedestrian" else 40.0
+    radius = 3.0 if courier_type == "pedestrian" else 15.0
+    
+    hashed_password = hash_password(password)
+    full_name = f"{first_name} {last_name}"
+    
+    new_user = User(
+        phone=phone,
+        first_name=first_name,
+        last_name=last_name,
+        full_name=full_name,
+        password=hashed_password,
+        role=UserRole.COURIER,
+        is_active=False,
+        created_at=datetime.utcnow()
+    )
+    db.add(new_user)
+    db.flush()
+    
+    courier_profile = CourierProfile(
+        user_id=new_user.id,
+        first_name=first_name,
+        last_name=last_name,
+        phone=phone,
+        courier_type=courier_type,
+        car_model=car_model if courier_type == "driver" else None,
+        car_number=car_number if courier_type == "driver" else None,
+        speed_kmh=speed,
+        delivery_radius_km=radius,
+        is_verified=False,
+        created_at=datetime.utcnow()
+    )
+    db.add(courier_profile)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Заявка отправлена на рассмотрение",
+        "courier_id": new_user.id
+    }
+
+
+@app.post("/api/courier/go-online")
+async def courier_go_online(request: Request, db: Session = Depends(get_db)):
+    """Курьер выходит на линию"""
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    lat = data.get("lat")
+    lon = data.get("lon")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    if not courier.is_verified:
+        raise HTTPException(status_code=403, detail="Курьер не верифицирован")
+    
+    courier.is_online = True
+    courier.is_available = True
+    courier.last_online_at = datetime.utcnow()
+    
+    if lat and lon:
+        courier.current_lat = lat
+        courier.current_lon = lon
+        courier.last_location_update = datetime.utcnow()
+    
+    db.commit()
+    
+    return {"success": True, "message": "Вы на линии", "is_online": True}
+
+
+@app.post("/api/courier/go-offline")
+async def courier_go_offline(request: Request, db: Session = Depends(get_db)):
+    """Курьер уходит с линии"""
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    if courier.current_order_id:
+        raise HTTPException(status_code=400, detail="У вас есть активный заказ")
+    
+    courier.is_online = False
+    courier.is_available = False
+    courier.last_offline_at = datetime.utcnow()
+    db.commit()
+    
+    return {"success": True, "message": "Вы офлайн", "is_online": False}
+
+
+@app.post("/api/courier/update-location")
+async def update_courier_location(request: Request, db: Session = Depends(get_db)):
+    """Обновление геолокации курьера (автоматически каждые 3 секунды)"""
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    lat = data.get("lat")
+    lon = data.get("lon")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    courier.current_lat = lat
+    courier.current_lon = lon
+    courier.last_location_update = datetime.utcnow()
+    
+    # Автоматическое определение "почти закончил" (менее 500м до клиента)
+    if courier.current_order_id:
+        order = db.query(Order).filter(Order.id == courier.current_order_id).first()
+        if order and order.customer_lat:
+            from math import radians, sin, cos, sqrt, atan2
+            def haversine(lat1, lon1, lat2, lon2):
+                R = 6371
+                dlat = radians(lat2 - lat1)
+                dlon = radians(lon2 - lon1)
+                a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+                c = 2 * atan2(sqrt(a), sqrt(1-a))
+                return R * c
+            
+            distance_km = haversine(lat, lon, order.customer_lat, order.customer_lon)
+            if distance_km <= 0.5 and courier.current_order_status != "almost_done":
+                courier.current_order_status = "almost_done"
+    
+    db.commit()
+    
+    return {"success": True, "status": courier.current_order_status}
+
+
+@app.get("/api/courier/status")
+async def get_courier_status(request: Request, db: Session = Depends(get_db)):
+    """Получить статус курьера"""
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    return {
+        "success": True,
+        "is_online": courier.is_online,
+        "is_available": courier.is_available,
+        "is_verified": courier.is_verified,
+        "current_order_id": courier.current_order_id,
+        "current_order_status": courier.current_order_status,
+        "courier_type": courier.courier_type,
+        "rating": courier.rating,
+        "total_deliveries": courier.total_deliveries,
+        "first_name": courier.first_name,
+        "last_name": courier.last_name
+    }
+
+
+@app.get("/api/couriers/online")
+async def get_online_couriers(db: Session = Depends(get_db)):
+    """Получить всех онлайн курьеров (для карты)"""
+    couriers = db.query(CourierProfile).filter(
+        CourierProfile.is_online == True,
+        CourierProfile.is_verified == True
+    ).all()
+    
+    result = []
+    for c in couriers:
+        result.append({
+            "id": c.id,
+            "user_id": c.user_id,
+            "first_name": c.first_name,
+            "last_name": c.last_name,
+            "phone": c.phone,
+            "courier_type": c.courier_type,
+            "car_model": c.car_model,
+            "car_number": c.car_number,
+            "current_lat": c.current_lat,
+            "current_lon": c.current_lon,
+            "current_order_status": c.current_order_status,
+            "rating": c.rating,
+            "total_deliveries": c.total_deliveries
+        })
+    
+    return {"success": True, "couriers": result}
+
+
+@app.post("/api/courier/complete-order/{order_id}")
+async def courier_complete_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Курьер завершил доставку"""
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    order.status = OrderStatus.DELIVERED
+    order.delivered_at = datetime.utcnow()
+    
+    courier.current_order_id = None
+    courier.current_order_status = None
+    courier.is_available = True
+    courier.total_deliveries += 1
+    courier.completed_orders_today += 1
+    courier.last_order_completed_at = datetime.utcnow()
+    
+    db.commit()
+    
+    return {"success": True, "message": "Заказ доставлен"}
 
 
 
 
 
 
+# backend/main.py - добавьте логин для курьера
 
 @app.post("/api/courier/login")
 async def courier_login(request: Request, db: Session = Depends(get_db)):
-    """Вход для курьеров (только подтвержденные)"""
+    """Логин для курьеров"""
     data = await request.json()
-    phone = data.get("phone")
+    phone = format_phone_number(data.get("phone"))
     password = data.get("password")
     
-    formatted_phone = format_phone_number(phone)
-    
-    # Ищем пользователя
     user = db.query(User).filter(
-        User.phone == formatted_phone,
+        User.phone == phone,
         User.role == UserRole.COURIER
     ).first()
     
-    if not user:
+    if not user or not verify_password(password, user.password):
         raise HTTPException(status_code=401, detail="Неверный телефон или пароль")
-    
-    # Проверяем пароль
-    if not verify_password(password, user.password):
-        raise HTTPException(status_code=401, detail="Неверный телефон или пароль")
-    
-    # Проверяем, подтвержден ли курьер админом
-    courier_profile = db.query(CourierProfile).filter(
-        CourierProfile.user_id == user.id
-    ).first()
-    
-    if not courier_profile or not courier_profile.is_verified:
-        raise HTTPException(status_code=403, detail="Ваша учетная запись еще не подтверждена администратором")
     
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Учетная запись заблокирована")
-
-
-
-
+        raise HTTPException(status_code=403, detail="Ваша учетная запись ожидает подтверждения администратора")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == user.id).first()
+    
+    if not courier.is_verified:
+        raise HTTPException(status_code=403, detail="Ваша заявка на рассмотрении")
+    
+    response = JSONResponse({
+        "success": True,
+        "courier": {
+            "id": user.id,
+            "first_name": courier.first_name,
+            "last_name": courier.last_name,
+            "phone": user.phone,
+            "is_verified": courier.is_verified
+        }
+    })
+    
+    response.set_cookie(key="user_id", value=str(user.id), httponly=True, samesite="lax", max_age=60*60*24*30)
+    response.set_cookie(key="courier_id", value=str(courier.id), httponly=True, samesite="lax", max_age=60*60*24*30)
+    
+    return response
 
     # Создаем сессию
     token = secrets.token_urlsafe(32)
@@ -202,55 +449,77 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
     
     return response
 
-@app.post("/courier/register")
-async def courier_register(request: Request, db: Session = Depends(get_db)):
-    """Регистрация нового курьера (требует подтверждения админом)"""
+# main.py - регистрация с выбором типа
+
+
+@app.post("/api/couriers/find-nearest")
+async def find_nearest_courier(request: Request, db: Session = Depends(get_db)):
+    """Найти ближайшего свободного курьера для заказа"""
     data = await request.json()
     
-    phone = format_phone_number(data.get("phone"))
-    full_name = data.get("full_name")
-    password = data.get("password")
-    car_model = data.get("car_model")
-    car_number = data.get("car_number")
+    restaurant_lat = data.get("restaurant_lat")
+    restaurant_lon = data.get("restaurant_lon")
+    order_id = data.get("order_id")
     
-    # Проверка на существующего пользователя
-    existing = db.query(User).filter(User.phone == phone).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Пользователь с таким номером уже существует")
+    # Ищем активных и свободных курьеров
+    available_couriers = db.query(CourierProfile).filter(
+        CourierProfile.is_verified == True,
+        CourierProfile.is_active == True,
+        CourierProfile.is_available == True
+    ).all()
     
-    # Создаем пользователя (НЕАКТИВЕН до подтверждения)
-    hashed_password = hash_password(password)
-    new_user = User(
-        phone=phone,
-        full_name=full_name,
-        password=hashed_password,
-        role=UserRole.COURIER,
-        is_active=False,  # ← НЕАКТИВЕН ДО ПОДТВЕРЖДЕНИЯ!
-        created_at=datetime.utcnow()
-    )
-    db.add(new_user)
-    db.flush()
+    nearest_courier = None
+    min_distance = float('inf')
     
-    # Создаем профиль курьера (НЕ ПОДТВЕРЖДЕН)
-    courier_profile = CourierProfile(
-        user_id=new_user.id,
-        car_model=car_model,
-        car_number=car_number,
-        is_verified=False,  # ← НЕ ПОДТВЕРЖДЕН
-        rating=5.0,
-        total_deliveries=0,
-        created_at=datetime.utcnow()
-    )
-    db.add(courier_profile)
-    db.commit()
+    for courier in available_couriers:
+        # Если у курьера есть текущая локация
+        if courier.current_lat and courier.current_lon:
+            distance = haversine_distance(
+                restaurant_lat, restaurant_lon,
+                courier.current_lat, courier.current_lon
+            )
+            
+            # Проверяем, входит ли ресторан в радиус доставки курьера
+            if distance <= courier.delivery_radius_km and distance < min_distance:
+                min_distance = distance
+                nearest_courier = courier
     
-    return {
-        "success": True, 
-        "message": "Заявка на регистрацию отправлена. Дождитесь подтверждения администратора.",
-        "user_id": new_user.id,
-        "pending_verification": True
-    }
+    if nearest_courier:
+        # Рассчитываем ETA
+        eta_minutes = int((min_distance / nearest_courier.speed_kmh) * 60)
+        
+        # Назначаем курьера на заказ
+        if order_id:
+            order = db.query(Order).filter(Order.id == order_id).first()
+            if order:
+                order.assigned_courier_id = nearest_courier.user_id
+                order.delivery_started_at = datetime.utcnow()
+                order.delivery_deadline = datetime.utcnow() + timedelta(minutes=eta_minutes + 30)
+                db.commit()
+        
+        return {
+            "success": True,
+            "courier": {
+                "id": nearest_courier.id,
+                "first_name": nearest_courier.first_name,
+                "last_name": nearest_courier.last_name,
+                "phone": nearest_courier.phone,
+                "courier_type": nearest_courier.courier_type,
+                "car_model": nearest_courier.car_model,
+                "car_number": nearest_courier.car_number,
+                "distance_km": round(min_distance, 2),
+                "eta_minutes": eta_minutes,
+                "rating": nearest_courier.rating
+            }
+        }
+    else:
+        return {
+            "success": False,
+            "message": "Нет доступных курьеров поблизости"
+        }
+    
 
+# main.py - обновление геолокации курьера
 
 
 # ============ АДМИН: УПРАВЛЕНИЕ ЗАЯВКАМИ КУРЬЕРОВ ============
@@ -1461,33 +1730,24 @@ async def release_booking(
 
 
 # Обновите эндпоинт получения сюрприз-пакетов, чтобы исключить забронированные
+# backend/main.py - обновите эндпоинт получения сюрпризов
+
 @app.get("/api/surprise-bags")
 async def get_all_surprise_bags(db: Session = Depends(get_db)):
-    """Get available surprise bags (excluding booked ones)"""
-    
-    # Get all active bags
+    """Получить только доступные сюрпризы (is_active=True И available_quantity > 0)"""
     bags = db.query(SurpriseBag).filter(
         SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
+        SurpriseBag.available_quantity > 0  # ← ТОЛЬКО ЕСЛИ ЕСТЬ В НАЛИЧИИ
     ).all()
-    
-    # Get IDs of booked bags
-    booked_bag_ids = db.query(Order.surprise_bag_id).filter(
-        Order.status == OrderStatus.PENDING,
-        Order.payment_status == "pending",
-        Order.created_at > datetime.utcnow() - timedelta(minutes=15)
-    ).distinct().all()
-    
-    booked_ids = [b[0] for b in booked_bag_ids]
     
     result = []
     for bag in bags:
-        if bag.id not in booked_ids:
-            supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        if supplier and supplier.is_active:
             result.append({
                 "id": bag.id,
                 "supplier_id": bag.supplier_id,
-                "supplier_name": supplier.business_name if supplier else "Unknown",
+                "supplier_name": supplier.business_name,
                 "name": bag.name,
                 "description": bag.description,
                 "original_price": bag.original_price,
@@ -2056,9 +2316,11 @@ async def get_cart(request: Request, db: Session = Depends(get_db)):
     }
 
 
+# backend/main.py - добавьте или обновите эндпоинт добавления в корзину
+
 @app.post("/api/cart/add")
 async def add_to_cart(request: Request, db: Session = Depends(get_db)):
-    """Add item to cart"""
+    """Добавление товара в корзину с уменьшением количества"""
     user_id = request.cookies.get("user_id")
     
     if not user_id:
@@ -2068,7 +2330,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     bag_id = data.get("bag_id")
     quantity = data.get("quantity", 1)
     
-    # Check if bag exists and is available
+    # Проверяем наличие сюрприза
     bag = db.query(SurpriseBag).filter(
         SurpriseBag.id == bag_id,
         SurpriseBag.is_active == True,
@@ -2076,9 +2338,16 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     ).first()
     
     if not bag:
-        raise HTTPException(status_code=404, detail="Item not available")
+        raise HTTPException(status_code=404, detail="Товар недоступен")
     
-    # Check if item already in cart
+    # УМЕНЬШАЕМ КОЛИЧЕСТВО доступных сюрпризов
+    bag.available_quantity -= quantity
+    
+    # Проверяем, если количество стало 0, деактивируем
+    if bag.available_quantity <= 0:
+        bag.is_active = False
+    
+    # Добавляем в корзину
     existing = db.query(CartItem).filter(
         CartItem.user_id == int(user_id),
         CartItem.surprise_bag_id == bag_id
@@ -2086,7 +2355,6 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     
     if existing:
         existing.quantity += quantity
-        existing.updated_at = datetime.utcnow()
     else:
         cart_item = CartItem(
             user_id=int(user_id),
@@ -2097,15 +2365,18 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     
     db.commit()
     
-    # Get updated cart count
-    cart_count = db.query(CartItem).filter(
-        CartItem.user_id == int(user_id)
-    ).with_entities(func.sum(CartItem.quantity)).scalar() or 0
+    # Отправляем WebSocket уведомление об обновлении
+    await manager.broadcast({
+        "type": "bag_quantity_updated",
+        "bag_id": bag_id,
+        "available_quantity": bag.available_quantity,
+        "is_active": bag.is_active
+    }, channel="surprise_bags")
     
     return {
-        "success": True, 
-        "message": "Added to cart",
-        "cart_count": cart_count
+        "success": True,
+        "message": "Товар добавлен в корзину",
+        "available_quantity": bag.available_quantity
     }
 
 
@@ -2398,100 +2669,49 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # ============ WEBSOCKET ENDPOINT ============
+# backend/main.py - добавьте WebSocket обработку
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """Main WebSocket endpoint for real-time updates"""
     await manager.connect(websocket)
-    
     try:
-        # Send welcome message
-        await manager.send_personal_message({
-            "type": "connected",
-            "message": "Connected to Sarqyn Food WebSocket",
-            "timestamp": datetime.utcnow().isoformat(),
-            "channels": ["surprise_bags", "orders", "all"]
-        }, websocket)
-        
-        # Send initial data (optional)
-        await manager.send_personal_message({
-            "type": "ready",
-            "message": "Ready to receive updates",
-            "timestamp": datetime.utcnow().isoformat()
-        }, websocket)
-        
-        # Keep connection alive and listen for messages
         while True:
-            # Wait for messages from client
             data = await websocket.receive_text()
-            print(f"📨 Received from client: {data}")
+            message = json.loads(data)
             
-            try:
-                message = json.loads(data)
-                msg_type = message.get("type")
-                
-                # Handle different message types
-                if msg_type == "ping":
-                    # Respond to heartbeat ping
-                    await manager.send_personal_message({
-                        "type": "pong",
-                        "timestamp": datetime.utcnow().isoformat()
-                    }, websocket)
-                    print("💓 Heartbeat pong sent")
-                
-                elif msg_type == "subscribe":
-                    # Subscribe to channel
-                    channel = message.get("channel")
-                    if channel:
-                        await manager.subscribe(websocket, channel)
-                    else:
-                        await manager.send_personal_message({
-                            "type": "error",
-                            "message": "Channel name required for subscription",
-                            "timestamp": datetime.utcnow().isoformat()
-                        }, websocket)
-                
-                elif msg_type == "unsubscribe":
-                    # Unsubscribe from channel
-                    channel = message.get("channel")
-                    if channel:
-                        await manager.unsubscribe(websocket, channel)
-                
-                elif msg_type == "get_status":
-                    # Send connection status
-                    await manager.send_personal_message({
-                        "type": "status",
-                        "connected": True,
-                        "connections": len(manager.active_connections),
-                        "timestamp": datetime.utcnow().isoformat()
-                    }, websocket)
-                
-                else:
-                    # Unknown message type
-                    await manager.send_personal_message({
-                        "type": "unknown",
-                        "message": f"Unknown message type: {msg_type}",
-                        "timestamp": datetime.utcnow().isoformat()
-                    }, websocket)
-                    
-            except json.JSONDecodeError:
-                print(f"❌ Invalid JSON received: {data}")
-                await manager.send_personal_message({
-                    "type": "error",
-                    "message": "Invalid JSON format",
-                    "timestamp": datetime.utcnow().isoformat()
-                }, websocket)
-            except Exception as e:
-                print(f"❌ Error processing message: {e}")
-                await manager.send_personal_message({
-                    "type": "error",
-                    "message": f"Error processing message: {str(e)}",
-                    "timestamp": datetime.utcnow().isoformat()
-                }, websocket)
+            if message.get("type") == "subscribe":
+                channel = message.get("channel")
+                if channel == "surprise_bags":
+                    # Отправляем текущие доступные сюрпризы
+                    db = SessionLocal()
+                    try:
+                        active_bags = db.query(SurpriseBag).filter(
+                            SurpriseBag.is_active == True,
+                            SurpriseBag.available_quantity > 0
+                        ).all()
+                        
+                        bags_data = []
+                        for bag in active_bags:
+                            supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+                            bags_data.append({
+                                "id": bag.id,
+                                "name": bag.name,
+                                "supplier_name": supplier.business_name if supplier else "Unknown",
+                                "discounted_price": bag.discounted_price,
+                                "available_quantity": bag.available_quantity
+                            })
+                        
+                        await websocket.send_json({
+                            "type": "initial_bags",
+                            "data": bags_data
+                        })
+                    finally:
+                        db.close()
+                        
+            elif message.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
                 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
-    except Exception as e:
-        print(f"❌ WebSocket error: {e}")
         manager.disconnect(websocket)
 
 
@@ -3289,33 +3509,44 @@ async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
         "available_quantity": bag.available_quantity
     }
 
+# backend/main.py - обновите nearby suppliers
+
 @app.get("/api/suppliers/nearby")
 async def get_nearby_suppliers(lat: float, lon: float, radius: float = 50, db: Session = Depends(get_db)):
+    """Получить поставщиков только с доступными сюрпризами"""
     all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
+    
     nearby = []
     for supplier in all_suppliers:
         if supplier.lat and supplier.lon:
             distance = haversine_distance(lat, lon, supplier.lat, supplier.lon)
             if distance <= radius:
+                # ТОЛЬКО АКТИВНЫЕ СЮРПРИЗЫ С НАЛИЧИЕМ
                 active_bags = db.query(SurpriseBag).filter(
                     SurpriseBag.supplier_id == supplier.id,
                     SurpriseBag.is_active == True,
-                    SurpriseBag.available_quantity > 0
+                    SurpriseBag.available_quantity > 0  # ← ВАЖНО!
                 ).all()
-                nearby.append({
-                    "id": supplier.id,
-                    "business_name": supplier.business_name,
-                    "distance_km": round(distance, 2),
-                    "rating": supplier.rating,
-                    "surprise_bags": [
-                        {
-                            "id": bag.id,
-                            "name": bag.name,
-                            "discounted_price": bag.discounted_price,
-                            "discount_percentage": bag.discount_percentage
-                        } for bag in active_bags
-                    ]
-                })
+                
+                if active_bags:  # Показываем только если есть доступные сюрпризы
+                    nearby.append({
+                        "id": supplier.id,
+                        "business_name": supplier.business_name,
+                        "distance_km": round(distance, 2),
+                        "rating": supplier.rating,
+                        "surprise_bags": [
+                            {
+                                "id": bag.id,
+                                "name": bag.name,
+                                "discounted_price": bag.discounted_price,
+                                "discount_percentage": bag.discount_percentage,
+                                "original_price": bag.original_price,
+                                "image_url": bag.image_url,
+                                "available_quantity": bag.available_quantity
+                            } for bag in active_bags
+                        ]
+                    })
+    
     nearby.sort(key=lambda x: x["distance_km"])
     return {"count": len(nearby), "suppliers": nearby}
 

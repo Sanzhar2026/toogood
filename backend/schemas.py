@@ -288,3 +288,54 @@ class AdminResponse(BaseModel):
 class AdminUpdatePassword(BaseModel):
     old_password: str
     new_password: str
+
+# backend/schemas.py - добавьте в самый конец файла
+
+# ============ COURIER SCHEMAS ============
+
+class CourierType(str, Enum):
+    PEDESTRIAN = "pedestrian"
+    DRIVER = "driver"
+
+class CourierRegisterRequest(BaseModel):
+    first_name: str
+    last_name: str
+    phone: str
+    password: str
+    courier_type: CourierType = CourierType.PEDESTRIAN
+    car_model: Optional[str] = None
+    car_number: Optional[str] = None
+
+class CourierStatusResponse(BaseModel):
+    success: bool
+    is_online: bool
+    is_available: bool
+    is_verified: bool
+    current_order_id: Optional[int]
+    current_order_status: Optional[str]
+    courier_type: str
+    rating: float
+    total_deliveries: int
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+class CourierLocationUpdate(BaseModel):
+    lat: float
+    lon: float
+
+class CourierResponse(BaseModel):
+    id: int
+    user_id: int
+    first_name: str
+    last_name: str
+    phone: str
+    courier_type: str
+    car_model: Optional[str]
+    car_number: Optional[str]
+    is_online: bool
+    is_verified: bool
+    rating: float
+    total_deliveries: int
+    current_lat: Optional[float]
+    current_lon: Optional[float]
+    current_order_status: Optional[str]

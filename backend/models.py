@@ -273,22 +273,55 @@ class Admin(Base):
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+
+
+class CourierType(str, enum.Enum):
+    PEDESTRIAN = "pedestrian"   # Пеший курьер
+    DRIVER = "driver"    
+
+
+
+# backend/models.py - добавьте в конец файла, перед class Admin
+
 class CourierProfile(Base):
     __tablename__ = "courier_profiles"
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    phone = Column(String(50), nullable=False, unique=True)
+    courier_type = Column(String(20), default="pedestrian")
     car_model = Column(String(100), nullable=True)
     car_number = Column(String(50), nullable=True)
-    is_verified = Column(Boolean, default=False)  # ← ПОДТВЕРЖДЕН АДМИНОМ
+    speed_kmh = Column(Float, default=5.0)
+    delivery_radius_km = Column(Float, default=3.0)
+    
+    is_online = Column(Boolean, default=False)
+    is_available = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
+    
     rating = Column(Float, default=5.0)
     total_deliveries = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    verified_at = Column(DateTime, nullable=True)  # ← ДАТА ПОДТВЕРЖДЕНИЯ
-    rejected_reason = Column(Text, nullable=True)  # ← ПРИЧИНА ОТКАЗА
+    completed_orders_today = Column(Integer, default=0)
     
-    # Relationships
+    current_lat = Column(Float, nullable=True)
+    current_lon = Column(Float, nullable=True)
+    last_location_update = Column(DateTime, nullable=True)
+    
+    current_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    current_order_status = Column(String(50), default=None)
+    
+    proposed_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    proposed_order_expires_at = Column(DateTime, nullable=True)
+    
+    last_online_at = Column(DateTime, nullable=True)
+    last_offline_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    verified_at = Column(DateTime, nullable=True)
+    
     user = relationship("User", backref="courier_profile")
-    supplier = relationship("Supplier", backref="couriers")
+    current_order = relationship("Order", foreign_keys=[current_order_id])
+    proposed_order = relationship("Order", foreign_keys=[proposed_order_id])
