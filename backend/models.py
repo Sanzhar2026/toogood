@@ -9,6 +9,7 @@ import enum
 class UserRole(str, enum.Enum):
     CUSTOMER = "customer"
     SUPPLIER = "supplier"
+    COURIER = "courier"  
     ADMIN = "admin"
 
 class OrderStatus(str, enum.Enum):
@@ -123,6 +124,7 @@ class SurpriseBag(Base):
     pickup_start_time = Column(String(50))
     pickup_end_time = Column(String(50))
     is_active = Column(Boolean, default=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     possible_items = Column(Text)
     

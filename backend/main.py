@@ -129,6 +129,8 @@ async def get_courier_info(request: Request, db: Session = Depends(get_db)):
 
 # ============ COURIER ENDPOINTS ============
 
+# backend/main.py - убедитесь что эндпоинт выглядит так:
+
 @app.post("/courier/register")
 async def courier_register(request: Request, db: Session = Depends(get_db)):
     """Регистрация курьера"""
@@ -161,7 +163,7 @@ async def courier_register(request: Request, db: Session = Depends(get_db)):
         last_name=last_name,
         full_name=full_name,
         password=hashed_password,
-        role=UserRole.COURIER,
+        role=UserRole.COURIER,  # ← ИСПОЛЬЗУЕТСЯ UserRole.COURIER
         is_active=False,
         created_at=datetime.utcnow()
     )
@@ -189,7 +191,6 @@ async def courier_register(request: Request, db: Session = Depends(get_db)):
         "message": "Заявка отправлена на рассмотрение",
         "courier_id": new_user.id
     }
-
 
 @app.post("/api/courier/go-online")
 async def courier_go_online(request: Request, db: Session = Depends(get_db)):
@@ -2318,8 +2319,11 @@ async def get_cart(request: Request, db: Session = Depends(get_db)):
 
 # backend/main.py - добавьте или обновите эндпоинт добавления в корзину
 
+# backend/main.py - обновите эндпоинт добавления в корзину
+
 @app.post("/api/cart/add")
 async def add_to_cart(request: Request, db: Session = Depends(get_db)):
+    """Добавление товара в корзину с уменьшением количества и WebSocket уведомлением"""
     user_id = request.cookies.get("user_id")
     
     if not user_id:
@@ -2338,14 +2342,31 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     if not bag:
         raise HTTPException(status_code=404, detail="Товар недоступен")
     
-    # ✅ УМЕНЬШАЕМ КОЛИЧЕСТВО
+    # УМЕНЬШАЕМ КОЛИЧЕСТВО
+    old_quantity = bag.available_quantity
     bag.available_quantity -= quantity
     
-    # ✅ Если количество стало 0, сюрприз больше не доступен
+    # Если количество стало 0, деактивируем
     if bag.available_quantity <= 0:
         bag.is_active = False
     
-    # Добавляем в корзину
+    db.commit()
+    
+    # ============ ОТПРАВЛЯЕМ WEBSOCKET УВЕДОМЛЕНИЕ ВСЕМ КЛИЕНТАМ ============
+    await manager.broadcast({
+        "type": "bag_quantity_updated",
+        "data": {
+            "bag_id": bag_id,
+            "available_quantity": bag.available_quantity,
+            "is_active": bag.is_active,
+            "old_quantity": old_quantity
+        },
+        "timestamp": datetime.utcnow().isoformat()
+    }, channel="surprise_bags")
+    
+    print(f"📢 WebSocket отправлен: bag {bag_id}, осталось {bag.available_quantity}")
+    
+    # Добавляем в корзину пользователя
     existing = db.query(CartItem).filter(
         CartItem.user_id == int(user_id),
         CartItem.surprise_bag_id == bag_id
@@ -2363,20 +2384,11 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     
     db.commit()
     
-    # ✅ Отправляем WebSocket уведомление всем клиентам
-    await manager.broadcast({
-        "type": "bag_quantity_updated",
-        "data": {
-            "bag_id": bag_id,
-            "available_quantity": bag.available_quantity,
-            "is_active": bag.is_active
-        }
-    }, channel="surprise_bags")
-    
     return {
         "success": True,
         "message": "Товар добавлен в корзину",
-        "available_quantity": bag.available_quantity
+        "available_quantity": bag.available_quantity,
+        "is_active": bag.is_active
     }
 
 
@@ -2636,35 +2648,46 @@ async def notify_bag_deleted(bag_id: int):
         "data": {"bag_id": bag_id},
         "timestamp": datetime.utcnow().isoformat()
     })
+# backend/main.py - убедитесь что менеджер правильно настроен
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.subscriptions: Dict[str, List[WebSocket]] = {
+            "surprise_bags": [],
+            "orders": [],
+            "all": []
+        }
     
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
-        print(f"✅ WebSocket connected. Total connections: {len(self.active_connections)}")
+        self.subscriptions["all"].append(websocket)
+        print(f"✅ WebSocket connected. Total: {len(self.active_connections)}")
     
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-        print(f"🔌 WebSocket disconnected. Total connections: {len(self.active_connections)}")
-    
-    async def broadcast(self, message: dict):
-        """Send message to all connected clients"""
+    async def broadcast(self, message: dict, channel: str = "all"):
+        """Отправить сообщение всем подписчикам канала"""
+        # Получаем клиентов для канала
+        if channel == "all":
+            clients = self.active_connections.copy()
+        else:
+            clients = self.subscriptions.get(channel, []).copy()
+        
         disconnected = []
-        for connection in self.active_connections:
+        for connection in clients:
             try:
                 await connection.send_json(message)
+                print(f"📤 Sent to {channel}: {message.get('type')}")
             except:
                 disconnected.append(connection)
         
-        # Clean up disconnected clients
+        # Очищаем отключенных
         for connection in disconnected:
-            self.disconnect(connection)
-    
-    async def send_personal_message(self, message: dict, websocket: WebSocket):
-        await websocket.send_json(message)
+            if connection in self.active_connections:
+                self.active_connections.remove(connection)
+            for ch in self.subscriptions:
+                if connection in self.subscriptions[ch]:
+                    self.subscriptions[ch].remove(connection)
 
 manager = ConnectionManager()
 
