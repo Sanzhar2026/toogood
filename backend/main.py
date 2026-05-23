@@ -2842,9 +2842,11 @@ async def get_cart(request: Request, db: Session = Depends(get_db)):
 
 # backend/main.py - исправленный эндпоинт
 # backend/main.py - УБЕДИСЬ, ЧТО ЭТОТ ЭНДПОИНТ ТОЧНО УМЕНЬШАЕТ КОЛИЧЕСТВО
+# backend/main.py - полный эндпоинт добавления в корзину
 
 @app.post("/api/cart/add")
 async def add_to_cart(request: Request, db: Session = Depends(get_db)):
+    """Добавление товара в корзину - ТОВАР СРАЗУ БРОНИРУЕТСЯ"""
     user_id = request.cookies.get("user_id")
     
     if not user_id:
@@ -2857,6 +2859,11 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     print(f"🛒 ========== ДОБАВЛЕНИЕ В КОРЗИНУ ==========")
     print(f"📦 bag_id: {bag_id}, quantity: {quantity}, user_id: {user_id}")
     
+    # Получаем пользователя
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
     # Получаем сюрприз
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
     
@@ -2868,7 +2875,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     if bag.available_quantity < quantity:
         raise HTTPException(status_code=400, detail=f"Доступно только {bag.available_quantity} шт.")
     
-    # ✅ УМЕНЬШАЕМ КОЛИЧЕСТВО
+    # ✅ 1. УМЕНЬШАЕМ ДОСТУПНОЕ КОЛИЧЕСТВО
     old_qty = bag.available_quantity
     bag.available_quantity -= quantity
     print(f"📉 НОВОЕ КОЛИЧЕСТВО: {old_qty} -> {bag.available_quantity}")
@@ -2880,12 +2887,23 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     
     db.commit()
     
-    # ✅ ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ ФИЛЬТРА
-    # Обновляем is_active для всех сюрпризов с quantity = 0
-    db.query(SurpriseBag).filter(SurpriseBag.available_quantity <= 0).update({SurpriseBag.is_active: False})
-    db.commit()
+    # ✅ 2. СОЗДАЕМ ВРЕМЕННУЮ РЕЗЕРВАЦИЮ
+    from datetime import datetime, timedelta
     
-    # Добавляем в корзину
+    reservation = TemporaryReservation(
+        bag_id=bag_id,
+        user_id=int(user_id),
+        quantity=quantity,
+        reserved_at=datetime.utcnow(),
+        expires_at=datetime.utcnow() + timedelta(minutes=15),  # 15 минут на оплату
+        is_paid=False
+    )
+    db.add(reservation)
+    db.flush()
+    
+    print(f"⏳ Создана резервация #{reservation.id}, истекает в {reservation.expires_at}")
+    
+    # ✅ 3. ДОБАВЛЯЕМ В КОРЗИНУ ПОЛЬЗОВАТЕЛЯ
     existing = db.query(CartItem).filter(
         CartItem.user_id == int(user_id),
         CartItem.surprise_bag_id == bag_id
@@ -2903,7 +2921,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     
     db.commit()
     
-    # ✅ ОТПРАВЛЯЕМ WEBSOCKET
+    # ✅ 4. ОТПРАВЛЯЕМ WEBSOCKET УВЕДОМЛЕНИЕ ВСЕМ КЛИЕНТАМ (обновление главной)
     await manager.broadcast({
         "type": "bag_quantity_updated",
         "data": {
@@ -2914,34 +2932,54 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
         "timestamp": datetime.utcnow().isoformat()
     }, channel="surprise_bags")
     
-    print(f"✅ ГОТОВО! Осталось: {bag.available_quantity}")
+    # ✅ 5. ОТПРАВЛЯЕМ WEBSOCKET УВЕДОМЛЕНИЕ АДМИНИСТРАТОРУ (новое бронирование)
+    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    
+    await manager.broadcast({
+        "type": "new_reservation",
+        "data": {
+            "reservation_id": reservation.id,
+            "user_id": user.id,
+            "user_name": user.full_name or f"{user.first_name} {user.last_name}",
+            "user_phone": user.phone,
+            "bag_id": bag.id,
+            "bag_name": bag.name,
+            "supplier_name": supplier.business_name if supplier else "Ресторан",
+            "quantity": quantity,
+            "amount": bag.discounted_price * quantity,
+            "expires_at": reservation.expires_at.isoformat(),
+            "time_left_minutes": 15
+        },
+        "timestamp": datetime.utcnow().isoformat()
+    }, channel="admin")
+    
+    print(f"✅ Уведомление админу отправлено: новое бронирование #{reservation.id}")
     
     return {
         "success": True,
-        "message": "Товар добавлен в корзину",
+        "message": "Товар забронирован на 15 минут. Оплатите, чтобы завершить заказ.",
+        "reservation_id": reservation.id,
+        "expires_at": reservation.expires_at.isoformat(),
         "available_quantity": bag.available_quantity,
         "is_active": bag.is_active
     }
-
 # backend/main.py - добавьте
+
+# backend/main.py - добавьте этот эндпоинт
 
 @app.get("/api/admin/reservations")
 async def get_admin_reservations(request: Request, db: Session = Depends(get_db)):
-    """Получить все активные резервации (ожидающие оплаты) для админ-панели"""
+    """Получить все активные резервации (ожидающие оплаты)"""
     
     admin_id = request.cookies.get("admin_id")
     if not admin_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-    if not admin:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    # Активные резервации (не оплачены и не истекли)
+    # Активные резервации (не оплачены, не истекли)
     active_reservations = db.query(TemporaryReservation).filter(
         TemporaryReservation.is_paid == False,
         TemporaryReservation.expires_at > datetime.utcnow()
-    ).all()
+    ).order_by(TemporaryReservation.expires_at.asc()).all()
     
     result = []
     for res in active_reservations:
@@ -2951,9 +2989,8 @@ async def get_admin_reservations(request: Request, db: Session = Depends(get_db)
         
         result.append({
             "id": res.id,
-            "reservation_id": res.id,
-            "user_name": user.full_name if user else "Неизвестно",
-            "user_phone": user.phone if user else "Неизвестно",
+            "user_name": user.full_name if user else f"User {res.user_id}",
+            "user_phone": user.phone if user else "Не указан",
             "bag_name": bag.name if bag else "Товар",
             "supplier_name": supplier.business_name if supplier else "Ресторан",
             "quantity": res.quantity,
@@ -2964,7 +3001,6 @@ async def get_admin_reservations(request: Request, db: Session = Depends(get_db)
         })
     
     return {"reservations": result}
-
 
 
 @app.delete("/api/cart/remove/{bag_id}")
@@ -3231,8 +3267,29 @@ class ConnectionManager:
         self.subscriptions: Dict[str, List[WebSocket]] = {
             "surprise_bags": [],
             "orders": [],
+            "admin": [],      # ← ДОБАВЬТЕ ЭТОТ КАНАЛ
             "all": []
         }
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        self.subscriptions["all"].append(websocket)
+        print(f"✅ WebSocket connected. Total: {len(self.active_connections)}")
+    
+    async def subscribe(self, websocket: WebSocket, channel: str):
+        """Подписать клиента на канал"""
+        if channel not in self.subscriptions:
+            self.subscriptions[channel] = []
+        
+        if websocket not in self.subscriptions[channel]:
+            self.subscriptions[channel].append(websocket)
+            print(f"📡 Client subscribed to channel: {channel}")
+            await self.send_personal_message({
+                "type": "subscribed",
+                "channel": channel,
+                "timestamp": datetime.utcnow().isoformat()
+            }, websocket)
     
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
