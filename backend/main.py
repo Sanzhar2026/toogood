@@ -19,8 +19,10 @@ from backend.schemas import (
 )
 from backend.models import (
     CartItem,Food, User, UserRole, Supplier, SurpriseBag, 
-    Order, OrderStatus, DeliveryStatus, OrderTracking, Review, CourierProfile, AssignedOrder 
+    Order, OrderStatus, DeliveryStatus, OrderTracking, Review, CourierProfile, AssignedOrder ,TemporaryReservation
 )
+
+
 from typing import Dict
 
 # ============ TWILIO IMPORTS ============
@@ -88,7 +90,32 @@ import json
 courier_sessions = {}
 
 
+# backend/main.py - добавьте
 
+@app.get("/api/cart/reservation")
+async def get_active_reservation(request: Request, db: Session = Depends(get_db)):
+    """Получить активную резервацию для текущего пользователя"""
+    user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        return {"reservation": None}
+    
+    reservation = db.query(TemporaryReservation).filter(
+        TemporaryReservation.user_id == int(user_id),
+        TemporaryReservation.is_paid == False,
+        TemporaryReservation.expires_at > datetime.utcnow()
+    ).first()
+    
+    if reservation:
+        return {
+            "reservation": {
+                "id": reservation.id,
+                "expires_at": reservation.expires_at.isoformat(),
+                "bag_id": reservation.bag_id
+            }
+        }
+    
+    return {"reservation": None}
 @app.get("/api/courier/me")
 async def get_courier_info(request: Request, db: Session = Depends(get_db)):
     """Получить информацию о текущем курьере"""
@@ -1190,11 +1217,115 @@ async def auto_refund_on_deadline():
         except Exception as e:
             print(f"❌ Ошибка auto_refund: {e}")
 
-# Запуск при старте
+# backend/main.py - добавьте фоновую задачу
+
+import asyncio
+from datetime import datetime, timedelta
+
+async def cleanup_expired_reservations():
+    """Фоновая задача: каждую минуту проверяет истекшие резервации"""
+    while True:
+        await asyncio.sleep(60)  # Каждую минуту
+        
+        db = SessionLocal()
+        try:
+            # Находим истекшие резервации (не оплачены и срок истек)
+            expired = db.query(TemporaryReservation).filter(
+                TemporaryReservation.is_paid == False,
+                TemporaryReservation.expires_at < datetime.utcnow()
+            ).all()
+            
+            for reservation in expired:
+                # Возвращаем количество обратно в сюрприз
+                bag = db.query(SurpriseBag).filter(SurpriseBag.id == reservation.bag_id).first()
+                if bag:
+                    bag.available_quantity += reservation.quantity
+                    if bag.available_quantity > 0:
+                        bag.is_active = True
+                    
+                    print(f"🔄 Возврат: сюрприз {bag.name}, +{reservation.quantity}, теперь {bag.available_quantity}")
+                    
+                    # Отправляем WebSocket уведомление
+                    await manager.broadcast({
+                        "type": "bag_quantity_updated",
+                        "data": {
+                            "bag_id": bag.id,
+                            "available_quantity": bag.available_quantity,
+                            "is_active": bag.is_active
+                        },
+                        "timestamp": datetime.utcnow().isoformat()
+                    }, channel="surprise_bags")
+                
+                # Удаляем резервацию из корзины пользователя
+                cart_item = db.query(CartItem).filter(
+                    CartItem.user_id == reservation.user_id,
+                    CartItem.surprise_bag_id == reservation.bag_id
+                ).first()
+                if cart_item:
+                    if cart_item.quantity > reservation.quantity:
+                        cart_item.quantity -= reservation.quantity
+                    else:
+                        db.delete(cart_item)
+                
+                db.delete(reservation)
+            
+            if expired:
+                db.commit()
+                print(f"🧹 Очищено {len(expired)} истекших резерваций")
+                
+        except Exception as e:
+            print(f"Ошибка очистки резерваций: {e}")
+        finally:
+            db.close()
+# backend/main.py - при успешной оплате
+
+@app.post("/api/payment/confirm-reservation")
+async def confirm_reservation(request: Request, db: Session = Depends(get_db)):
+    """Подтверждение резервации после успешной оплаты"""
+    data = await request.json()
+    reservation_id = data.get("reservation_id")
+    
+    reservation = db.query(TemporaryReservation).filter(
+        TemporaryReservation.id == reservation_id
+    ).first()
+    
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Резервация не найдена")
+    
+    # Помечаем как оплаченную
+    reservation.is_paid = True
+    
+    # Создаем заказ
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == reservation.bag_id).first()
+    
+    order = Order(
+        user_id=reservation.user_id,
+        supplier_id=bag.supplier_id,
+        surprise_bag_id=bag.id,
+        order_number=f"ORD-{secrets.token_hex(4).upper()}",
+        status=OrderStatus.CONFIRMED,
+        amount_paid=bag.discounted_price * reservation.quantity,
+        created_at=datetime.utcnow()
+    )
+    db.add(order)
+    db.commit()
+    
+    # Удаляем из корзины
+    cart_item = db.query(CartItem).filter(
+        CartItem.user_id == reservation.user_id,
+        CartItem.surprise_bag_id == reservation.bag_id
+    ).first()
+    if cart_item:
+        db.delete(cart_item)
+    
+    db.commit()
+    
+    return {"success": True, "message": "Оплата подтверждена", "order_id": order.id}
+# Запускаем фоновую задачу при старте приложения
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(auto_refund_on_deadline())
-    print("✅ Auto-refund checker started")
+    asyncio.create_task(cleanup_expired_reservations())
+    print("✅ Фоновая задача очистки резерваций запущена")
 # Клиент запрашивает возврат
 @app.post("/api/refund/request")
 async def request_refund(
@@ -2325,9 +2456,10 @@ async def get_cart(request: Request, db: Session = Depends(get_db)):
 
 # backend/main.py - обновите эндпоинт добавления в корзину
 
+# backend/main.py - исправленный эндпоинт
+
 @app.post("/api/cart/add")
 async def add_to_cart(request: Request, db: Session = Depends(get_db)):
-    """Добавление товара в корзину с уменьшением количества и WebSocket уведомлением"""
     user_id = request.cookies.get("user_id")
     
     if not user_id:
@@ -2337,47 +2469,78 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     bag_id = data.get("bag_id")
     quantity = data.get("quantity", 1)
     
-    # Проверяем наличие сюрприза
+    # Проверяем наличие сюрприза (НЕ учитываем временные резервы)
     bag = db.query(SurpriseBag).filter(
         SurpriseBag.id == bag_id,
+        SurpriseBag.is_active == True,
         SurpriseBag.available_quantity >= quantity
     ).first()
     
     if not bag:
         raise HTTPException(status_code=404, detail="Товар недоступен")
     
-    # УМЕНЬШАЕМ КОЛИЧЕСТВО
-    old_quantity = bag.available_quantity
-    bag.available_quantity -= quantity
+    # Проверяем, есть ли активная временная резервация у этого пользователя
+    existing_reservation = db.query(TemporaryReservation).filter(
+        TemporaryReservation.bag_id == bag_id,
+        TemporaryReservation.user_id == int(user_id),
+        TemporaryReservation.is_paid == False,
+        TemporaryReservation.expires_at > datetime.utcnow()
+    ).first()
     
-    # Если количество стало 0, деактивируем
+    if existing_reservation:
+        # Обновляем существующую резервацию
+        existing_reservation.quantity += quantity
+        existing_reservation.expires_at = datetime.utcnow() + timedelta(minutes=15)
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Товар добавлен в корзину",
+            "reservation_id": existing_reservation.id,
+            "expires_at": existing_reservation.expires_at.isoformat()
+        }
+    
+    # ✅ УМЕНЬШАЕМ ДОСТУПНОЕ КОЛИЧЕСТВО (бронируем)
+    old_qty = bag.available_quantity
+    bag.available_quantity -= quantity
+    print(f"📦 Бронирование: {bag.name}, было {old_qty}, стало {bag.available_quantity}")
+    
+    # Если стало 0, деактивируем
     if bag.available_quantity <= 0:
         bag.is_active = False
+        print(f"🔴 Сюрприз {bag.name} закончился")
     
+    # ✅ СОЗДАЕМ ВРЕМЕННУЮ РЕЗЕРВАЦИЮ
+    reservation = TemporaryReservation(
+        bag_id=bag_id,
+        user_id=int(user_id),
+        quantity=quantity,
+        reserved_at=datetime.utcnow(),
+        expires_at=datetime.utcnow() + timedelta(minutes=15),
+        is_paid=False
+    )
+    db.add(reservation)
     db.commit()
     
-    # ============ ОТПРАВЛЯЕМ WEBSOCKET УВЕДОМЛЕНИЕ ВСЕМ КЛИЕНТАМ ============
+    # ✅ ОТПРАВЛЯЕМ WEBSOCKET УВЕДОМЛЕНИЕ ВСЕМ КЛИЕНТАМ
     await manager.broadcast({
         "type": "bag_quantity_updated",
         "data": {
             "bag_id": bag_id,
             "available_quantity": bag.available_quantity,
-            "is_active": bag.is_active,
-            "old_quantity": old_quantity
+            "is_active": bag.is_active
         },
         "timestamp": datetime.utcnow().isoformat()
     }, channel="surprise_bags")
     
-    print(f"📢 WebSocket отправлен: bag {bag_id}, осталось {bag.available_quantity}")
-    
     # Добавляем в корзину пользователя
-    existing = db.query(CartItem).filter(
+    cart_item = db.query(CartItem).filter(
         CartItem.user_id == int(user_id),
         CartItem.surprise_bag_id == bag_id
     ).first()
     
-    if existing:
-        existing.quantity += quantity
+    if cart_item:
+        cart_item.quantity += quantity
     else:
         cart_item = CartItem(
             user_id=int(user_id),
@@ -2390,12 +2553,11 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     
     return {
         "success": True,
-        "message": "Товар добавлен в корзину",
-        "available_quantity": bag.available_quantity,
-        "is_active": bag.is_active
+        "message": "Товар забронирован на 15 минут",
+        "reservation_id": reservation.id,
+        "expires_at": reservation.expires_at.isoformat(),
+        "available_quantity": bag.available_quantity
     }
-
-
 @app.delete("/api/cart/remove/{bag_id}")
 async def remove_from_cart(bag_id: int, request: Request, db: Session = Depends(get_db)):
     """Remove item from cart"""

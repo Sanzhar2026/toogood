@@ -266,3 +266,19 @@ class Admin(Base):
     username = Column(String(50), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TemporaryReservation(Base):
+    __tablename__ = "temporary_reservations"
+    
+    id = Column(Integer, primary_key=True)
+    bag_id = Column(Integer, ForeignKey("surprise_bags.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    quantity = Column(Integer, default=1)
+    reserved_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)  # reserved_at + 15 минут
+    is_paid = Column(Boolean, default=False)
+    
+    # Relationships
+    bag = relationship("SurpriseBag", backref="reservations")
+    user = relationship("User", backref="reservations")
