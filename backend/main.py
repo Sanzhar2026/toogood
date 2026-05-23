@@ -408,6 +408,7 @@ async def courier_complete_order(order_id: int, request: Request, db: Session = 
 
 
 # backend/main.py - добавьте логин для курьера
+# backend/main.py - убедитесь что эндпоинт возвращает success
 
 @app.post("/api/courier/login")
 async def courier_login(request: Request, db: Session = Depends(get_db)):
@@ -416,67 +417,69 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
     phone = format_phone_number(data.get("phone"))
     password = data.get("password")
     
+    print(f"🔐 Попытка входа курьера: {phone}")
+    
+    # Ищем пользователя с ролью курьера
     user = db.query(User).filter(
         User.phone == phone,
         User.role == UserRole.COURIER
     ).first()
     
-    if not user or not verify_password(password, user.password):
+    if not user:
+        print(f"❌ Курьер не найден: {phone}")
         raise HTTPException(status_code=401, detail="Неверный телефон или пароль")
     
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="Ваша учетная запись ожидает подтверждения администратора")
+    if not verify_password(password, user.password):
+        print(f"❌ Неверный пароль для: {phone}")
+        raise HTTPException(status_code=401, detail="Неверный телефон или пароль")
     
+    # Проверяем верификацию
     courier = db.query(CourierProfile).filter(CourierProfile.user_id == user.id).first()
     
+    if not courier:
+        raise HTTPException(status_code=401, detail="Профиль курьера не найден")
+    
     if not courier.is_verified:
+        print(f"⏳ Курьер не верифицирован: {phone}")
         raise HTTPException(status_code=403, detail="Ваша заявка на рассмотрении")
     
+    if not user.is_active:
+        print(f"⏳ Аккаунт не активен: {phone}")
+        raise HTTPException(status_code=403, detail="Аккаунт не активирован")
+    
+    print(f"✅ Успешный вход курьера: {phone}")
+    
+    # Создаем ответ с куками
     response = JSONResponse({
         "success": True,
+        "message": "Вход выполнен успешно",
         "courier": {
             "id": user.id,
             "first_name": courier.first_name,
             "last_name": courier.last_name,
             "phone": user.phone,
-            "is_verified": courier.is_verified
+            "is_verified": courier.is_verified,
+            "courier_type": courier.courier_type
         }
     })
     
-    response.set_cookie(key="user_id", value=str(user.id), httponly=True, samesite="lax", max_age=60*60*24*30)
-    response.set_cookie(key="courier_id", value=str(courier.id), httponly=True, samesite="lax", max_age=60*60*24*30)
-    
-    return response
-
-    # Создаем сессию
-    token = secrets.token_urlsafe(32)
-    courier_sessions[token] = {
-        "courier_id": user.id,
-        "courier_profile_id": courier_profile.id,
-        "expires_at": datetime.utcnow() + timedelta(hours=8)
-    }
-    
-    response = JSONResponse({
-        "success": True,
-        "message": "Вход выполнен",
-        "courier": {
-            "id": user.id,
-            "full_name": user.full_name,
-            "phone": user.phone,
-            "car_model": courier_profile.car_model,
-            "car_number": courier_profile.car_number,
-            "rating": courier_profile.rating,
-            "total_deliveries": courier_profile.total_deliveries
-        }
-    })
-    
+    # Устанавливаем куки
     response.set_cookie(
-        key="courier_token",
-        value=token,
+        key="user_id",
+        value=str(user.id),
         httponly=True,
         samesite="lax",
         secure=True,
-        max_age=8*60*60
+        max_age=60*60*24*30
+    )
+    
+    response.set_cookie(
+        key="courier_id",
+        value=str(courier.id),
+        httponly=True,
+        samesite="lax",
+        secure=True,
+        max_age=60*60*24*30
     )
     
     return response
