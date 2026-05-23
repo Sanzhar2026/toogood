@@ -410,6 +410,7 @@ async def courier_complete_order(order_id: int, request: Request, db: Session = 
 # backend/main.py - добавьте логин для курьера
 # backend/main.py - убедитесь что эндпоинт возвращает success
 # backend/main.py - убедитесь что эндпоинт возвращает success
+# backend/main.py - исправьте эндпоинт логина курьера
 
 @app.post("/api/courier/login")
 async def courier_login(request: Request, db: Session = Depends(get_db)):
@@ -450,7 +451,7 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
     
     print(f"✅ Успешный вход курьера: {phone}")
     
-    # Создаем ответ с куками
+    # ✅ СОЗДАЕМ ОТВЕТ С КУКАМИ (ВАЖНО: domain и secure)
     response = JSONResponse({
         "success": True,
         "message": "Вход выполнен успешно",
@@ -464,14 +465,15 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
         }
     })
     
-    # Устанавливаем куки
+    # ✅ ПРАВИЛЬНАЯ УСТАНОВКА COOKIE
     response.set_cookie(
         key="user_id",
         value=str(user.id),
         httponly=True,
         samesite="lax",
-        secure=True,
-        max_age=60*60*24*30
+        secure=True,  # Важно для HTTPS
+        max_age=60*60*24*30,  # 30 дней
+        path="/"
     )
     
     response.set_cookie(
@@ -480,7 +482,19 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
         httponly=True,
         samesite="lax",
         secure=True,
-        max_age=60*60*24*30
+        max_age=60*60*24*30,
+        path="/"
+    )
+    
+    # ✅ ДОБАВЛЯЕМ КУКУ ДЛЯ ОТЛАДКИ
+    response.set_cookie(
+        key="courier_logged_in",
+        value="true",
+        httponly=False,  # Чтобы можно было прочитать в JS
+        samesite="lax",
+        secure=True,
+        max_age=60*60*24*30,
+        path="/"
     )
     
     return response

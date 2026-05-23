@@ -1,21 +1,13 @@
-# Запустите этот скрипт один раз для обновления БД
-# create_missing_columns.py
+// 1. Проверьте, есть ли cookies
+console.log('Cookies:', document.cookie);
 
-from backend.database import engine
-from sqlalchemy import text
-
-with engine.connect() as conn:
-    # Добавляем колонки first_name и last_name если их нет
-    try:
-        conn.execute(text("ALTER TABLE users ADD COLUMN first_name VARCHAR(100)"))
-        print("✅ Добавлена колонка first_name")
-    except Exception as e:
-        print(f"Колонка first_name уже существует: {e}")
-    
-    try:
-        conn.execute(text("ALTER TABLE users ADD COLUMN last_name VARCHAR(100)"))
-        print("✅ Добавлена колонка last_name")
-    except Exception as e:
-        print(f"Колонка last_name уже существует: {e}")
-    
-    conn.commit()
+// 2. Проверьте статус курьера
+fetch('https://toogood-2ncf.onrender.com/api/courier/status', {
+  credentials: 'include'
+})
+.then(r => {
+  console.log('Статус ответа:', r.status);
+  return r.json();
+})
+.then(data => console.log('Ответ:', data))
+.catch(err => console.error('Ошибка:', err));
