@@ -2320,7 +2320,6 @@ async def get_cart(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/api/cart/add")
 async def add_to_cart(request: Request, db: Session = Depends(get_db)):
-    """Добавление товара в корзину с уменьшением количества"""
     user_id = request.cookies.get("user_id")
     
     if not user_id:
@@ -2333,17 +2332,16 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     # Проверяем наличие сюрприза
     bag = db.query(SurpriseBag).filter(
         SurpriseBag.id == bag_id,
-        SurpriseBag.is_active == True,
         SurpriseBag.available_quantity >= quantity
     ).first()
     
     if not bag:
         raise HTTPException(status_code=404, detail="Товар недоступен")
     
-    # УМЕНЬШАЕМ КОЛИЧЕСТВО доступных сюрпризов
+    # ✅ УМЕНЬШАЕМ КОЛИЧЕСТВО
     bag.available_quantity -= quantity
     
-    # Проверяем, если количество стало 0, деактивируем
+    # ✅ Если количество стало 0, сюрприз больше не доступен
     if bag.available_quantity <= 0:
         bag.is_active = False
     
@@ -2365,12 +2363,14 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     
     db.commit()
     
-    # Отправляем WebSocket уведомление об обновлении
+    # ✅ Отправляем WebSocket уведомление всем клиентам
     await manager.broadcast({
         "type": "bag_quantity_updated",
-        "bag_id": bag_id,
-        "available_quantity": bag.available_quantity,
-        "is_active": bag.is_active
+        "data": {
+            "bag_id": bag_id,
+            "available_quantity": bag.available_quantity,
+            "is_active": bag.is_active
+        }
     }, channel="surprise_bags")
     
     return {
@@ -3511,9 +3511,10 @@ async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
 
 # backend/main.py - обновите nearby suppliers
 
+# backend/main.py - показываем только доступные сюрпризы
+
 @app.get("/api/suppliers/nearby")
 async def get_nearby_suppliers(lat: float, lon: float, radius: float = 50, db: Session = Depends(get_db)):
-    """Получить поставщиков только с доступными сюрпризами"""
     all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
     
     nearby = []
@@ -3521,14 +3522,14 @@ async def get_nearby_suppliers(lat: float, lon: float, radius: float = 50, db: S
         if supplier.lat and supplier.lon:
             distance = haversine_distance(lat, lon, supplier.lat, supplier.lon)
             if distance <= radius:
-                # ТОЛЬКО АКТИВНЫЕ СЮРПРИЗЫ С НАЛИЧИЕМ
+                # ✅ ТОЛЬКО СЮРПРИЗЫ С available_quantity > 0
                 active_bags = db.query(SurpriseBag).filter(
                     SurpriseBag.supplier_id == supplier.id,
                     SurpriseBag.is_active == True,
                     SurpriseBag.available_quantity > 0  # ← ВАЖНО!
                 ).all()
                 
-                if active_bags:  # Показываем только если есть доступные сюрпризы
+                if active_bags:
                     nearby.append({
                         "id": supplier.id,
                         "business_name": supplier.business_name,
@@ -3759,53 +3760,7 @@ async def get_bag_by_id(bag_id: int, db: Session = Depends(get_db)):
     }
 
 # Get nearby suppliers
-@app.get("/api/suppliers/nearby")
-async def get_nearby_suppliers(
-    lat: float, 
-    lon: float, 
-    radius: float = 50, 
-    db: Session = Depends(get_db)
-):
-    from math import radians, sin, cos, sqrt, atan2
-    
-    def haversine(lat1, lon1, lat2, lon2):
-        R = 6371  # Earth radius in km
-        lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-        c = 2 * atan2(sqrt(a), sqrt(1-a))
-        return R * c
-    
-    all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
-    
-    nearby = []
-    for supplier in all_suppliers:
-        if supplier.lat and supplier.lon:
-            distance = haversine(lat, lon, supplier.lat, supplier.lon)
-            if distance <= radius:
-                active_bags = db.query(SurpriseBag).filter(
-                    SurpriseBag.supplier_id == supplier.id,
-                    SurpriseBag.is_active == True,
-                    SurpriseBag.available_quantity > 0
-                ).all()
-                nearby.append({
-                    "id": supplier.id,
-                    "business_name": supplier.business_name,
-                    "distance_km": round(distance, 2),
-                    "rating": supplier.rating,
-                    "surprise_bags": [
-                        {
-                            "id": bag.id,
-                            "name": bag.name,
-                            "discounted_price": bag.discounted_price,
-                            "discount_percentage": bag.discount_percentage
-                        } for bag in active_bags
-                    ]
-                })
-    
-    nearby.sort(key=lambda x: x["distance_km"])
-    return {"count": len(nearby), "suppliers": nearby}
+
 # ============ WEBSOCKET FOR SUPPLIERS ============
 
 # Хранилище для supplier WebSocket соединений
@@ -4652,8 +4607,79 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
 
 
 
+# backend/main.py - добавьте этот эндпоинт
 
+@app.get("/supplier/couriers")
+async def supplier_couriers_page(request: Request, db: Session = Depends(get_db)):
+    """Страница управления курьерами для поставщика"""
+    
+    supplier_id = request.cookies.get("supplier_id")
+    
+    if not supplier_id:
+        return RedirectResponse(url="/supplier/login", status_code=303)
+    
+    supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
+    if not supplier:
+        response = RedirectResponse(url="/supplier/login", status_code=303)
+        response.delete_cookie("supplier_id")
+        return response
+    
+    # Получаем курьеров этого поставщика
+    couriers = db.query(CourierProfile).filter(
+        CourierProfile.supplier_id == int(supplier_id)
+    ).all()
+    
+    couriers_list = []
+    for c in couriers:
+        user = db.query(User).filter(User.id == c.user_id).first()
+        couriers_list.append({
+            "id": c.id,
+            "user_id": c.user_id,
+            "first_name": c.first_name,
+            "last_name": c.last_name,
+            "phone": c.phone,
+            "car_model": c.car_model,
+            "car_number": c.car_number,
+            "is_online": c.is_online,
+            "is_verified": c.is_verified,
+            "rating": c.rating,
+            "total_deliveries": c.total_deliveries,
+            "created_at": c.created_at
+        })
+    
+    return templates.TemplateResponse("supplier_couriers.html", {
+        "request": request,
+        "supplier": supplier,
+        "couriers": couriers_list,
+        "lang": request.query_params.get("lang", "ru")
+    })
 # В main.py
+# backend/main.py - добавьте
+
+@app.delete("/api/supplier/couriers/{courier_id}")
+async def remove_courier(courier_id: int, request: Request, db: Session = Depends(get_db)):
+    """Удалить курьера"""
+    supplier_id = request.cookies.get("supplier_id")
+    
+    if not supplier_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    courier = db.query(CourierProfile).filter(
+        CourierProfile.id == courier_id,
+        CourierProfile.supplier_id == int(supplier_id)
+    ).first()
+    
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    user = db.query(User).filter(User.id == courier.user_id).first()
+    
+    if user:
+        db.delete(user)
+    db.delete(courier)
+    db.commit()
+    
+    return {"success": True, "message": "Курьер удален"}
 
 @app.post("/supplier/couriers/add")
 async def add_courier(request: Request, db: Session = Depends(get_db)):
