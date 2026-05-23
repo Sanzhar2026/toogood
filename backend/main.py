@@ -107,54 +107,108 @@ courier_sessions = {}
 
 # backend/main.py - добавьте WebSocket для курьеров
 
+# backend/main.py - исправленный WebSocket без Depends
+
 @app.websocket("/ws/courier-tracking")
 async def courier_tracking_websocket(websocket: WebSocket):
     """WebSocket для отслеживания курьеров в реальном времени"""
+    
+    # Принимаем соединение
     await websocket.accept()
     
-    # Получаем ID курьера из cookies
-    user_id = websocket.cookies.get("user_id")
+    # Получаем ID пользователя из cookies (не через Depends)
+    cookies = websocket.cookies
+    user_id = cookies.get("user_id")
+    
+    print(f"🔌 WebSocket connection attempt, user_id from cookie: {user_id}")
     
     if not user_id:
         print("❌ WebSocket: нет user_id в cookies")
         await websocket.close(code=1008, reason="Not authenticated")
         return
     
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    
-    if not courier:
-        print(f"❌ WebSocket: курьер с user_id {user_id} не найден")
-        await websocket.close(code=1008, reason="Courier not found")
-        return
-    
-    courier_id = courier.id
-    print(f"✅ WebSocket подключен для курьера {courier_id}")
-    
-    # Добавляем в список активных соединений
-    if courier_id not in courier_connections:
-        courier_connections[courier_id] = []
-    courier_connections[courier_id].append(websocket)
+    # Создаем сессию БД вручную
+    db = SessionLocal()
     
     try:
+        # Проверяем, что пользователь - курьер
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        
+        if not user:
+            print(f"❌ WebSocket: пользователь {user_id} не найден")
+            await websocket.close(code=1008, reason="User not found")
+            return
+        
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == user.id).first()
+        
+        if not courier:
+            print(f"❌ WebSocket: курьер для user_id {user_id} не найден")
+            await websocket.close(code=1008, reason="Courier not found")
+            return
+        
+        courier_id = courier.id
+        print(f"✅ WebSocket подключен для курьера {courier_id} ({user.first_name} {user.last_name})")
+        
+        # Добавляем в список активных соединений
+        if courier_id not in courier_connections:
+            courier_connections[courier_id] = []
+        courier_connections[courier_id].append(websocket)
+        
         # Отправляем приветственное сообщение
         await websocket.send_json({
             "type": "connected",
-            "message": "Connected to courier tracking",
+            "message": f"Connected to courier tracking as {courier.first_name}",
+            "courier_id": courier_id,
             "timestamp": datetime.utcnow().isoformat()
         })
         
         # Держим соединение открытым
         while True:
-            data = await websocket.receive_text()
             try:
-                message = json.loads(data)
-                if message.get("type") == "ping":
-                    await websocket.send_json({"type": "pong"})
-            except:
-                pass
+                data = await websocket.receive_text()
+                print(f"📨 Получено от курьера {courier_id}: {data}")
                 
-    except WebSocketDisconnect:
-        print(f"🔌 WebSocket отключен для курьера {courier_id}")
+                try:
+                    message = json.loads(data)
+                    msg_type = message.get("type")
+                    
+                    if msg_type == "ping":
+                        await websocket.send_json({"type": "pong", "timestamp": datetime.utcnow().isoformat()})
+                        print("💓 Heartbeat pong sent")
+                        
+                    elif msg_type == "update_location":
+                        # Обновляем позицию курьера в БД
+                        lat = message.get("lat")
+                        lon = message.get("lon")
+                        if lat and lon:
+                            courier.current_lat = lat
+                            courier.current_lon = lon
+                            courier.last_location_update = datetime.utcnow()
+                            db.commit()
+                            print(f"📍 Позиция курьера {courier_id} обновлена: {lat}, {lon}")
+                            
+                            # Транслируем всем клиентам
+                            await manager.broadcast({
+                                "type": "courier_location",
+                                "courier_id": courier_id,
+                                "first_name": courier.first_name,
+                                "last_name": courier.last_name,
+                                "lat": lat,
+                                "lon": lon,
+                                "status": courier.current_order_status or "online",
+                                "timestamp": datetime.utcnow().isoformat()
+                            }, channel="surprise_bags")
+                            
+                except json.JSONDecodeError:
+                    print(f"❌ Неверный JSON: {data}")
+                    
+            except WebSocketDisconnect:
+                print(f"🔌 WebSocket отключен для курьера {courier_id}")
+                break
+            except Exception as e:
+                print(f"❌ Ошибка обработки сообщения: {e}")
+                break
+                
     except Exception as e:
         print(f"❌ WebSocket ошибка: {e}")
     finally:
@@ -164,6 +218,9 @@ async def courier_tracking_websocket(websocket: WebSocket):
                 courier_connections[courier_id].remove(websocket)
             if not courier_connections[courier_id]:
                 del courier_connections[courier_id]
+        
+        db.close()
+        print(f"🔌 WebSocket закрыт для курьера {courier_id if 'courier_id' in locals() else 'unknown'}")
 
 # Глобальный словарь для WebSocket соединений курьеров
 courier_connections = {}
@@ -238,6 +295,10 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
     }
 
 
+# backend/main.py - обновите эндпоинт
+
+# backend/main.py - обновите эндпоинт
+
 @app.get("/api/couriers/online")
 async def get_online_couriers(db: Session = Depends(get_db)):
     """Получить всех онлайн курьеров для карты"""
@@ -262,11 +323,11 @@ async def get_online_couriers(db: Session = Depends(get_db)):
             "current_lon": c.current_lon,
             "current_order_status": c.current_order_status,
             "rating": c.rating,
-            "total_deliveries": c.total_deliveries
+            "total_deliveries": c.total_deliveries,
+            "is_online": c.is_online
         })
     
     return {"success": True, "couriers": result}
-
 
 @app.post("/api/courier/respond-to-proposal")
 async def respond_to_proposal(request: Request, db: Session = Depends(get_db)):
