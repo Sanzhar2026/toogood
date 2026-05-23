@@ -1619,7 +1619,46 @@ async def cleanup_expired_reservations():
             print(f"Ошибка очистки резерваций: {e}")
         finally:
             db.close()
+# backend/main.py - добавьте этот эндпоинт
 
+@app.get("/api/debug/bags")
+async def debug_all_bags(db: Session = Depends(get_db)):
+    """Проверить все сюрпризы в БД"""
+    bags = db.query(SurpriseBag).all()
+    
+    result = []
+    for bag in bags:
+        result.append({
+            "id": bag.id,
+            "name": bag.name,
+            "available_quantity": bag.available_quantity,
+            "is_active": bag.is_active
+        })
+    
+    print(f"🔍 DEBUG: Найдено {len(result)} сюрпризов")
+    for bag in result:
+        print(f"  - {bag['name']}: {bag['available_quantity']} шт., active={bag['is_active']}")
+    
+    return {"bags": result}
+
+# backend/main.py - добавьте
+
+@app.get("/api/debug/bag/{bag_id}")
+async def debug_bag(bag_id: int, db: Session = Depends(get_db)):
+    """Проверить конкретный сюрприз"""
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+    
+    if not bag:
+        return {"error": "Bag not found"}
+    
+    return {
+        "id": bag.id,
+        "name": bag.name,
+        "available_quantity": bag.available_quantity,
+        "is_active": bag.is_active,
+        "original_price": bag.original_price,
+        "discounted_price": bag.discounted_price
+    }
 # backend/main.py - при успешной оплате
 
 @app.post("/api/payment/confirm-reservation")
@@ -2802,10 +2841,10 @@ async def get_cart(request: Request, db: Session = Depends(get_db)):
 # backend/main.py - исправленный эндпоинт
 
 # backend/main.py - исправленный эндпоинт
+# backend/main.py - УБЕДИСЬ, ЧТО ЭТОТ ЭНДПОИНТ ТОЧНО УМЕНЬШАЕТ КОЛИЧЕСТВО
 
 @app.post("/api/cart/add")
 async def add_to_cart(request: Request, db: Session = Depends(get_db)):
-    """Добавление товара в корзину - ТОВАР СРАЗУ БРОНИРУЕТСЯ"""
     user_id = request.cookies.get("user_id")
     
     if not user_id:
@@ -2815,43 +2854,38 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     bag_id = data.get("bag_id")
     quantity = data.get("quantity", 1)
     
-    print(f"🛒 ДОБАВЛЕНИЕ В КОРЗИНУ: bag_id={bag_id}, quantity={quantity}, user_id={user_id}")
+    print(f"🛒 ========== ДОБАВЛЕНИЕ В КОРЗИНУ ==========")
+    print(f"📦 bag_id: {bag_id}, quantity: {quantity}, user_id: {user_id}")
     
-    # Проверяем наличие сюрприза
+    # Получаем сюрприз
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
     
     if not bag:
         raise HTTPException(status_code=404, detail="Товар не найден")
     
+    print(f"📊 ТЕКУЩЕЕ КОЛИЧЕСТВО: {bag.available_quantity}")
+    
     if bag.available_quantity < quantity:
         raise HTTPException(status_code=400, detail=f"Доступно только {bag.available_quantity} шт.")
     
-    # ✅ 1. УМЕНЬШАЕМ ДОСТУПНОЕ КОЛИЧЕСТВО (блокируем товар)
+    # ✅ УМЕНЬШАЕМ КОЛИЧЕСТВО
+    old_qty = bag.available_quantity
     bag.available_quantity -= quantity
-    print(f"📦 Осталось в наличии: {bag.available_quantity}")
+    print(f"📉 НОВОЕ КОЛИЧЕСТВО: {old_qty} -> {bag.available_quantity}")
     
+    # Если стало 0, деактивируем
     if bag.available_quantity <= 0:
         bag.is_active = False
-        print(f"🔴 Товар закончился, скрываем с главной")
+        print(f"🔴 СЮРПРИЗ ДЕАКТИВИРОВАН (закончился)")
     
-    # ✅ 2. СОЗДАЕМ ВРЕМЕННУЮ РЕЗЕРВАЦИЮ (ждем оплату 15 минут)
-    from datetime import datetime, timedelta
-    
-    reservation = TemporaryReservation(
-        bag_id=bag_id,
-        user_id=int(user_id),
-        quantity=quantity,
-        reserved_at=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(minutes=15),  # 15 минут на оплату
-        is_paid=False
-    )
-    db.add(reservation)
     db.commit()
-    db.refresh(reservation)
     
-    print(f"⏳ Создана резервация #{reservation.id}, истекает в {reservation.expires_at}")
+    # ✅ ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ ФИЛЬТРА
+    # Обновляем is_active для всех сюрпризов с quantity = 0
+    db.query(SurpriseBag).filter(SurpriseBag.available_quantity <= 0).update({SurpriseBag.is_active: False})
+    db.commit()
     
-    # ✅ 3. ДОБАВЛЯЕМ В КОРЗИНУ ПОЛЬЗОВАТЕЛЯ
+    # Добавляем в корзину
     existing = db.query(CartItem).filter(
         CartItem.user_id == int(user_id),
         CartItem.surprise_bag_id == bag_id
@@ -2869,26 +2903,25 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     
     db.commit()
     
-    # ✅ 4. ОТПРАВЛЯЕМ WEBSOCKET УВЕДОМЛЕНИЕ ВСЕМ КЛИЕНТАМ
+    # ✅ ОТПРАВЛЯЕМ WEBSOCKET
     await manager.broadcast({
         "type": "bag_quantity_updated",
         "data": {
             "bag_id": bag_id,
             "available_quantity": bag.available_quantity,
-            "is_active": bag.is_active,
-            "reservation_expires_at": reservation.expires_at.isoformat()
+            "is_active": bag.is_active
         },
         "timestamp": datetime.utcnow().isoformat()
     }, channel="surprise_bags")
     
+    print(f"✅ ГОТОВО! Осталось: {bag.available_quantity}")
+    
     return {
         "success": True,
-        "message": "Товар забронирован на 15 минут. Оплатите, чтобы завершить заказ.",
-        "reservation_id": reservation.id,
-        "expires_at": reservation.expires_at.isoformat(),
-        "available_quantity": bag.available_quantity
+        "message": "Товар добавлен в корзину",
+        "available_quantity": bag.available_quantity,
+        "is_active": bag.is_active
     }
-
 
 # backend/main.py - добавьте
 
