@@ -409,6 +409,7 @@ async def courier_complete_order(order_id: int, request: Request, db: Session = 
 
 # backend/main.py - добавьте логин для курьера
 # backend/main.py - убедитесь что эндпоинт возвращает success
+# backend/main.py - убедитесь что эндпоинт возвращает success
 
 @app.post("/api/courier/login")
 async def courier_login(request: Request, db: Session = Depends(get_db)):
@@ -483,7 +484,6 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
     )
     
     return response
-
 # main.py - регистрация с выбором типа
 
 
