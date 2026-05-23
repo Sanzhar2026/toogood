@@ -21,6 +21,8 @@ from backend.models import (
     CartItem,Food, User, UserRole, Supplier, SurpriseBag, 
     Order, OrderStatus, DeliveryStatus, OrderTracking, Review, CourierProfile, AssignedOrder 
 )
+from typing import Dict
+
 # ============ TWILIO IMPORTS ============
 try:
     from backend.twilio_service import send_verification_code, verify_code
@@ -131,6 +133,8 @@ async def get_courier_info(request: Request, db: Session = Depends(get_db)):
 
 # backend/main.py - убедитесь что эндпоинт выглядит так:
 
+# backend/main.py - исправленный эндпоинт
+
 @app.post("/courier/register")
 async def courier_register(request: Request, db: Session = Depends(get_db)):
     """Регистрация курьера"""
@@ -157,13 +161,14 @@ async def courier_register(request: Request, db: Session = Depends(get_db)):
     hashed_password = hash_password(password)
     full_name = f"{first_name} {last_name}"
     
+    # ✅ ИСПРАВЛЕНО: используем правильные имена полей
     new_user = User(
         phone=phone,
-        first_name=first_name,
-        last_name=last_name,
+        first_name=first_name,   # ✅ теперь есть в модели
+        last_name=last_name,      # ✅ теперь есть в модели
         full_name=full_name,
         password=hashed_password,
-        role=UserRole.COURIER,  # ← ИСПОЛЬЗУЕТСЯ UserRole.COURIER
+        role=UserRole.COURIER,
         is_active=False,
         created_at=datetime.utcnow()
     )
@@ -191,7 +196,6 @@ async def courier_register(request: Request, db: Session = Depends(get_db)):
         "message": "Заявка отправлена на рассмотрение",
         "courier_id": new_user.id
     }
-
 @app.post("/api/courier/go-online")
 async def courier_go_online(request: Request, db: Session = Depends(get_db)):
     """Курьер выходит на линию"""
@@ -3535,9 +3539,9 @@ async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
 # backend/main.py - обновите nearby suppliers
 
 # backend/main.py - показываем только доступные сюрпризы
-
 @app.get("/api/suppliers/nearby")
 async def get_nearby_suppliers(lat: float, lon: float, radius: float = 50, db: Session = Depends(get_db)):
+    """Получить поставщиков ТОЛЬКО с доступными сюрпризами"""
     all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
     
     nearby = []
@@ -3545,11 +3549,11 @@ async def get_nearby_suppliers(lat: float, lon: float, radius: float = 50, db: S
         if supplier.lat and supplier.lon:
             distance = haversine_distance(lat, lon, supplier.lat, supplier.lon)
             if distance <= radius:
-                # ✅ ТОЛЬКО СЮРПРИЗЫ С available_quantity > 0
+                # ✅ ТОЛЬКО АКТИВНЫЕ И С available_quantity > 0
                 active_bags = db.query(SurpriseBag).filter(
                     SurpriseBag.supplier_id == supplier.id,
                     SurpriseBag.is_active == True,
-                    SurpriseBag.available_quantity > 0  # ← ВАЖНО!
+                    SurpriseBag.available_quantity > 0  # ← ГЛАВНОЕ УСЛОВИЕ!
                 ).all()
                 
                 if active_bags:
@@ -3566,12 +3570,13 @@ async def get_nearby_suppliers(lat: float, lon: float, radius: float = 50, db: S
                                 "discount_percentage": bag.discount_percentage,
                                 "original_price": bag.original_price,
                                 "image_url": bag.image_url,
-                                "available_quantity": bag.available_quantity
+                                "available_quantity": bag.available_quantity  # ← ОТПРАВЛЯЕМ КОЛИЧЕСТВО
                             } for bag in active_bags
                         ]
                     })
     
     nearby.sort(key=lambda x: x["distance_km"])
+    print(f"📍 Найдено поставщиков с доступными сюрпризами: {len(nearby)}")
     return {"count": len(nearby), "suppliers": nearby}
 
 # ============ HOME PAGE ============

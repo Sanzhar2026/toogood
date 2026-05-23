@@ -1,58 +1,21 @@
-# add_payment_columns.py
-from sqlalchemy import create_engine, MetaData, Table, Column, String, DateTime, Float
-from sqlalchemy.orm import sessionmaker
-import os
+# Запустите этот скрипт один раз для обновления БД
+# create_missing_columns.py
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./toogood.db")
+from backend.database import engine
+from sqlalchemy import text
 
-def add_payment_columns():
-    engine = create_engine(DATABASE_URL)
-    metadata = MetaData()
+with engine.connect() as conn:
+    # Добавляем колонки first_name и last_name если их нет
+    try:
+        conn.execute(text("ALTER TABLE users ADD COLUMN first_name VARCHAR(100)"))
+        print("✅ Добавлена колонка first_name")
+    except Exception as e:
+        print(f"Колонка first_name уже существует: {e}")
     
-    # Reflect existing table
-    orders = Table('orders', metadata, autoload_with=engine)
+    try:
+        conn.execute(text("ALTER TABLE users ADD COLUMN last_name VARCHAR(100)"))
+        print("✅ Добавлена колонка last_name")
+    except Exception as e:
+        print(f"Колонка last_name уже существует: {e}")
     
-    # Add columns if they don't exist
-    with engine.connect() as conn:
-        try:
-            conn.execute("ALTER TABLE orders ADD COLUMN payment_id VARCHAR(100)")
-            print("✅ Added payment_id column")
-        except Exception as e:
-            print(f"payment_id column may already exist: {e}")
-        
-        try:
-            conn.execute("ALTER TABLE orders ADD COLUMN payment_status VARCHAR(50) DEFAULT 'pending'")
-            print("✅ Added payment_status column")
-        except Exception as e:
-            print(f"payment_status column may already exist: {e}")
-        
-        try:
-            conn.execute("ALTER TABLE orders ADD COLUMN payment_method VARCHAR(50)")
-            print("✅ Added payment_method column")
-        except Exception as e:
-            print(f"payment_method column may already exist: {e}")
-        
-        try:
-            conn.execute("ALTER TABLE orders ADD COLUMN paid_at DATETIME")
-            print("✅ Added paid_at column")
-        except Exception as e:
-            print(f"paid_at column may already exist: {e}")
-        
-        try:
-            conn.execute("ALTER TABLE orders ADD COLUMN payment_amount FLOAT")
-            print("✅ Added payment_amount column")
-        except Exception as e:
-            print(f"payment_amount column may already exist: {e}")
-        
-        try:
-            conn.execute("ALTER TABLE orders ADD COLUMN transaction_id VARCHAR(100)")
-            print("✅ Added transaction_id column")
-        except Exception as e:
-            print(f"transaction_id column may already exist: {e}")
-        
-        conn.commit()
-    
-    print("\n✅ All payment columns added successfully!")
-
-if __name__ == "__main__":
-    add_payment_columns()
+    conn.commit()
