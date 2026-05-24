@@ -110,6 +110,7 @@ courier_sessions = {}
 @app.get("/api/admin/stats")
 async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
     """Получить статистику для админ-панели"""
+    
     admin_id = request.cookies.get("admin_id")
     if not admin_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -122,6 +123,7 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
     total_suppliers = db.query(Supplier).count()
     total_couriers = db.query(CourierProfile).count()
     total_orders = db.query(Order).count()
+    pending_couriers = db.query(CourierProfile).filter(CourierProfile.is_verified == False).count()
     total_revenue = db.query(Order).filter(Order.payment_status == "paid").with_entities(func.sum(Order.amount_paid)).scalar() or 0
     
     return {
@@ -129,6 +131,7 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
         "total_suppliers": total_suppliers,
         "total_couriers": total_couriers,
         "total_orders": total_orders,
+        "pending_couriers": pending_couriers,
         "total_revenue": total_revenue
     }
 
@@ -136,6 +139,7 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
 @app.get("/api/admin/orders")
 async def get_admin_orders(request: Request, db: Session = Depends(get_db)):
     """Получить все заказы для админ-панели"""
+    
     admin_id = request.cookies.get("admin_id")
     if not admin_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -146,18 +150,16 @@ async def get_admin_orders(request: Request, db: Session = Depends(get_db)):
     for order in orders:
         user = db.query(User).filter(User.id == order.user_id).first()
         bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
         
         result.append({
             "id": order.id,
             "order_number": order.order_number,
-            "customer_name": user.full_name if user else "Неизвестно",
+            "customer_name": user.full_name or user.phone if user else "Неизвестно",
             "customer_phone": user.phone if user else "Неизвестно",
             "bag_name": bag.name if bag else "Сюрприз",
-            "supplier_name": supplier.business_name if supplier else "Ресторан",
             "amount": order.amount_paid or 0,
-            "status": order.status.value if order.status else "pending",
             "payment_status": order.payment_status or "pending",
+            "status": order.status.value if order.status else "pending",
             "created_at": order.created_at.isoformat() if order.created_at else None
         })
     
@@ -166,18 +168,20 @@ async def get_admin_orders(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/api/admin/couriers")
 async def get_admin_couriers(request: Request, db: Session = Depends(get_db)):
-    """Получить всех курьеров для админ-панели"""
+    """Получить всех подтвержденных курьеров"""
+    
     admin_id = request.cookies.get("admin_id")
     if not admin_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    couriers = db.query(CourierProfile).all()
+    couriers = db.query(CourierProfile).filter(
+        CourierProfile.is_verified == True
+    ).all()
     
     result = []
     for c in couriers:
         result.append({
             "id": c.id,
-            "user_id": c.user_id,
             "first_name": c.first_name,
             "last_name": c.last_name,
             "phone": c.phone,
@@ -185,7 +189,6 @@ async def get_admin_couriers(request: Request, db: Session = Depends(get_db)):
             "car_model": c.car_model,
             "car_number": c.car_number,
             "is_online": c.is_online,
-            "is_verified": c.is_verified,
             "total_deliveries": c.total_deliveries,
             "rating": c.rating
         })
@@ -196,6 +199,7 @@ async def get_admin_couriers(request: Request, db: Session = Depends(get_db)):
 @app.get("/api/admin/pending-couriers")
 async def get_admin_pending_couriers(request: Request, db: Session = Depends(get_db)):
     """Получить неподтвержденных курьеров для админ-панели"""
+    
     admin_id = request.cookies.get("admin_id")
     if not admin_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -206,10 +210,8 @@ async def get_admin_pending_couriers(request: Request, db: Session = Depends(get
     
     result = []
     for p in pending:
-        user = db.query(User).filter(User.id == p.user_id).first()
         result.append({
             "id": p.id,
-            "user_id": p.user_id,
             "first_name": p.first_name,
             "last_name": p.last_name,
             "phone": p.phone,
@@ -267,9 +269,11 @@ async def admin_reject_courier(courier_id: int, request: Request, db: Session = 
     return {"success": True, "message": "Заявка отклонена"}
 
 
+
 @app.get("/api/admin/reservations")
 async def get_admin_reservations(request: Request, db: Session = Depends(get_db)):
-    """Получить все активные резервации (ожидающие оплаты)"""
+    """Получить активные бронирования (ожидающие оплаты)"""
+    
     admin_id = request.cookies.get("admin_id")
     if not admin_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -286,9 +290,11 @@ async def get_admin_reservations(request: Request, db: Session = Depends(get_db)
         bag = db.query(SurpriseBag).filter(SurpriseBag.id == res.bag_id).first()
         supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first() if bag else None
         
+        time_left = int((res.expires_at - datetime.utcnow()).total_seconds() / 60)
+        
         result.append({
             "id": res.id,
-            "user_name": user.full_name if user else f"User {res.user_id}",
+            "user_name": user.full_name or user.phone if user else f"User {res.user_id}",
             "user_phone": user.phone if user else "Не указан",
             "bag_name": bag.name if bag else "Товар",
             "supplier_name": supplier.business_name if supplier else "Ресторан",
@@ -296,13 +302,165 @@ async def get_admin_reservations(request: Request, db: Session = Depends(get_db)
             "total_amount": bag.discounted_price * res.quantity if bag else 0,
             "reserved_at": res.reserved_at.isoformat(),
             "expires_at": res.expires_at.isoformat(),
-            "time_left_minutes": int((res.expires_at - datetime.utcnow()).total_seconds() / 60)
+            "time_left_minutes": time_left
         })
     
     return {"reservations": result}
-
 # backend/main.py - добавьте WebSocket для курьеров
 
+# ============ АДМИН ЭНДПОИНТЫ ДЛЯ УПРАВЛЕНИЯ ЗАКАЗАМИ ============
+
+@app.put("/api/admin/update-order-status/{order_id}")
+async def admin_update_order_status(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Админ обновляет статус заказа (оплата или статус доставки)"""
+    
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+    if not admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    data = await request.json()
+    field = data.get("field")  # "payment_status" или "order_status"
+    value = data.get("value")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if field == "payment_status":
+        order.payment_status = value
+        if value == "paid":
+            order.paid_at = datetime.utcnow()
+            order.status = OrderStatus.CONFIRMED
+        elif value == "refunded":
+            order.refund_status = "completed"
+            order.refund_processed_at = datetime.utcnow()
+            
+    elif field == "order_status":
+        order.status = OrderStatus(value)
+        if value == "delivered":
+            order.delivered_at = datetime.utcnow()
+        elif value == "cancelled":
+            order.payment_status = "refunded"
+            
+    db.commit()
+    
+    # Отправляем WebSocket уведомление
+    await manager.broadcast({
+        "type": "order_status_updated",
+        "data": {
+            "order_id": order_id,
+            "field": field,
+            "value": value
+        }
+    }, channel="admin")
+    
+    return {"success": True, "message": f"Статус обновлен на {value}"}
+
+
+@app.post("/api/admin/mark-reservation-paid/{reservation_id}")
+async def admin_mark_reservation_paid(reservation_id: int, request: Request, db: Session = Depends(get_db)):
+    """Админ отмечает бронирование как оплаченное и создает заказ"""
+    
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+    if not admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    reservation = db.query(TemporaryReservation).filter(
+        TemporaryReservation.id == reservation_id,
+        TemporaryReservation.is_paid == False
+    ).first()
+    
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    
+    # Помечаем как оплаченную
+    reservation.is_paid = True
+    
+    # Получаем сюрприз
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == reservation.bag_id).first()
+    if not bag:
+        raise HTTPException(status_code=404, detail="Bag not found")
+    
+    # Получаем пользователя
+    user = db.query(User).filter(User.id == reservation.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Создаем заказ
+    import secrets
+    order_number = f"ORD-{secrets.token_hex(4).upper()}"
+    
+    order = Order(
+        user_id=reservation.user_id,
+        supplier_id=bag.supplier_id,
+        surprise_bag_id=reservation.bag_id,
+        order_number=order_number,
+        status=OrderStatus.CONFIRMED,
+        payment_status="paid",
+        paid_at=datetime.utcnow(),
+        amount_paid=bag.discounted_price * reservation.quantity,
+        created_at=datetime.utcnow()
+    )
+    db.add(order)
+    
+    # Удаляем из корзины
+    cart_item = db.query(CartItem).filter(
+        CartItem.user_id == reservation.user_id,
+        CartItem.surprise_bag_id == reservation.bag_id
+    ).first()
+    if cart_item:
+        db.delete(cart_item)
+    
+    db.commit()
+    
+    return {"success": True, "message": "Оплата подтверждена, заказ создан", "order_id": order.id}
+
+
+@app.post("/api/admin/process-refund/{order_id}")
+async def admin_process_refund(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Админ обрабатывает возврат денег клиенту"""
+    
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+    if not admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    data = await request.json()
+    reason = data.get("reason", "Возврат по запросу администратора")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Обновляем статусы
+    order.payment_status = "refunded"
+    order.refund_status = "completed"
+    order.refund_processed_at = datetime.utcnow()
+    order.refund_reason = reason
+    order.refund_amount = order.amount_paid
+    order.status = OrderStatus.CANCELLED
+    
+    # Возвращаем количество сюрприза
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+    if bag:
+        bag.available_quantity += 1
+        if bag.available_quantity > 0:
+            bag.is_active = True
+    
+    db.commit()
+    
+    return {"success": True, "message": "Возврат обработан, деньги возвращены клиенту"}
 # backend/main.py - исправленный WebSocket без Depends
 
 @app.websocket("/ws/courier-tracking")
