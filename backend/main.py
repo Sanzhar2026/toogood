@@ -3297,6 +3297,8 @@ async def clear_cart(request: Request, db: Session = Depends(get_db)):
     db.commit()
     
     return {"success": True, "message": "Cart cleared"}
+
+    
 @app.post("/api/orders/create-from-cart")
 async def create_orders_from_cart(request: Request, db: Session = Depends(get_db)):
     """Create orders from all items in cart"""
@@ -4725,45 +4727,51 @@ class OrderCreate(BaseModel):
     address: str
 from fastapi import Request  # Убедитесь, что импортирован
 
+# backend/main.py - исправленный эндпоинт создания заказа
+
 @app.post("/api/orders")
-async def create_order(
-    request: Request,  # ← ДОБАВИТЬ ЭТОТ ПАРАМЕТР
-    order_data: OrderCreate, 
-    db: Session = Depends(get_db)
-):
-    # Check if bag exists
-    bag = db.query(SurpriseBag).filter(
-        SurpriseBag.id == order_data.bag_id,
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
-    ).first()
+async def create_order(order_data: OrderCreate, request: Request, db: Session = Depends(get_db)):
+    """Создание заказа после оплаты"""
     
-    if not bag:
-        raise HTTPException(status_code=404, detail="Bag not available")
-    
-    # Get user from cookie
     user_id = request.cookies.get("user_id")
     
-    if user_id:
-        user = db.query(User).filter(User.id == int(user_id)).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="User not found")
-    else:
-        # Fallback for testing
-        user = db.query(User).filter(User.phone == "temp_user").first()
-        if not user:
-            user = User(
-                phone="temp_user",
-                password="temp_password",
-                full_name="Temporary User",
-                role="customer",
-                is_active=True
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # Create order
+    # Получаем пользователя
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Получаем сюрприз
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order_data.bag_id).first()
+    if not bag:
+        raise HTTPException(status_code=404, detail="Bag not found")
+    
+    # Получаем ресторан
+    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    # ✅ Получаем адрес из данных или из профиля пользователя
+    customer_address = order_data.address
+    if not customer_address or customer_address == "Address not specified":
+        # Если адрес не передан, пробуем получить из геолокации или использовать адрес по умолчанию
+        if order_data.lat and order_data.lon:
+            try:
+                # Обратный геокодинг для получения адреса
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        f"https://nominatim.openstreetmap.org/reverse?format=json&lat={order_data.lat}&lon={order_data.lon}&accept-language=ru"
+                    )
+                    geo_data = response.json()
+                    customer_address = geo_data.get('display_name', f"{order_data.lat}, {order_data.lon}")
+            except:
+                customer_address = f"{order_data.lat}, {order_data.lon}"
+        else:
+            customer_address = "Адрес не указан"
+    
+    # Создаем заказ
     order_number = f"ORD-{secrets.token_hex(4).upper()}"
     
     order = Order(
@@ -4774,7 +4782,7 @@ async def create_order(
         status=OrderStatus.PENDING,
         customer_lat=order_data.lat,
         customer_lon=order_data.lon,
-        customer_address=order_data.address,
+        customer_address=customer_address,  # ✅ Теперь адрес сохраняется
         amount_paid=bag.discounted_price,
         created_at=datetime.utcnow()
     )
@@ -4783,17 +4791,11 @@ async def create_order(
     db.commit()
     db.refresh(order)
     
-    # Decrease quantity
+    # Уменьшаем количество (если еще не уменьшено через корзину)
     bag.available_quantity -= 1
+    if bag.available_quantity <= 0:
+        bag.is_active = False
     db.commit()
-    
-    # Send WebSocket notification to supplier
-    await notify_supplier_new_order(bag.supplier_id, {
-        "order_id": order.id,
-        "order_number": order.order_number,
-        "bag_name": bag.name,
-        "amount": bag.discounted_price
-    })
     
     return {
         "order_id": order.id,
@@ -4828,35 +4830,48 @@ async def geocode(lat: float, lon: float):
         return {"city": city}
 
 
+# backend/main.py - исправленный эндпоинт получения заказа
+
 @app.get("/api/orders/{order_id}")
 async def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
-    """Get single order by ID"""
-    try:
-        order = db.query(Order).filter(Order.id == order_id).first()
-        
-        if not order:
-            raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
-        
-        # Get bag and supplier info
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
-        
-        return {
-            "order_id": order.id,
-            "order_number": order.order_number or f"ORD-{order.id}",
-            "status": order.status.value if order.status else "pending",
-            "delivery_status": order.delivery_status.value if order.delivery_status else "at_supplier",
-            "bag_name": bag.name if bag else "Surprise Bag",
-            "supplier_name": supplier.business_name if supplier else "Restaurant",
-            "supplier_address": supplier.address if supplier else "",
-            "customer_address": order.customer_address or "Address not specified",
-            "amount_paid": order.amount_paid or 0,
-            "pickup_time": order.pickup_time or "",
-            "created_at": order.created_at.isoformat() if order.created_at else datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        print(f"Error fetching order {order_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    """Получить заказ по ID с полной информацией"""
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+    supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+    
+    # ✅ Формируем полный адрес
+    customer_address = order.customer_address
+    if not customer_address or customer_address == "Address not specified":
+        if order.customer_lat and order.customer_lon:
+            customer_address = f"📍 {order.customer_lat:.4f}, {order.customer_lon:.4f}"
+        else:
+            customer_address = "Адрес не указан"
+    
+    return {
+        "id": order.id,
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "status": order.status.value if order.status else "pending",
+        "delivery_status": order.delivery_status.value if order.delivery_status else "at_supplier",
+        "bag_name": bag.name if bag else "Surprise Bag",
+        "supplier_name": supplier.business_name if supplier else "Restaurant",
+        "supplier_address": supplier.address if supplier else "",
+        "supplier_lat": supplier.lat if supplier else None,
+        "supplier_lon": supplier.lon if supplier else None,
+        "customer_address": customer_address,  # ✅ Исправленный адрес
+        "customer_lat": order.customer_lat,
+        "customer_lon": order.customer_lon,
+        "amount_paid": order.amount_paid or 0,
+        "pickup_time": order.pickup_time or "",
+        "created_at": order.created_at.isoformat() if order.created_at else datetime.utcnow().isoformat(),
+        "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None,
+        "payment_status": order.payment_status or "pending"
+    }
 
 @app.get("/test-ors")
 async def test_ors():
