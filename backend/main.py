@@ -66,8 +66,108 @@ categories = [
 import httpx
 import json
 import math
-
 ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYyMDU3ZGE4OTkxODQ2M2JhNmVlZDgzM2QzMDE2OTYwIiwiaCI6Im11cm11cjY0In0="
+# backend/main.py - добавьте эндпоинт для маршрута
+
+# backend/main.py - обновите эндпоинт
+
+@app.post("/api/delivery/route/{order_id}")
+async def get_delivery_route(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Получить маршрут доставки от текущего положения курьера до ресторана и клиента"""
+    
+    data = await request.json()
+    start_lat = data.get("start_lat")
+    start_lon = data.get("start_lon")
+    end_lat = data.get("end_lat")
+    end_lon = data.get("end_lon")
+    
+    # ✅ НЕТ АЛМАТЫ! Используем ТОЛЬКО переданные координаты
+    if not start_lat or not start_lon:
+        raise HTTPException(status_code=400, detail="Start location required")
+    
+    if not end_lat or not end_lon:
+        raise HTTPException(status_code=400, detail="End location required")
+    
+    ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYyMDU3ZGE4OTkxODQ2M2JhNmVlZDgzM2QzMDE2OTYwIiwiaCI6Im11cm11cjY0In0="
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                "https://api.openrouteservice.org/v2/directions/driving-car",
+                headers={
+                    "Authorization": ORS_API_KEY,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "coordinates": [[start_lon, start_lat], [end_lon, end_lat]]
+                },
+                timeout=30.0
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                route = data['routes'][0]
+                
+                import polyline
+                decoded_points = polyline.decode(route['geometry'])
+                
+                waypoints = []
+                for point in decoded_points:
+                    waypoints.append({"lat": point[0], "lon": point[1]})
+                
+                distance_km = route['summary']['distance'] / 1000
+                duration_min = route['summary']['duration'] / 60
+                
+                return {
+                    "success": True,
+                    "waypoints": waypoints,
+                    "distance_km": round(distance_km, 2),
+                    "duration_min": round(duration_min, 2),
+                    "start_lat": start_lat,
+                    "start_lon": start_lon,
+                    "end_lat": end_lat,
+                    "end_lon": end_lon
+                }
+            else:
+                return get_straight_line_route(start_lat, start_lon, end_lat, end_lon)
+                
+        except Exception as e:
+            print(f"ORS error: {e}")
+            return get_straight_line_route(start_lat, start_lon, end_lat, end_lon)
+
+
+def get_straight_line_route(start_lat, start_lon, end_lat, end_lon):
+    """Прямая линия если ORS не работает"""
+    waypoints = []
+    for i in range(101):
+        t = i / 100
+        waypoints.append({
+            "lat": start_lat + (end_lat - start_lat) * t,
+            "lon": start_lon + (end_lon - start_lon) * t
+        })
+    
+    from math import radians, sin, cos, sqrt, atan2
+    def haversine(lat1, lon1, lat2, lon2):
+        R = 6371
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        return R * c
+    
+    distance_km = haversine(start_lat, start_lon, end_lat, end_lon)
+    duration_min = (distance_km / 40) * 60
+    
+    return {
+        "success": True,
+        "waypoints": waypoints,
+        "distance_km": round(distance_km, 2),
+        "duration_min": round(duration_min, 2),
+        "start_lat": start_lat,
+        "start_lon": start_lon,
+        "end_lat": end_lat,
+        "end_lon": end_lon
+    }
 
 
 
@@ -389,6 +489,9 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
     if not bag:
         raise HTTPException(status_code=404, detail="Bag not found")
     
+    # Получаем ресторан
+    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    
     # Получаем пользователя
     user = db.query(User).filter(User.id == reservation.user_id).first()
     if not user:
@@ -397,6 +500,17 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
     # Создаем заказ
     import secrets
     order_number = f"ORD-{secrets.token_hex(4).upper()}"
+    
+    # ✅ Получаем координаты из резервации (если есть)
+    customer_lat = None
+    customer_lon = None
+    customer_address = "Адрес не указан"
+    
+    # Пытаемся получить адрес из корзины или профиля
+    cart_item = db.query(CartItem).filter(
+        CartItem.user_id == reservation.user_id,
+        CartItem.surprise_bag_id == reservation.bag_id
+    ).first()
     
     order = Order(
         user_id=reservation.user_id,
@@ -407,23 +521,90 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
         payment_status="paid",
         paid_at=datetime.utcnow(),
         amount_paid=bag.discounted_price * reservation.quantity,
+        customer_address=customer_address,
+        customer_lat=customer_lat,
+        customer_lon=customer_lon,
         created_at=datetime.utcnow()
     )
     db.add(order)
+    db.flush()
     
     # Удаляем из корзины
-    cart_item = db.query(CartItem).filter(
-        CartItem.user_id == reservation.user_id,
-        CartItem.surprise_bag_id == reservation.bag_id
-    ).first()
     if cart_item:
         db.delete(cart_item)
     
     db.commit()
     
+    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ ВСЕМ КУРЬЕРАМ
+    await manager.broadcast({
+        "type": "new_order_for_courier",
+        "data": {
+            "order_id": order.id,
+            "order_number": order_number,
+            "supplier_id": bag.supplier_id,
+            "supplier_name": supplier.business_name if supplier else "Ресторан",
+            "supplier_lat": supplier.lat if supplier else None,
+            "supplier_lon": supplier.lon if supplier else None,
+            "bag_name": bag.name,
+            "amount": order.amount_paid,
+            "customer_address": customer_address,
+            "customer_lat": customer_lat,
+            "customer_lon": customer_lon
+        },
+        "timestamp": datetime.utcnow().isoformat()
+    }, channel="couriers")
+    
+    print(f"✅ Уведомление отправлено курьерам о новом заказе #{order.id}")
+    
     return {"success": True, "message": "Оплата подтверждена, заказ создан", "order_id": order.id}
+# backend/main.py - добавьте
 
-
+@app.post("/api/courier/take-order/{order_id}")
+async def courier_take_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Курьер берет заказ в работу"""
+    
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.status != OrderStatus.CONFIRMED:
+        raise HTTPException(status_code=400, detail="Order not available")
+    
+    # Назначаем курьера
+    order.assigned_courier_id = courier.user_id
+    order.status = OrderStatus.OUT_FOR_DELIVERY
+    order.delivery_started_at = datetime.utcnow()
+    
+    # Рассчитываем дедлайн (30 минут)
+    order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
+    
+    # Обновляем статус курьера
+    courier.current_order_id = order_id
+    courier.is_available = False
+    
+    db.commit()
+    
+    # ✅ Отправляем уведомление клиенту
+    await manager.broadcast({
+        "type": "order_assigned",
+        "data": {
+            "order_id": order_id,
+            "courier_name": f"{courier.first_name} {courier.last_name}",
+            "courier_phone": courier.phone,
+            "courier_lat": courier.current_lat,
+            "courier_lon": courier.current_lon
+        }
+    }, channel=f"order_{order_id}")
+    
+    return {"success": True, "message": "Заказ взят в работу"}
 @app.post("/api/admin/process-refund/{order_id}")
 async def admin_process_refund(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Админ обрабатывает возврат денег клиенту"""
