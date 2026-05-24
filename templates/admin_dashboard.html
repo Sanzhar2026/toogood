@@ -180,10 +180,47 @@
             cursor: pointer;
             font-size: 0.8rem;
             float: right;
+            margin-left: 0.5rem;
         }
         
         .refresh-btn:hover {
             background: #e2e8f0;
+        }
+        
+        .btn-verify {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            margin-right: 0.5rem;
+        }
+        
+        .btn-verify:hover {
+            background: #059669;
+        }
+        
+        .btn-reject {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+        
+        .btn-reject:hover {
+            background: #dc2626;
+        }
+        
+        .badge-pending {
+            background: #f59e0b;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 2rem;
+            font-size: 0.7rem;
+            margin-left: 0.5rem;
         }
     </style>
 </head>
@@ -214,6 +251,39 @@
             </div>
         </div>
         
+        <!-- 👥 ЗАЯВКИ НА ПОДТВЕРЖДЕНИЕ КУРЬЕРОВ -->
+        <div class="section">
+            <div>
+                <h2 class="section-title">
+                    👥 ЗАЯВКИ НА ПОДТВЕРЖДЕНИЕ КУРЬЕРОВ
+                    <span class="live-badge">● LIVE</span>
+                    <span id="pendingBadge" class="badge-pending" style="display: none;">0</span>
+                </h2>
+                <button class="refresh-btn" onclick="loadPendingCouriers()">🔄 Обновить</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Имя и фамилия</th>
+                            <th>Телефон</th>
+                            <th>Тип</th>
+                            <th>Автомобиль</th>
+                            <th>Госномер</th>
+                            <th>Дата заявки</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pendingCouriersTable">
+                        <tr>
+                            <td colspan="8" style="text-align: center;">Загрузка...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
         <!-- ⏳ АКТИВНЫЕ БРОНИРОВАНИЯ -->
         <div class="section">
             <div>
@@ -236,12 +306,12 @@
                             <th>Сумма</th>
                             <th>Времени осталось</th>
                             <th>Забронирован</th>
-                         </tr>
+                        </tr>
                     </thead>
                     <tbody id="reservationsTable">
                         <tr>
                             <td colspan="9" style="text-align: center;">Загрузка...</td>
-                         </tr>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -261,20 +331,20 @@
                             <th>Сумма</th>
                             <th>Статус</th>
                             <th>Дата</th>
-                         </tr>
+                        </tr>
                     </thead>
                     <tbody id="ordersTable">
                         <tr>
                             <td colspan="7" style="text-align: center;">Загрузка...</td>
-                         </tr>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         </div>
         
-        <!-- 🚚 КУРЬЕРЫ -->
+        <!-- 🚚 КУРЬЕРЫ (ПОДТВЕРЖДЕННЫЕ) -->
         <div class="section">
-            <h2 class="section-title">🚚 КУРЬЕРЫ</h2>
+            <h2 class="section-title">🚚 ПОДТВЕРЖДЕННЫЕ КУРЬЕРЫ</h2>
             <div class="table-container">
                 <table>
                     <thead>
@@ -287,12 +357,12 @@
                             <th>Статус</th>
                             <th>Доставок</th>
                             <th>Рейтинг</th>
-                         </tr>
+                        </tr>
                     </thead>
                     <tbody id="couriersTable">
                         <tr>
                             <td colspan="8" style="text-align: center;">Загрузка...</td>
-                         </tr>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -324,6 +394,12 @@
                 
                 if (data.type === 'bag_quantity_updated') {
                     console.log(`📦 Сюрприз ${data.data.bag_id}: осталось ${data.data.available_quantity}`);
+                }
+                
+                if (data.type === 'new_courier_registration') {
+                    showAdminNotification(`🆕 НОВАЯ ЗАЯВКА! ${data.data.first_name} ${data.data.last_name} хочет стать курьером`);
+                    loadPendingCouriers();
+                    loadStats();
                 }
             };
             
@@ -363,8 +439,111 @@
                 document.getElementById('totalSuppliers').textContent = data.total_suppliers || 0;
                 document.getElementById('totalCouriers').textContent = data.total_couriers || 0;
                 document.getElementById('totalRevenue').textContent = (data.total_revenue || 0).toLocaleString() + ' ₸';
+                
+                // Обновляем счетчик заявок
+                const pendingCount = data.pending_couriers || 0;
+                const pendingBadge = document.getElementById('pendingBadge');
+                if (pendingBadge) {
+                    if (pendingCount > 0) {
+                        pendingBadge.style.display = 'inline-block';
+                        pendingBadge.textContent = pendingCount;
+                    } else {
+                        pendingBadge.style.display = 'none';
+                    }
+                }
             } catch (error) {
                 console.error('Error loading stats:', error);
+            }
+        }
+        
+        // ЗАГРУЗКА ЗАЯВОК НА ПОДТВЕРЖДЕНИЕ
+        async function loadPendingCouriers() {
+            try {
+                const response = await fetch('/api/admin/pending-couriers', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                const tbody = document.getElementById('pendingCouriersTable');
+                
+                if (!data.couriers || data.couriers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">✅ Нет новых заявок</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = '';
+                for (const c of data.couriers) {
+                    const row = `
+                        <tr>
+                            <td>#${c.id}</td>
+                            <td><strong>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</strong></td>
+                            <td>${escapeHtml(c.phone)}</td>
+                            <td>${c.courier_type === 'driver' ? '🚗 На машине' : '🚶 Пеший'}</td>
+                            <td>${escapeHtml(c.car_model || '-')}</td>
+                            <td>${escapeHtml(c.car_number || '-')}</td>
+                            <td>${new Date(c.created_at).toLocaleString()}</td>
+                            <td>
+                                <button class="btn-verify" onclick="verifyCourier(${c.id})">✅ Подтвердить</button>
+                                <button class="btn-reject" onclick="rejectCourier(${c.id})">❌ Отклонить</button>
+                            </td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                }
+            } catch (error) {
+                console.error('Error loading pending couriers:', error);
+                document.getElementById('pendingCouriersTable').innerHTML = '<tr><td colspan="8" style="text-align: center; color: red;">❌ Ошибка загрузки</td></tr>';
+            }
+        }
+        
+        // ПОДТВЕРЖДЕНИЕ КУРЬЕРА
+        async function verifyCourier(courierId) {
+            if (!confirm('Подтвердить регистрацию курьера?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/verify-courier/${courierId}`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ Курьер подтвержден!');
+                    loadPendingCouriers();
+                    loadCouriers();
+                    loadStats();
+                } else {
+                    alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                console.error('Error verifying courier:', error);
+                alert('❌ Ошибка при подтверждении');
+            }
+        }
+        
+        // ОТКЛОНЕНИЕ ЗАЯВКИ
+        async function rejectCourier(courierId) {
+            if (!confirm('Отклонить заявку курьера?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/reject-courier/${courierId}`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('❌ Заявка отклонена');
+                    loadPendingCouriers();
+                    loadStats();
+                } else {
+                    alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                console.error('Error rejecting courier:', error);
+                alert('❌ Ошибка при отклонении');
             }
         }
         
@@ -384,7 +563,7 @@
                 tbody.innerHTML = '';
                 for (const res of data.reservations) {
                     const timeLeft = res.time_left_minutes;
-                    const timeClass = timeLeft < 3 ? 'timer-warning' : (timeLeft < 5 ? 'text-orange' : '');
+                    const timeClass = timeLeft < 3 ? 'timer-warning' : '';
                     
                     const row = `
                         <tr>
@@ -407,7 +586,7 @@
             }
         }
         
-        // Загрузка заказов
+        // Загрузка оплаченных заказов
         async function loadOrders() {
             try {
                 const response = await fetch('/api/admin/orders', { credentials: 'include' });
@@ -441,7 +620,7 @@
             }
         }
         
-        // Загрузка курьеров
+        // Загрузка подтвержденных курьеров
         async function loadCouriers() {
             try {
                 const response = await fetch('/api/admin/couriers', { credentials: 'include' });
@@ -485,6 +664,7 @@
         
         // Автообновление каждые 30 секунд
         setInterval(() => {
+            loadPendingCouriers();
             loadActiveReservations();
             loadOrders();
             loadCouriers();
@@ -498,6 +678,7 @@
         
         // Инициализация
         loadStats();
+        loadPendingCouriers();
         loadActiveReservations();
         loadOrders();
         loadCouriers();
