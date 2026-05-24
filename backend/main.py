@@ -3046,9 +3046,11 @@ async def get_cart(request: Request, db: Session = Depends(get_db)):
 # backend/main.py - УБЕДИСЬ, ЧТО ЭТОТ ЭНДПОИНТ ТОЧНО УМЕНЬШАЕТ КОЛИЧЕСТВО
 # backend/main.py - полный эндпоинт добавления в корзину
 
+# backend/main.py - убедитесь, что эндпоинт возвращает success
+
 @app.post("/api/cart/add")
 async def add_to_cart(request: Request, db: Session = Depends(get_db)):
-    """Добавление товара в корзину - ТОВАР СРАЗУ БРОНИРУЕТСЯ"""
+    """Добавление товара в корзину"""
     user_id = request.cookies.get("user_id")
     
     if not user_id:
@@ -3058,13 +3060,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     bag_id = data.get("bag_id")
     quantity = data.get("quantity", 1)
     
-    print(f"🛒 ========== ДОБАВЛЕНИЕ В КОРЗИНУ ==========")
-    print(f"📦 bag_id: {bag_id}, quantity: {quantity}, user_id: {user_id}")
-    
-    # Получаем пользователя
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    print(f"🛒 ДОБАВЛЕНИЕ: bag_id={bag_id}, quantity={quantity}, user_id={user_id}")
     
     # Получаем сюрприз
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
@@ -3072,40 +3068,27 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     if not bag:
         raise HTTPException(status_code=404, detail="Товар не найден")
     
-    print(f"📊 ТЕКУЩЕЕ КОЛИЧЕСТВО: {bag.available_quantity}")
-    
     if bag.available_quantity < quantity:
         raise HTTPException(status_code=400, detail=f"Доступно только {bag.available_quantity} шт.")
     
-    # ✅ 1. УМЕНЬШАЕМ ДОСТУПНОЕ КОЛИЧЕСТВО
-    old_qty = bag.available_quantity
+    # Уменьшаем количество
     bag.available_quantity -= quantity
-    print(f"📉 НОВОЕ КОЛИЧЕСТВО: {old_qty} -> {bag.available_quantity}")
-    
-    # Если стало 0, деактивируем
     if bag.available_quantity <= 0:
         bag.is_active = False
-        print(f"🔴 СЮРПРИЗ ДЕАКТИВИРОВАН (закончился)")
     
-    db.commit()
-    
-    # ✅ 2. СОЗДАЕМ ВРЕМЕННУЮ РЕЗЕРВАЦИЮ
+    # Создаем резервацию
     from datetime import datetime, timedelta
-    
     reservation = TemporaryReservation(
         bag_id=bag_id,
         user_id=int(user_id),
         quantity=quantity,
         reserved_at=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(minutes=15),  # 15 минут на оплату
+        expires_at=datetime.utcnow() + timedelta(minutes=15),
         is_paid=False
     )
     db.add(reservation)
-    db.flush()
     
-    print(f"⏳ Создана резервация #{reservation.id}, истекает в {reservation.expires_at}")
-    
-    # ✅ 3. ДОБАВЛЯЕМ В КОРЗИНУ ПОЛЬЗОВАТЕЛЯ
+    # Добавляем в корзину
     existing = db.query(CartItem).filter(
         CartItem.user_id == int(user_id),
         CartItem.surprise_bag_id == bag_id
@@ -3123,47 +3106,14 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     
     db.commit()
     
-    # ✅ 4. ОТПРАВЛЯЕМ WEBSOCKET УВЕДОМЛЕНИЕ ВСЕМ КЛИЕНТАМ (обновление главной)
-    await manager.broadcast({
-        "type": "bag_quantity_updated",
-        "data": {
-            "bag_id": bag_id,
-            "available_quantity": bag.available_quantity,
-            "is_active": bag.is_active
-        },
-        "timestamp": datetime.utcnow().isoformat()
-    }, channel="surprise_bags")
-    
-    # ✅ 5. ОТПРАВЛЯЕМ WEBSOCKET УВЕДОМЛЕНИЕ АДМИНИСТРАТОРУ (новое бронирование)
-    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-    
-    await manager.broadcast({
-        "type": "new_reservation",
-        "data": {
-            "reservation_id": reservation.id,
-            "user_id": user.id,
-            "user_name": user.full_name or f"{user.first_name} {user.last_name}",
-            "user_phone": user.phone,
-            "bag_id": bag.id,
-            "bag_name": bag.name,
-            "supplier_name": supplier.business_name if supplier else "Ресторан",
-            "quantity": quantity,
-            "amount": bag.discounted_price * quantity,
-            "expires_at": reservation.expires_at.isoformat(),
-            "time_left_minutes": 15
-        },
-        "timestamp": datetime.utcnow().isoformat()
-    }, channel="admin")
-    
-    print(f"✅ Уведомление админу отправлено: новое бронирование #{reservation.id}")
+    print(f"✅ Успешно добавлено! Осталось: {bag.available_quantity}")
     
     return {
         "success": True,
-        "message": "Товар забронирован на 15 минут. Оплатите, чтобы завершить заказ.",
-        "reservation_id": reservation.id,
-        "expires_at": reservation.expires_at.isoformat(),
+        "message": "Товар добавлен в корзину",
         "available_quantity": bag.available_quantity,
-        "is_active": bag.is_active
+        "reservation_id": reservation.id,
+        "expires_at": reservation.expires_at.isoformat()
     }
 # backend/main.py - добавьте
 
