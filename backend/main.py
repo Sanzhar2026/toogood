@@ -103,7 +103,203 @@ courier_sessions = {}
 
 
 
+# backend/main.py - добавьте эти эндпоинты
 
+# ============ АДМИН ЭНДПОИНТЫ ============
+
+@app.get("/api/admin/stats")
+async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
+    """Получить статистику для админ-панели"""
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+    if not admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    total_users = db.query(User).count()
+    total_suppliers = db.query(Supplier).count()
+    total_couriers = db.query(CourierProfile).count()
+    total_orders = db.query(Order).count()
+    total_revenue = db.query(Order).filter(Order.payment_status == "paid").with_entities(func.sum(Order.amount_paid)).scalar() or 0
+    
+    return {
+        "total_users": total_users,
+        "total_suppliers": total_suppliers,
+        "total_couriers": total_couriers,
+        "total_orders": total_orders,
+        "total_revenue": total_revenue
+    }
+
+
+@app.get("/api/admin/orders")
+async def get_admin_orders(request: Request, db: Session = Depends(get_db)):
+    """Получить все заказы для админ-панели"""
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    orders = db.query(Order).order_by(Order.created_at.desc()).all()
+    
+    result = []
+    for order in orders:
+        user = db.query(User).filter(User.id == order.user_id).first()
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+        
+        result.append({
+            "id": order.id,
+            "order_number": order.order_number,
+            "customer_name": user.full_name if user else "Неизвестно",
+            "customer_phone": user.phone if user else "Неизвестно",
+            "bag_name": bag.name if bag else "Сюрприз",
+            "supplier_name": supplier.business_name if supplier else "Ресторан",
+            "amount": order.amount_paid or 0,
+            "status": order.status.value if order.status else "pending",
+            "payment_status": order.payment_status or "pending",
+            "created_at": order.created_at.isoformat() if order.created_at else None
+        })
+    
+    return {"orders": result}
+
+
+@app.get("/api/admin/couriers")
+async def get_admin_couriers(request: Request, db: Session = Depends(get_db)):
+    """Получить всех курьеров для админ-панели"""
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    couriers = db.query(CourierProfile).all()
+    
+    result = []
+    for c in couriers:
+        result.append({
+            "id": c.id,
+            "user_id": c.user_id,
+            "first_name": c.first_name,
+            "last_name": c.last_name,
+            "phone": c.phone,
+            "courier_type": c.courier_type,
+            "car_model": c.car_model,
+            "car_number": c.car_number,
+            "is_online": c.is_online,
+            "is_verified": c.is_verified,
+            "total_deliveries": c.total_deliveries,
+            "rating": c.rating
+        })
+    
+    return {"couriers": result}
+
+
+@app.get("/api/admin/pending-couriers")
+async def get_admin_pending_couriers(request: Request, db: Session = Depends(get_db)):
+    """Получить неподтвержденных курьеров для админ-панели"""
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    pending = db.query(CourierProfile).filter(
+        CourierProfile.is_verified == False
+    ).all()
+    
+    result = []
+    for p in pending:
+        user = db.query(User).filter(User.id == p.user_id).first()
+        result.append({
+            "id": p.id,
+            "user_id": p.user_id,
+            "first_name": p.first_name,
+            "last_name": p.last_name,
+            "phone": p.phone,
+            "courier_type": p.courier_type,
+            "car_model": p.car_model,
+            "car_number": p.car_number,
+            "created_at": p.created_at.isoformat() if p.created_at else None
+        })
+    
+    return {"couriers": result}
+
+
+@app.post("/api/admin/verify-courier/{courier_id}")
+async def admin_verify_courier(courier_id: int, request: Request, db: Session = Depends(get_db)):
+    """Админ подтверждает курьера"""
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.id == courier_id).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    courier.is_verified = True
+    courier.verified_at = datetime.utcnow()
+    
+    # Активируем пользователя
+    user = db.query(User).filter(User.id == courier.user_id).first()
+    if user:
+        user.is_active = True
+    
+    db.commit()
+    
+    return {"success": True, "message": "Курьер подтвержден"}
+
+
+@app.post("/api/admin/reject-courier/{courier_id}")
+async def admin_reject_courier(courier_id: int, request: Request, db: Session = Depends(get_db)):
+    """Админ отклоняет заявку курьера"""
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.id == courier_id).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    # Удаляем профиль курьера и пользователя
+    user = db.query(User).filter(User.id == courier.user_id).first()
+    if user:
+        db.delete(user)
+    db.delete(courier)
+    db.commit()
+    
+    return {"success": True, "message": "Заявка отклонена"}
+
+
+@app.get("/api/admin/reservations")
+async def get_admin_reservations(request: Request, db: Session = Depends(get_db)):
+    """Получить все активные резервации (ожидающие оплаты)"""
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    from datetime import datetime
+    active_reservations = db.query(TemporaryReservation).filter(
+        TemporaryReservation.is_paid == False,
+        TemporaryReservation.expires_at > datetime.utcnow()
+    ).order_by(TemporaryReservation.expires_at.asc()).all()
+    
+    result = []
+    for res in active_reservations:
+        user = db.query(User).filter(User.id == res.user_id).first()
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == res.bag_id).first()
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first() if bag else None
+        
+        result.append({
+            "id": res.id,
+            "user_name": user.full_name if user else f"User {res.user_id}",
+            "user_phone": user.phone if user else "Не указан",
+            "bag_name": bag.name if bag else "Товар",
+            "supplier_name": supplier.business_name if supplier else "Ресторан",
+            "quantity": res.quantity,
+            "total_amount": bag.discounted_price * res.quantity if bag else 0,
+            "reserved_at": res.reserved_at.isoformat(),
+            "expires_at": res.expires_at.isoformat(),
+            "time_left_minutes": int((res.expires_at - datetime.utcnow()).total_seconds() / 60)
+        })
+    
+    return {"reservations": result}
 
 # backend/main.py - добавьте WebSocket для курьеров
 
