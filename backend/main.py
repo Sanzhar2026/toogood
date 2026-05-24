@@ -460,7 +460,6 @@ async def admin_update_order_status(order_id: int, request: Request, db: Session
     
     return {"success": True, "message": f"Статус обновлен на {value}"}
 
-
 @app.post("/api/admin/mark-reservation-paid/{reservation_id}")
 async def admin_mark_reservation_paid(reservation_id: int, request: Request, db: Session = Depends(get_db)):
     """Админ отмечает бронирование как оплаченное и создает заказ"""
@@ -501,16 +500,16 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
     import secrets
     order_number = f"ORD-{secrets.token_hex(4).upper()}"
     
-    # ✅ Получаем координаты из резервации (если есть)
-    customer_lat = None
-    customer_lon = None
-    customer_address = "Адрес не указан"
+    # Получаем координаты (если есть, иначе используем координаты ресторана временно)
+    customer_lat = reservation.customer_lat if hasattr(reservation, 'customer_lat') else None
+    customer_lon = reservation.customer_lon if hasattr(reservation, 'customer_lon') else None
+    customer_address = reservation.customer_address if hasattr(reservation, 'customer_address') else "Адрес не указан"
     
-    # Пытаемся получить адрес из корзины или профиля
-    cart_item = db.query(CartItem).filter(
-        CartItem.user_id == reservation.user_id,
-        CartItem.surprise_bag_id == reservation.bag_id
-    ).first()
+    # Если нет координат клиента, используем координаты ресторана (временно)
+    if not customer_lat or not customer_lon:
+        customer_lat = supplier.lat if supplier else None
+        customer_lon = supplier.lon if supplier else None
+        customer_address = supplier.address if supplier else "Адрес не указан"
     
     order = Order(
         user_id=reservation.user_id,
@@ -521,21 +520,25 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
         payment_status="paid",
         paid_at=datetime.utcnow(),
         amount_paid=bag.discounted_price * reservation.quantity,
-        customer_address=customer_address,
         customer_lat=customer_lat,
         customer_lon=customer_lon,
+        customer_address=customer_address,
         created_at=datetime.utcnow()
     )
     db.add(order)
     db.flush()
     
     # Удаляем из корзины
+    cart_item = db.query(CartItem).filter(
+        CartItem.user_id == reservation.user_id,
+        CartItem.surprise_bag_id == reservation.bag_id
+    ).first()
     if cart_item:
         db.delete(cart_item)
     
     db.commit()
     
-    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ ВСЕМ КУРЬЕРАМ
+    # Отправляем уведомление курьерам
     await manager.broadcast({
         "type": "new_order_for_courier",
         "data": {
