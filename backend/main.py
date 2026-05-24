@@ -2116,87 +2116,93 @@ def get_current_admin(request: Request):
 # ============ СТРАНИЦА ВХОДА ============
 @app.get("/admin/login")
 async def admin_login_page(request: Request):
-    return templates.TemplateResponse("admin_login.html", {"request": request})
+    """Страница входа в админ-панель"""
+    return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
+
 
 @app.post("/admin/login")
-async def admin_login(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    db: Session = Depends(get_db)
-):
+async def admin_login(request: Request, db: Session = Depends(get_db)):
+    """Обработка входа в админ-панель"""
+    form_data = await request.form()
+    username = form_data.get("username")
+    password = form_data.get("password")
+    
+    print(f"🔐 Попытка входа админа: {username}")
+    
+    # Ищем админа
     admin = db.query(Admin).filter(Admin.username == username).first()
     
-    if not admin or not verify_password(password, admin.password_hash):
-        return templates.TemplateResponse(
-            "admin_login.html",
-            {"request": request, "error": "Неверный логин или пароль"}
-        )
-    
-    token = secrets.token_urlsafe(32)
-    admin_sessions[token] = {
-        "admin_id": admin.id,
-        "username": admin.username,
-        "expires_at": datetime.utcnow() + timedelta(hours=8)
-    }
-    
-    response = RedirectResponse(url="/admin/dashboard", status_code=303)
-    response.set_cookie(key="admin_token", value=token, httponly=True, max_age=8*60*60)
-    return response
-
-@app.get("/admin/logout")
-async def admin_logout(request: Request):
-    token = request.cookies.get("admin_token")
-    if token in admin_sessions:
-        del admin_sessions[token]
-    response = RedirectResponse(url="/admin/login", status_code=303)
-    response.delete_cookie("admin_token")
-    return response
-
-# ============ АДМИН-ДАШБОРД ============
-@app.get("/admin/dashboard")
-async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
-    admin = get_current_admin(request)
     if not admin:
-        return RedirectResponse(url="/admin/login", status_code=303)
-    
-    # Статистика
-    total_orders = db.query(Order).count()
-    paid_orders = db.query(Order).filter(Order.payment_status == "paid").count()
-    pending_payment = db.query(Order).filter(Order.payment_status == "pending").count()
-    total_revenue = db.query(func.sum(Order.amount_paid)).filter(Order.payment_status == "paid").scalar() or 0
-    
-    # Заказы
-    orders = db.query(Order).order_by(Order.created_at.desc()).all()
-    orders_data = []
-    for order in orders:
-        user = db.query(User).filter(User.id == order.user_id).first()
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-        orders_data.append({
-            "id": order.id,
-            "order_number": order.order_number or f"ORD-{order.id}",
-            "user_name": user.full_name if user else "Неизвестно",
-            "user_phone": user.phone if user else "—",
-            "amount": order.amount_paid or 0,
-            "payment_status": order.payment_status or "pending",
-            "order_status": order.status.value if order.status else "pending",
-            "bag_name": bag.name if bag else "Surprise Bag",
-            "created_at": order.created_at.strftime("%Y-%m-%d %H:%M") if order.created_at else "—",
+        print(f"❌ Админ не найден")
+        return templates.TemplateResponse("admin_login.html", {
+            "request": request,
+            "error": "Неверный логин или пароль"
         })
     
+    # Проверка пароля
+    if not verify_password(password, admin.password_hash):
+        print(f"❌ Неверный пароль")
+        return templates.TemplateResponse("admin_login.html", {
+            "request": request,
+            "error": "Неверный логин или пароль"
+        })
+    
+    # Создаем ответ
+    response = RedirectResponse(url="/admin/dashboard", status_code=303)
+    response.set_cookie(
+        key="admin_id",
+        value=str(admin.id),
+        httponly=True,
+        max_age=60*60*8,
+        path="/"
+    )
+    
+    print(f"✅ Админ {username} вошел")
+    return response
+
+
+@app.get("/admin/dashboard")
+async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
+    """Панель администратора"""
+    
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        return RedirectResponse(url="/admin/login", status_code=303)
+    
+    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+    if not admin:
+        response = RedirectResponse(url="/admin/login", status_code=303)
+        response.delete_cookie("admin_id")
+        return response
+    
+    # Статистика
+    total_users = db.query(User).count()
+    total_suppliers = db.query(Supplier).count()
+    total_couriers = db.query(CourierProfile).count()
+    total_orders = db.query(Order).count()
+    pending_couriers = db.query(CourierProfile).filter(CourierProfile.is_verified == False).count()
+    
     stats = {
+        "total_users": total_users,
+        "total_suppliers": total_suppliers,
+        "total_couriers": total_couriers,
         "total_orders": total_orders,
-        "paid_orders": paid_orders,
-        "pending_payment": pending_payment,
-        "total_revenue": total_revenue
+        "pending_couriers": pending_couriers
     }
     
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
         "stats": stats,
-        "orders": orders_data,
         "admin": admin
     })
+
+
+@app.get("/admin/logout")
+async def admin_logout():
+    """Выход из админ-панели"""
+    response = RedirectResponse(url="/admin/login", status_code=303)
+    response.delete_cookie("admin_id")
+    return response
 
 # ============ API ДЛЯ ОБНОВЛЕНИЯ ============
 @app.post("/admin/api/order/{order_id}/payment-status")
