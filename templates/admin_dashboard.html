@@ -143,6 +143,16 @@
             color: #92400e;
         }
         
+        .status-paid {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .status-refunded {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
         .timer-warning {
             color: #dc2626;
             font-weight: bold;
@@ -214,6 +224,33 @@
             background: #dc2626;
         }
         
+        .btn-paid {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            margin-right: 0.5rem;
+        }
+        
+        .btn-paid:hover {
+            background: #2563eb;
+        }
+        
+        .btn-refund {
+            background: #f59e0b;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+        
+        .btn-refund:hover {
+            background: #d97706;
+        }
+        
         .badge-pending {
             background: #f59e0b;
             color: white;
@@ -221,6 +258,14 @@
             border-radius: 2rem;
             font-size: 0.7rem;
             margin-left: 0.5rem;
+        }
+        
+        .status-select {
+            padding: 0.3rem;
+            border-radius: 0.5rem;
+            border: 1px solid #e2e8f0;
+            background: white;
+            font-size: 0.75rem;
         }
     </style>
 </head>
@@ -277,14 +322,14 @@
                     </thead>
                     <tbody id="pendingCouriersTable">
                         <tr>
-                            <td colspan="8" style="text-align: center;">Загрузка...</td>
+                            <td colspan="8" style="text-align: center;">Загрузка...<\/td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
         
-        <!-- ⏳ АКТИВНЫЕ БРОНИРОВАНИЯ -->
+        <!-- ⏳ АКТИВНЫЕ БРОНИРОВАНИЯ (Ожидают оплаты) -->
         <div class="section">
             <div>
                 <h2 class="section-title">
@@ -306,11 +351,12 @@
                             <th>Сумма</th>
                             <th>Времени осталось</th>
                             <th>Забронирован</th>
+                            <th>Действие</th>
                         </tr>
                     </thead>
                     <tbody id="reservationsTable">
                         <tr>
-                            <td colspan="9" style="text-align: center;">Загрузка...</td>
+                            <td colspan="10" style="text-align: center;">Загрузка...<\/td>
                         </tr>
                     </tbody>
                 </table>
@@ -324,18 +370,21 @@
                 <table>
                     <thead>
                         <tr>
+                            <th>ID</th>
                             <th>№ заказа</th>
                             <th>Клиент</th>
                             <th>Телефон</th>
                             <th>Товар</th>
                             <th>Сумма</th>
-                            <th>Статус</th>
+                            <th>Статус оплаты</th>
+                            <th>Статус заказа</th>
                             <th>Дата</th>
+                            <th>Действие</th>
                         </tr>
                     </thead>
                     <tbody id="ordersTable">
                         <tr>
-                            <td colspan="7" style="text-align: center;">Загрузка...</td>
+                            <td colspan="10" style="text-align: center;">Загрузка...<\/td>
                         </tr>
                     </tbody>
                 </table>
@@ -361,7 +410,7 @@
                     </thead>
                     <tbody id="couriersTable">
                         <tr>
-                            <td colspan="8" style="text-align: center;">Загрузка...</td>
+                            <td colspan="8" style="text-align: center;">Загрузка...<\/td>
                         </tr>
                     </tbody>
                 </table>
@@ -392,10 +441,6 @@
                     loadStats();
                 }
                 
-                if (data.type === 'bag_quantity_updated') {
-                    console.log(`📦 Сюрприз ${data.data.bag_id}: осталось ${data.data.available_quantity}`);
-                }
-                
                 if (data.type === 'new_courier_registration') {
                     showAdminNotification(`🆕 НОВАЯ ЗАЯВКА! ${data.data.first_name} ${data.data.last_name} хочет стать курьером`);
                     loadPendingCouriers();
@@ -416,12 +461,9 @@
         }
         
         function showAdminNotification(message) {
-            // Уведомление в браузере
             if (Notification.permission === 'granted') {
                 new Notification('Sarqyn Admin', { body: message });
             }
-            
-            // Уведомление на странице
             const toast = document.createElement('div');
             toast.className = 'notification';
             toast.innerHTML = '🎉 ' + message;
@@ -440,16 +482,11 @@
                 document.getElementById('totalCouriers').textContent = data.total_couriers || 0;
                 document.getElementById('totalRevenue').textContent = (data.total_revenue || 0).toLocaleString() + ' ₸';
                 
-                // Обновляем счетчик заявок
                 const pendingCount = data.pending_couriers || 0;
                 const pendingBadge = document.getElementById('pendingBadge');
                 if (pendingBadge) {
-                    if (pendingCount > 0) {
-                        pendingBadge.style.display = 'inline-block';
-                        pendingBadge.textContent = pendingCount;
-                    } else {
-                        pendingBadge.style.display = 'none';
-                    }
+                    pendingBadge.style.display = pendingCount > 0 ? 'inline-block' : 'none';
+                    pendingBadge.textContent = pendingCount;
                 }
             } catch (error) {
                 console.error('Error loading stats:', error);
@@ -459,11 +496,8 @@
         // ЗАГРУЗКА ЗАЯВОК НА ПОДТВЕРЖДЕНИЕ
         async function loadPendingCouriers() {
             try {
-                const response = await fetch('/api/admin/pending-couriers', {
-                    credentials: 'include'
-                });
+                const response = await fetch('/api/admin/pending-couriers', { credentials: 'include' });
                 const data = await response.json();
-                
                 const tbody = document.getElementById('pendingCouriersTable');
                 
                 if (!data.couriers || data.couriers.length === 0) {
@@ -499,15 +533,9 @@
         // ПОДТВЕРЖДЕНИЕ КУРЬЕРА
         async function verifyCourier(courierId) {
             if (!confirm('Подтвердить регистрацию курьера?')) return;
-            
             try {
-                const response = await fetch(`/api/admin/verify-courier/${courierId}`, {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-                
+                const response = await fetch(`/api/admin/verify-courier/${courierId}`, { method: 'POST', credentials: 'include' });
                 const data = await response.json();
-                
                 if (data.success) {
                     alert('✅ Курьер подтвержден!');
                     loadPendingCouriers();
@@ -517,7 +545,6 @@
                     alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
                 }
             } catch (error) {
-                console.error('Error verifying courier:', error);
                 alert('❌ Ошибка при подтверждении');
             }
         }
@@ -525,15 +552,9 @@
         // ОТКЛОНЕНИЕ ЗАЯВКИ
         async function rejectCourier(courierId) {
             if (!confirm('Отклонить заявку курьера?')) return;
-            
             try {
-                const response = await fetch(`/api/admin/reject-courier/${courierId}`, {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-                
+                const response = await fetch(`/api/admin/reject-courier/${courierId}`, { method: 'POST', credentials: 'include' });
                 const data = await response.json();
-                
                 if (data.success) {
                     alert('❌ Заявка отклонена');
                     loadPendingCouriers();
@@ -542,7 +563,6 @@
                     alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
                 }
             } catch (error) {
-                console.error('Error rejecting courier:', error);
                 alert('❌ Ошибка при отклонении');
             }
         }
@@ -552,11 +572,10 @@
             try {
                 const response = await fetch('/api/admin/reservations', { credentials: 'include' });
                 const data = await response.json();
-                
                 const tbody = document.getElementById('reservationsTable');
                 
                 if (!data.reservations || data.reservations.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">✅ Нет активных бронирований</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">✅ Нет активных бронирований</td></tr>';
                     return;
                 }
                 
@@ -564,7 +583,6 @@
                 for (const res of data.reservations) {
                     const timeLeft = res.time_left_minutes;
                     const timeClass = timeLeft < 3 ? 'timer-warning' : '';
-                    
                     const row = `
                         <tr>
                             <td>#${res.id}</td>
@@ -576,13 +594,35 @@
                             <td><strong>${res.total_amount.toLocaleString()} ₸</strong></td>
                             <td class="${timeClass}">⏰ ${timeLeft} мин</td>
                             <td>${new Date(res.reserved_at).toLocaleTimeString()}</td>
+                            <td>
+                                <button class="btn-paid" onclick="markAsPaid(${res.id})">💰 Отметить оплаченным</button>
+                            </td>
                         </tr>
                     `;
                     tbody.innerHTML += row;
                 }
             } catch (error) {
                 console.error('Error loading reservations:', error);
-                document.getElementById('reservationsTable').innerHTML = '<tr><td colspan="9" style="text-align: center; color: red;">❌ Ошибка загрузки</td></tr>';
+                document.getElementById('reservationsTable').innerHTML = '<tr><td colspan="10" style="text-align: center; color: red;">❌ Ошибка загрузки</td></tr>';
+            }
+        }
+        
+        // ОТМЕТИТЬ БРОНИРОВАНИЕ КАК ОПЛАЧЕННОЕ
+        async function markAsPaid(reservationId) {
+            if (!confirm('Подтвердить оплату и создать заказ?')) return;
+            try {
+                const response = await fetch(`/api/admin/mark-reservation-paid/${reservationId}`, { method: 'POST', credentials: 'include' });
+                const data = await response.json();
+                if (data.success) {
+                    alert('✅ Оплата подтверждена! Заказ создан.');
+                    loadActiveReservations();
+                    loadOrders();
+                    loadStats();
+                } else {
+                    alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                alert('❌ Ошибка при подтверждении оплаты');
             }
         }
         
@@ -591,11 +631,10 @@
             try {
                 const response = await fetch('/api/admin/orders', { credentials: 'include' });
                 const data = await response.json();
-                
                 const tbody = document.getElementById('ordersTable');
                 
                 if (!data.orders || data.orders.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">📭 Нет заказов</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">📭 Нет заказов</td></tr>';
                     return;
                 }
                 
@@ -603,20 +642,102 @@
                 for (const order of data.orders) {
                     const row = `
                         <tr>
+                            <td>#${order.id}</td>
                             <td>${order.order_number}</td>
                             <td>${escapeHtml(order.customer_name)}</td>
                             <td>${escapeHtml(order.customer_phone)}</td>
                             <td>${escapeHtml(order.bag_name)}</td>
                             <td><strong>${order.amount.toLocaleString()} ₸</strong></td>
-                            <td><span class="status-badge status-${order.status}">${order.status}</span></td>
+                            <td>
+                                <select class="status-select" data-order-id="${order.id}" data-field="payment_status">
+                                    <option value="pending" ${order.payment_status === 'pending' ? 'selected' : ''}>⏳ Ожидает оплаты</option>
+                                    <option value="paid" ${order.payment_status === 'paid' ? 'selected' : ''}>✅ Оплачен</option>
+                                    <option value="refunded" ${order.payment_status === 'refunded' ? 'selected' : ''}>💰 Возвращен</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select class="status-select" data-order-id="${order.id}" data-field="order_status">
+                                    <option value="pending" ${order.status === 'pending' ? 'selected' : ''}>⏳ Ожидает</option>
+                                    <option value="confirmed" ${order.status === 'confirmed' ? 'selected' : ''}>✅ Подтвержден</option>
+                                    <option value="preparing" ${order.status === 'preparing' ? 'selected' : ''}>🍳 Готовится</option>
+                                    <option value="ready_for_pickup" ${order.status === 'ready_for_pickup' ? 'selected' : ''}>📦 Готов к выдаче</option>
+                                    <option value="out_for_delivery" ${order.status === 'out_for_delivery' ? 'selected' : ''}>🚚 В пути</option>
+                                    <option value="delivered" ${order.status === 'delivered' ? 'selected' : ''}>🏠 Доставлен</option>
+                                    <option value="cancelled" ${order.status === 'cancelled' ? 'selected' : ''}>❌ Отменен</option>
+                                </select>
+                            </td>
                             <td>${new Date(order.created_at).toLocaleString()}</td>
+                            <td>
+                                <button class="btn-refund" onclick="processRefund(${order.id})">💰 Возврат</button>
+                            </td>
                         </tr>
                     `;
                     tbody.innerHTML += row;
                 }
+                
+                // Добавляем обработчики для select
+                document.querySelectorAll('.status-select').forEach(select => {
+                    select.addEventListener('change', function() {
+                        const orderId = this.getAttribute('data-order-id');
+                        const field = this.getAttribute('data-field');
+                        const newValue = this.value;
+                        updateOrderStatus(orderId, field, newValue);
+                    });
+                });
             } catch (error) {
                 console.error('Error loading orders:', error);
-                document.getElementById('ordersTable').innerHTML = '<tr><td colspan="7" style="text-align: center;">❌ Ошибка загрузки</td></tr>';
+                document.getElementById('ordersTable').innerHTML = '<tr><td colspan="10" style="text-align: center; color: red;">❌ Ошибка загрузки</td></tr>';
+            }
+        }
+        
+        // Обновление статуса заказа
+        async function updateOrderStatus(orderId, field, newValue) {
+            try {
+                const response = await fetch(`/api/admin/update-order-status/${orderId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ field: field, value: newValue })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showAdminNotification(`✅ Заказ #${orderId}: статус изменен на ${newValue}`);
+                    loadOrders();
+                    loadStats();
+                } else {
+                    alert('❌ Ошибка обновления статуса');
+                    loadOrders(); // Перезагружаем для сброса select
+                }
+            } catch (error) {
+                console.error('Error updating order status:', error);
+                alert('❌ Ошибка при обновлении статуса');
+                loadOrders();
+            }
+        }
+        
+        // Обработка возврата
+        async function processRefund(orderId) {
+            if (!confirm('Вы уверены, что хотите вернуть деньги за этот заказ?')) return;
+            const reason = prompt('Укажите причину возврата:');
+            if (!reason) return;
+            
+            try {
+                const response = await fetch(`/api/admin/process-refund/${orderId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ reason: reason })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('✅ Возврат обработан! Деньги возвращены клиенту.');
+                    loadOrders();
+                    loadStats();
+                } else {
+                    alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                alert('❌ Ошибка при возврате');
             }
         }
         
@@ -625,7 +746,6 @@
             try {
                 const response = await fetch('/api/admin/couriers', { credentials: 'include' });
                 const data = await response.json();
-                
                 const tbody = document.getElementById('couriersTable');
                 
                 if (!data.couriers || data.couriers.length === 0) {
@@ -671,12 +791,10 @@
             loadStats();
         }, 30000);
         
-        // Запрашиваем разрешение на уведомления
         if (Notification.permission === 'default') {
             Notification.requestPermission();
         }
         
-        // Инициализация
         loadStats();
         loadPendingCouriers();
         loadActiveReservations();
