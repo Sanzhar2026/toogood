@@ -5821,20 +5821,34 @@ async def get_order_statuses():
 async def check_auth(request: Request, db: Session = Depends(get_db)):
     user_id = request.cookies.get("user_id")
     
-    if user_id:
-        user = db.query(User).filter(User.id == int(user_id)).first()
-        if user:
-            return {
-                "authenticated": True,
-                "user_id": user.id,
-                "user_name": user.full_name,
-                "user_phone": user.phone
-            }
+    print(f"🔍 CHECK-AUTH: user_id from cookie = {user_id}")  # ← Для отладки
     
+    if user_id:
+        try:
+            user = db.query(User).filter(User.id == int(user_id)).first()
+            if user:
+                print(f"✅ User found: {user.phone}")
+                return {
+                    "authenticated": True,
+                    "user_id": user.id,
+                    "user_name": user.full_name,
+                    "full_name": user.full_name,
+                    "user_phone": user.phone
+                }
+        except:
+            pass
+    
+    print("❌ No valid user_id cookie")
     return {"authenticated": False}
 
-
-
+@app.get("/api/debug-cookies")
+async def debug_cookies(request: Request):
+    cookies = request.cookies
+    return {
+        "user_id": cookies.get("user_id"),
+        "user_phone": cookies.get("user_phone"),
+        "all_cookies": dict(cookies)
+    }
 # backend/main.py - добавьте этот эндпоинт
 
 @app.get("/supplier/couriers")
