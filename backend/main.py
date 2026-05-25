@@ -4285,8 +4285,6 @@ async def verify_phone(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# Add this endpoint to your main.py
 @app.post("/api/verify-and-register")
 async def verify_and_register(request: Request, db: Session = Depends(get_db)):
     try:
@@ -4305,7 +4303,6 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         digits = re.sub(r'\D', '', phone)
         formatted_phone = '+' + digits if digits.startswith('7') else '+7' + digits
 
-        # Проверка существующего пользователя
         existing = db.query(User).filter(User.phone == formatted_phone).first()
         if existing:
             raise HTTPException(status_code=400, detail="Этот номер уже зарегистрирован")
@@ -4329,9 +4326,7 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_user)
 
-        print(f"✅ Пользователь успешно зарегистрирован: {new_user.id}")
-
-        # ==================== COOKIES ====================
+        # ==================== ОТВЕТ С COOKIES ====================
         response = JSONResponse({
             "success": True,
             "message": "Регистрация прошла успешно",
@@ -4343,25 +4338,25 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
             }
         })
 
-        # Cookie 1 — Основной
+        # Основной cookie
         response.set_cookie(
             key="user_id",
             value=str(new_user.id),
             httponly=True,
             samesite="lax",
             secure=True,
-            max_age=60*60*24*7,
+            max_age=60*60*24*30,
             path="/"
         )
 
-        # Cookie 2 — Дополнительный
+        # Дополнительный cookie
         response.set_cookie(
             key="user_phone",
             value=new_user.phone,
             httponly=False,
             samesite="lax",
             secure=True,
-            max_age=60*60*24*7,
+            max_age=60*60*24*30,
             path="/"
         )
 
@@ -4371,7 +4366,7 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         db.rollback()
-        print(f"❌ Ошибка регистрации: {e}")
+        print(f"❌ Registration error: {e}")
         raise HTTPException(status_code=500, detail="Ошибка сервера")
 
 
@@ -4405,6 +4400,7 @@ async def phone_login_page(request: Request, lang: str = "kz"):
 from fastapi.responses import JSONResponse
 
 from fastapi.responses import JSONResponse
+
 @app.post("/api/login")
 async def api_login(request: Request, db: Session = Depends(get_db)):
     try:
@@ -4418,13 +4414,14 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
         if not user or not verify_password(password, user.password):
             return JSONResponse(
                 status_code=401,
-                content={"success": False, "error": "Invalid credentials"}
+                content={"success": False, "error": "Неверный телефон или пароль"}
             )
         
-        # ✅ UPDATED COOKIE SECTION
+        # ==================== ОТВЕТ С COOKIES ====================
         response = JSONResponse({
             "success": True,
-            "redirect": "/",
+            "message": "Вход выполнен успешно",
+            "user_id": user.id,
             "user": {
                 "id": user.id,
                 "phone": user.phone,
@@ -4432,37 +4429,37 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
                 "role": user.role.value if user.role else "customer"
             }
         })
-        
-        # Main auth cookie
+
+        # Основной cookie
         response.set_cookie(
             key="user_id",
             value=str(user.id),
             httponly=True,
-            samesite="none",      # ← Important for mobile
+            samesite="lax",
             secure=True,
             max_age=60*60*24*30,
             path="/"
         )
-        
-        # Extra cookie for better mobile compatibility
+
+        # Дополнительный cookie
         response.set_cookie(
             key="user_phone",
             value=user.phone,
             httponly=False,
-            samesite="none",
+            samesite="lax",
             secure=True,
             max_age=60*60*24*30,
             path="/"
         )
-        
-        print(f"✅ Login successful for user: {user.phone}, cookies set")
+
+        print(f"✅ Login successful: {user.phone}")
         return response
         
     except Exception as e:
         print(f"❌ Login error: {e}")
         return JSONResponse(
             status_code=500,
-            content={"success": False, "error": str(e)}
+            content={"success": False, "error": "Ошибка сервера"}
         )
 @app.get("/logout")
 async def logout():
