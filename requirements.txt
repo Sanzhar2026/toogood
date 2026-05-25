@@ -8,5 +8,4 @@ starlette==0.36.3
 httpx==0.25.1
 polyline==2.0.0
 python-dotenv
-
-# для PostgreSQL
+python-jose[cryptography]
