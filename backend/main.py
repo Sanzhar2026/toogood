@@ -1409,52 +1409,85 @@ async def courier_complete_order(order_id: int, request: Request, db: Session = 
 
 # backend/main.py - исправленный эндпоинт
 
+# backend/main.py - обновите эндпоинт логина курьера
+
 @app.post("/api/courier/login")
 async def courier_login(request: Request, db: Session = Depends(get_db)):
-    """Логин для курьеров"""
+    """Логин для курьеров с JWT токеном"""
     data = await request.json()
     phone = format_phone_number(data.get("phone"))
     password = data.get("password")
     
     print(f"🔐 Попытка входа курьера: {phone}")
     
-    # Ищем пользователя
+    # Ищем пользователя с ролью курьера
     user = db.query(User).filter(
         User.phone == phone,
         User.role == UserRole.COURIER
     ).first()
     
     if not user:
-        raise HTTPException(status_code=401, detail="Неверный телефон или пароль")
+        print(f"❌ Курьер не найден: {phone}")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Неверный телефон или пароль"}
+        )
     
     if not verify_password(password, user.password):
-        raise HTTPException(status_code=401, detail="Неверный телефон или пароль")
+        print(f"❌ Неверный пароль для: {phone}")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Неверный телефон или пароль"}
+        )
     
+    # Проверяем верификацию
     courier = db.query(CourierProfile).filter(CourierProfile.user_id == user.id).first()
     
-    if not courier or not courier.is_verified:
-        raise HTTPException(status_code=403, detail="Аккаунт не подтвержден")
+    if not courier:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Профиль курьера не найден"}
+        )
     
-    # ✅ СОЗДАЕМ ОТВЕТ С ПРАВИЛЬНЫМИ КУКАМИ
+    if not courier.is_verified:
+        print(f"⏳ Курьер не верифицирован: {phone}")
+        return JSONResponse(
+            status_code=403,
+            content={"success": False, "detail": "Ваша заявка на рассмотрении"}
+        )
+    
+    if not user.is_active:
+        return JSONResponse(
+            status_code=403,
+            content={"success": False, "detail": "Аккаунт не активирован"}
+        )
+    
+    print(f"✅ Успешный вход курьера: {phone}")
+    
+    # Создаем JWT токен
+    access_token = create_access_token(data={"sub": str(user.id), "role": "courier"})
+    
     response = JSONResponse({
         "success": True,
-        "message": "Вход выполнен",
+        "message": "Вход выполнен успешно",
+        "token": access_token,
         "courier": {
-            "id": courier.id,
+            "id": user.id,
             "first_name": courier.first_name,
             "last_name": courier.last_name,
             "phone": user.phone,
-            "is_verified": courier.is_verified
+            "is_verified": courier.is_verified,
+            "courier_type": courier.courier_type
         }
     })
     
-    # ✅ Устанавливаем cookie с правильными параметрами
+    # Устанавливаем cookie
     response.set_cookie(
         key="user_id",
         value=str(user.id),
         httponly=True,
-        samesite="none",  # ← ВАЖНО для cross-domain
-        secure=True,       # ← ВАЖНО для HTTPS
+        samesite="lax",
+        secure=True,
         max_age=60*60*24*30,
         path="/"
     )
@@ -1463,15 +1496,13 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
         key="courier_id",
         value=str(courier.id),
         httponly=True,
-        samesite="none",
+        samesite="lax",
         secure=True,
         max_age=60*60*24*30,
         path="/"
     )
     
     return response
-# main.py - регистрация с выбором типа
-
 
 @app.post("/api/couriers/find-nearest")
 async def find_nearest_courier(request: Request, db: Session = Depends(get_db)):
