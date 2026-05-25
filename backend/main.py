@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from backend.schemas import (
     OrderCreate, PhoneVerificationRequest, PhoneRegisterRequest
 )
+from datetime import datetime, timedelta
 from backend.models import (
     CartItem,Food, User, UserRole, Supplier, SurpriseBag, 
     Order, OrderStatus, DeliveryStatus, OrderTracking, Review, CourierProfile, AssignedOrder ,TemporaryReservation
@@ -3573,7 +3574,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
             bag.is_active = False
         
         # Создаем временную резервацию
-        from datetime import datetime, timedelta
+        
         reservation = TemporaryReservation(
             bag_id=bag_id,
             user_id=int(user_id),
