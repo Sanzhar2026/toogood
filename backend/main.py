@@ -70,7 +70,34 @@ ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYyMDU3ZGE4O
 # backend/main.py - добавьте эндпоинт для маршрута
 
 # backend/main.py - обновите эндпоинт
+from jose import jwt
+import os
 
+SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production")
+
+@app.post("/api/auth/me")
+async def get_current_user(request: Request, db: Session = Depends(get_db)):
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        return {"authenticated": False}
+    
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        return {"authenticated": False}
+    
+    # Генерируем простой token
+    token = jwt.encode({"user_id": user.id}, SECRET_KEY, algorithm="HS256")
+    
+    return {
+        "authenticated": True,
+        "user_id": user.id,
+        "user": {
+            "id": user.id,
+            "phone": user.phone,
+            "full_name": user.full_name
+        },
+        "token": token
+    }
 @app.post("/api/delivery/route/{order_id}")
 async def get_delivery_route(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Получить маршрут доставки от текущего положения курьера до ресторана и клиента"""
