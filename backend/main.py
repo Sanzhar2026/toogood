@@ -4287,7 +4287,6 @@ async def verify_phone(request: Request):
 
 
 # Add this endpoint to your main.py
-
 @app.post("/api/verify-and-register")
 async def verify_and_register(request: Request, db: Session = Depends(get_db)):
     try:
@@ -4299,21 +4298,22 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         verification_code = data.get('verification_code') or data.get('code')
 
         if not phone or not full_name or not password:
-            raise HTTPException(status_code=400, detail="All fields required")
+            raise HTTPException(status_code=400, detail="Все поля обязательны")
 
-        # Phone formatting
+        # Форматирование телефона
         import re
         digits = re.sub(r'\D', '', phone)
         formatted_phone = '+' + digits if digits.startswith('7') else '+7' + digits
 
+        # Проверка существующего пользователя
         existing = db.query(User).filter(User.phone == formatted_phone).first()
         if existing:
-            raise HTTPException(status_code=400, detail="Phone already registered")
+            raise HTTPException(status_code=400, detail="Этот номер уже зарегистрирован")
 
         if not verification_code or len(verification_code) != 6:
-            raise HTTPException(status_code=400, detail="Invalid code")
+            raise HTTPException(status_code=400, detail="Неверный код подтверждения")
 
-        # Create user
+        # Создание пользователя
         hashed_password = hash_password(password)
         new_user = User(
             phone=formatted_phone,
@@ -4329,10 +4329,12 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_user)
 
-        # === STRONG COOKIE SETUP FOR iPHONE/SAFARI ===
+        print(f"✅ Пользователь успешно зарегистрирован: {new_user.id}")
+
+        # ==================== COOKIES ====================
         response = JSONResponse({
             "success": True,
-            "message": "Registration successful",
+            "message": "Регистрация прошла успешно",
             "user_id": new_user.id,
             "user": {
                 "id": new_user.id,
@@ -4341,38 +4343,36 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
             }
         })
 
-        # Cookie 1: Main auth
+        # Cookie 1 — Основной
         response.set_cookie(
             key="user_id",
             value=str(new_user.id),
             httponly=True,
-            samesite="none",
+            samesite="lax",
             secure=True,
-            max_age=60*60*24*30,
-            path="/",
-            domain=None  # Let browser decide
+            max_age=60*60*24*7,
+            path="/"
         )
 
-        # Cookie 2: Phone (for debugging)
+        # Cookie 2 — Дополнительный
         response.set_cookie(
             key="user_phone",
             value=new_user.phone,
             httponly=False,
-            samesite="none",
+            samesite="lax",
             secure=True,
-            max_age=60*60*24*30,
+            max_age=60*60*24*7,
             path="/"
         )
 
-        print(f"✅ iPhone-friendly cookies set for user {new_user.id}")
         return response
 
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        print(f"Registration error: {e}")
-        raise HTTPException(status_code=500, detail="Server error")
+        print(f"❌ Ошибка регистрации: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка сервера")
 
 
 @app.get("/api/me")
