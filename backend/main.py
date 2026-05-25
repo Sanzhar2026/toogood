@@ -49,7 +49,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://toogood-2ncf.onrender.com", "https://sarqyn-mobile.onrender.com"],
+    allow_origins=["http://localhost:3000", "https://toogood-2ncf.onrender.com", "https://sarqyn-mobile.onrender.com","https://*.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -4297,27 +4297,18 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         phone = data.get('phone') or data.get('phone_number')
         full_name = data.get('full_name') or data.get('fullName') or data.get('name')
         if full_name:
-            full_name = full_name.encode('utf-8').decode('utf-8')  
+            full_name = full_name.encode('utf-8').decode('utf-8')
         password = data.get('password')
         verification_code = data.get('verification_code') or data.get('code') or data.get('verificationCode')
         
-        # Debug print
-        print(f"📝 Received data: phone={phone}, name={full_name}, has_password={bool(password)}, code={verification_code}")
+        print(f"📝 Registration attempt: phone={phone}, name={full_name}, code={verification_code}")
         
-        # Validate all fields
-        if not phone:
-            raise HTTPException(status_code=400, detail="Phone number is required")
-        if not full_name:
-            raise HTTPException(status_code=400, detail="Full name is required")
-        if not password:
-            raise HTTPException(status_code=400, detail="Password is required")
+        if not phone or not full_name or not password:
+            raise HTTPException(status_code=400, detail="All fields are required")
         
-        # Format phone number
+        # Format phone
         import re
         digits = re.sub(r'\D', '', phone)
-        
-        formatted_phone = None
-        
         if digits.startswith('77') and len(digits) == 11:
             formatted_phone = '+' + digits
         elif digits.startswith('7') and len(digits) == 11:
@@ -4326,32 +4317,18 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
             formatted_phone = '+7' + digits[1:]
         elif len(digits) == 10:
             formatted_phone = '+77' + digits
-        elif digits.startswith('996') and len(digits) == 12:
-            formatted_phone = '+' + digits
-        elif digits.startswith('998') and len(digits) == 12:
-            formatted_phone = '+' + digits
         else:
-            if digits.startswith('+'):
-                formatted_phone = digits
-            else:
-                formatted_phone = '+' + digits
+            formatted_phone = '+' + digits if digits else phone
         
-        print(f"📞 Original phone: {phone} -> Formatted: {formatted_phone}")
-        
-        # Check if phone already exists
+        # Check existing user
         existing_user = db.query(User).filter(User.phone == formatted_phone).first()
         if existing_user:
             raise HTTPException(status_code=400, detail="Phone number already registered")
         
         # Verify code (demo mode)
-        is_verified = False
-        if verification_code and len(verification_code) == 6 and verification_code.isdigit():
-            is_verified = True
-            print(f"✅ Code verified: {verification_code}")
-        
+        is_verified = verification_code and len(verification_code) == 6 and verification_code.isdigit()
         if not is_verified:
-            print(f"⚠️ Invalid code: {verification_code}")
-            raise HTTPException(status_code=400, detail="Invalid verification code. Demo code is 123456")
+            raise HTTPException(status_code=400, detail="Invalid verification code. Demo code: 123456")
         
         # Create user
         hashed_password = hash_password(password)
@@ -4370,9 +4347,9 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_user)
         
-        print(f"✅ User registered: {new_user.id} - {formatted_phone}")
+        print(f"✅ User registered successfully: {new_user.id} - {formatted_phone}")
         
-        # 🔥 FINAL RESPONSE WITH PROPER COOKIES FOR MOBILE
+        # ✅ FINAL RESPONSE WITH COOKIES (Mobile Fix)
         response = JSONResponse({
             "success": True,
             "message": "Registration successful",
@@ -4384,18 +4361,18 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
             }
         })
         
-        # Main authentication cookie - CRITICAL for mobile
+        # Main cookie - Critical for mobile
         response.set_cookie(
             key="user_id",
             value=str(new_user.id),
             httponly=True,
-            samesite="none",      # Important for cross-origin (mobile)
+            samesite="none",
             secure=True,
-            max_age=60*60*24*30,  # 30 days
+            max_age=60*60*24*30,
             path="/"
         )
         
-        # Extra cookie for better compatibility
+        # Extra cookie for compatibility
         response.set_cookie(
             key="user_phone",
             value=new_user.phone,
@@ -4413,10 +4390,7 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         print(f"❌ Registration error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
-
+        raise HTTPException(status_code=500, detail="Registration failed")
 
 
 
