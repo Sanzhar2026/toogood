@@ -4372,22 +4372,38 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         
         print(f"✅ User registered: {new_user.id} - {formatted_phone}")
         
-        # 🔥 СОЗДАЕМ ОТВЕТ С КУКОЙ ДЛЯ АВТОВХОДА
-        from fastapi.responses import JSONResponse
-        
+        # 🔥 FINAL RESPONSE WITH PROPER COOKIES FOR MOBILE
         response = JSONResponse({
             "success": True,
             "message": "Registration successful",
-            "user_id": new_user.id
+            "user_id": new_user.id,
+            "user": {
+                "id": new_user.id,
+                "phone": new_user.phone,
+                "full_name": new_user.full_name
+            }
         })
         
-        # Устанавливаем куку для автоматической авторизации (30 дней)
+        # Main authentication cookie - CRITICAL for mobile
         response.set_cookie(
             key="user_id",
             value=str(new_user.id),
             httponly=True,
-            samesite="lax",
-            max_age=60*60*24*30  # 30 дней
+            samesite="none",      # Important for cross-origin (mobile)
+            secure=True,
+            max_age=60*60*24*30,  # 30 days
+            path="/"
+        )
+        
+        # Extra cookie for better compatibility
+        response.set_cookie(
+            key="user_phone",
+            value=new_user.phone,
+            httponly=False,
+            samesite="none",
+            secure=True,
+            max_age=60*60*24*30,
+            path="/"
         )
         
         return response
@@ -4400,7 +4416,6 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
-
 
 
 
@@ -4451,7 +4466,7 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "error": "Invalid credentials"}
             )
         
-        # ✅ СОЗДАЕМ ОТВЕТ С COOKIE
+        # ✅ UPDATED COOKIE SECTION
         response = JSONResponse({
             "success": True,
             "redirect": "/",
@@ -4463,28 +4478,29 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
             }
         })
         
-        # ✅ УСТАНАВЛИВАЕМ COOKIE ПРАВИЛЬНО
+        # Main auth cookie
         response.set_cookie(
             key="user_id",
             value=str(user.id),
             httponly=True,
-            samesite="lax",
-            secure=True,  # ← ВАЖНО для HTTPS (Render.com)
-            domain=None,   # Автоматически использует текущий домен
-            max_age=60*60*24*30  # 30 дней
+            samesite="none",      # ← Important for mobile
+            secure=True,
+            max_age=60*60*24*30,
+            path="/"
         )
         
-        # Дополнительная cookie для отладки
+        # Extra cookie for better mobile compatibility
         response.set_cookie(
             key="user_phone",
             value=user.phone,
-            httponly=True,
-            samesite="lax",
+            httponly=False,
+            samesite="none",
             secure=True,
-            max_age=60*60*24*30
+            max_age=60*60*24*30,
+            path="/"
         )
         
-        print(f"✅ Login successful for user: {user.phone}, cookie set")
+        print(f"✅ Login successful for user: {user.phone}, cookies set")
         return response
         
     except Exception as e:
@@ -5857,8 +5873,9 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
                 "authenticated": True,
                 "user_id": user.id,
                 "user_name": user.full_name,
-                "user_phone": user.phone   # ← ДОЛЖНО БЫТЬ
+                "user_phone": user.phone
             }
+    
     return {"authenticated": False}
 
 
