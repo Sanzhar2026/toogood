@@ -4293,46 +4293,28 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
     try:
         data = await request.json()
         
-        # Flexible field name handling
         phone = data.get('phone') or data.get('phone_number')
         full_name = data.get('full_name') or data.get('fullName') or data.get('name')
-        if full_name:
-            full_name = full_name.encode('utf-8').decode('utf-8')
         password = data.get('password')
-        verification_code = data.get('verification_code') or data.get('code') or data.get('verificationCode')
-        
-        print(f"📝 Registration attempt: phone={phone}, name={full_name}, code={verification_code}")
-        
+        verification_code = data.get('verification_code') or data.get('code')
+
         if not phone or not full_name or not password:
-            raise HTTPException(status_code=400, detail="All fields are required")
-        
-        # Format phone
+            raise HTTPException(status_code=400, detail="All fields required")
+
+        # Phone formatting
         import re
         digits = re.sub(r'\D', '', phone)
-        if digits.startswith('77') and len(digits) == 11:
-            formatted_phone = '+' + digits
-        elif digits.startswith('7') and len(digits) == 11:
-            formatted_phone = '+' + digits
-        elif digits.startswith('8') and len(digits) == 11:
-            formatted_phone = '+7' + digits[1:]
-        elif len(digits) == 10:
-            formatted_phone = '+77' + digits
-        else:
-            formatted_phone = '+' + digits if digits else phone
-        
-        # Check existing user
-        existing_user = db.query(User).filter(User.phone == formatted_phone).first()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Phone number already registered")
-        
-        # Verify code (demo mode)
-        is_verified = verification_code and len(verification_code) == 6 and verification_code.isdigit()
-        if not is_verified:
-            raise HTTPException(status_code=400, detail="Invalid verification code. Demo code: 123456")
-        
+        formatted_phone = '+' + digits if digits.startswith('7') else '+7' + digits
+
+        existing = db.query(User).filter(User.phone == formatted_phone).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Phone already registered")
+
+        if not verification_code or len(verification_code) != 6:
+            raise HTTPException(status_code=400, detail="Invalid code")
+
         # Create user
         hashed_password = hash_password(password)
-        
         new_user = User(
             phone=formatted_phone,
             full_name=full_name,
@@ -4346,10 +4328,8 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        
-        print(f"✅ User registered successfully: {new_user.id} - {formatted_phone}")
-        
-        # ✅ FINAL RESPONSE WITH COOKIES (Mobile Fix)
+
+        # === STRONG COOKIE SETUP FOR iPHONE/SAFARI ===
         response = JSONResponse({
             "success": True,
             "message": "Registration successful",
@@ -4360,8 +4340,8 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
                 "full_name": new_user.full_name
             }
         })
-        
-        # Main cookie - Critical for mobile
+
+        # Cookie 1: Main auth
         response.set_cookie(
             key="user_id",
             value=str(new_user.id),
@@ -4369,10 +4349,11 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
             samesite="none",
             secure=True,
             max_age=60*60*24*30,
-            path="/"
+            path="/",
+            domain=None  # Let browser decide
         )
-        
-        # Extra cookie for compatibility
+
+        # Cookie 2: Phone (for debugging)
         response.set_cookie(
             key="user_phone",
             value=new_user.phone,
@@ -4382,16 +4363,16 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
             max_age=60*60*24*30,
             path="/"
         )
-        
+
+        print(f"✅ iPhone-friendly cookies set for user {new_user.id}")
         return response
-        
+
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        print(f"❌ Registration error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Registration failed")
-
+        print(f"Registration error: {e}")
+        raise HTTPException(status_code=500, detail="Server error")
 
 
 @app.get("/api/me")
