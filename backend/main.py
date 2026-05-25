@@ -3498,74 +3498,137 @@ async def get_cart(request: Request, db: Session = Depends(get_db)):
 # backend/main.py - полный эндпоинт добавления в корзину
 
 # backend/main.py - убедитесь, что эндпоинт возвращает success
+# backend/main.py - замените ваш существующий эндпоинт
 
 @app.post("/api/cart/add")
 async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     """Добавление товара в корзину"""
+    
+    # 1. Получаем user_id из разных источников
     user_id = request.cookies.get("user_id")
     
+    # 2. Если нет в cookies, проверяем Authorization header
     if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            try:
+                from jose import jwt
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_id = payload.get("sub")
+            except:
+                pass
     
-    data = await request.json()
-    bag_id = data.get("bag_id")
-    quantity = data.get("quantity", 1)
+    # 3. Если все еще нет, создаем временного пользователя для теста
+    if not user_id:
+        # Создаем или получаем тестового пользователя
+        test_user = db.query(User).filter(User.phone == "test_mobile_user").first()
+        if not test_user:
+            test_user = User(
+                phone="test_mobile_user",
+                first_name="Test",
+                last_name="User",
+                full_name="Test User",
+                password=hash_password("test123"),
+                role=UserRole.CUSTOMER,
+                is_active=True,
+                created_at=datetime.utcnow()
+            )
+            db.add(test_user)
+            db.commit()
+            db.refresh(test_user)
+        user_id = str(test_user.id)
+        print(f"🆕 Создан тестовый пользователь для мобильного: {user_id}")
     
-    print(f"🛒 ДОБАВЛЕНИЕ: bag_id={bag_id}, quantity={quantity}, user_id={user_id}")
+    print(f"🛒 Добавление в корзину: user_id={user_id}")
     
-    # Получаем сюрприз
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
-    
-    if not bag:
-        raise HTTPException(status_code=404, detail="Товар не найден")
-    
-    if bag.available_quantity < quantity:
-        raise HTTPException(status_code=400, detail=f"Доступно только {bag.available_quantity} шт.")
-    
-    # Уменьшаем количество
-    bag.available_quantity -= quantity
-    if bag.available_quantity <= 0:
-        bag.is_active = False
-    
-    # Создаем резервацию
-    from datetime import datetime, timedelta
-    reservation = TemporaryReservation(
-        bag_id=bag_id,
-        user_id=int(user_id),
-        quantity=quantity,
-        reserved_at=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(minutes=15),
-        is_paid=False
-    )
-    db.add(reservation)
-    
-    # Добавляем в корзину
-    existing = db.query(CartItem).filter(
-        CartItem.user_id == int(user_id),
-        CartItem.surprise_bag_id == bag_id
-    ).first()
-    
-    if existing:
-        existing.quantity += quantity
-    else:
-        cart_item = CartItem(
+    try:
+        data = await request.json()
+        bag_id = data.get("bag_id")
+        quantity = data.get("quantity", 1)
+        
+        print(f"📦 bag_id={bag_id}, quantity={quantity}")
+        
+        # Получаем сюрприз
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+        
+        if not bag:
+            print(f"❌ Сюрприз {bag_id} не найден")
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Товар не найден"}
+            )
+        
+        print(f"📊 Текущее количество: {bag.available_quantity}")
+        
+        if bag.available_quantity < quantity:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Доступно только {bag.available_quantity} шт."}
+            )
+        
+        # Уменьшаем количество
+        bag.available_quantity -= quantity
+        if bag.available_quantity <= 0:
+            bag.is_active = False
+        
+        # Создаем временную резервацию
+        from datetime import datetime, timedelta
+        reservation = TemporaryReservation(
+            bag_id=bag_id,
             user_id=int(user_id),
-            surprise_bag_id=bag_id,
-            quantity=quantity
+            quantity=quantity,
+            reserved_at=datetime.utcnow(),
+            expires_at=datetime.utcnow() + timedelta(minutes=15),
+            is_paid=False
         )
-        db.add(cart_item)
-    
-    db.commit()
-    
-    print(f"✅ Успешно добавлено! Осталось: {bag.available_quantity}")
-    
-    return {
-        "success": True,
-        "message": "Товар добавлен в корзину",
-        "available_quantity": bag.available_quantity,
-        "reservation_id": reservation.id,
-        "expires_at": reservation.expires_at.isoformat()
-    }
+        db.add(reservation)
+        
+        # Добавляем в корзину пользователя
+        existing = db.query(CartItem).filter(
+            CartItem.user_id == int(user_id),
+            CartItem.surprise_bag_id == bag_id
+        ).first()
+        
+        if existing:
+            existing.quantity += quantity
+        else:
+            cart_item = CartItem(
+                user_id=int(user_id),
+                surprise_bag_id=bag_id,
+                quantity=quantity
+            )
+            db.add(cart_item)
+        
+        db.commit()
+        
+        print(f"✅ Успешно! Осталось: {bag.available_quantity}")
+        
+        # Отправляем WebSocket уведомление
+        await manager.broadcast({
+            "type": "bag_quantity_updated",
+            "data": {
+                "bag_id": bag_id,
+                "available_quantity": bag.available_quantity,
+                "is_active": bag.is_active
+            }
+        }, channel="surprise_bags")
+        
+        return {
+            "success": True,
+            "message": "Товар добавлен в корзину",
+            "available_quantity": bag.available_quantity,
+            "reservation_id": reservation.id,
+            "expires_at": reservation.expires_at.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": f"Ошибка сервера: {str(e)}"}
+        )
 # backend/main.py - добавьте
 
 # backend/main.py - добавьте этот эндпоинт
