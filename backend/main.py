@@ -72,32 +72,23 @@ ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYyMDU3ZGE4O
 # backend/main.py - обновите эндпоинт
 from jose import jwt
 import os
+# backend/main.py - добавьте в начало файла (после импортов)
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production")
+from jose import jwt
+from datetime import datetime, timedelta
+import os
 
-@app.post("/api/auth/me")
-async def get_current_user(request: Request, db: Session = Depends(get_db)):
-    user_id = request.cookies.get("user_id")
-    if not user_id:
-        return {"authenticated": False}
-    
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        return {"authenticated": False}
-    
-    # Генерируем простой token
-    token = jwt.encode({"user_id": user.id}, SECRET_KEY, algorithm="HS256")
-    
-    return {
-        "authenticated": True,
-        "user_id": user.id,
-        "user": {
-            "id": user.id,
-            "phone": user.phone,
-            "full_name": user.full_name
-        },
-        "token": token
-    }
+# JWT Configuration
+SECRET_KEY = os.getenv("SECRET_KEY", "sarqyn-super-secret-key-2024")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 30  # 30 дней
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 @app.post("/api/delivery/route/{order_id}")
 async def get_delivery_route(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Получить маршрут доставки от текущего положения курьера до ресторана и клиента"""
@@ -4312,6 +4303,8 @@ async def verify_phone(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# backend/main.py - замените ваш существующий эндпоинт регистрации
+
 @app.post("/api/verify-and-register")
 async def verify_and_register(request: Request, db: Session = Depends(get_db)):
     try:
@@ -4328,7 +4321,16 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         # Форматирование телефона
         import re
         digits = re.sub(r'\D', '', phone)
-        formatted_phone = '+' + digits if digits.startswith('7') else '+7' + digits
+        if digits.startswith('77') and len(digits) == 11:
+            formatted_phone = '+' + digits
+        elif digits.startswith('7') and len(digits) == 11:
+            formatted_phone = '+' + digits
+        elif digits.startswith('8') and len(digits) == 11:
+            formatted_phone = '+7' + digits[1:]
+        elif len(digits) == 10:
+            formatted_phone = '+77' + digits
+        else:
+            formatted_phone = '+' + digits
 
         existing = db.query(User).filter(User.phone == formatted_phone).first()
         if existing:
@@ -4339,8 +4341,16 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
 
         # Создание пользователя
         hashed_password = hash_password(password)
+        
+        # Разделяем full_name на first_name и last_name
+        name_parts = full_name.split(' ', 1)
+        first_name = name_parts[0] if name_parts else ''
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+        
         new_user = User(
             phone=formatted_phone,
+            first_name=first_name,
+            last_name=last_name,
             full_name=full_name,
             password=hashed_password,
             role=UserRole.CUSTOMER,
@@ -4353,11 +4363,14 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(new_user)
 
-        # ==================== ОТВЕТ С COOKIES ====================
+        # Создаем JWT токен
+        access_token = create_access_token(data={"sub": str(new_user.id)})
+
         response = JSONResponse({
             "success": True,
             "message": "Регистрация прошла успешно",
             "user_id": new_user.id,
+            "token": access_token,
             "user": {
                 "id": new_user.id,
                 "phone": new_user.phone,
@@ -4365,22 +4378,11 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
             }
         })
 
-        # Основной cookie
+        # Устанавливаем cookie
         response.set_cookie(
             key="user_id",
             value=str(new_user.id),
             httponly=True,
-            samesite="lax",
-            secure=True,
-            max_age=60*60*24*30,
-            path="/"
-        )
-
-        # Дополнительный cookie
-        response.set_cookie(
-            key="user_phone",
-            value=new_user.phone,
-            httponly=False,
             samesite="lax",
             secure=True,
             max_age=60*60*24*30,
@@ -4397,7 +4399,7 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Ошибка сервера")
 
 
-@app.get("/api/me")
+
 async def get_current_user(request: Request, db: Session = Depends(get_db)):
     """Получить текущего авторизованного пользователя"""
     user_id = request.cookies.get("user_id")
@@ -4428,6 +4430,8 @@ from fastapi.responses import JSONResponse
 
 from fastapi.responses import JSONResponse
 
+# backend/main.py - замените ваш существующий эндпоинт логина
+
 @app.post("/api/login")
 async def api_login(request: Request, db: Session = Depends(get_db)):
     try:
@@ -4444,11 +4448,13 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "error": "Неверный телефон или пароль"}
             )
         
-        # ==================== ОТВЕТ С COOKIES ====================
+        # Создаем JWT токен
+        access_token = create_access_token(data={"sub": str(user.id)})
+        
         response = JSONResponse({
             "success": True,
             "message": "Вход выполнен успешно",
-            "user_id": user.id,
+            "token": access_token,
             "user": {
                 "id": user.id,
                 "phone": user.phone,
@@ -4457,22 +4463,11 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
             }
         })
 
-        # Основной cookie
+        # Устанавливаем cookie
         response.set_cookie(
             key="user_id",
             value=str(user.id),
             httponly=True,
-            samesite="lax",
-            secure=True,
-            max_age=60*60*24*30,
-            path="/"
-        )
-
-        # Дополнительный cookie
-        response.set_cookie(
-            key="user_phone",
-            value=user.phone,
-            httponly=False,
             samesite="lax",
             secure=True,
             max_age=60*60*24*30,
@@ -4488,6 +4483,53 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
             status_code=500,
             content={"success": False, "error": "Ошибка сервера"}
         )
+
+# backend/main.py - добавьте этот эндпоинт
+
+@app.get("/api/auth/me")
+async def get_current_user(request: Request, db: Session = Depends(get_db)):
+    """Получить текущего пользователя по токену или cookie"""
+    
+    # 1. Проверяем Authorization header
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            if user_id:
+                user = db.query(User).filter(User.id == int(user_id)).first()
+                if user:
+                    return {
+                        "authenticated": True,
+                        "user_id": user.id,
+                        "user": {
+                            "id": user.id,
+                            "phone": user.phone,
+                            "full_name": user.full_name
+                        }
+                    }
+        except jwt.JWTError:
+            pass
+    
+    # 2. Fallback на cookie
+    user_id = request.cookies.get("user_id")
+    if user_id:
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if user:
+            return {
+                "authenticated": True,
+                "user_id": user.id,
+                "user": {
+                    "id": user.id,
+                    "phone": user.phone,
+                    "full_name": user.full_name
+                }
+            }
+    
+    return {"authenticated": False}
+    
+            
 @app.get("/logout")
 async def logout():
     response = RedirectResponse(url="/", status_code=303)
