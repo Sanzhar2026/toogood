@@ -1218,10 +1218,33 @@ async def courier_register(request: Request, db: Session = Depends(get_db)):
         "message": "Заявка отправлена на рассмотрение",
         "courier_id": new_user.id
     }
+
+
+# backend/main.py - исправленный эндпоинт (поддержка Bearer токена)
+
 @app.post("/api/courier/go-online")
 async def courier_go_online(request: Request, db: Session = Depends(get_db)):
-    """Курьер выходит на линию"""
-    user_id = request.cookies.get("user_id")
+    """Курьер выходит на линию (поддержка Bearer токена)"""
+    
+    user_id = None
+    
+    # 1. Проверяем Authorization header
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            print(f"🔑 Пользователь из токена: {user_id}")
+        except Exception as e:
+            print(f"❌ Ошибка декодирования токена: {e}")
+    
+    # 2. Fallback на cookie
+    if not user_id:
+        user_id = request.cookies.get("user_id")
+        print(f"🍪 Пользователь из cookie: {user_id}")
+    
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
@@ -1252,8 +1275,25 @@ async def courier_go_online(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/api/courier/go-offline")
 async def courier_go_offline(request: Request, db: Session = Depends(get_db)):
-    """Курьер уходит с линии"""
-    user_id = request.cookies.get("user_id")
+    """Курьер уходит с линии (поддержка Bearer токена)"""
+    
+    user_id = None
+    
+    # 1. Проверяем Authorization header
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+        except:
+            pass
+    
+    # 2. Fallback на cookie
+    if not user_id:
+        user_id = request.cookies.get("user_id")
+    
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
@@ -1271,11 +1311,27 @@ async def courier_go_offline(request: Request, db: Session = Depends(get_db)):
     
     return {"success": True, "message": "Вы офлайн", "is_online": False}
 
-
 @app.post("/api/courier/update-location")
 async def update_courier_location(request: Request, db: Session = Depends(get_db)):
-    """Обновление геолокации курьера (автоматически каждые 3 секунды)"""
-    user_id = request.cookies.get("user_id")
+    """Обновление геолокации курьера (поддержка Bearer токена)"""
+    
+    user_id = None
+    
+    # 1. Проверяем Authorization header
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+        except:
+            pass
+    
+    # 2. Fallback на cookie
+    if not user_id:
+        user_id = request.cookies.get("user_id")
+    
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
@@ -1291,7 +1347,7 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
     courier.current_lon = lon
     courier.last_location_update = datetime.utcnow()
     
-    # Автоматическое определение "почти закончил" (менее 500м до клиента)
+    # Автоматическое определение "почти закончил"
     if courier.current_order_id:
         order = db.query(Order).filter(Order.id == courier.current_order_id).first()
         if order and order.customer_lat:
@@ -1311,7 +1367,6 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
     db.commit()
     
     return {"success": True, "status": courier.current_order_status}
-
 
 # backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
 
