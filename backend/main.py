@@ -847,7 +847,6 @@ async def admin_process_refund(order_id: int, request: Request, db: Session = De
     
     return {"success": True, "message": "Возврат обработан, деньги возвращены клиенту"}
 # backend/main.py - исправленный WebSocket без Depends
-
 @app.websocket("/ws/courier-tracking")
 async def courier_tracking_websocket(websocket: WebSocket):
     """WebSocket для отслеживания курьеров в реальном времени"""
@@ -855,19 +854,35 @@ async def courier_tracking_websocket(websocket: WebSocket):
     # Принимаем соединение
     await websocket.accept()
     
-    # Получаем ID пользователя из cookies (не через Depends)
-    cookies = websocket.cookies
-    user_id = cookies.get("user_id")
+    # ✅ 1. СНАЧАЛА пытаемся получить токен из query параметра
+    token = websocket.query_params.get("token")
+    user_id = None
     
-    print(f"🔌 WebSocket connection attempt, user_id from cookie: {user_id}")
+    if token:
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            print(f"🔑 WebSocket: user_id из Bearer токена = {user_id}")
+        except Exception as e:
+            print(f"❌ WebSocket: ошибка декодирования токена = {e}")
+    
+    # ✅ 2. Если нет токена - пробуем cookies (для обратной совместимости)
+    if not user_id:
+        cookies = websocket.cookies
+        user_id = cookies.get("user_id")
+        print(f"🔌 WebSocket connection attempt, user_id from cookie: {user_id}")
     
     if not user_id:
-        print("❌ WebSocket: нет user_id в cookies")
+        print("❌ WebSocket: нет user_id ни в токене, ни в cookies")
         await websocket.close(code=1008, reason="Not authenticated")
         return
     
     # Создаем сессию БД вручную
     db = SessionLocal()
+    
+    # Инициализируем переменную courier_id
+    courier_id = None
     
     try:
         # Проверяем, что пользователь - курьер
@@ -952,15 +967,14 @@ async def courier_tracking_websocket(websocket: WebSocket):
         print(f"❌ WebSocket ошибка: {e}")
     finally:
         # Удаляем соединение
-        if courier_id in courier_connections:
+        if courier_id and courier_id in courier_connections:
             if websocket in courier_connections[courier_id]:
                 courier_connections[courier_id].remove(websocket)
             if not courier_connections[courier_id]:
                 del courier_connections[courier_id]
         
         db.close()
-        print(f"🔌 WebSocket закрыт для курьера {courier_id if 'courier_id' in locals() else 'unknown'}")
-
+        print(f"🔌 WebSocket закрыт для курьера {courier_id if courier_id else 'unknown'}")
 # Глобальный словарь для WebSocket соединений курьеров
 courier_connections = {}
 
@@ -4083,7 +4097,6 @@ async def clear_cart(request: Request, db: Session = Depends(get_db)):
     
     return {"success": True, "message": "Cart cleared"}
 
-    
 @app.post("/api/orders/create-from-cart")
 async def create_orders_from_cart(request: Request, db: Session = Depends(get_db)):
     """Create orders from all items in cart"""
@@ -4129,7 +4142,7 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
             supplier_id=bag.supplier_id,
             surprise_bag_id=bag.id,
             order_number=order_number,
-            status=OrderStatus.PENDING,
+            status=OrderStatus.PENDING,  # Сначала PENDING
             customer_lat=customer_lat,
             customer_lon=customer_lon,
             customer_address=customer_address,
@@ -4160,7 +4173,34 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
     
     db.commit()
     
-    # Send WebSocket notification
+    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРАМ ДЛЯ КАЖДОГО ЗАКАЗА
+    for order in orders_created:
+        try:
+            # Получаем информацию о ресторане
+            supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+            supplier_name = supplier.business_name if supplier else "Ресторан"
+            
+            # Отправляем уведомление всем онлайн курьерам
+            await manager.broadcast({
+                "type": "new_order_for_courier",
+                "data": {
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "supplier_name": supplier_name,
+                    "amount": order.amount_paid,
+                    "bag_name": "Заказ из корзины",
+                    "customer_address": order.customer_address,
+                    "supplier_lat": supplier.lat if supplier else None,
+                    "supplier_lon": supplier.lon if supplier else None,
+                    "customer_lat": order.customer_lat,
+                    "customer_lon": order.customer_lon
+                }
+            }, channel="courier_notifications")
+            print(f"📢 Уведомление о заказе #{order.id} отправлено курьерам")
+        except Exception as e:
+            print(f"❌ Ошибка отправки уведомления для заказа #{order.id}: {e}")
+    
+    # Отправляем уведомление клиенту
     await manager.broadcast({
         "type": "order_created",
         "user_id": int(user_id),
@@ -4180,6 +4220,67 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
         "total_amount": total_amount,
         "message": f"Created {len(orders_created)} order(s)"
     }
+
+
+@app.put("/api/supplier/orders/{order_id}/confirm")
+async def confirm_order_by_supplier(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Ресторан подтверждает заказ"""
+    
+    # Получаем user_id из токена или cookies
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Проверяем, что пользователь - владелец ресторана
+    supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
+    if not supplier:
+        raise HTTPException(status_code=403, detail="Not a supplier")
+    
+    # Получаем заказ
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.supplier_id == supplier.id
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Меняем статус
+    order.status = OrderStatus.CONFIRMED
+    db.commit()
+    
+    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРАМ
+    if not order.assigned_courier_id:
+        try:
+            await manager.broadcast({
+                "type": "new_order_for_courier",
+                "data": {
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "supplier_name": supplier.business_name,
+                    "amount": order.amount_paid,
+                    "bag_name": "Заказ подтвержден",
+                    "customer_address": order.customer_address,
+                    "supplier_lat": supplier.lat,
+                    "supplier_lon": supplier.lon,
+                    "customer_lat": order.customer_lat,
+                    "customer_lon": order.customer_lon
+                }
+            }, channel="courier_notifications")
+            print(f"📢 Уведомление о подтверждении заказа #{order.id} отправлено курьерам")
+        except Exception as e:
+            print(f"❌ Ошибка отправки уведомления: {e}")
+    
+    return {
+        "success": True,
+        "message": "Order confirmed",
+        "order_id": order.id
+    }
+
 
 
 @app.get("/api/orders/my")
