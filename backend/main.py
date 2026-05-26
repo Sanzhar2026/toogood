@@ -5763,9 +5763,12 @@ async def create_surprise_bag(request: Request, db: Session = Depends(get_db)):
     
     return {"success": True, "bag_id": bag.id, "bag": bag}
 
+# backend/main.py - исправленный эндпоинт для поставщика
+
 @app.get("/api/supplier/orders")
 async def get_supplier_orders(request: Request, db: Session = Depends(get_db)):
-    """Get all orders for the authenticated supplier"""
+    """Получить заказы для поставщика"""
+    
     supplier_id = request.cookies.get("supplier_id")
     
     if not supplier_id:
@@ -5777,20 +5780,23 @@ async def get_supplier_orders(request: Request, db: Session = Depends(get_db)):
     
     result = []
     for order in orders:
+        # Получаем пользователя
+        user = db.query(User).filter(User.id == order.user_id).first()
         bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        
         result.append({
             "id": order.id,
-            "order_number": order.order_number or f"ORD-{order.id}",
-            "bag_name": bag.name if bag else "Surprise Bag",
-            "customer_address": order.customer_address or "Address not specified",
-            "customer_phone": order.customer_phone,
-            "amount_paid": float(order.amount_paid) if order.amount_paid else 0,
+            "order_number": order.order_number,
+            "customer_name": user.full_name if user else "Неизвестно",
+            "customer_phone": user.phone if user else "Не указан",  # ← используем user.phone
+            "bag_name": bag.name if bag else "Сюрприз",
+            "amount_paid": order.amount_paid or 0,
             "status": order.status.value if order.status else "pending",
             "created_at": order.created_at.isoformat() if order.created_at else None,
-            "pickup_time": order.pickup_time
+            "customer_address": order.customer_address or "Адрес не указан"
         })
     
-    return {"orders": result}
+    return {"success": True, "orders": result}
 
 
 @app.get("/api/supplier/stats")
