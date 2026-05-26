@@ -1313,10 +1313,28 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
     return {"success": True, "status": courier.current_order_status}
 
 
+# backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
+
+# backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
+
 @app.get("/api/courier/status")
 async def get_courier_status(request: Request, db: Session = Depends(get_db)):
-    """Получить статус курьера"""
+    """Получить статус курьера (поддержка Bearer токена)"""
+    
     user_id = request.cookies.get("user_id")
+    
+    # Если нет в cookies, проверяем Authorization header
+    if not user_id:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            try:
+                from jose import jwt
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_id = payload.get("sub")
+            except:
+                pass
+    
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
@@ -1337,8 +1355,6 @@ async def get_courier_status(request: Request, db: Session = Depends(get_db)):
         "first_name": courier.first_name,
         "last_name": courier.last_name
     }
-
-
 @app.get("/api/couriers/online")
 async def get_online_couriers(db: Session = Depends(get_db)):
     """Получить всех онлайн курьеров (для карты)"""
