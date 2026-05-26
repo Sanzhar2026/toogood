@@ -608,23 +608,31 @@
         }
         
         // ОТМЕТИТЬ БРОНИРОВАНИЕ КАК ОПЛАЧЕННОЕ
-        async function markAsPaid(reservationId) {
-            if (!confirm('Подтвердить оплату и создать заказ?')) return;
-            try {
-                const response = await fetch(`/api/admin/mark-reservation-paid/${reservationId}`, { method: 'POST', credentials: 'include' });
-                const data = await response.json();
-                if (data.success) {
-                    alert('✅ Оплата подтверждена! Заказ создан.');
-                    loadActiveReservations();
-                    loadOrders();
-                    loadStats();
-                } else {
-                    alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
-                }
-            } catch (error) {
-                alert('❌ Ошибка при подтверждении оплаты');
-            }
+// В админ-панели, функция markAsPaid
+async function markAsPaid(reservationId) {
+    if (!confirm('Подтвердить оплату и создать заказ?')) return;
+    
+    try {
+        const response = await fetch(`/api/admin/mark-reservation-paid/${reservationId}`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('✅ Оплата подтверждена! Заказ создан и отправлен курьерам.');
+            loadActiveReservations();  // Обновляем список бронирований
+            loadOrders();              // Обновляем список заказов
+            loadStats();               // Обновляем статистику
+        } else {
+            alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
         }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('❌ Ошибка при подтверждении оплаты');
+    }
+}
         
         // Загрузка оплаченных заказов
         async function loadOrders() {

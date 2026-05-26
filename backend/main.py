@@ -494,6 +494,12 @@ async def confirm_order(order_id: int, request: Request, db: Session = Depends(g
     db.commit()
     
     return {"success": True, "message": "Заказ подтвержден", "status": "confirmed"}
+
+
+
+    
+# backend/main.py - эндпоинт для отметки оплаты
+
 @app.post("/api/admin/mark-reservation-paid/{reservation_id}")
 async def admin_mark_reservation_paid(reservation_id: int, request: Request, db: Session = Depends(get_db)):
     """Админ отмечает бронирование как оплаченное и создает заказ"""
@@ -506,6 +512,7 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
     if not admin:
         raise HTTPException(status_code=403, detail="Access denied")
     
+    # Находим резервацию
     reservation = db.query(TemporaryReservation).filter(
         TemporaryReservation.id == reservation_id,
         TemporaryReservation.is_paid == False
@@ -527,24 +534,23 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
     
     # Получаем пользователя
     user = db.query(User).filter(User.id == reservation.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
     
-    # Создаем заказ
+    # Генерируем номер заказа
     import secrets
     order_number = f"ORD-{secrets.token_hex(4).upper()}"
     
-    # Получаем координаты (если есть, иначе используем координаты ресторана временно)
+    # Получаем координаты
     customer_lat = reservation.customer_lat if hasattr(reservation, 'customer_lat') else None
     customer_lon = reservation.customer_lon if hasattr(reservation, 'customer_lon') else None
     customer_address = reservation.customer_address if hasattr(reservation, 'customer_address') else "Адрес не указан"
     
-    # Если нет координат клиента, используем координаты ресторана (временно)
+    # Если нет координат клиента, используем координаты ресторана
     if not customer_lat or not customer_lon:
         customer_lat = supplier.lat if supplier else None
         customer_lon = supplier.lon if supplier else None
         customer_address = supplier.address if supplier else "Адрес не указан"
     
+    # ✅ СОЗДАЕМ ЗАКАЗ СО СТАТУСОМ CONFIRMED (ОПЛАЧЕН)
     order = Order(
         user_id=reservation.user_id,
         supplier_id=bag.supplier_id,
@@ -572,7 +578,7 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
     
     db.commit()
     
-    # Отправляем уведомление курьерам
+    # ✅ Отправляем уведомление курьерам через WebSocket
     await manager.broadcast({
         "type": "new_order_for_courier",
         "data": {
@@ -593,8 +599,12 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
     
     print(f"✅ Уведомление отправлено курьерам о новом заказе #{order.id}")
     
-    return {"success": True, "message": "Оплата подтверждена, заказ создан", "order_id": order.id}
-# backend/main.py - добавьте
+    return {
+        "success": True, 
+        "message": "Оплата подтверждена, заказ создан", 
+        "order_id": order.id,
+        "order_number": order_number
+    }
 
 
 
@@ -892,11 +902,29 @@ courier_connections = {}
 # ============ ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ============
 # backend/main.py - обновленный эндпоинт
 
+# backend/main.py - ИСПРАВЛЕННЫЙ полный эндпоинт
+
 @app.get("/api/courier/available-orders")
 async def get_available_orders_for_courier(request: Request, db: Session = Depends(get_db)):
     """Умное получение доступных заказов с учетом прогресса текущего заказа"""
     
-    user_id = request.cookies.get("user_id")
+    # ✅ 1. СНАЧАЛА ПРОВЕРЯЕМ Bearer TOKEN
+    user_id = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            print(f"🔑 Пользователь из Bearer токена: {user_id}")
+        except Exception as e:
+            print(f"❌ Ошибка декодирования токена: {e}")
+    
+    # ✅ 2. Fallback на cookies
+    if not user_id:
+        user_id = request.cookies.get("user_id")
+        print(f"🍪 Пользователь из cookie: {user_id}")
     
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
