@@ -695,54 +695,120 @@ async def customer_confirm_delivery(order_id: int, request: Request, db: Session
 
 
 
-
+# backend/main.py - ЕДИНСТВЕННЫЙ эндпоинт для take-order
 
 @app.post("/api/courier/take-order/{order_id}")
 async def courier_take_order(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Курьер берет заказ в работу"""
     
-    user_id = request.cookies.get("user_id")
+    print("=" * 50)
+    print(f"📦 ПОПЫТКА ВЗЯТЬ ЗАКАЗ #{order_id}")
+    
+    # ✅ ТОЛЬКО Bearer токен
+    user_id = None
+    auth_header = request.headers.get("Authorization")
+    print(f"📨 Authorization header: {auth_header[:50] if auth_header else 'None'}...")
+    
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            print(f"🔑 Пользователь из Bearer токена: {user_id}")
+        except Exception as e:
+            print(f"❌ Ошибка декодирования токена: {e}")
+            raise HTTPException(status_code=401, detail="Invalid token")
+    
     if not user_id:
+        print("❌ Нет user_id в токене")
         raise HTTPException(status_code=401, detail="Not authenticated")
     
+    # Получаем курьера
     courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
     if not courier:
+        print(f"❌ Курьер не найден для user_id={user_id}")
         raise HTTPException(status_code=404, detail="Courier not found")
     
+    print(f"👤 Курьер: {courier.first_name} {courier.last_name}, онлайн: {courier.is_online}")
+    
+    # Проверяем, что курьер на линии
+    if not courier.is_online:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "message": "Вы не на линии. Включите режим 'На линии'"}
+        )
+    
+    # Получаем заказ
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
+        print(f"❌ Заказ #{order_id} не найден")
         raise HTTPException(status_code=404, detail="Order not found")
     
-    if order.status != OrderStatus.CONFIRMED:
-        raise HTTPException(status_code=400, detail="Order not available")
+    print(f"📋 Заказ #{order_id}: статус={order.status}, назначен курьеру={order.assigned_courier_id}")
     
-    # Назначаем курьера
+    # Проверяем, что заказ доступен для взятия
+    if order.status != OrderStatus.CONFIRMED:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "message": f"Заказ не доступен. Текущий статус: {order.status}"}
+        )
+    
+    if order.assigned_courier_id is not None:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "message": "Заказ уже назначен другому курьеру"}
+        )
+    
+    # Проверяем, есть ли у курьера активный заказ
+    if courier.current_order_id is not None:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "message": f"У вас уже есть активный заказ #{courier.current_order_id}"}
+        )
+    
+    # Назначаем заказ курьеру
     order.assigned_courier_id = courier.user_id
     order.status = OrderStatus.OUT_FOR_DELIVERY
     order.delivery_started_at = datetime.utcnow()
-    
-    # Рассчитываем дедлайн (30 минут)
     order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
     
     # Обновляем статус курьера
     courier.current_order_id = order_id
+    courier.current_order_status = "assigned"
     courier.is_available = False
     
     db.commit()
     
-    # ✅ Отправляем уведомление клиенту
-    await manager.broadcast({
-        "type": "order_assigned",
-        "data": {
-            "order_id": order_id,
-            "courier_name": f"{courier.first_name} {courier.last_name}",
-            "courier_phone": courier.phone,
-            "courier_lat": courier.current_lat,
-            "courier_lon": courier.current_lon
-        }
-    }, channel=f"order_{order_id}")
+    print(f"✅ Заказ #{order_id} назначен курьеру {courier.first_name} {courier.last_name}")
     
-    return {"success": True, "message": "Заказ взят в работу"}
+    # Отправляем уведомление клиенту через WebSocket
+    try:
+        await manager.broadcast({
+            "type": "order_assigned",
+            "data": {
+                "order_id": order_id,
+                "courier_name": f"{courier.first_name} {courier.last_name}",
+                "courier_phone": courier.phone,
+                "courier_lat": courier.current_lat,
+                "courier_lon": courier.current_lon,
+                "estimated_time": 30
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }, channel=f"order_{order_id}")
+    except Exception as e:
+        print(f"⚠️ Не удалось отправить уведомление: {e}")
+    
+    return {
+        "success": True,
+        "message": "Заказ взят в работу!",
+        "order_id": order_id,
+        "delivery_deadline": order.delivery_deadline.isoformat()
+    }
+
+
+
+
 @app.post("/api/admin/process-refund/{order_id}")
 async def admin_process_refund(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Админ обрабатывает возврат денег клиенту"""
@@ -1502,105 +1568,6 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
 # backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
 # backend/main.py - полный эндпоинт
 
-@app.post("/api/courier/take-order/{order_id}")
-async def courier_take_order(order_id: int, request: Request, db: Session = Depends(get_db)):
-    """Курьер берет заказ в работу"""
-    
-    print(f"📦 ПОПЫТКА ВЗЯТЬ ЗАКАЗ #{order_id}")
-    
-    # ✅ ТОЛЬКО Bearer токен, без fallback на cookies
-    user_id = None
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-            print(f"🔑 Пользователь из Bearer токена: {user_id}")
-        except Exception as e:
-            print(f"❌ Ошибка декодирования токена: {e}")
-    
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    # Получаем курьера
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
-    
-    print(f"👤 Курьер: {courier.first_name} {courier.last_name}, онлайн: {courier.is_online}")
-    
-    # Проверяем, что курьер на линии
-    if not courier.is_online:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Вы не на линии. Включите режим 'На линии'"}
-        )
-    
-    # Получаем заказ
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    print(f"📋 Заказ #{order_id}: статус={order.status}, назначен курьеру={order.assigned_courier_id}")
-    
-    # Проверяем, что заказ доступен для взятия
-    if order.status != OrderStatus.CONFIRMED:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": f"Заказ не доступен. Текущий статус: {order.status}"}
-        )
-    
-    if order.assigned_courier_id is not None:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Заказ уже назначен другому курьеру"}
-        )
-    
-    # Проверяем, есть ли у курьера активный заказ
-    if courier.current_order_id is not None:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": f"У вас уже есть активный заказ #{courier.current_order_id}"}
-        )
-    
-    # Назначаем заказ курьеру
-    order.assigned_courier_id = courier.user_id
-    order.status = OrderStatus.OUT_FOR_DELIVERY
-    order.delivery_started_at = datetime.utcnow()
-    order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
-    
-    # Обновляем статус курьера
-    courier.current_order_id = order_id
-    courier.current_order_status = "assigned"
-    courier.is_available = False
-    
-    db.commit()
-    
-    print(f"✅ Заказ #{order_id} назначен курьеру {courier.first_name} {courier.last_name}")
-    
-    # Отправляем уведомление клиенту через WebSocket
-    await manager.broadcast({
-        "type": "order_assigned",
-        "data": {
-            "order_id": order_id,
-            "courier_name": f"{courier.first_name} {courier.last_name}",
-            "courier_phone": courier.phone,
-            "courier_lat": courier.current_lat,
-            "courier_lon": courier.current_lon,
-            "estimated_time": 30
-        },
-        "timestamp": datetime.utcnow().isoformat()
-    }, channel=f"order_{order_id}")
-    
-    return {
-        "success": True,
-        "message": "Заказ взят в работу!",
-        "order_id": order_id,
-        "delivery_deadline": order.delivery_deadline.isoformat()
-    }
-# backend/main.py - добавьте этот эндпоинт
 
 @app.get("/api/courier/status")
 async def get_courier_status(request: Request, db: Session = Depends(get_db)):
