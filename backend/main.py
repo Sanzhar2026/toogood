@@ -478,7 +478,22 @@ async def admin_update_order_status(order_id: int, request: Request, db: Session
     }, channel="admin")
     
     return {"success": True, "message": f"Статус обновлен на {value}"}
+# backend/main.py - добавить
 
+@app.post("/api/orders/confirm/{order_id}")
+async def confirm_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Принудительно подтвердить заказ (для теста)"""
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    order.status = OrderStatus.CONFIRMED
+    order.payment_status = "paid"
+    order.paid_at = datetime.utcnow()
+    db.commit()
+    
+    return {"success": True, "message": "Заказ подтвержден", "status": "confirmed"}
 @app.post("/api/admin/mark-reservation-paid/{reservation_id}")
 async def admin_mark_reservation_paid(reservation_id: int, request: Request, db: Session = Depends(get_db)):
     """Админ отмечает бронирование как оплаченное и создает заказ"""
@@ -535,7 +550,7 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
         supplier_id=bag.supplier_id,
         surprise_bag_id=reservation.bag_id,
         order_number=order_number,
-        status=OrderStatus.CONFIRMED,
+        status=OrderStatus.CONFIRMED,  # ← ВАЖНО: статус CONFIRMED
         payment_status="paid",
         paid_at=datetime.utcnow(),
         amount_paid=bag.discounted_price * reservation.quantity,
@@ -875,10 +890,11 @@ courier_connections = {}
 
 
 # ============ ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ============
+# backend/main.py - обновленный эндпоинт
 
 @app.get("/api/courier/available-orders")
 async def get_available_orders_for_courier(request: Request, db: Session = Depends(get_db)):
-    """Получить список доступных заказов для курьера"""
+    """Умное получение доступных заказов с учетом прогресса текущего заказа"""
     
     user_id = request.cookies.get("user_id")
     
@@ -891,58 +907,143 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
     if not courier:
         raise HTTPException(status_code=403, detail="Not a courier")
     
+    if not courier.is_online:
+        return {"success": True, "orders": [], "message": "Вы не на линии"}
+    
     # Получаем текущую позицию курьера
     courier_lat = courier.current_lat
     courier_lon = courier.current_lon
     
     if not courier_lat or not courier_lon:
-        # Если нет позиции, возвращаем пустой список
         return {"success": True, "orders": [], "message": "Позиция не определена"}
     
-    # Ищем заказы со статусом PENDING и CONFIRMED
+    # ============ УМНОЕ ПРЕДЛОЖЕНИЕ ЗАКАЗОВ ============
+    
+    current_progress = 0
+    show_all_orders = False
+    
+    # Если есть текущий заказ, рассчитываем прогресс
+    if courier.current_order_id:
+        current_order = db.query(Order).filter(Order.id == courier.current_order_id).first()
+        
+        if current_order and current_order.customer_lat and current_order.customer_lon:
+            # Рассчитываем расстояние от курьера до клиента
+            distance_to_customer = haversine_distance(
+                courier_lat, courier_lon,
+                current_order.customer_lat, current_order.customer_lon
+            )
+            
+            # Получаем общее расстояние маршрута (если есть)
+            supplier = db.query(Supplier).filter(Supplier.id == current_order.supplier_id).first()
+            if supplier:
+                total_distance = haversine_distance(
+                    supplier.lat, supplier.lon,
+                    current_order.customer_lat, current_order.customer_lon
+                )
+                
+                if total_distance > 0:
+                    # Прогресс в процентах (чем меньше расстояние до клиента, тем больше прогресс)
+                    current_progress = max(0, min(100, int((1 - distance_to_customer / total_distance) * 100)))
+                    
+                    # ✅ Если прогресс > 50% (проехал больше половины пути)
+                    if current_progress >= 50:
+                        show_all_orders = True
+                        print(f"🎯 Курьер выполнил {current_progress}% заказа, показываем следующие заказы")
+    
+    # Ищем доступные заказы (только оплаченные, не назначенные)
     available_orders = db.query(Order).filter(
-        Order.status.in_([OrderStatus.PENDING, OrderStatus.CONFIRMED]),
-        Order.assigned_courier_id == None
+        Order.status == OrderStatus.CONFIRMED,
+        Order.assigned_courier_id == None,
+        Order.id != courier.current_order_id  # Не предлагаем текущий заказ
     ).all()
+    
+    print(f"📋 Найдено доступных заказов: {len(available_orders)}")
     
     available_orders_list = []
     
     for order in available_orders:
         supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
         
-        if supplier and supplier.lat and supplier.lon:
-            # Рассчитываем расстояние до ресторана
-            distance = haversine_distance(
-                courier_lat, courier_lon,
-                supplier.lat, supplier.lon
-            )
+        if not supplier or not supplier.lat or not supplier.lon:
+            continue
+        
+        # Рассчитываем расстояние от курьера до ресторана
+        distance_to_supplier = haversine_distance(
+            courier_lat, courier_lon,
+            supplier.lat, supplier.lon
+        )
+        
+        # ✅ ЛОГИКА ПОКАЗА ЗАКАЗОВ:
+        # 1. Если нет текущего заказа - показываем все в радиусе 50 км
+        # 2. Если есть текущий заказ и прогресс > 50% - показываем заказы в радиусе 10 км (рядом)
+        # 3. Если есть текущий заказ и прогресс < 50% - не показываем новые заказы
+        
+        if not courier.current_order_id:
+            # Нет текущего заказа - показываем все в радиусе 50 км
+            if distance_to_supplier <= 50.0:
+                should_show = True
+                reason = "нет текущего заказа"
+            else:
+                should_show = False
+                reason = "далеко от ресторана"
+        elif show_all_orders:
+            # Есть текущий заказ и прогресс > 50% - показываем заказы рядом (до 10 км)
+            if distance_to_supplier <= 10.0:
+                should_show = True
+                reason = f"прогресс {current_progress}% > 50%, заказ рядом"
+            else:
+                should_show = False
+                reason = f"прогресс {current_progress}% > 50%, но заказ далеко ({distance_to_supplier:.1f} км)"
+        else:
+            # Есть текущий заказ и прогресс < 50% - не показываем новые заказы
+            should_show = False
+            reason = f"прогресс {current_progress}% < 50%, сначала завершите текущий заказ"
+        
+        if should_show:
+            bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
             
-            # Показываем заказы в радиусе 10 км
-            if distance <= 10.0:
-                bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-                
-                available_orders_list.append({
-                    "order_id": order.id,
-                    "order_number": order.order_number,
-                    "supplier_name": supplier.business_name,
-                    "supplier_address": supplier.address,
-                    "distance_km": round(distance, 2),
-                    "estimated_time_minutes": int((distance / courier.speed_kmh) * 60),
-                    "amount": order.amount_paid or 0,
-                    "bag_name": bag.name if bag else "Surprise Bag",
-                    "customer_address": order.customer_address
-                })
+            # Расчет времени в зависимости от типа курьера
+            if courier.courier_type == "pedestrian":
+                estimated_time = int((distance_to_supplier / 5) * 60)
+            else:
+                estimated_time = int((distance_to_supplier / 40) * 60)
+            
+            available_orders_list.append({
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "supplier_name": supplier.business_name,
+                "supplier_address": supplier.address,
+                "distance_km": round(distance_to_supplier, 2),
+                "estimated_time_minutes": estimated_time,
+                "amount": order.amount_paid or 0,
+                "bag_name": bag.name if bag else "Surprise Bag",
+                "customer_address": order.customer_address or "Адрес не указан",
+                "supplier_lat": supplier.lat,
+                "supplier_lon": supplier.lon,
+                "customer_lat": order.customer_lat,
+                "customer_lon": order.customer_lon,
+                "reason": reason  # Для отладки
+            })
+            print(f"✅ Заказ #{order.id} добавлен: {reason}")
+        else:
+            print(f"⏸️ Заказ #{order.id} скрыт: {reason}")
     
     # Сортируем по расстоянию
     available_orders_list.sort(key=lambda x: x["distance_km"])
     
+    # Ограничиваем количество предложений (показываем до 5 ближайших)
+    max_orders = 5 if courier.current_order_id else 20
+    available_orders_list = available_orders_list[:max_orders]
+    
     return {
         "success": True,
-        "orders": available_orders_list[:10],  # Максимум 10 заказов
-        "count": len(available_orders_list)
+        "orders": available_orders_list,
+        "count": len(available_orders_list),
+        "has_current_order": courier.current_order_id is not None,
+        "current_order_progress": current_progress,
+        "show_all_orders": show_all_orders,
+        "courier_location": {"lat": courier_lat, "lon": courier_lon}
     }
-
-
 # backend/main.py - обновите эндпоинт
 
 # backend/main.py - обновите эндпоинт
