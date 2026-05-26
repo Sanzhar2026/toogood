@@ -1501,30 +1501,52 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
 
 # backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
 
+# backend/main.py - добавьте этот эндпоинт
+
 @app.get("/api/courier/status")
 async def get_courier_status(request: Request, db: Session = Depends(get_db)):
-    """Получить статус курьера (поддержка Bearer токена)"""
+    """Получить статус курьера"""
     
-    user_id = request.cookies.get("user_id")
+    print("🔍 GET /api/courier/status вызван")
     
-    # Если нет в cookies, проверяем Authorization header
+    # Получаем user_id из Bearer токена
+    user_id = None
+    auth_header = request.headers.get("Authorization")
+    print(f"📨 Authorization header: {auth_header}")
+    
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            print(f"🔑 Пользователь из Bearer токена: {user_id}")
+        except Exception as e:
+            print(f"❌ Ошибка декодирования токена: {e}")
+    
+    # Fallback на cookies
     if not user_id:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            try:
-                from jose import jwt
-                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-                user_id = payload.get("sub")
-            except:
-                pass
+        user_id = request.cookies.get("user_id")
+        print(f"🍪 Пользователь из cookie: {user_id}")
     
     if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        print("❌ Нет user_id")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Not authenticated"}
+        )
     
+    # Получаем профиль курьера
     courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    
     if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
+        print(f"❌ Курьер с user_id={user_id} не найден")
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "detail": "Courier not found"}
+        )
+    
+    print(f"✅ Курьер найден: {courier.first_name} {courier.last_name}")
     
     return {
         "success": True,
@@ -1537,7 +1559,8 @@ async def get_courier_status(request: Request, db: Session = Depends(get_db)):
         "rating": courier.rating,
         "total_deliveries": courier.total_deliveries,
         "first_name": courier.first_name,
-        "last_name": courier.last_name
+        "last_name": courier.last_name,
+        "phone": courier.phone
     }
 @app.get("/api/couriers/online")
 async def get_online_couriers(db: Session = Depends(get_db)):
