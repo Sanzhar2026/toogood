@@ -642,16 +642,15 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
 
 
 # backend/main.py - добавьте эндпоинты для подтверждения доставки
-
 @app.post("/api/courier/arrived/{order_id}")
 async def courier_arrived(
     order_id: int,
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Курьер прибыл к клиенту"""
+    """Курьер прибыл к клиенту - отправляет уведомление клиенту"""
     
-    # ✅ ТОЛЬКО Bearer токен, БЕЗ cookies
+    # ✅ ТОЛЬКО Bearer токен
     user_id = get_current_user_from_token(request)
     
     # Получаем курьера
@@ -668,47 +667,72 @@ async def courier_arrived(
     if order.assigned_courier_id != courier.user_id:
         raise HTTPException(status_code=403, detail="Order not assigned to you")
     
-    # Обновляем статус
-    order.status = "nearby"  # или OrderStatus.NEARBY
+    # ✅ Обновляем статус курьера (НЕ заказа!)
+    courier.current_order_status = "nearby"
     db.commit()
     
-    # Отправляем уведомление клиенту
-    await manager.broadcast({
-        "type": "courier_arrived",
-        "data": {
-            "order_id": order_id,
-            "courier_name": f"{courier.first_name} {courier.last_name}",
-            "courier_phone": courier.phone
-        }
-    }, channel=f"order_{order_id}")
+    # ✅ Отправляем уведомление клиенту через WebSocket
+    try:
+        # Находим клиента (пользователя, который сделал заказ)
+        customer = db.query(User).filter(User.id == order.user_id).first()
+        
+        await manager.broadcast({
+            "type": "courier_arrived",
+            "data": {
+                "order_id": order_id,
+                "order_number": order.order_number,
+                "courier_name": f"{courier.first_name} {courier.last_name}",
+                "courier_phone": courier.phone,
+                "courier_lat": courier.current_lat,
+                "courier_lon": courier.current_lon,
+                "message": f"Курьер {courier.first_name} прибыл к вам!"
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }, channel=f"order_{order_id}")
+        
+        print(f"📢 Уведомление отправлено клиенту {customer.phone if customer else 'unknown'} о прибытии курьера")
+        
+    except Exception as e:
+        print(f"❌ Ошибка отправки уведомления: {e}")
     
-    return {"success": True, "message": "Courier arrived"}
-
+    return {
+        "success": True, 
+        "message": "Уведомление о прибытии отправлено клиенту",
+        "order_id": order_id
+    }
 
 @app.post("/api/customer/confirm-delivery/{order_id}")
-async def customer_confirm_delivery(order_id: int, request: Request, db: Session = Depends(get_db)):
+async def customer_confirm_delivery(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
     """Клиент подтверждает получение заказа"""
     
     user_id = request.cookies.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    order = db.query(Order).filter(Order.id == order_id, Order.user_id == int(user_id)).first()
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.user_id == int(user_id)
+    ).first()
+    
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    if order.status != OrderStatus.NEARBY:
-        raise HTTPException(status_code=400, detail="Courier not arrived yet")
-    
-    # Обновляем статус заказа
+    # ✅ ТЕПЕРЬ меняем статус на DELIVERED
     order.status = OrderStatus.DELIVERED
     order.delivered_at = datetime.utcnow()
     
     # Освобождаем курьера
     if order.assigned_courier_id:
-        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+        courier = db.query(CourierProfile).filter(
+            CourierProfile.user_id == order.assigned_courier_id
+        ).first()
         if courier:
             courier.current_order_id = None
+            courier.current_order_status = None
             courier.is_available = True
             courier.total_deliveries += 1
     
@@ -720,11 +744,10 @@ async def customer_confirm_delivery(order_id: int, request: Request, db: Session
         "data": {
             "order_id": order_id,
             "status": "delivered"
-        },
-        "timestamp": datetime.utcnow().isoformat()
-    }, channel="couriers")
+        }
+    }, channel=f"courier_{order.assigned_courier_id}")
     
-    return {"success": True, "message": "Заказ получен, спасибо!"}
+    return {"success": True, "message": "Спасибо! Заказ получен"}
 
 
 
