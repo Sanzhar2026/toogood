@@ -5278,54 +5278,7 @@ async def delivery_tracking(request: Request, order_id: int, db: Session = Depen
         
     
 
-# ============ ADD MOCK DATA ============
-def add_mock_data(db: Session):
-    try:
-        if db.query(Food).count() == 0:
-            mock_foods = [
-                Food(name_ru="Пицца Маргарита", name_kz="Пицца Маргарита", price=1800, image="https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop", discount=40),
-                Food(name_ru="Бургер", name_kz="Бургер", price=1500, image="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop", discount=40),
-                Food(name_ru="Суши сет", name_kz="Суши сет", price=2250, image="https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop", discount=25),
-                Food(name_ru="Грек салаты", name_kz="Грек салаты", price=975, image="https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400&h=300&fit=crop", discount=35),
-                Food(name_ru="Цезарь", name_kz="Цезарь", price=1200, image="https://images.unsplash.com/photo-1550304943-4f24f54dd3b9?w=400&h=300&fit=crop", discount=33),
-                Food(name_ru="Чизкейк", name_kz="Чизкейк", price=1200, image="https://picsum.photos/id/132/400/300", discount=20),
-                Food(name_ru="Тирамису", name_kz="Тирамису", price=1300, image="https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?w=400&h=300&fit=crop", discount=23),
-                Food(name_ru="Кола", name_kz="Кола", price=400, image="https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&h=300&fit=crop", discount=33),
-                Food(name_ru="Лимонад", name_kz="Лимонад", price=500, image="https://images.unsplash.com/photo-1527960471264-932f39eb36a6?w=400&h=300&fit=crop", discount=28),
-            ]
-            for food in mock_foods:
-                db.add(food)
-            db.commit()
-            print("✅ Mock foods added")
-    except Exception as e:
-        print(f"Error adding mock foods: {e}")
-    
-    try:
-        if db.query(Supplier).count() == 0:
-            mock_suppliers = [
-                Supplier(
-                    business_name="Sarqyn Restoran",
-                    business_type="Restaurant",
-                    description="Дәмді тағамдар",
-                    city="Алматы",
-                    address="Алматы, Достык 123",
-                    lat=43.238, lon=76.945,
-                    phone="+7 777 123 4567",
-                    email="info@sarqyn.kz",
-                    rating=4.8,
-                    total_reviews=55,
-                    is_verified=True,
-                    is_active=True,
-                    pickup_start_time="19:30",
-                    pickup_end_time="20:00"
-                )
-            ]
-            for supplier in mock_suppliers:
-                db.add(supplier)
-            db.commit()
-            print("✅ Mock suppliers added")
-    except Exception as e:
-        print(f"Error adding mock suppliers: {e}")
+
 
 # ============ API ROUTES ============
 @app.get("/api/suppliers")
