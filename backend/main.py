@@ -4697,14 +4697,7 @@ class PhoneRegisterRequest(BaseModel):
     verification_code: str
 
 # ============ HELPER FUNCTIONS ============
-def haversine_distance(lat1, lon1, lat2, lon2):
-    """Calculate distance between two points in km"""
-    R = 6371
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    return R * c
+
 
 def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculate distance in kilometers between two coordinates"""
@@ -5284,46 +5277,87 @@ async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
     }
 
 # backend/main.py - обновите nearby suppliers
+# backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
 
-# backend/main.py - показываем только доступные сюрпризы
+# Добавьте эту функцию в начало файла (если её нет)
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Расчет расстояния между двумя точками в километрах"""
+    from math import radians, sin, cos, sqrt, atan2
+    
+    R = 6371  # Радиус Земли в км
+    
+    lat1_rad = radians(lat1)
+    lat2_rad = radians(lat2)
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    
+    a = sin(dlat/2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    
+    return R * c
+
+
 @app.get("/api/suppliers/nearby")
 async def get_nearby_suppliers(lat: float, lon: float, radius: float = 50, db: Session = Depends(get_db)):
     """Получить поставщиков ТОЛЬКО с доступными сюрпризами"""
+    
+    print(f"🔍 Поиск поставщиков рядом с {lat}, {lon}, радиус {radius}км")
+    
     all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
+    print(f"🏪 Всего активных поставщиков: {len(all_suppliers)}")
     
     nearby = []
     for supplier in all_suppliers:
-        if supplier.lat and supplier.lon:
-            distance = haversine_distance(lat, lon, supplier.lat, supplier.lon)
-            if distance <= radius:
-                # ✅ ТОЛЬКО АКТИВНЫЕ И С available_quantity > 0
-                active_bags = db.query(SurpriseBag).filter(
-                    SurpriseBag.supplier_id == supplier.id,
-                    SurpriseBag.is_active == True,
-                    SurpriseBag.available_quantity > 0  # ← ГЛАВНОЕ УСЛОВИЕ!
-                ).all()
-                
-                if active_bags:
-                    nearby.append({
-                        "id": supplier.id,
-                        "business_name": supplier.business_name,
-                        "distance_km": round(distance, 2),
-                        "rating": supplier.rating,
-                        "surprise_bags": [
-                            {
-                                "id": bag.id,
-                                "name": bag.name,
-                                "discounted_price": bag.discounted_price,
-                                "discount_percentage": bag.discount_percentage,
-                                "original_price": bag.original_price,
-                                "image_url": bag.image_url,
-                                "available_quantity": bag.available_quantity  # ← ОТПРАВЛЯЕМ КОЛИЧЕСТВО
-                            } for bag in active_bags
-                        ]
-                    })
+        print(f"  - Проверяем {supplier.business_name}: lat={supplier.lat}, lon={supplier.lon}")
+        
+        if not supplier.lat or not supplier.lon:
+            print(f"    ⚠️ Нет координат, пропускаем")
+            continue
+            
+        distance = haversine_distance(lat, lon, supplier.lat, supplier.lon)
+        print(f"    📍 Расстояние: {distance:.2f} км")
+        
+        if distance <= radius:
+            # Проверяем активные сюрпризы
+            active_bags = db.query(SurpriseBag).filter(
+                SurpriseBag.supplier_id == supplier.id,
+                SurpriseBag.is_active == True,
+                SurpriseBag.available_quantity > 0
+            ).all()
+            
+            print(f"    📦 Найдено активных сюрпризов: {len(active_bags)}")
+            
+            if active_bags:
+                nearby.append({
+                    "id": supplier.id,
+                    "business_name": supplier.business_name,
+                    "address": supplier.address or "",
+                    "lat": supplier.lat,
+                    "lon": supplier.lon,
+                    "distance_km": round(distance, 2),
+                    "rating": supplier.rating or 0,
+                    "surprise_bags_count": len(active_bags),
+                    "surprise_bags": [
+                        {
+                            "id": bag.id,
+                            "name": bag.name,
+                            "discounted_price": bag.discounted_price,
+                            "discount_percentage": bag.discount_percentage,
+                            "original_price": bag.original_price,
+                            "image_url": bag.image_url,
+                            "available_quantity": bag.available_quantity
+                        } for bag in active_bags
+                    ]
+                })
+                print(f"    ✅ Добавлен в результат")
+            else:
+                print(f"    ⏸️ Нет активных сюрпризов")
+        else:
+            print(f"    ❌ Слишком далеко (> {radius} км)")
     
     nearby.sort(key=lambda x: x["distance_km"])
-    print(f"📍 Найдено поставщиков с доступными сюрпризами: {len(nearby)}")
+    print(f"🎯 ИТОГО: {len(nearby)} поставщиков с доступными сюрпризами")
+    
     return {"count": len(nearby), "suppliers": nearby}
 
 # ============ HOME PAGE ============
