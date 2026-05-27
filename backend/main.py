@@ -22,7 +22,7 @@ from backend.models import (
     CartItem,Food, User, UserRole, Supplier, SurpriseBag, 
     Order, OrderStatus, DeliveryStatus, OrderTracking, Review, CourierProfile, AssignedOrder ,TemporaryReservation
 )
-
+from websocket_manager  import ConnectionManager
 
 from typing import Dict
 
@@ -4457,7 +4457,7 @@ async def notify_bag_deleted(bag_id: int):
 
 # backend/main.py - найдите класс ConnectionManager и добавьте метод disconnect
 
-from websocket_manager  import ConnectionManager
+
 
 manager = ConnectionManager()
 
