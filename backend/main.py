@@ -673,9 +673,11 @@ async def courier_arrived(
     
     # ✅ Отправляем уведомление клиенту через WebSocket
     try:
-        # Находим клиента (пользователя, который сделал заказ)
+        # Находим клиента
         customer = db.query(User).filter(User.id == order.user_id).first()
         
+        # ✅ ИЗМЕНЕНО: отправляем на канал "all" (все подключенные клиенты)
+        # или на персонализированный канал "user_{user_id}"
         await manager.broadcast({
             "type": "courier_arrived",
             "data": {
@@ -685,12 +687,15 @@ async def courier_arrived(
                 "courier_phone": courier.phone,
                 "courier_lat": courier.current_lat,
                 "courier_lon": courier.current_lon,
-                "message": f"Курьер {courier.first_name} прибыл к вам!"
+                "message": f"Курьер {courier.first_name} прибыл к вам!",
+                "customer_id": customer.id if customer else None,
+                "customer_phone": customer.phone if customer else None
             },
             "timestamp": datetime.utcnow().isoformat()
-        }, channel=f"order_{order_id}")
+        }, channel="all")  # ← ИЗМЕНЕНО: channel="all"
         
-        print(f"📢 Уведомление отправлено клиенту {customer.phone if customer else 'unknown'} о прибытии курьера")
+        print(f"📢 Уведомление о прибытии курьера отправлено ВСЕМ клиентам")
+        print(f"   Заказ #{order.order_number}, курьер {courier.first_name}, клиент {customer.phone if customer else 'unknown'}")
         
     except Exception as e:
         print(f"❌ Ошибка отправки уведомления: {e}")
@@ -698,7 +703,8 @@ async def courier_arrived(
     return {
         "success": True, 
         "message": "Уведомление о прибытии отправлено клиенту",
-        "order_id": order_id
+        "order_id": order_id,
+        "order_number": order.order_number
     }
 
 @app.post("/api/customer/confirm-delivery/{order_id}")
