@@ -641,6 +641,8 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
 
 
 
+manager = ConnectionManager()
+
 # backend/main.py - добавьте эндпоинты для подтверждения доставки
 @app.post("/api/courier/arrived/{order_id}")
 async def courier_arrived(
@@ -4458,8 +4460,6 @@ async def notify_bag_deleted(bag_id: int):
 # backend/main.py - найдите класс ConnectionManager и добавьте метод disconnect
 
 
-
-manager = ConnectionManager()
 
 # ============ WEBSOCKET ENDPOINT ============
 # backend/main.py - добавьте WebSocket обработку
