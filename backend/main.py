@@ -4457,64 +4457,7 @@ async def notify_bag_deleted(bag_id: int):
 
 # backend/main.py - найдите класс ConnectionManager и добавьте метод disconnect
 
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-        self.supplier_connections: Dict[str, List[WebSocket]] = {}
-    
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        print(f"✅ WebSocket connected. Total: {len(self.active_connections)}")
-    
-    def disconnect(self, websocket: WebSocket):
-        """Удаляет WebSocket из активных соединений"""
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-        
-        # Удаляем из supplier_connections если есть
-        for supplier_id in list(self.supplier_connections.keys()):
-            if websocket in self.supplier_connections[supplier_id]:
-                self.supplier_connections[supplier_id].remove(websocket)
-                if not self.supplier_connections[supplier_id]:
-                    del self.supplier_connections[supplier_id]
-        
-        print(f"🔌 WebSocket disconnected. Total: {len(self.active_connections)}")
-    
-    async def send_personal_message(self, message: dict, websocket: WebSocket):
-        try:
-            await websocket.send_json(message)
-        except Exception as e:
-            print(f"Error sending personal message: {e}")
-    
-    async def broadcast(self, message: dict, channel: str = "all"):
-        """Отправить сообщение всем подписчикам канала"""
-        disconnected = []
-        
-        if channel == "all":
-            clients = self.active_connections.copy()
-        elif channel.startswith("supplier_"):
-            supplier_id = channel.replace("supplier_", "")
-            clients = self.supplier_connections.get(supplier_id, []).copy()
-        else:
-            clients = self.active_connections.copy()
-        
-        for connection in clients:
-            try:
-                await connection.send_json(message)
-            except:
-                disconnected.append(connection)
-        
-        for connection in disconnected:
-            self.disconnect(connection)
-    
-    async def subscribe_supplier(self, websocket: WebSocket, supplier_id: str):
-        """Подписать поставщика на его канал"""
-        if supplier_id not in self.supplier_connections:
-            self.supplier_connections[supplier_id] = []
-        if websocket not in self.supplier_connections[supplier_id]:
-            self.supplier_connections[supplier_id].append(websocket)
-            print(f"📡 Supplier {supplier_id} subscribed")
+from websocket_manager  import ConnectionManager
 
 manager = ConnectionManager()
 
