@@ -22,7 +22,7 @@ from backend.models import (
     CartItem,Food, User, UserRole, Supplier, SurpriseBag, 
     Order, OrderStatus, DeliveryStatus, OrderTracking, Review, CourierProfile, AssignedOrder ,TemporaryReservation
 )
-from websocket_manager  import ConnectionManager
+from backend.websocket_manager import ConnectionManager
 
 from typing import Dict
 
