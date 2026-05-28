@@ -5284,7 +5284,7 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     """Расчет расстояния между двумя точками в километрах"""
     from math import radians, sin, cos, sqrt, atan2
     
-    R = 6371  # Радиус Земли в км
+    R = 6371
     
     lat1_rad = radians(lat1)
     lat2_rad = radians(lat2)
