@@ -5298,7 +5298,7 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 
 @app.get("/api/suppliers/nearby")
-async def get_nearby_suppliers(lat: float, lon: float, radius: float = 50, db: Session = Depends(get_db)):
+async def get_nearby_suppliers(lat: float, lon: float, radius: float = 500, db: Session = Depends(get_db)):
     """Получить поставщиков ТОЛЬКО с доступными сюрпризами"""
     
     print(f"🔍 Поиск поставщиков рядом с {lat}, {lon}, радиус {radius}км")
