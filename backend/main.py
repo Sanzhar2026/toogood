@@ -5363,7 +5363,7 @@ async def get_nearby_suppliers(lat: float, lon: float, radius: float = 50, db: S
 # ============ HOME PAGE ============
 @app.get("/")
 async def home(request: Request, lang: str = "kz", category: str = "all", db: Session = Depends(get_db)):
-    add_mock_data(db)
+
     
     lat = request.query_params.get('lat')
     lon = request.query_params.get('lon')
