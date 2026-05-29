@@ -2807,12 +2807,12 @@ async def confirm_reservation(request: Request, db: Session = Depends(get_db)):
     return {"success": True, "message": "Оплата подтверждена", "order_id": order.id}
 
 
-# Запускаем фоновую задачу при старте приложения
-@app.on_event("startup")
-async def startup_event():
-    # asyncio.create_task(manager.start_cleanup_task())
-    asyncio.create_task(cleanup_expired_reservations())
-    print("✅ Фоновая задача очистки резерваций запущена")
+# # Запускаем фоновую задачу при старте приложения
+# @app.on_event("startup")
+# async def startup_event():
+#     # asyncio.create_task(manager.start_cleanup_task())
+#     asyncio.create_task(cleanup_expired_reservations())
+#     print("✅ Фоновая задача очистки резерваций запущена")
 # Клиент запрашивает возврат
 @app.post("/api/refund/request")
 async def request_refund(
