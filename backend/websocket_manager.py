@@ -172,20 +172,20 @@ class ConnectionManager:
             self.supplier_connections_str[supplier_id].append(websocket)
             print(f"📡 Supplier {supplier_id} subscribed")
     
-    async def start_cleanup_task(self):
-        """Фоновая очистка мертвых соединений"""
-        while True:
-            await asyncio.sleep(300)  # 5 минут
+    # async def start_cleanup_task(self):
+    #     """Фоновая очистка мертвых соединений"""
+    #     while True:
+    #         await asyncio.sleep(300)  # 5 минут
             
-            dead_connections = []
-            for conn in self.active_connections:
-                try:
-                    await asyncio.wait_for(conn.send_json({"type": "ping"}), timeout=1.0)
-                except:
-                    dead_connections.append(conn)
+    #         dead_connections = []
+    #         for conn in self.active_connections:
+    #             try:
+    #                 await asyncio.wait_for(conn.send_json({"type": "ping"}), timeout=1.0)
+    #             except:
+    #                 dead_connections.append(conn)
             
-            for conn in dead_connections:
-                self.disconnect(conn)
+    #         for conn in dead_connections:
+    #             self.disconnect(conn)
             
-            if dead_connections:
-                print(f"🧹 Очищено {len(dead_connections)} мертвых соединений")
+    #         if dead_connections:
+    #             print(f"🧹 Очищено {len(dead_connections)} мертвых соединений")

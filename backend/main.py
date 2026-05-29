@@ -937,111 +937,128 @@ def get_current_user_from_token(request: Request) -> int:
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
 # ============ WEBSOCKET ДЛЯ КУРЬЕРОВ (ОПТИМИЗИРОВАННЫЙ) ============
+# @app.websocket("/ws/courier-tracking")
+# async def courier_tracking_websocket(websocket: WebSocket):
+#     """WebSocket для отслеживания курьеров в реальном времени"""
+#     global ws_connection_count
+    
+#     # Проверка лимита
+#     async with ws_lock:
+#         if ws_connection_count >= MAX_WS_CONNECTIONS:
+#             await websocket.close(code=1008, reason="Too many connections")
+#             return
+#         ws_connection_count += 1
+    
+#     await websocket.accept()
+    
+#     token = websocket.query_params.get("token")
+#     user_id = None
+#     courier_id = None
+    
+#     if token:
+#         try:
+#             from jose import jwt
+#             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#             user_id = payload.get("sub")
+#         except:
+#             pass
+    
+#     if not user_id:
+#         user_id = websocket.cookies.get("user_id")
+    
+#     if not user_id:
+#         await websocket.close(code=1008, reason="Not authenticated")
+#         async with ws_lock:
+#             ws_connection_count -= 1
+#         return
+    
+#     db = SessionLocal()
+    
+#     try:
+#         courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+#         if not courier:
+#             await websocket.close(code=1008, reason="Courier not found")
+#             return
+        
+#         courier_id = courier.id
+#         print(f"✅ Курьер {courier_id} подключен. Всего: {ws_connection_count}")
+        
+#         if courier_id not in courier_connections:
+#             courier_connections[courier_id] = []
+#         courier_connections[courier_id].append(websocket)
+#         active_connections.add(websocket)
+        
+#         await websocket.send_json({
+#             "type": "connected",
+#             "courier_id": courier_id,
+#             "timestamp": datetime.utcnow().isoformat()
+#         })
+        
+#         # Устанавливаем таймаут
+#         while True:
+#             try:
+#                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+#                 message = json.loads(data)
+                
+#                 if message.get("type") == "ping":
+#                     await websocket.send_json({"type": "pong"})
+#                 elif message.get("type") == "update_location":
+#                     lat = message.get("lat")
+#                     lon = message.get("lon")
+#                     if lat and lon:
+#                         courier.current_lat = lat
+#                         courier.current_lon = lon
+#                         courier.last_location_update = datetime.utcnow()
+#                         db.commit()
+                        
+#                         # Трансляция всем
+#                         await manager.broadcast({
+#                             "type": "courier_location",
+#                             "courier_id": courier_id,
+#                             "first_name": courier.first_name,
+#                             "last_name": courier.last_name,
+#                             "lat": lat,
+#                             "lon": lon,
+#                             "timestamp": datetime.utcnow().isoformat()
+#                         }, channel="surprise_bags")
+                        
+#             except asyncio.TimeoutError:
+#                 await websocket.send_json({"type": "ping"})
+#             except WebSocketDisconnect:
+#                 break
+#             except Exception as e:
+#                 print(f"Ошибка: {e}")
+#                 break
+                
+#     except Exception as e:
+#         print(f"WebSocket ошибка: {e}")
+#     finally:
+#         if courier_id and courier_id in courier_connections:
+#             if websocket in courier_connections[courier_id]:
+#                 courier_connections[courier_id].remove(websocket)
+#         active_connections.discard(websocket)
+#         db.close()
+#         async with ws_lock:
+#             ws_connection_count -= 1
+#         print(f"🔌 Курьер {courier_id} отключен. Осталось: {ws_connection_count}")
+
+
 @app.websocket("/ws/courier-tracking")
 async def courier_tracking_websocket(websocket: WebSocket):
-    """WebSocket для отслеживания курьеров в реальном времени"""
-    global ws_connection_count
-    
-    # Проверка лимита
-    async with ws_lock:
-        if ws_connection_count >= MAX_WS_CONNECTIONS:
-            await websocket.close(code=1008, reason="Too many connections")
-            return
-        ws_connection_count += 1
-    
     await websocket.accept()
-    
-    token = websocket.query_params.get("token")
-    user_id = None
-    courier_id = None
-    
-    if token:
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-        except:
-            pass
-    
-    if not user_id:
-        user_id = websocket.cookies.get("user_id")
-    
-    if not user_id:
-        await websocket.close(code=1008, reason="Not authenticated")
-        async with ws_lock:
-            ws_connection_count -= 1
-        return
-    
-    db = SessionLocal()
+    print("✅ WebSocket connected")
     
     try:
-        courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-        if not courier:
-            await websocket.close(code=1008, reason="Courier not found")
-            return
-        
-        courier_id = courier.id
-        print(f"✅ Курьер {courier_id} подключен. Всего: {ws_connection_count}")
-        
-        if courier_id not in courier_connections:
-            courier_connections[courier_id] = []
-        courier_connections[courier_id].append(websocket)
-        active_connections.add(websocket)
-        
-        await websocket.send_json({
-            "type": "connected",
-            "courier_id": courier_id,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-        
-        # Устанавливаем таймаут
         while True:
+            data = await websocket.receive_text()
             try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
                 message = json.loads(data)
-                
                 if message.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
-                elif message.get("type") == "update_location":
-                    lat = message.get("lat")
-                    lon = message.get("lon")
-                    if lat and lon:
-                        courier.current_lat = lat
-                        courier.current_lon = lon
-                        courier.last_location_update = datetime.utcnow()
-                        db.commit()
-                        
-                        # Трансляция всем
-                        await manager.broadcast({
-                            "type": "courier_location",
-                            "courier_id": courier_id,
-                            "first_name": courier.first_name,
-                            "last_name": courier.last_name,
-                            "lat": lat,
-                            "lon": lon,
-                            "timestamp": datetime.utcnow().isoformat()
-                        }, channel="surprise_bags")
-                        
-            except asyncio.TimeoutError:
-                await websocket.send_json({"type": "ping"})
-            except WebSocketDisconnect:
-                break
-            except Exception as e:
-                print(f"Ошибка: {e}")
-                break
-                
-    except Exception as e:
-        print(f"WebSocket ошибка: {e}")
-    finally:
-        if courier_id and courier_id in courier_connections:
-            if websocket in courier_connections[courier_id]:
-                courier_connections[courier_id].remove(websocket)
-        active_connections.discard(websocket)
-        db.close()
-        async with ws_lock:
-            ws_connection_count -= 1
-        print(f"🔌 Курьер {courier_id} отключен. Осталось: {ws_connection_count}")
-
+            except:
+                pass
+    except WebSocketDisconnect:
+        print("WebSocket disconnected")
 # ============ ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ============
 # backend/main.py - обновленный эндпоинт
 
@@ -2793,7 +2810,7 @@ async def confirm_reservation(request: Request, db: Session = Depends(get_db)):
 # Запускаем фоновую задачу при старте приложения
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(manager.start_cleanup_task())
+    # asyncio.create_task(manager.start_cleanup_task())
     asyncio.create_task(cleanup_expired_reservations())
     print("✅ Фоновая задача очистки резерваций запущена")
 # Клиент запрашивает возврат
