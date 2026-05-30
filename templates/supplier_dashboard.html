@@ -1,92 +1,17 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ПРОДАКШН ВЕРСИЯ -->
+<!-- templates/supplier_dashboard.html - ПОЛНОСТЬЮ ОБНОВЛЕННЫЙ -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
 <style>
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-    }
-    
-    /* Splash Screen */
-    .splash-screen {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: #0f172a;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        transition: opacity 0.5s ease;
-    }
-    
-    .splash-content {
-        text-align: center;
-    }
-    
-    .splash-icon {
-        width: 80px;
-        height: 80px;
-        margin: 0 auto 1rem;
-        border-radius: 50%;
-        overflow: hidden;
-        background: #1e293b;
-    }
-    
-    .splash-icon img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    
-    .splash-title {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: white;
-    }
-    
-    .splash-title span {
-        color: #fbbf24;
-    }
-    
-    .splash-loader {
-        width: 40px;
-        height: 40px;
-        margin: 1rem auto 0;
-        border: 3px solid #334155;
-        border-top-color: #fbbf24;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-    }
-    
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-    
-    .splash-hidden {
-        opacity: 0;
-        pointer-events: none;
-    }
-    
     .dashboard-container {
-        padding: 1rem;
-    }
-    
-    @media (min-width: 768px) {
-        .dashboard-container {
-            padding: 2rem;
-        }
+        padding: 2rem;
     }
     
     .dashboard-header {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
         border-radius: 1.5rem;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -94,49 +19,13 @@
         color: white;
     }
     
-    @media (min-width: 768px) {
-        .dashboard-header {
-            padding: 2rem;
-            margin-bottom: 2rem;
-        }
-    }
-    
-    .business-info {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
     .business-info h1 {
-        font-size: 1.3rem;
-        margin-bottom: 0.25rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .business-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        overflow: hidden;
-    }
-    
-    .business-icon img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    
-    @media (min-width: 768px) {
-        .business-info h1 {
-            font-size: 1.8rem;
-        }
+        font-size: 1.8rem;
+        margin-bottom: 0.5rem;
     }
     
     .business-info p {
         color: #94a3b8;
-        font-size: 0.8rem;
     }
     
     .logout-btn {
@@ -147,45 +36,24 @@
         border-radius: 0.5rem;
         cursor: pointer;
         text-decoration: none;
-        font-size: 0.85rem;
-    }
-    
-    .rating-star {
-        color: #fbbf24;
     }
     
     .nav-links {
         background: white;
         border-bottom: 1px solid #e2e8f0;
-        padding: 0 1rem;
-        margin-bottom: 1.5rem;
+        padding: 0 2rem;
+        margin-bottom: 2rem;
         display: flex;
-        gap: 1rem;
+        gap: 2rem;
         overflow-x: auto;
     }
     
-    @media (min-width: 768px) {
-        .nav-links {
-            padding: 0 2rem;
-            gap: 2rem;
-            margin-bottom: 2rem;
-        }
-    }
-    
     .nav-links a {
-        padding: 0.8rem 0;
+        padding: 1rem 0;
         text-decoration: none;
         color: #64748b;
         font-weight: 500;
-        font-size: 0.85rem;
         transition: all 0.2s;
-        white-space: nowrap;
-    }
-    
-    @media (min-width: 768px) {
-        .nav-links a {
-            font-size: 1rem;
-        }
     }
     
     .nav-links a:hover {
@@ -199,31 +67,18 @@
     
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    @media (min-width: 640px) {
-        .stats-grid {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1.5rem;
-        }
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 2rem;
     }
     
     .stat-card {
         background: white;
-        padding: 1rem;
+        padding: 1.5rem;
         border-radius: 1rem;
         text-align: center;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         transition: transform 0.2s;
-    }
-    
-    @media (min-width: 768px) {
-        .stat-card {
-            padding: 1.5rem;
-        }
     }
     
     .stat-card:hover {
@@ -232,69 +87,45 @@
     }
     
     .stat-number {
-        font-size: 1.5rem;
+        font-size: 2rem;
         font-weight: bold;
         color: #0f172a;
-    }
-    
-    @media (min-width: 768px) {
-        .stat-number {
-            font-size: 2rem;
-        }
     }
     
     .stat-label {
         color: #64748b;
         margin-top: 0.5rem;
-        font-size: 0.7rem;
-    }
-    
-    @media (min-width: 768px) {
-        .stat-label {
-            font-size: 0.85rem;
-        }
     }
     
     .orders-section, .bags-section {
         background: white;
         border-radius: 1rem;
-        padding: 1rem;
-        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    
-    @media (min-width: 768px) {
-        .orders-section, .bags-section {
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-        }
     }
     
     .section-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
         flex-wrap: wrap;
-        gap: 0.5rem;
+        gap: 1rem;
     }
     
     .section-title {
-        font-size: 1.1rem;
+        font-size: 1.3rem;
         font-weight: bold;
         color: #0f172a;
-    }
-    
-    @media (min-width: 768px) {
-        .section-title {
-            font-size: 1.3rem;
-        }
+        border-bottom: 2px solid #fbbf24;
+        padding-bottom: 0.3rem;
     }
     
     .live-badge {
         background: #10b981;
         color: white;
-        font-size: 0.6rem;
+        font-size: 0.7rem;
         padding: 0.2rem 0.6rem;
         border-radius: 2rem;
         margin-left: 0.5rem;
@@ -309,18 +140,10 @@
     .refresh-btn {
         background: #f1f5f9;
         border: none;
-        padding: 0.4rem 0.8rem;
+        padding: 0.5rem 1rem;
         border-radius: 0.5rem;
         cursor: pointer;
-        font-size: 0.7rem;
         transition: all 0.2s;
-    }
-    
-    @media (min-width: 768px) {
-        .refresh-btn {
-            padding: 0.5rem 1rem;
-            font-size: 0.8rem;
-        }
     }
     
     .refresh-btn:hover {
@@ -329,27 +152,17 @@
     
     .table-container {
         overflow-x: auto;
-        margin-top: 0.5rem;
     }
     
     table {
         width: 100%;
         border-collapse: collapse;
-        min-width: 600px;
     }
     
     th, td {
-        padding: 0.5rem;
+        padding: 0.75rem;
         text-align: left;
         border-bottom: 1px solid #e2e8f0;
-        font-size: 0.7rem;
-    }
-    
-    @media (min-width: 768px) {
-        th, td {
-            padding: 0.75rem;
-            font-size: 0.85rem;
-        }
     }
     
     th {
@@ -359,19 +172,11 @@
     
     .status-badge {
         display: inline-block;
-        padding: 0.2rem 0.6rem;
+        padding: 0.3rem 0.8rem;
         border-radius: 20px;
-        font-size: 0.65rem;
+        font-size: 0.75rem;
         font-weight: 600;
     }
-    
-    @media (min-width: 768px) {
-        .status-badge {
-            padding: 0.3rem 0.8rem;
-            font-size: 0.75rem;
-        }
-    }
-    
     .status-pending { background: #fef3c7; color: #92400e; }
     .status-confirmed { background: #dbeafe; color: #1e40af; }
     .status-preparing { background: #e0e7ff; color: #3730a3; }
@@ -381,19 +186,12 @@
     .status-cancelled { background: #fee2e2; color: #991b1b; }
     
     .btn {
-        padding: 0.3rem 0.6rem;
+        padding: 0.4rem 0.8rem;
         border: none;
         border-radius: 0.5rem;
         cursor: pointer;
-        font-size: 0.65rem;
+        font-size: 0.8rem;
         transition: all 0.2s;
-    }
-    
-    @media (min-width: 768px) {
-        .btn {
-            padding: 0.4rem 0.8rem;
-            font-size: 0.75rem;
-        }
     }
     
     .btn-primary {
@@ -403,6 +201,7 @@
     
     .btn-primary:hover {
         background: #f59e0b;
+        transform: scale(1.02);
     }
     
     .btn-track {
@@ -415,18 +214,17 @@
     }
     
     .status-select {
-        padding: 0.3rem;
+        padding: 0.4rem;
         border-radius: 0.5rem;
         border: 1px solid #e2e8f0;
         background: white;
         cursor: pointer;
-        font-size: 0.65rem;
+        font-size: 0.75rem;
     }
     
     .auto-assign-btn {
         background: #10b981;
         color: white;
-        margin-right: 0.3rem;
     }
     
     .auto-assign-btn:hover {
@@ -444,57 +242,44 @@
     
     .delivery-timer {
         font-family: monospace;
-        font-size: 0.65rem;
+        font-size: 0.7rem;
         margin-top: 0.25rem;
     }
     
     .add-bag-form {
         background: #f8fafc;
-        padding: 1rem;
+        padding: 1.5rem;
         border-radius: 1rem;
         margin-top: 1.5rem;
     }
     
-    @media (min-width: 768px) {
-        .add-bag-form {
-            padding: 1.5rem;
-        }
-    }
-    
     .form-grid {
         display: grid;
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
         gap: 1rem;
-    }
-    
-    @media (min-width: 768px) {
-        .form-grid {
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        }
     }
     
     .form-group {
         display: flex;
         flex-direction: column;
-        gap: 0.3rem;
+        gap: 0.5rem;
     }
     
     .form-group label {
         font-weight: 600;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
     }
     
     .form-group input, .form-group textarea, .form-group select {
-        padding: 0.5rem;
+        padding: 0.6rem;
         border: 1px solid #e2e8f0;
         border-radius: 0.5rem;
-        font-size: 0.8rem;
     }
     
     .submit-btn {
         background: #0f172a;
         color: white;
-        padding: 0.6rem;
+        padding: 0.7rem 1.5rem;
         border: none;
         border-radius: 0.5rem;
         cursor: pointer;
@@ -508,61 +293,17 @@
     }
     
     .discount-preset-btn {
-        padding: 0.4rem 0.8rem;
+        transition: transform 0.2s, opacity 0.2s;
+        padding: 0.5rem 1rem;
         border: none;
         border-radius: 0.5rem;
         cursor: pointer;
         font-weight: bold;
-        font-size: 0.7rem;
     }
     
-    .ws-indicator {
-        position: fixed;
-        bottom: 1rem;
-        right: 1rem;
-        background: #0f172a;
-        padding: 0.4rem 0.8rem;
-        border-radius: 2rem;
-        color: white;
-        font-size: 0.65rem;
-        z-index: 100;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .ws-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-    }
-    
-    .ws-dot.connected {
-        background: #10b981;
-        animation: pulse 2s infinite;
-    }
-    
-    .ws-dot.disconnected {
-        background: #ef4444;
-    }
-    
-    .notification {
-        position: fixed;
-        top: 1rem;
-        right: 1rem;
-        background: white;
-        border-radius: 0.75rem;
-        padding: 0.6rem 1rem;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        z-index: 1000;
-        animation: slideIn 0.3s ease;
-        border-left: 3px solid #10b981;
-        font-size: 0.8rem;
-    }
-    
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
+    .discount-preset-btn:hover {
+        transform: translateY(-2px);
+        opacity: 0.9;
     }
     
     .add-product-row {
@@ -594,30 +335,79 @@
         border-radius: 0.5rem;
     }
     
-    .mobile-hide {
-        display: none;
+    .ws-indicator {
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        background: #0f172a;
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        color: white;
+        font-size: 0.7rem;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
     
-    @media (min-width: 768px) {
-        .mobile-hide {
-            display: table-cell;
+    .ws-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+    
+    .ws-dot.connected {
+        background: #10b981;
+        animation: pulse 2s infinite;
+    }
+    
+    .ws-dot.disconnected {
+        background: #ef4444;
+    }
+    
+    .notification {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        background: white;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1.25rem;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+        border-left: 3px solid #10b981;
+    }
+    
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .dashboard-container {
+            padding: 1rem;
+        }
+        th, td {
+            font-size: 12px;
+            padding: 0.5rem;
+        }
+        .nav-links {
+            padding: 0 1rem;
+            gap: 1rem;
+        }
+        .nav-links a {
+            font-size: 12px;
         }
     }
 </style>
 
-<!-- Splash Screen -->
-<div id="splash" class="splash-screen" style="display: flex;">
-    <div class="splash-content">
-        <div class="splash-icon">
-            <img src="/static/images/icon.png" alt="Sarqyt GO">
-        </div>
-        <div class="splash-title">Sarqyt <span>GO</span></div>
-        <div class="splash-loader"></div>
-    </div>
-</div>
-
+<!-- Supplier Data -->
 <div id="supplierData" data-supplier-id="{{ supplier.id }}" style="display: none;"></div>
 
+<!-- WebSocket Indicator -->
 <div class="ws-indicator" id="wsIndicator">
     <div class="ws-dot" id="wsDot"></div>
     <span id="wsStatus">Connecting...</span>
@@ -627,45 +417,40 @@
     <!-- Header -->
     <div class="dashboard-header">
         <div class="business-info">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <div class="business-icon">
-                    <img src="/static/images/icon.png" alt="Sarqyt GO">
-                </div>
-                <h1>{{ supplier.business_name }}</h1>
-            </div>
-            <p>{{ supplier.address or 'Address not specified' }} | {{ supplier.phone or '—' }}</p>
+            <h1>🏪 {{ supplier.business_name }}</h1>
+            <p>📍 {{ supplier.address or 'Адрес не указан' }} | 📞 {{ supplier.phone or '—' }}</p>
         </div>
         <div>
-            <span class="rating-star">⭐</span> Rating: {{ supplier.rating or 0 }}
-            <a href="/supplier/logout" class="logout-btn" style="margin-left: 1rem;">Logout</a>
+            <span style="color: #fbbf24;">⭐ Рейтинг: {{ supplier.rating or 0 }}</span>
+            <a href="/supplier/logout" class="logout-btn" style="margin-left: 1rem;">🚪 Выйти</a>
         </div>
     </div>
 
     <!-- Navigation Links -->
     <div class="nav-links">
-        <a href="/supplier/dashboard" class="active">Dashboard</a>
-        <a href="/supplier/couriers">Couriers</a>
-        <a href="/supplier/orders">Orders</a>
-        <a href="/supplier/surprise-bags">Surprise Bags</a>
+        <a href="/supplier/dashboard" class="active">📊 Дашборд</a>
+        <a href="/supplier/couriers">🚚 Курьеры</a>
+        <a href="/supplier/orders">📦 Заказы</a>
+        <a href="/supplier/surprise-bags">🎁 Сюрпризы</a>
     </div>
 
     <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-number" id="totalOrders">{{ stats.total_orders }}</div>
-            <div class="stat-label">Total Orders</div>
+            <div class="stat-label">Всего заказов</div>
         </div>
         <div class="stat-card">
             <div class="stat-number" id="pendingOrders">{{ stats.pending_orders }}</div>
-            <div class="stat-label">Pending</div>
+            <div class="stat-label">В ожидании</div>
         </div>
         <div class="stat-card">
             <div class="stat-number">{{ stats.today_orders }}</div>
-            <div class="stat-label">Orders Today</div>
+            <div class="stat-label">Заказов сегодня</div>
         </div>
         <div class="stat-card">
             <div class="stat-number">{{ stats.total_revenue }} ₸</div>
-            <div class="stat-label">Total Revenue</div>
+            <div class="stat-label">Общий доход</div>
         </div>
     </div>
 
@@ -673,76 +458,82 @@
     <div class="orders-section">
         <div class="section-header">
             <div>
-                <span class="section-title">Orders</span>
-                <span class="live-badge">LIVE</span>
+                <span class="section-title">📋 Заказы</span>
+                <span class="live-badge">● LIVE</span>
             </div>
-            <button class="refresh-btn" id="refreshOrdersBtn">Refresh</button>
+            <button class="refresh-btn" id="refreshOrdersBtn">🔄 Обновить</button>
         </div>
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th>Order #</th>
-                        <th>Customer / Address</th>
-                        <th>Product</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                        <th>Courier</th>
-                        <th>Action</th>
-                        <th>Map</th>
+                        <th>№ заказа</th>
+                        <th>Клиент / Адрес</th>
+                        <th>Товар</th>
+                        <th>Сумма</th>
+                        <th>Статус</th>
+                        <th>Курьер</th>
+                        <th>Действие</th>
+                        <th>Карта</th>
                     </tr>
                 </thead>
                 <tbody id="ordersTableBody">
                     {% for order in recent_orders %}
                     <tr data-order-id="{{ order.id }}">
-                        <td><strong>{{ order.order_number }}</strong><br><span style="font-size:0.65rem;color:#94a3b8;">#{{ order.id }}</span></td>
-                        <td>{{ order.customer_address|truncate(35) }}<br><span style="font-size:0.6rem;color:#94a3b8;">{{ order.created_at.strftime('%d.%m.%Y %H:%M') if order.created_at else '' }}</span></td>
+                        <td><strong>{{ order.order_number }}</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#{{ order.id }}</span></td>
+                        <td>{{ order.customer_address|truncate(35) }}<br><span style="font-size:0.65rem;color:#94a3b8;">{{ order.created_at.strftime('%d.%m.%Y %H:%M') if order.created_at else '' }}</span></td>
                         <td>{{ order.surprise_bag_name }}</td>
-                        <td><strong>{{ order.amount_paid }}</strong> ₸</td>
+                        <td><strong>{{ order.amount_paid }}</strong> ₸</span></td>
                         <td>
                             <span class="status-badge status-{{ order.status }}">
-                                {% if order.status == 'pending' %}Pending
-                                {% elif order.status == 'confirmed' %}Confirmed
-                                {% elif order.status == 'preparing' %}Preparing
-                                {% elif order.status == 'ready_for_pickup' %}Ready
-                                {% elif order.status == 'out_for_delivery' %}In Transit
-                                {% elif order.status == 'delivered' %}Delivered
-                                {% elif order.status == 'cancelled' %}Cancelled
+                                {% if order.status == 'pending' %}⏳ Ожидает
+                                {% elif order.status == 'confirmed' %}✅ Подтвержден
+                                {% elif order.status == 'preparing' %}🍳 Готовится
+                                {% elif order.status == 'ready_for_pickup' %}📦 Готов
+                                {% elif order.status == 'out_for_delivery' %}🚚 В пути
+                                {% elif order.status == 'delivered' %}🎉 Доставлен
+                                {% elif order.status == 'cancelled' %}❌ Отменен
                                 {% else %}{{ order.status }}
                                 {% endif %}
                             </span>
                         </td>
                         <td id="courier-cell-{{ order.id }}">
                             {% if order.assigned_courier_name %}
-                                {{ order.assigned_courier_name }}
+                                🚚 {{ order.assigned_courier_name }}
                             {% else %}
-                                <span style="color:#94a3b8;">—</span>
+                                <span class="text-gray-400">—</span>
                             {% endif %}
                         </td>
                         <td>
                             {% if order.status == 'confirmed' %}
-                                <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
-                                    <button class="auto-assign-btn btn" data-order-id="{{ order.id }}">Auto Assign</button>
-                                    <button class="manual-assign-btn btn" data-order-id="{{ order.id }}">Manual</button>
+                                <div class="flex flex-col gap-1">
+                                    <button class="auto-assign-btn btn" data-order-id="{{ order.id }}">
+                                        🚚 Автоназначить
+                                    </button>
+                                    <button class="manual-assign-btn btn" data-order-id="{{ order.id }}">
+                                        🔧 Выбрать вручную
+                                    </button>
                                 </div>
                             {% elif order.status == 'out_for_delivery' %}
-                                <div class="delivery-timer" data-deadline="{{ order.delivery_deadline }}"></div>
+                                <div class="text-sm">
+                                    <div class="delivery-timer" data-deadline="{{ order.delivery_deadline }}"></div>
+                                </div>
                             {% elif order.status == 'delivered' %}
-                                <span style="color: #10b981;">Delivered</span>
+                                <span class="text-green-600 text-sm">✅ Доставлен</span>
                             {% else %}
                                 <select class="status-select" data-order-id="{{ order.id }}">
-                                    <option value="">Change status</option>
-                                    <option value="confirmed">Confirm</option>
-                                    <option value="preparing">Prepare</option>
-                                    <option value="ready_for_pickup">Ready</option>
-                                    <option value="out_for_delivery">Send</option>
-                                    <option value="delivered">Delivered</option>
-                                    <option value="cancelled">Cancel</option>
+                                    <option value="">📌 Изменить статус</option>
+                                    <option value="confirmed">✅ Подтвердить</option>
+                                    <option value="preparing">🍳 Готовить</option>
+                                    <option value="ready_for_pickup">📦 Готов к выдаче</option>
+                                    <option value="out_for_delivery">🚚 Отправить</option>
+                                    <option value="delivered">🎉 Доставлен</option>
+                                    <option value="cancelled">❌ Отменить</option>
                                 </select>
                             {% endif %}
                         </td>
                         <td>
-                            <button class="btn btn-track track-btn" data-order-id="{{ order.id }}">Track</button>
+                            <button class="btn btn-track track-btn" data-order-id="{{ order.id }}">🗺️ Карта</button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -754,21 +545,21 @@
     <!-- Surprise Bags Section -->
     <div class="bags-section">
         <div class="section-header">
-            <span class="section-title">Surprise Bags</span>
-            <button class="refresh-btn" id="toggleAddBagBtn">Add Bag</button>
+            <span class="section-title">🎁 Сюрпризы</span>
+            <button class="refresh-btn" id="toggleAddBagBtn">➕ Добавить сюрприз</button>
         </div>
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Description</th>
-                        <th>Original Price</th>
-                        <th>Discounted Price</th>
-                        <th>Discount</th>
-                        <th>Qty</th>
-                        <th>Status</th>
-                        <th>Action</th>
+                        <th>Название</th>
+                        <th>Описание</th>
+                        <th>Цена</th>
+                        <th>Со скидкой</th>
+                        <th>Скидка</th>
+                        <th>Осталось</th>
+                        <th>Статус</th>
+                        <th>Действие</th>
                     </tr>
                 </thead>
                 <tbody id="bagsTableBody">
@@ -776,19 +567,21 @@
                     <tr data-bag-id="{{ bag.id }}">
                         <td><strong>{{ bag.name }}</strong></td>
                         <td>{{ bag.description[:50] if bag.description else '-' }}</td>
-                        <td>{{ bag.original_price }} ₸</td>
+                        <td>{{ bag.original_price }} ₸</span></td>
                         <td><strong style="color: #ef4444;">{{ bag.discounted_price }} ₸</strong></td>
-                        <td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.65rem;">-{{ bag.discount_percentage }}%</span></td>
-                        <td>{{ bag.available_quantity }}/{{ bag.total_quantity }}</td>
+                        <td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.7rem;">-{{ bag.discount_percentage }}%</span></td>
+                        <td>{{ bag.available_quantity }}/{{ bag.total_quantity }}</span></td>
                         <td>
                             {% if bag.is_active %}
-                            <span style="color: #10b981;">Active</span>
+                            <span style="color: #10b981;">✅ Активен</span>
                             {% else %}
-                            <span style="color: #ef4444;">Inactive</span>
+                            <span style="color: #ef4444;">❌ Неактивен</span>
                             {% endif %}
                         </td>
                         <td>
-                            <button class="btn btn-primary toggle-bag-btn" data-bag-id="{{ bag.id }}">Toggle</button>
+                            <button class="btn btn-primary toggle-bag-btn" data-bag-id="{{ bag.id }}">
+                                🔄 Сменить статус
+                            </button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -796,88 +589,109 @@
             </table>
         </div>
 
-        <!-- Add Bag Form -->
+        <!-- Add Bag Form (hidden by default) -->
         <div class="add-bag-form" id="addBagForm" style="display: none;">
-            <h3>Add Surprise Bag</h3>
+            <h3>➕ Добавить сюрприз</h3>
             <form id="createBagForm">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Category *</label>
+                        <label>🍽️ Категория *</label>
                         <select id="bagCategory" required>
-                            <option value="">-- Select --</option>
-                            <option value="main">Main Dishes</option>
-                            <option value="salads">Salads</option>
-                            <option value="drinks">Drinks</option>
-                            <option value="desserts">Desserts</option>
+                            <option value="">-- Выберите --</option>
+                            <option value="main">🍕 Основные блюда</option>
+                            <option value="salads">🥗 Салаты</option>
+                            <option value="drinks">🥤 Напитки</option>
+                            <option value="desserts">🍰 Десерты</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Name *</label>
-                        <input type="text" id="bagName" required placeholder="Evening surprise">
+                        <label>Название *</label>
+                        <input type="text" id="bagName" required placeholder="Вечерний сюрприз">
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label>Description</label>
-                    <textarea id="bagDescription" rows="2" placeholder="Short description"></textarea>
+                    <label>Описание</label>
+                    <textarea id="bagDescription" rows="2" placeholder="Краткое описание"></textarea>
                 </div>
 
                 <div class="form-group">
-                    <label>Select Product</label>
+                    <label>🍽️ Список блюд</label>
                     <select id="productSelect">
-                        <option value="">-- Select product --</option>
+                        <option value="">-- Выберите блюдо --</option>
+                        <option value="1">🍕 Маргарита пицца - 2500 ₸</option>
+                        <option value="2">🍕 Пепперони пицца - 3200 ₸</option>
+                        <option value="3">🍕 Гавайская пицца - 3000 ₸</option>
+                        <option value="4">🍕 Мясная пицца - 3800 ₸</option>
+                        <option value="5">🍕 Вегетарианская пицца - 2800 ₸</option>
+                        <option value="6">🍔 Гамбургер - 1800 ₸</option>
+                        <option value="7">🍔 Чизбургер - 2100 ₸</option>
+                        <option value="8">🍔 Чикен бургер - 1900 ₸</option>
+                        <option value="9">🍣 Суши сет - 3000 ₸</option>
+                        <option value="10">🍣 Филадельфия ролл - 4200 ₸</option>
+                        <option value="11">🍣 Калифорния ролл - 3800 ₸</option>
+                        <option value="12">🥗 Греческий салат - 1500 ₸</option>
+                        <option value="13">🥗 Цезарь салат - 2200 ₸</option>
+                        <option value="14">🥤 Кока-кола - 500 ₸</option>
+                        <option value="15">🥤 Лимонад - 800 ₸</option>
+                        <option value="16">🍰 Чизкейк - 1200 ₸</option>
+                        <option value="17">🍰 Тирамису - 1400 ₸</option>
+                        <option value="18">🍟 Картошка фри - 800 ₸</option>
+                        <option value="19">🍗 Куриные крылья - 1800 ₸</option>
+                        <option value="20">🧀 Сырные палочки - 1500 ₸</option>
                     </select>
 
                     <div class="add-product-row">
                         <input type="number" id="productQuantity" class="quantity-input" value="1" min="1" max="99">
-                        <button type="button" id="addProductBtn" class="add-btn">Add</button>
+                        <button type="button" id="addProductBtn" class="add-btn">➕ Добавить</button>
                     </div>
 
                     <div id="selectedProductsPreview" class="selected-products-preview" style="display: none;">
-                        <strong>Selected products:</strong>
+                        <strong>📋 Выбранные блюда:</strong>
                         <div id="selectedProductsList" style="margin-top: 0.5rem;"></div>
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Original Price</label>
+                        <label>Цена без скидки (₸)</label>
                         <input type="number" id="originalPrice" step="any" readonly style="background: #f1f5f9;">
                     </div>
                     <div class="form-group">
-                        <label>Discount %</label>
+                        <label>💰 Процент скидки</label>
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button type="button" class="discount-preset-btn" data-percent="30" style="background: #ef4444; color: white;">-30%</button>
                             <button type="button" class="discount-preset-btn" data-percent="40" style="background: #f97316; color: white;">-40%</button>
                             <button type="button" class="discount-preset-btn" data-percent="50" style="background: #eab308; color: white;">-50%</button>
                             <button type="button" class="discount-preset-btn" data-percent="75" style="background: #dc2626; color: white;">-75%</button>
-                            <button type="button" class="discount-preset-btn" data-percent="0" style="background: #6b7280; color: white;">No discount</button>
+                            <button type="button" class="discount-preset-btn" data-percent="0" style="background: #6b7280; color: white;">Без скидки</button>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Discounted Price</label>
+                        <label>Цена со скидкой (₸)</label>
                         <input type="number" id="discountedPrice" step="any" required>
-                        <div id="discountInfo" style="margin-top: 0.5rem; font-size: 0.75rem;"></div>
+                        <div id="discountInfo" style="margin-top: 0.5rem; font-size: 0.85rem;"></div>
                     </div>
                     <div class="form-group">
-                        <label>Quantity</label>
+                        <label>Количество</label>
                         <input type="number" id="availableQuantity" value="1" min="1">
                     </div>
                     <div class="form-group">
-                        <label>Pickup Start</label>
+                        <label>Время выдачи (начало)</label>
                         <input type="text" id="pickupStart" placeholder="19:30">
                     </div>
                     <div class="form-group">
-                        <label>Pickup End</label>
+                        <label>Время выдачи (конец)</label>
                         <input type="text" id="pickupEnd" placeholder="20:00">
                     </div>
                     <div class="form-group">
-                        <label>Image URL</label>
+                        <label>URL картинки</label>
                         <input type="text" id="imageUrl" placeholder="https://...">
+                        <div id="imagePreview"></div>
                     </div>
                 </div>
 
-                <button type="submit" class="submit-btn">Create Surprise Bag</button>
+                <button type="submit" class="submit-btn">✨ Добавить сюрприз</button>
             </form>
         </div>
     </div>
@@ -889,39 +703,29 @@
     var selectedProducts = [];
     
     var productOptions = {
-        '1': { name: 'Margherita Pizza', price: 2500, description: 'Tomato sauce, mozzarella, basil' },
-        '2': { name: 'Pepperoni Pizza', price: 3200, description: 'Pepperoni, mozzarella, tomato sauce' },
-        '3': { name: 'Hawaiian Pizza', price: 3000, description: 'Chicken, pineapple, mozzarella' },
-        '4': { name: 'Meat Pizza', price: 3800, description: 'Ham, pepperoni, bacon' },
-        '5': { name: 'Vegetarian Pizza', price: 2800, description: 'Peppers, mushrooms, olives' },
-        '6': { name: 'Hamburger', price: 1800, description: 'Beef patty, lettuce, sauce' },
-        '7': { name: 'Cheeseburger', price: 2100, description: 'Patty, cheddar cheese, lettuce' },
-        '8': { name: 'Chicken Burger', price: 1900, description: 'Chicken patty, lettuce' },
-        '9': { name: 'Sushi Set', price: 3000, description: '8 pieces: salmon, tuna' },
-        '10': { name: 'Philadelphia Roll', price: 4200, description: 'Salmon, cream cheese' },
-        '11': { name: 'California Roll', price: 3800, description: 'Crab, avocado, roe' },
-        '12': { name: 'Greek Salad', price: 1500, description: 'Feta cheese, olives' },
-        '13': { name: 'Caesar Salad', price: 2200, description: 'Chicken, parmesan, croutons' },
-        '14': { name: 'Coca-Cola', price: 500, description: '0.5L' },
-        '15': { name: 'Lemonade', price: 800, description: 'Homemade lemonade' },
-        '16': { name: 'Cheesecake', price: 1200, description: 'New York cheesecake' },
-        '17': { name: 'Tiramisu', price: 1400, description: 'Classic Italian' },
-        '18': { name: 'French Fries', price: 800, description: 'Crispy potatoes' },
-        '19': { name: 'Chicken Wings', price: 1800, description: 'Spicy BBQ wings' },
-        '20': { name: 'Mozzarella Sticks', price: 1500, description: 'Breaded mozzarella' }
+        '1': { name: 'Маргарита пицца', price: 2500, description: 'Томатный соус, моцарелла, базилик' },
+        '2': { name: 'Пепперони пицца', price: 3200, description: 'Пепперони, моцарелла, томатный соус' },
+        '3': { name: 'Гавайская пицца', price: 3000, description: 'Курица, ананас, моцарелла' },
+        '4': { name: 'Мясная пицца', price: 3800, description: 'Ветчина, пепперони, бекон' },
+        '5': { name: 'Вегетарианская пицца', price: 2800, description: 'Перец, грибы, оливки' },
+        '6': { name: 'Гамбургер', price: 1800, description: 'Говяжья котлета, салат, соус' },
+        '7': { name: 'Чизбургер', price: 2100, description: 'Котлета, сыр чеддер, салат' },
+        '8': { name: 'Чикен бургер', price: 1900, description: 'Куриная котлета, салат' },
+        '9': { name: 'Суши сет', price: 3000, description: '8 штук: лосось, тунец' },
+        '10': { name: 'Филадельфия ролл', price: 4200, description: 'Лосось, сливочный сыр' },
+        '11': { name: 'Калифорния ролл', price: 3800, description: 'Краб, авокадо, икра' },
+        '12': { name: 'Греческий салат', price: 1500, description: 'Сыр фета, оливки' },
+        '13': { name: 'Цезарь салат', price: 2200, description: 'Курица, пармезан, сухарики' },
+        '14': { name: 'Кока-кола', price: 500, description: '0.5л' },
+        '15': { name: 'Лимонад', price: 800, description: 'Домашний лимонад' },
+        '16': { name: 'Чизкейк', price: 1200, description: 'Нью-Йорк чизкейк' },
+        '17': { name: 'Тирамису', price: 1400, description: 'Классический итальянский' },
+        '18': { name: 'Картошка фри', price: 800, description: 'Хрустящий картофель' },
+        '19': { name: 'Куриные крылья', price: 1800, description: 'Острые крылья BBQ' },
+        '20': { name: 'Сырные палочки', price: 1500, description: 'Сыр моцарелла в панировке' }
     };
     
-    function populateProductSelect() {
-        var select = document.getElementById('productSelect');
-        if (!select) return;
-        for (var id in productOptions) {
-            var option = document.createElement('option');
-            option.value = id;
-            option.textContent = productOptions[id].name + ' - ' + productOptions[id].price + ' ₸';
-            select.appendChild(option);
-        }
-    }
-    
+    // ============ WEB SOCKET ============
     function connectWebSocket() {
         var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         var wsUrl = protocol + '//' + window.location.host + '/ws/supplier?supplier_id=' + supplierId;
@@ -935,7 +739,7 @@
         ws.onmessage = function(event) {
             var data = JSON.parse(event.data);
             if (data.type === 'new_order') {
-                showNotification('New order!');
+                showNotification('🆕 Новый заказ!', 'success');
                 refreshOrders();
             }
         };
@@ -947,59 +751,81 @@
         };
     }
     
-    function showNotification(message) {
+    function showNotification(message, type) {
         var notification = document.createElement('div');
         notification.className = 'notification';
-        notification.innerHTML = message;
+        notification.innerHTML = (type === 'success' ? '🎉' : '⚠️') + ' ' + message;
         document.body.appendChild(notification);
         setTimeout(function() { notification.remove(); }, 3000);
     }
     
+    // ============ ORDERS FUNCTIONS ============
     async function refreshOrders() {
         try {
             var response = await fetch('/api/supplier/orders');
             var data = await response.json();
             if (!data.success) return;
+            
             var orders = data.orders;
             var tbody = document.getElementById('ordersTableBody');
-            if (!tbody) return;
             tbody.innerHTML = '';
             var pendingCount = 0;
+            
             for (var i = 0; i < orders.length; i++) {
                 var order = orders[i];
                 if (order.status === 'pending') pendingCount++;
+                
                 var row = '<tr data-order-id="' + order.id + '">' +
-                    '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.65rem;color:#94a3b8;">#' + order.id + '</span></td>' +
-                    '<td>' + escapeHtml(order.customer_address || 'Address not specified') + '<br><span style="font-size:0.6rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
+                    '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#' + order.id + '</span></td>' +
+                    '<td>' + escapeHtml(order.customer_address || 'Адрес не указан') + '<br><span style="font-size:0.65rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
                     '<td>' + escapeHtml(order.bag_name) + '</td>' +
                     '<td><strong>' + order.amount_paid + '</strong> ₸</td>' +
-                    '<td><span class="status-badge status-' + order.status + '">' + getStatusText(order.status) + '</span></td>' +
-                    '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? escapeHtml(order.assigned_courier_name) : '—') + '</td>' +
+                    '<td><span class="status-badge status-' + order.status + '">' + getStatusIcon(order.status) + ' ' + getStatusText(order.status) + '</span></td>' +
+                    '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? '🚚 ' + escapeHtml(order.assigned_courier_name) : '<span style="color:#94a3b8;">—</span>') + '</td>' +
                     '<td>' + getActionButtons(order) + '</td>' +
-                    '<td><button class="btn btn-track track-btn" data-order-id="' + order.id + '">Track</button></td>' +
+                    '<td><button class="btn btn-track track-btn" data-order-id="' + order.id + '">🗺️ Карта</button></td>' +
                 '</tr>';
                 tbody.innerHTML += row;
             }
+            
             document.getElementById('pendingOrders').innerText = pendingCount;
             document.getElementById('totalOrders').innerText = orders.length;
             attachOrderHandlers();
-        } catch(error) { console.error(error); }
+        } catch(error) {
+            console.error('Refresh error:', error);
+        }
+    }
+    
+    function getStatusIcon(status) {
+        var icons = { pending: '⏳', confirmed: '✅', preparing: '🍳', ready_for_pickup: '📦', out_for_delivery: '🚚', delivered: '🎉', cancelled: '❌' };
+        return icons[status] || '📌';
     }
     
     function getStatusText(status) {
-        var texts = { pending: 'Pending', confirmed: 'Confirmed', preparing: 'Preparing', ready_for_pickup: 'Ready', out_for_delivery: 'In Transit', delivered: 'Delivered', cancelled: 'Cancelled' };
+        var texts = { pending: 'Ожидает', confirmed: 'Подтвержден', preparing: 'Готовится', ready_for_pickup: 'Готов', out_for_delivery: 'В пути', delivered: 'Доставлен', cancelled: 'Отменен' };
         return texts[status] || status;
     }
     
     function getActionButtons(order) {
         if (order.status === 'confirmed') {
-            return '<div style="display: flex; gap: 0.3rem; flex-wrap: wrap;"><button class="auto-assign-btn btn" data-order-id="' + order.id + '">Auto Assign</button><button class="manual-assign-btn btn" data-order-id="' + order.id + '">Manual</button></div>';
+            return '<div class="flex flex-col gap-1">' +
+                '<button class="auto-assign-btn btn" data-order-id="' + order.id + '">🚚 Автоназначить</button>' +
+                '<button class="manual-assign-btn btn" data-order-id="' + order.id + '">🔧 Выбрать вручную</button>' +
+                '</div>';
         } else if (order.status === 'out_for_delivery') {
-            return '<div class="delivery-timer" data-deadline="' + order.delivery_deadline + '"></div>';
+            return '<div class="text-sm"><div class="delivery-timer" data-deadline="' + order.delivery_deadline + '"></div></div>';
         } else if (order.status === 'delivered') {
-            return '<span style="color: #10b981;">Delivered</span>';
+            return '<span class="text-green-600 text-sm">✅ Доставлен</span>';
         } else {
-            return '<select class="status-select" data-order-id="' + order.id + '"><option value="">Change status</option><option value="confirmed">Confirm</option><option value="preparing">Prepare</option><option value="ready_for_pickup">Ready</option><option value="out_for_delivery">Send</option><option value="delivered">Delivered</option><option value="cancelled">Cancel</option></select>';
+            return '<select class="status-select" data-order-id="' + order.id + '">' +
+                '<option value="">📌 Изменить статус</option>' +
+                '<option value="confirmed">✅ Подтвердить</option>' +
+                '<option value="preparing">🍳 Готовить</option>' +
+                '<option value="ready_for_pickup">📦 Готов к выдаче</option>' +
+                '<option value="out_for_delivery">🚚 Отправить</option>' +
+                '<option value="delivered">🎉 Доставлен</option>' +
+                '<option value="cancelled">❌ Отменить</option>' +
+                '</select>';
         }
     }
     
@@ -1028,14 +854,14 @@
             btn.removeEventListener('click', btn._handler);
             btn._handler = async function() {
                 var orderId = this.getAttribute('data-order-id');
-                if (confirm('Auto-assign best courier?')) {
+                if (confirm('Автоматически назначить лучшего курьера?')) {
                     var res = await fetch('/api/supplier/auto-assign-courier/' + orderId, { method: 'POST' });
                     var data = await res.json();
                     if (data.success) {
-                        alert(data.message + '\nPhone: ' + data.courier.phone + '\nCar: ' + (data.courier.car_model || '—'));
+                        alert('✅ ' + data.message + '\n📞 Телефон: ' + data.courier.phone + '\n🚗 Авто: ' + (data.courier.car_model || '—'));
                         location.reload();
                     } else {
-                        alert(data.message);
+                        alert('❌ ' + data.message);
                     }
                 }
             };
@@ -1048,15 +874,18 @@
                 var orderId = this.getAttribute('data-order-id');
                 var res = await fetch('/api/supplier/available-couriers');
                 var data = await res.json();
+                
                 if (!data.couriers.length) {
-                    alert('No available couriers');
+                    alert('❌ Нет доступных курьеров');
                     return;
                 }
-                var message = 'Select courier:\n\n';
+                
+                var message = 'Выберите курьера:\n\n';
                 data.couriers.forEach(function(c) {
-                    message += c.id + ': ' + c.name + ' (⭐ ' + c.rating + ') - deliveries: ' + c.total_deliveries + '\n';
+                    message += c.id + ': ' + c.name + ' (⭐ ' + c.rating + ') - доставок: ' + c.total_deliveries + '\n';
                 });
-                var courierId = prompt(message + '\n\nEnter courier ID:');
+                
+                var courierId = prompt(message + '\n\nВведите ID курьера:');
                 if (courierId) {
                     var assignRes = await fetch('/api/supplier/assign-courier', {
                         method: 'POST',
@@ -1064,10 +893,10 @@
                         body: JSON.stringify({ order_id: orderId, courier_profile_id: parseInt(courierId) })
                     });
                     if (assignRes.ok) {
-                        alert('Courier assigned');
+                        alert('✅ Курьер назначен');
                         location.reload();
                     } else {
-                        alert('Error');
+                        alert('❌ Ошибка');
                     }
                 }
             };
@@ -1077,22 +906,30 @@
     
     async function updateOrderStatus(orderId, newStatus) {
         try {
-            await fetch('/api/supplier/orders/' + orderId + '/status', {
+            var response = await fetch('/api/supplier/orders/' + orderId + '/status', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus })
             });
-            refreshOrders();
-        } catch(error) { console.error(error); }
+            if (response.ok) {
+                showNotification('Статус изменен на ' + getStatusText(newStatus));
+                refreshOrders();
+            }
+        } catch(error) {
+            console.error(error);
+        }
     }
     
+    // ============ BAGS FUNCTIONS ============
     async function refreshBags() {
         try {
             var response = await fetch('/api/supplier/surprise-bags');
             var data = await response.json();
             if (!data.success) return;
+            
             var tbody = document.getElementById('bagsTableBody');
             if (!tbody) return;
+            
             tbody.innerHTML = '';
             for (var i = 0; i < data.bags.length; i++) {
                 var bag = data.bags[i];
@@ -1101,15 +938,18 @@
                     '<td>' + escapeHtml(bag.description || '-') + '</td>' +
                     '<td>' + bag.original_price + ' ₸</span></td>' +
                     '<td><strong style="color: #ef4444;">' + bag.discounted_price + ' ₸</strong></td>' +
-                    '<td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.65rem;">-' + (bag.discount_percentage || 0) + '%</span></td>' +
+                    '<td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.7rem;">-' + (bag.discount_percentage || 0) + '%</span></td>' +
                     '<td>' + bag.available_quantity + '/' + bag.total_quantity + '</span></td>' +
-                    '<td>' + (bag.is_active ? '<span style="color: #10b981;">Active</span>' : '<span style="color: #ef4444;">Inactive</span>') + '</td>' +
-                    '<td><button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">Toggle</button></td>' +
+                    '<td>' + (bag.is_active ? '<span style="color: #10b981;">✅ Активен</span>' : '<span style="color: #ef4444;">❌ Неактивен</span>') + '</td>' +
+                    '<td><button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">🔄 Сменить статус</button></td>' +
                 '</tr>';
                 tbody.innerHTML += row;
             }
+            
             attachBagHandlers();
-        } catch(error) { console.error(error); }
+        } catch(error) {
+            console.error('Refresh bags error:', error);
+        }
     }
     
     function attachBagHandlers() {
@@ -1124,6 +964,7 @@
         });
     }
     
+    // ============ PRODUCT SELECTION ============
     function updateTotalPrice() {
         var total = 0;
         for (var i = 0; i < selectedProducts.length; i++) {
@@ -1137,17 +978,20 @@
         var container = document.getElementById('selectedProductsList');
         var preview = document.getElementById('selectedProductsPreview');
         if (!container || !preview) return;
+        
         if (selectedProducts.length === 0) {
             preview.style.display = 'none';
             return;
         }
+        
         preview.style.display = 'block';
         container.innerHTML = '';
+        
         for (var i = 0; i < selectedProducts.length; i++) {
             var p = selectedProducts[i];
             var div = document.createElement('div');
             div.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;';
-            div.innerHTML = '<div><span>' + escapeHtml(p.name) + ' x' + p.quantity + ' = <strong>' + (p.price * p.quantity) + ' ₸</strong></span><br><span style="font-size: 0.7rem; color: #64748b;">' + escapeHtml(p.description || '') + '</span></div>' +
+            div.innerHTML = '<div><span>🍽️ ' + escapeHtml(p.name) + ' x' + p.quantity + ' = <strong>' + (p.price * p.quantity) + ' ₸</strong></span><br><span style="font-size: 0.7rem; color: #64748b;">' + escapeHtml(p.description || '') + '</span></div>' +
                 '<button type="button" onclick="removeProduct(' + i + ')" style="background: #ef4444; color: white; border: none; border-radius: 0.3rem; padding: 0.2rem 0.5rem; cursor: pointer;">✖</button>';
             container.appendChild(div);
         }
@@ -1163,12 +1007,15 @@
         var select = document.getElementById('productSelect');
         var productId = select.value;
         var quantity = parseInt(document.getElementById('productQuantity').value) || 1;
+        
         if (!productId) {
-            alert('Select a product');
+            alert('Выберите блюдо');
             return;
         }
+        
         var product = productOptions[productId];
         if (!product) return;
+        
         var existingIndex = -1;
         for (var i = 0; i < selectedProducts.length; i++) {
             if (selectedProducts[i].id === productId) {
@@ -1176,6 +1023,7 @@
                 break;
             }
         }
+        
         if (existingIndex !== -1) {
             selectedProducts[existingIndex].quantity += quantity;
         } else {
@@ -1187,32 +1035,38 @@
                 description: product.description
             });
         }
+        
         renderSelectedProducts();
         updateTotalPrice();
         select.value = '';
     }
     
+    // ============ DISCOUNT BUTTONS ============
     function applyDiscount(percent) {
         var originalPriceInput = document.getElementById('originalPrice');
         var discountedPriceInput = document.getElementById('discountedPrice');
         var originalPrice = parseFloat(originalPriceInput.value);
+        
         if (isNaN(originalPrice) || originalPrice <= 0) {
-            alert('Add products first');
+            alert('Сначала добавьте блюда');
             return;
         }
+        
         var discountedPrice = percent === 0 ? originalPrice : originalPrice * (1 - percent / 100);
         discountedPriceInput.value = Math.round(discountedPrice);
+        
         var discountInfo = document.getElementById('discountInfo');
         if (discountInfo) {
             if (percent === 0) {
-                discountInfo.innerHTML = 'No discount';
+                discountInfo.innerHTML = '💰 Без скидки';
             } else {
                 var saved = originalPrice - discountedPrice;
-                discountInfo.innerHTML = 'You save: ' + Math.round(saved) + ' ₸ (' + percent + '%)';
+                discountInfo.innerHTML = '🔥 Вы экономите: ' + Math.round(saved) + ' ₸ (' + percent + '%)';
             }
         }
     }
     
+    // ============ FORM SUBMIT ============
     async function submitBagForm() {
         var name = document.getElementById('bagName').value;
         var description = document.getElementById('bagDescription').value;
@@ -1221,55 +1075,61 @@
         var pickupStart = document.getElementById('pickupStart').value;
         var pickupEnd = document.getElementById('pickupEnd').value;
         var imageUrl = document.getElementById('imageUrl').value;
-        if (!name) { alert('Enter name'); return; }
-        if (selectedProducts.length === 0) { alert('Add at least one product'); return; }
+        
+        if (!name) {
+            alert('Введите название');
+            return;
+        }
+        
+        if (selectedProducts.length === 0) {
+            alert('Добавьте хотя бы одно блюдо');
+            return;
+        }
+        
         var originalPrice = 0;
         for (var i = 0; i < selectedProducts.length; i++) {
             originalPrice += selectedProducts[i].price * selectedProducts[i].quantity;
         }
+        
         var discountPercentage = 0;
         if (originalPrice > 0 && discountedPrice < originalPrice) {
             discountPercentage = Math.round((1 - discountedPrice / originalPrice) * 100);
         }
+        
         var data = {
-            name: name, description: description, original_price: originalPrice,
-            discounted_price: discountedPrice, discount_percentage: discountPercentage,
-            available_quantity: availableQuantity, total_quantity: availableQuantity,
-            pickup_start_time: pickupStart, pickup_end_time: pickupEnd,
-            image_url: imageUrl, products: selectedProducts, supplier_id: supplierId
+            name: name,
+            description: description,
+            original_price: originalPrice,
+            discounted_price: discountedPrice,
+            discount_percentage: discountPercentage,
+            available_quantity: availableQuantity,
+            total_quantity: availableQuantity,
+            pickup_start_time: pickupStart,
+            pickup_end_time: pickupEnd,
+            image_url: imageUrl,
+            products: selectedProducts,
+            supplier_id: supplierId
         };
+        
         try {
             var response = await fetch('/api/supplier/surprise-bags', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
+            
             if (response.ok) {
-                alert('Surprise bag added!');
+                alert('✅ Сюрприз добавлен!');
                 location.reload();
             } else {
-                alert('Error');
+                alert('❌ Ошибка');
             }
-        } catch(error) { alert('Network error'); }
+        } catch(error) {
+            alert('❌ Ошибка сети');
+        }
     }
     
-    function updateDeliveryTimers() {
-        document.querySelectorAll('.delivery-timer').forEach(function(el) {
-            var deadlineStr = el.getAttribute('data-deadline');
-            if (!deadlineStr) return;
-            var deadline = new Date(deadlineStr);
-            var now = new Date();
-            if (now >= deadline) {
-                el.innerHTML = '<span style="color: #dc2626;">Time expired!</span>';
-            } else {
-                var diff = deadline - now;
-                var minutes = Math.floor(diff / 60000);
-                var seconds = Math.floor((diff % 60000) / 1000);
-                el.innerHTML = 'Time left: ' + minutes + ':' + seconds.toString().padStart(2, '0');
-            }
-        });
-    }
-    
+    // ============ ESCAPE HTML ============
     function escapeHtml(str) {
         if (!str) return '';
         return str.replace(/[&<>]/g, function(m) {
@@ -1277,57 +1137,53 @@
         });
     }
     
+    // ============ TIMER ============
+    function updateDeliveryTimers() {
+        document.querySelectorAll('.delivery-timer').forEach(function(el) {
+            var deadlineStr = el.getAttribute('data-deadline');
+            if (!deadlineStr) return;
+            
+            var deadline = new Date(deadlineStr);
+            var now = new Date();
+            
+            if (now >= deadline) {
+                el.innerHTML = '<span class="text-red-600 font-bold">⏰ Время истекло!</span>';
+            } else {
+                var diff = deadline - now;
+                var minutes = Math.floor(diff / 60000);
+                var seconds = Math.floor((diff % 60000) / 1000);
+                el.innerHTML = '⏱️ Осталось: ' + minutes + ':' + seconds.toString().padStart(2, '0');
+            }
+        });
+    }
+    
+    // ============ EVENT LISTENERS ============
     function initEventListeners() {
-        var refreshBtn = document.getElementById('refreshOrdersBtn');
-        if (refreshBtn) refreshBtn.addEventListener('click', refreshOrders);
-        var toggleBtn = document.getElementById('toggleAddBagBtn');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', function() {
-                var form = document.getElementById('addBagForm');
-                form.style.display = form.style.display === 'none' ? 'block' : 'none';
-            });
-        }
-        var addProductBtn = document.getElementById('addProductBtn');
-        if (addProductBtn) addProductBtn.addEventListener('click', addProduct);
-        var createForm = document.getElementById('createBagForm');
-        if (createForm) {
-            createForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                submitBagForm();
-            });
-        }
+        document.getElementById('refreshOrdersBtn').addEventListener('click', refreshOrders);
+        document.getElementById('toggleAddBagBtn').addEventListener('click', function() {
+            var form = document.getElementById('addBagForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        });
+        document.getElementById('addProductBtn').addEventListener('click', addProduct);
+        document.getElementById('createBagForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitBagForm();
+        });
+        
         document.querySelectorAll('.discount-preset-btn').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 var percent = parseInt(this.getAttribute('data-percent'));
                 applyDiscount(percent);
             });
         });
+        
         setInterval(updateDeliveryTimers, 1000);
         setInterval(refreshOrders, 30000);
         setInterval(refreshBags, 60000);
     }
     
-    // Splash screen - only once per session
-    (function() {
-        var splash = document.getElementById('splash');
-        if (!splash) return;
-        
-        if (!sessionStorage.getItem('splash_shown_supplier_dashboard')) {
-            splash.style.display = 'flex';
-            setTimeout(function() {
-                splash.classList.add('splash-hidden');
-                setTimeout(function() {
-                    splash.style.display = 'none';
-                    sessionStorage.setItem('splash_shown_supplier_dashboard', 'true');
-                }, 500);
-            }, 1500);
-        } else {
-            splash.style.display = 'none';
-        }
-    })();
-    
+    // ============ INITIALIZATION ============
     function init() {
-        populateProductSelect();
         initEventListeners();
         refreshOrders();
         refreshBags();
