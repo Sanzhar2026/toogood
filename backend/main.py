@@ -55,6 +55,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class LanguageMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Получаем язык
+        lang = get_lang(request)
+        
+        # Добавляем язык в request state для использования в эндпоинтах
+        request.state.lang = lang
+        
+        # Обрабатываем запрос
+        response = await call_next(request)
+        
+        # Устанавливаем cookie с языком (если его нет или он изменился)
+        if not request.cookies.get("lang") or request.cookies.get("lang") != lang:
+            response.set_cookie(key="lang", value=lang, max_age=31536000, path="/")
+        
+        return response
+
+# Добавьте middleware после создания app
+app.add_middleware(LanguageMiddleware)
 # ============ CATEGORIES ============
 categories = [
     {"id": "all", "name_kz": "Барлығы", "name_ru": "Все", "emoji": "🍽️"},
@@ -360,70 +382,7 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     
     return {"success": True, "message": f"Заказ #{order.order_number} отменен, деньги возвращены"}
 
-@app.post("/api/customer/cancel-order/{order_id}")
-async def customer_cancel_order(order_id: int, request: Request, db: Session = Depends(get_db)):
-    """Клиент отменяет заказ (только если он в статусе PENDING или CONFIRMED)"""
-    
-    user_id = request.cookies.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    data = await request.json()
-    reason = data.get("reason", "Отменено клиентом")
-    
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.user_id == int(user_id)
-    ).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Проверяем, можно ли отменить заказ
-    if order.status not in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
-        raise HTTPException(status_code=400, detail="Заказ уже нельзя отменить")
-    
-    # Получаем курьера
-    courier = None
-    if order.assigned_courier_id:
-        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
-    
-    # Обновляем статусы
-    order.status = OrderStatus.CANCELLED
-    order.payment_status = "refunded"
-    order.refund_status = "completed"
-    order.refund_processed_at = datetime.utcnow()
-    order.refund_amount = order.amount_paid
-    order.refund_reason = reason
-    order.cancelled_at = datetime.utcnow()
-    
-    # Освобождаем курьера
-    if courier and courier.current_order_id == order_id:
-        courier.current_order_id = None
-        courier.current_order_status = None
-        courier.is_available = True
-    
-    # Возвращаем количество сюрприза
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-    if bag:
-        bag.available_quantity += 1
-    
-    db.commit()
-    
-    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРУ
-    if courier:
-        await manager.broadcast({
-            "type": "order_cancelled",
-            "data": {
-                "order_id": order_id,
-                "order_number": order.order_number,
-                "reason": reason,
-                "cancelled_by": "customer",
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        }, channel=f"courier_{courier.user_id}")
-    
-    return {"success": True, "message": f"Заказ #{order.order_number} отменен, деньги возвращены"}
+
 
 @app.get("/api/admin/orders")
 async def get_admin_orders(request: Request, db: Session = Depends(get_db)):
@@ -1182,20 +1141,73 @@ def get_current_user_from_token(request: Request) -> int:
 
 @app.websocket("/ws/courier-tracking")
 async def courier_tracking_websocket(websocket: WebSocket):
-    await websocket.accept()
-    print("✅ WebSocket connected")
+    """WebSocket для отслеживания курьеров"""
+    
+    # Получаем токен из query параметра
+    token = websocket.query_params.get("token")
+    user_id = None
+    
+    if token:
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+        except:
+            pass
+    
+    if not user_id:
+        await websocket.close(code=1008, reason="Not authenticated")
+        return
+    
+    db = SessionLocal()
     
     try:
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+        if not courier:
+            await websocket.close(code=1008, reason="Courier not found")
+            return
+        
+        courier_id = courier.id
+        
+        # ✅ ИСПРАВЛЕНО: используем connect с параметрами
+        await manager.connect(websocket, "courier", courier_id)
+        
         while True:
-            data = await websocket.receive_text()
             try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
                 message = json.loads(data)
+                
                 if message.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
-            except:
-                pass
-    except WebSocketDisconnect:
-        print("WebSocket disconnected")
+                elif message.get("type") == "update_location":
+                    lat = message.get("lat")
+                    lon = message.get("lon")
+                    if lat and lon:
+                        courier.current_lat = lat
+                        courier.current_lon = lon
+                        courier.last_location_update = datetime.utcnow()
+                        db.commit()
+                        
+                        await manager.broadcast_to_all({
+                            "type": "courier_location",
+                            "courier_id": courier_id,
+                            "first_name": courier.first_name,
+                            "last_name": courier.last_name,
+                            "lat": lat,
+                            "lon": lon,
+                            "timestamp": datetime.utcnow().isoformat()
+                        })
+                        
+            except asyncio.TimeoutError:
+                await websocket.send_json({"type": "ping"})
+            except WebSocketDisconnect:
+                break
+                
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        manager.disconnect(websocket, "courier", courier_id if 'courier_id' in locals() else None)
+        db.close()
 # ============ ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ============
 # backend/main.py - обновленный эндпоинт
 
@@ -3169,8 +3181,12 @@ def get_current_admin(request: Request):
 @app.get("/admin/login")
 async def admin_login_page(request: Request):
     """Страница входа в админ-панель"""
-    lang = request.query_params.get("lang", request.cookies.get("lang", "ru"))
-    return templates.TemplateResponse("admin_login.html", {"request": request, "error": None, "lang": lang})
+    lang = request.state.lang  # ← берем язык из middleware
+    return templates.TemplateResponse("admin_login.html", {
+        "request": request,
+        "error": None,
+        "lang": lang
+    })
 
 @app.post("/admin/login")
 async def admin_login(request: Request, db: Session = Depends(get_db)):
@@ -3178,21 +3194,40 @@ async def admin_login(request: Request, db: Session = Depends(get_db)):
     form_data = await request.form()
     username = form_data.get("username")
     password = form_data.get("password")
-    lang = request.query_params.get("lang", request.cookies.get("lang", "ru"))
     
+    print(f"🔐 Попытка входа админа: {username}")
+    
+    # Ищем админа
     admin = db.query(Admin).filter(Admin.username == username).first()
     
-    if not admin or not verify_password(password, admin.password_hash):
+    if not admin:
+        print(f"❌ Админ не найден")
         return templates.TemplateResponse("admin_login.html", {
             "request": request,
-            "error": "Неверный логин или пароль" if lang == "ru" else "Қате логин немесе пароль" if lang == "kz" else "Invalid username or password",
-            "lang": lang
+            "error": "Неверный логин или пароль"
         })
     
+    # Проверка пароля
+    if not verify_password(password, admin.password_hash):
+        print(f"❌ Неверный пароль")
+        return templates.TemplateResponse("admin_login.html", {
+            "request": request,
+            "error": "Неверный логин или пароль"
+        })
+    
+    # Создаем ответ
     response = RedirectResponse(url="/admin/dashboard", status_code=303)
-    response.set_cookie(key="admin_id", value=str(admin.id), httponly=True, max_age=60*60*8, path="/")
-    response.set_cookie(key="lang", value=lang, max_age=31536000, path="/")
+    response.set_cookie(
+        key="admin_id",
+        value=str(admin.id),
+        httponly=True,
+        max_age=60*60*8,
+        path="/"
+    )
+    
+    print(f"✅ Админ {username} вошел")
     return response
+
 
 @app.get("/admin/dashboard")
 async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
@@ -3222,11 +3257,13 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         "total_orders": total_orders,
         "pending_couriers": pending_couriers
     }
-    
+    lang = request.state.lang 
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
         "stats": stats,
-        "admin": admin
+        "admin": admin,
+        "lang": lang
+
     })
 
 
@@ -4608,15 +4645,14 @@ async def notify_bag_deleted(bag_id: int):
 # backend/main.py - исправленный WebSocket эндпоинт
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    """WebSocket для общих уведомлений (без авторизации)"""
     
-    # ✅ Добавляем heartbeat для поддержания соединения
-    last_ping = datetime.utcnow()
+    # ✅ ИСПРАВЛЕНО: используем connect_legacy вместо connect
+    await manager.connect_legacy(websocket)
     
     try:
         while True:
             try:
-                # ✅ Устанавливаем таймаут на получение сообщения (30 секунд)
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
                 try:
                     message = json.loads(data)
@@ -4624,7 +4660,6 @@ async def websocket_endpoint(websocket: WebSocket):
                     
                     if msg_type == "ping":
                         await manager.send_personal_message({"type": "pong"}, websocket)
-                        last_ping = datetime.utcnow()
                         print("💓 Heartbeat pong sent")
                         
                     elif msg_type == "subscribe":
@@ -4639,7 +4674,6 @@ async def websocket_endpoint(websocket: WebSocket):
                     pass
                     
             except asyncio.TimeoutError:
-                # ✅ Нет сообщений 30 секунд - отправляем ping для проверки
                 try:
                     await manager.send_personal_message({"type": "ping"}, websocket)
                     print("💓 Heartbeat ping sent")
@@ -4648,12 +4682,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     
     except WebSocketDisconnect:
         print("🔌 WebSocket disconnected")
-        manager.disconnect(websocket)
+        manager.disconnect_legacy(websocket)
     except Exception as e:
         print(f"WebSocket error: {e}")
-        manager.disconnect(websocket)
-
-
+        manager.disconnect_legacy(websocket)
 
 
 
@@ -5740,7 +5772,6 @@ supplier_connections = {}  # {supplier_id: [websocket1, websocket2]}
 @app.websocket("/ws/supplier")
 async def supplier_websocket_endpoint(websocket: WebSocket):
     """WebSocket для поставщиков"""
-    global ws_connection_count
     
     supplier_id = websocket.query_params.get("supplier_id")
     
@@ -5748,19 +5779,8 @@ async def supplier_websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1008, reason="Supplier ID required")
         return
     
-    async with ws_lock:
-        if ws_connection_count >= MAX_WS_CONNECTIONS:
-            await websocket.close(code=1008, reason="Too many connections")
-            return
-        ws_connection_count += 1
-    
-    await websocket.accept()
-    print(f"✅ Поставщик {supplier_id} подключен. Всего: {ws_connection_count}")
-    
-    if supplier_id not in supplier_connections:
-        supplier_connections[supplier_id] = []
-    supplier_connections[supplier_id].append(websocket)
-    active_connections.add(websocket)
+    # ✅ Используем ConnectionManager (вся логика уже внутри)
+    await manager.connect(websocket, "supplier", int(supplier_id))
     
     try:
         await websocket.send_json({
@@ -5783,15 +5803,21 @@ async def supplier_websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"Ошибка: {e}")
     finally:
-        if supplier_id in supplier_connections:
-            if websocket in supplier_connections[supplier_id]:
-                supplier_connections[supplier_id].remove(websocket)
-        active_connections.discard(websocket)
-        async with ws_lock:
-            ws_connection_count -= 1
-        print(f"🔌 Поставщик {supplier_id} отключен. Осталось: {ws_connection_count}")
-
-
+        manager.disconnect(websocket, "supplier", int(supplier_id))
+def get_lang(request: Request) -> str:
+    """Получить язык из query параметра или cookie"""
+    # Сначала проверяем query параметр
+    lang = request.query_params.get("lang")
+    if lang and lang in ["kz", "ru", "en"]:
+        return lang
+    
+    # Затем проверяем cookie
+    lang = request.cookies.get("lang")
+    if lang and lang in ["kz", "ru", "en"]:
+        return lang
+    
+    # По умолчанию русский
+    return "ru"
 # ============ ФОНОВАЯ ОЧИСТКА МЕРТВЫХ СОЕДИНЕНИЙ ============
 async def cleanup_dead_connections():
     """Фоновая очистка мертвых WebSocket соединений"""
@@ -6127,9 +6153,14 @@ async def supplier_register(
     return response
 
 @app.get("/supplier/login")
-async def supplier_login_page(request: Request, lang: str = "kz"):
-    return templates.TemplateResponse("supplier_login.html", {"request": request, "lang": lang})
-
+async def supplier_login_page(request: Request):
+    """Страница входа для поставщика"""
+    lang = request.state.lang  # ← берем язык из middleware
+    return templates.TemplateResponse("supplier_login.html", {
+        "request": request,
+        "error": None,
+        "lang": lang
+    })
 @app.post("/supplier/login")
 async def supplier_login(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == email, User.role == UserRole.SUPPLIER).first()
