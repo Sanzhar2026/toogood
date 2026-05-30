@@ -1115,26 +1115,43 @@ def get_current_user_from_token(request: Request) -> int:
 #         async with ws_lock:
 #             ws_connection_count -= 1
 #         print(f"🔌 Курьер {courier_id} отключен. Осталось: {ws_connection_count}")
-
-
 @app.websocket("/ws/courier-tracking")
 async def courier_tracking_websocket(websocket: WebSocket):
     """WebSocket для отслеживания курьеров"""
     
     # Получаем токен из query параметра
     token = websocket.query_params.get("token")
+    
+    print(f"🔍 WebSocket connection attempt with token: {token[:50] if token else 'None'}...")
+    
+    if not token:
+        print("❌ No token provided")
+        await websocket.close(code=1008, reason="Token required")
+        return
+    
     user_id = None
     
-    if token:
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-        except:
-            pass
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        print(f"✅ Token decoded, user_id: {user_id}")
+    except jwt.ExpiredSignatureError:
+        print("❌ Token expired")
+        await websocket.close(code=1008, reason="Token expired")
+        return
+    except jwt.JWTError as e:
+        print(f"❌ Invalid token: {e}")
+        await websocket.close(code=1008, reason=f"Invalid token: {str(e)}")
+        return
+    except Exception as e:
+        print(f"❌ Token decode error: {e}")
+        await websocket.close(code=1008, reason=f"Token decode error: {str(e)}")
+        return
     
     if not user_id:
-        await websocket.close(code=1008, reason="Not authenticated")
+        print("❌ No user_id in token")
+        await websocket.close(code=1008, reason="No user_id in token")
         return
     
     db = SessionLocal()
@@ -1142,13 +1159,35 @@ async def courier_tracking_websocket(websocket: WebSocket):
     try:
         courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
         if not courier:
+            print(f"❌ Courier not found for user_id={user_id}")
             await websocket.close(code=1008, reason="Courier not found")
             return
         
         courier_id = courier.id
+        print(f"✅ Courier found: id={courier_id}, name={courier.first_name}")
         
-        # ✅ ИСПРАВЛЕНО: используем connect с параметрами
-        await manager.connect(websocket, "courier", courier_id)
+        # Принимаем соединение
+        await websocket.accept()
+        print(f"✅ WebSocket accepted for courier {courier_id}")
+        
+        # Отправляем подтверждение
+        await websocket.send_json({
+            "type": "connected",
+            "courier_id": courier_id,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        # Подписываем курьера на канал "couriers" для получения новых заказов
+        if courier_id not in manager.courier_connections:
+            manager.courier_connections[courier_id] = set()
+        manager.courier_connections[courier_id].add(websocket)
+        print(f"📡 Courier {courier_id} subscribed to couriers channel")
+        
+        await websocket.send_json({
+            "type": "subscribed",
+            "channel": "couriers",
+            "message": "Вы будете получать уведомления о новых заказах"
+        })
         
         while True:
             try:
@@ -1157,6 +1196,8 @@ async def courier_tracking_websocket(websocket: WebSocket):
                 
                 if message.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
+                    print(f"💓 Heartbeat from courier {courier_id}")
+                    
                 elif message.get("type") == "update_location":
                     lat = message.get("lat")
                     lon = message.get("lon")
@@ -1165,7 +1206,9 @@ async def courier_tracking_websocket(websocket: WebSocket):
                         courier.current_lon = lon
                         courier.last_location_update = datetime.utcnow()
                         db.commit()
+                        print(f"📍 Courier {courier_id} location updated: {lat}, {lon}")
                         
+                        # Транслируем всем клиентам
                         await manager.broadcast_to_all({
                             "type": "courier_location",
                             "courier_id": courier_id,
@@ -1177,14 +1220,30 @@ async def courier_tracking_websocket(websocket: WebSocket):
                         })
                         
             except asyncio.TimeoutError:
-                await websocket.send_json({"type": "ping"})
+                # Отправляем ping для проверки соединения
+                try:
+                    await websocket.send_json({"type": "ping"})
+                except:
+                    break
             except WebSocketDisconnect:
+                print(f"🔌 Courier {courier_id} disconnected")
+                break
+            except Exception as e:
+                print(f"❌ Error in WebSocket loop: {e}")
                 break
                 
     except Exception as e:
-        print(f"WebSocket error: {e}")
+        print(f"❌ WebSocket error: {e}")
+        try:
+            await websocket.close(code=1011, reason=str(e))
+        except:
+            pass
     finally:
-        manager.disconnect(websocket, "courier", courier_id if 'courier_id' in locals() else None)
+        # Отписываемся от канала
+        if 'courier_id' in locals() and courier_id in manager.courier_connections:
+            manager.courier_connections[courier_id].discard(websocket)
+            if not manager.courier_connections[courier_id]:
+                del manager.courier_connections[courier_id]
         db.close()
 # ============ ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ============
 # backend/main.py - обновленный эндпоинт
