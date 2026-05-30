@@ -1,4 +1,4 @@
-<!-- templates/admin_login.html -->
+<!-- templates/admin_login.html - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ -->
 <!DOCTYPE html>
 <html lang="{{ lang }}">
 <head>
@@ -307,70 +307,104 @@
                 <img src="/icon.png" alt="Sarqyt GO">
             </div>
             <h1>Sarqyt <span>GO</span> | Admin</h1>
-            <p data-i18n="login_title">Login to Admin Panel</p>
+            <p id="loginTitle">Login to Admin Panel</p>
         </div>
         
         <div class="lang-buttons">
-            <a href="?lang=kz" class="lang-btn {% if lang == 'kz' %}active{% endif %}">Қаз</a>
-            <a href="?lang=ru" class="lang-btn {% if lang == 'ru' %}active{% endif %}">Рус</a>
-            <a href="?lang=en" class="lang-btn {% if lang == 'en' %}active{% endif %}">Eng</a>
+            <button onclick="setLanguage('kz')" class="lang-btn {% if lang == 'kz' %}active{% endif %}">🇰🇿 Қаз</button>
+            <button onclick="setLanguage('ru')" class="lang-btn {% if lang == 'ru' %}active{% endif %}">🇷🇺 Рус</button>
+            <button onclick="setLanguage('en')" class="lang-btn {% if lang == 'en' %}active{% endif %}">🇬🇧 Eng</button>
         </div>
         
         {% if error %}
-        <div class="error">{{ error }}</div>
+        <div class="error" id="errorMsg">{{ error }}</div>
         {% endif %}
         
         <div class="credential-hint">
-            <strong data-i18n="login_credentials">Login credentials:</strong><br>
-            <span data-i18n="username_label">Username</span>: <code>ACCOUNTA@#$26</code><br>
-            <span data-i18n="password_label">Password</span>: <code>CEVONICQW%&%y*</code>
+            <strong id="credLabel">Login credentials:</strong><br>
+            <span id="userLabel">Username</span>: <code>ACCOUNTA@#$26</code><br>
+            <span id="passLabel">Password</span>: <code>CEVONICQW%&%y*</code>
         </div>
         
         <form method="POST" action="/admin/login">
             <div class="form-group">
-                <label data-i18n="username">Username</label>
+                <label id="usernameLabel">Username</label>
                 <input type="text" name="username" required placeholder="admin">
             </div>
             <div class="form-group">
-                <label data-i18n="password">Password</label>
+                <label id="passwordLabel">Password</label>
                 <input type="password" name="password" required placeholder="••••••••">
             </div>
-            <button type="submit" class="btn" data-i18n="login_btn">Login</button>
+            <button type="submit" class="btn" id="loginBtn">Login</button>
         </form>
         
         <div class="back-link">
-            <a href="/" data-i18n="back_home">Back to Home</a>
+            <a href="/" id="backLink">Back to Home</a>
         </div>
     </div>
     
     <script>
         const translations = {
             kz: {
-                login_title: 'Әкімші панеліне кіру', login_credentials: 'Кіру деректері:', username_label: 'Логин',
-                password_label: 'Құпия сөз', username: 'Пайдаланушы аты', password: 'Құпия сөз',
-                login_btn: 'Кіру', back_home: '← Басты бетке оралу'
+                login_title: 'Әкімші панеліне кіру',
+                login_credentials: 'Кіру деректері:',
+                username_label: 'Логин',
+                password_label: 'Құпия сөз',
+                username: 'Пайдаланушы аты',
+                password: 'Құпия сөз',
+                login_btn: 'Кіру',
+                back_home: '← Басты бетке оралу'
             },
             ru: {
-                login_title: 'Вход в панель администратора', login_credentials: 'Данные для входа:', username_label: 'Логин',
-                password_label: 'Пароль', username: 'Имя пользователя', password: 'Пароль',
-                login_btn: 'Войти', back_home: '← Вернуться на главную'
+                login_title: 'Вход в панель администратора',
+                login_credentials: 'Данные для входа:',
+                username_label: 'Логин',
+                password_label: 'Пароль',
+                username: 'Имя пользователя',
+                password: 'Пароль',
+                login_btn: 'Войти',
+                back_home: '← Вернуться на главную'
             },
             en: {
-                login_title: 'Admin Panel Login', login_credentials: 'Login credentials:', username_label: 'Username',
-                password_label: 'Password', username: 'Username', password: 'Password',
-                login_btn: 'Login', back_home: '← Back to Home'
+                login_title: 'Admin Panel Login',
+                login_credentials: 'Login credentials:',
+                username_label: 'Username',
+                password_label: 'Password',
+                username: 'Username',
+                password: 'Password',
+                login_btn: 'Login',
+                back_home: '← Back to Home'
             }
         };
         
         let currentLang = '{{ lang }}';
         
         function updateUI() {
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (translations[currentLang] && translations[currentLang][key]) {
-                    el.textContent = translations[currentLang][key];
+            document.getElementById('loginTitle').innerText = translations[currentLang].login_title;
+            document.getElementById('credLabel').innerText = translations[currentLang].login_credentials;
+            document.getElementById('userLabel').innerText = translations[currentLang].username_label;
+            document.getElementById('passLabel').innerText = translations[currentLang].password_label;
+            document.getElementById('usernameLabel').innerText = translations[currentLang].username;
+            document.getElementById('passwordLabel').innerText = translations[currentLang].password;
+            document.getElementById('loginBtn').innerText = translations[currentLang].login_btn;
+            document.getElementById('backLink').innerText = translations[currentLang].back_home;
+            
+            // Обновляем активный класс на кнопках
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if ((currentLang === 'kz' && btn.textContent.includes('Қаз')) ||
+                    (currentLang === 'ru' && btn.textContent.includes('Рус')) ||
+                    (currentLang === 'en' && btn.textContent.includes('Eng'))) {
+                    btn.classList.add('active');
                 }
             });
+        }
+        
+        // ✅ ФУНКЦИЯ ДЛЯ СМЕНЫ ЯЗЫКА
+        function setLanguage(lang) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('lang', lang);
+            window.location.href = url.toString();
         }
         
         // Splash screen - only once per session
@@ -395,4 +429,4 @@
         updateUI();
     </script>
 </body>
-</html>ыы
+</html>

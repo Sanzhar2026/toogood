@@ -1,4 +1,4 @@
-<!-- templates/admin_dashboard.html -->
+<!-- templates/admin_dashboard.html - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ -->
 <!DOCTYPE html>
 <html lang="{{ lang }}">
 <head>
@@ -213,7 +213,6 @@
             cursor: pointer;
             font-size: 0.7rem;
             font-weight: 500;
-            text-decoration: none;
         }
         
         @media (min-width: 768px) {
@@ -238,6 +237,7 @@
         @media (min-width: 640px) {
             .stats-grid {
                 grid-template-columns: repeat(4, 1fr);
+                gap: 1.5rem;
             }
         }
         
@@ -469,17 +469,17 @@
         </div>
         
         <div class="nav-links">
-            <a href="/admin/dashboard" class="nav-link active">Dashboard</a>
-            <a href="/courier/dashboard" class="nav-link" target="_blank">Courier Panel</a>
+            <a href="/admin/dashboard" class="nav-link active" id="navDashboard">Dashboard</a>
+            <a href="/courier/dashboard" class="nav-link" target="_blank" id="navCourier">Courier Panel</a>
         </div>
         
         <div class="header-right">
             <div class="lang-buttons">
-                <a href="?lang=kz" class="lang-btn {% if lang == 'kz' %}active{% endif %}">Қаз</a>
-                <a href="?lang=ru" class="lang-btn {% if lang == 'ru' %}active{% endif %}">Рус</a>
-                <a href="?lang=en" class="lang-btn {% if lang == 'en' %}active{% endif %}">Eng</a>
+                <button onclick="setLanguage('kz')" class="lang-btn {% if lang == 'kz' %}active{% endif %}">🇰🇿 Қаз</button>
+                <button onclick="setLanguage('ru')" class="lang-btn {% if lang == 'ru' %}active{% endif %}">🇷🇺 Рус</button>
+                <button onclick="setLanguage('en')" class="lang-btn {% if lang == 'en' %}active{% endif %}">🇬🇧 Eng</button>
             </div>
-            <a href="/admin/logout" class="logout-btn">Logout</a>
+            <a href="/admin/logout" class="logout-btn" id="logoutBtn">Logout</a>
         </div>
     </div>
     
@@ -488,19 +488,19 @@
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-number" id="totalUsers">0</div>
-                <div class="stat-label" data-i18n="total_users">Total Users</div>
+                <div class="stat-label" id="statUsers">Total Users</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="totalSuppliers">0</div>
-                <div class="stat-label" data-i18n="total_restaurants">Restaurants</div>
+                <div class="stat-label" id="statRestaurants">Restaurants</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="totalCouriers">0</div>
-                <div class="stat-label" data-i18n="total_couriers">Couriers</div>
+                <div class="stat-label" id="statCouriers">Couriers</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="totalRevenue">0 ₸</div>
-                <div class="stat-label" data-i18n="total_revenue">Total Revenue</div>
+                <div class="stat-label" id="statRevenue">Total Revenue</div>
             </div>
         </div>
         
@@ -508,26 +508,26 @@
         <div class="section">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
                 <h2 class="section-title">
-                    <span data-i18n="pending_requests">Pending Courier Requests</span>
+                    <span id="pendingTitle">Pending Courier Requests</span>
                     <span class="live-badge">LIVE</span>
                     <span id="pendingBadge" class="badge-pending" style="display: none;">0</span>
                 </h2>
-                <button class="refresh-btn" onclick="loadPendingCouriers()"><span data-i18n="refresh">Refresh</span></button>
+                <button class="refresh-btn" onclick="loadPendingCouriers()" id="refreshPendingBtn">Refresh</button>
             </div>
             <div class="table-container">
-                <table>
+                </table>
                     <thead>
                         <tr>
-                            <th data-i18n="id">ID</th>
-                            <th data-i18n="name">Name</th>
-                            <th data-i18n="phone">Phone</th>
-                            <th data-i18n="type">Type</th>
-                            <th class="mobile-hide" data-i18n="car">Car</th>
-                            <th data-i18n="action">Action</th>
+                            <th id="thId">ID</th>
+                            <th id="thName">Name</th>
+                            <th id="thPhone">Phone</th>
+                            <th id="thType">Type</th>
+                            <th class="mobile-hide" id="thCar">Car</th>
+                            <th id="thAction">Action</th>
                         </tr>
                     </thead>
                     <tbody id="pendingCouriersTable">
-                        <tr><td colspan="6">Loading...</td></tr>
+                        <tr><td colspan="6">Loading...<\/td></tr>
                     </tbody>
                 </table>
             </div>
@@ -537,25 +537,25 @@
         <div class="section">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
                 <h2 class="section-title">
-                    <span data-i18n="active_reservations">Active Reservations</span>
+                    <span id="reservationsTitle">Active Reservations</span>
                     <span class="live-badge">LIVE</span>
                 </h2>
-                <button class="refresh-btn" onclick="loadActiveReservations()"><span data-i18n="refresh">Refresh</span></button>
+                <button class="refresh-btn" onclick="loadActiveReservations()" id="refreshReservationsBtn">Refresh</button>
             </div>
             <div class="table-container">
                 <tr>
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th data-i18n="customer">Customer</th>
-                            <th data-i18n="product">Product</th>
-                            <th data-i18n="amount">Amount</th>
-                            <th data-i18n="time_left">Time Left</th>
-                            <th data-i18n="action">Action</th>
+                            <th id="thCustomer">Customer</th>
+                            <th id="thProduct">Product</th>
+                            <th id="thAmount">Amount</th>
+                            <th id="thTimeLeft">Time Left</th>
+                            <th id="thActionRes">Action</th>
                         </tr>
                     </thead>
                     <tbody id="reservationsTable">
-                        <tr><td colspan="6">Loading...</td></tr>
+                        <tr><td colspan="6">Loading...<\/td></tr>
                     </tbody>
                 </table>
             </div>
@@ -563,22 +563,22 @@
         
         <!-- Paid Orders -->
         <div class="section">
-            <h2 class="section-title"><span data-i18n="paid_orders">Paid Orders</span></h2>
+            <h2 class="section-title"><span id="ordersTitle">Paid Orders</span></h2>
             <div class="table-container">
-                <table>
+                <td>
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th data-i18n="order_number">Order #</th>
-                            <th data-i18n="customer">Customer</th>
-                            <th data-i18n="amount">Amount</th>
-                            <th data-i18n="payment_status">Payment</th>
-                            <th data-i18n="order_status">Status</th>
-                            <th data-i18n="action">Action</th>
+                            <th id="thOrderNum">Order #</th>
+                            <th id="thCustomerOrd">Customer</th>
+                            <th id="thAmountOrd">Amount</th>
+                            <th id="thPaymentStatus">Payment</th>
+                            <th id="thOrderStatus">Status</th>
+                            <th id="thActionOrd">Action</th>
                         </tr>
                     </thead>
                     <tbody id="ordersTable">
-                        <tr><td colspan="7">Loading...</td></tr>
+                        <tr><td colspan="7">Loading...<\/td></tr>
                     </tbody>
                 </table>
             </div>
@@ -586,20 +586,20 @@
         
         <!-- Verified Couriers -->
         <div class="section">
-            <h2 class="section-title"><span data-i18n="verified_couriers">Verified Couriers</span></h2>
+            <h2 class="section-title"><span id="verifiedTitle">Verified Couriers</span></h2>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th data-i18n="name">Name</th>
-                            <th data-i18n="phone">Phone</th>
-                            <th data-i18n="status">Status</th>
-                            <th data-i18n="deliveries">Deliveries</th>
+                            <th id="thNameVer">Name</th>
+                            <th id="thPhoneVer">Phone</th>
+                            <th id="thStatusVer">Status</th>
+                            <th id="thDeliveries">Deliveries</th>
                         </tr>
                     </thead>
                     <tbody id="couriersTable">
-                        <tr><td colspan="5">Loading...</td></tr>
+                        <tr><td colspan="5">Loading...<\/td></tr>
                     </tbody>
                 </table>
             </div>
@@ -607,157 +607,121 @@
     </div>
     
     <script>
+        // ============ ПЕРЕВОДЫ ============
         const translations = {
             kz: {
-                total_users: 'Жалпы пайдаланушылар', total_restaurants: 'Мейрамханалар', total_couriers: 'Курьерлер', total_revenue: 'Жалпы табыс',
-                pending_requests: 'Курьерлердің өтініштері', active_reservations: 'Белсенді броньдаулар', paid_orders: 'Төленген тапсырыстар', verified_couriers: 'Расталған курьерлер',
-                id: 'ID', name: 'Аты', phone: 'Телефон', type: 'Түрі', car: 'Көлік', action: 'Әрекет', customer: 'Клиент', product: 'Тауар',
-                amount: 'Сома', time_left: 'Уақыт қалды', order_number: 'Тапсырыс №', payment_status: 'Төлем күйі', order_status: 'Тапсырыс күйі',
-                status: 'Күй', deliveries: 'Жеткізулер', refresh: 'Жаңарту'
+                navDashboard: 'Басты бет', navCourier: 'Курьер панелі', logoutBtn: 'Шығу',
+                statUsers: 'Пайдаланушылар', statRestaurants: 'Мейрамханалар', statCouriers: 'Курьерлер', statRevenue: 'Табыс',
+                pendingTitle: 'КУРЬЕРЛЕРДІҢ ӨТІНІШТЕРІ',
+                reservationsTitle: 'БЕЛСЕНДІ БРОНЬДАУЛАР',
+                ordersTitle: 'ТӨЛЕНГЕН ТАПСЫРЫСТАР',
+                verifiedTitle: 'РАСТАЛҒАН КУРЬЕРЛЕР',
+                thId: 'ID', thName: 'Аты', thPhone: 'Телефон', thType: 'Түрі', thCar: 'Көлік', thAction: 'Әрекет',
+                thCustomer: 'Клиент', thProduct: 'Тауар', thAmount: 'Сома', thTimeLeft: 'Уақыт қалды', thActionRes: 'Әрекет',
+                thOrderNum: 'Тапсырыс №', thCustomerOrd: 'Клиент', thAmountOrd: 'Сома', thPaymentStatus: 'Төлем', thOrderStatus: 'Күй', thActionOrd: 'Әрекет',
+                thNameVer: 'Аты', thPhoneVer: 'Телефон', thStatusVer: 'Күй', thDeliveries: 'Жеткізулер',
+                refreshPendingBtn: 'Жаңарту', refreshReservationsBtn: 'Жаңарту'
             },
             ru: {
-                total_users: 'Всего пользователей', total_restaurants: 'Ресторанов', total_couriers: 'Курьеров', total_revenue: 'Общая выручка',
-                pending_requests: 'Заявки на подтверждение курьеров', active_reservations: 'Активные бронирования', paid_orders: 'Оплаченные заказы', verified_couriers: 'Подтвержденные курьеры',
-                id: 'ID', name: 'Имя', phone: 'Телефон', type: 'Тип', car: 'Автомобиль', action: 'Действие', customer: 'Клиент', product: 'Товар',
-                amount: 'Сумма', time_left: 'Времени осталось', order_number: '№ заказа', payment_status: 'Статус оплаты', order_status: 'Статус заказа',
-                status: 'Статус', deliveries: 'Доставок', refresh: 'Обновить'
+                navDashboard: 'Дашборд', navCourier: 'Панель курьера', logoutBtn: 'Выйти',
+                statUsers: 'Пользователи', statRestaurants: 'Рестораны', statCouriers: 'Курьеры', statRevenue: 'Выручка',
+                pendingTitle: 'ЗАЯВКИ НА ПОДТВЕРЖДЕНИЕ КУРЬЕРОВ',
+                reservationsTitle: 'АКТИВНЫЕ БРОНИРОВАНИЯ',
+                ordersTitle: 'ОПЛАЧЕННЫЕ ЗАКАЗЫ',
+                verifiedTitle: 'ПОДТВЕРЖДЕННЫЕ КУРЬЕРЫ',
+                thId: 'ID', thName: 'Имя', thPhone: 'Телефон', thType: 'Тип', thCar: 'Авто', thAction: 'Действие',
+                thCustomer: 'Клиент', thProduct: 'Товар', thAmount: 'Сумма', thTimeLeft: 'Осталось', thActionRes: 'Действие',
+                thOrderNum: '№ заказа', thCustomerOrd: 'Клиент', thAmountOrd: 'Сумма', thPaymentStatus: 'Оплата', thOrderStatus: 'Статус', thActionOrd: 'Действие',
+                thNameVer: 'Имя', thPhoneVer: 'Телефон', thStatusVer: 'Статус', thDeliveries: 'Доставок',
+                refreshPendingBtn: 'Обновить', refreshReservationsBtn: 'Обновить'
             },
             en: {
-                total_users: 'Total Users', total_restaurants: 'Restaurants', total_couriers: 'Couriers', total_revenue: 'Total Revenue',
-                pending_requests: 'Pending Courier Requests', active_reservations: 'Active Reservations', paid_orders: 'Paid Orders', verified_couriers: 'Verified Couriers',
-                id: 'ID', name: 'Name', phone: 'Phone', type: 'Type', car: 'Car', action: 'Action', customer: 'Customer', product: 'Product',
-                amount: 'Amount', time_left: 'Time Left', order_number: 'Order #', payment_status: 'Payment Status', order_status: 'Order Status',
-                status: 'Status', deliveries: 'Deliveries', refresh: 'Refresh'
+                navDashboard: 'Dashboard', navCourier: 'Courier Panel', logoutBtn: 'Logout',
+                statUsers: 'Users', statRestaurants: 'Restaurants', statCouriers: 'Couriers', statRevenue: 'Revenue',
+                pendingTitle: 'PENDING COURIER REQUESTS',
+                reservationsTitle: 'ACTIVE RESERVATIONS',
+                ordersTitle: 'PAID ORDERS',
+                verifiedTitle: 'VERIFIED COURIERS',
+                thId: 'ID', thName: 'Name', thPhone: 'Phone', thType: 'Type', thCar: 'Car', thAction: 'Action',
+                thCustomer: 'Customer', thProduct: 'Product', thAmount: 'Amount', thTimeLeft: 'Time Left', thActionRes: 'Action',
+                thOrderNum: 'Order #', thCustomerOrd: 'Customer', thAmountOrd: 'Amount', thPaymentStatus: 'Payment', thOrderStatus: 'Status', thActionOrd: 'Action',
+                thNameVer: 'Name', thPhoneVer: 'Phone', thStatusVer: 'Status', thDeliveries: 'Deliveries',
+                refreshPendingBtn: 'Refresh', refreshReservationsBtn: 'Refresh'
             }
         };
         
         let currentLang = '{{ lang }}';
         
         function updateUI() {
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (translations[currentLang] && translations[currentLang][key]) {
-                    el.textContent = translations[currentLang][key];
+            // Обновляем текст всех элементов
+            document.getElementById('navDashboard').innerText = translations[currentLang].navDashboard;
+            document.getElementById('navCourier').innerText = translations[currentLang].navCourier;
+            document.getElementById('logoutBtn').innerText = translations[currentLang].logoutBtn;
+            document.getElementById('statUsers').innerText = translations[currentLang].statUsers;
+            document.getElementById('statRestaurants').innerText = translations[currentLang].statRestaurants;
+            document.getElementById('statCouriers').innerText = translations[currentLang].statCouriers;
+            document.getElementById('statRevenue').innerText = translations[currentLang].statRevenue;
+            document.getElementById('pendingTitle').innerText = translations[currentLang].pendingTitle;
+            document.getElementById('reservationsTitle').innerText = translations[currentLang].reservationsTitle;
+            document.getElementById('ordersTitle').innerText = translations[currentLang].ordersTitle;
+            document.getElementById('verifiedTitle').innerText = translations[currentLang].verifiedTitle;
+            document.getElementById('thId').innerText = translations[currentLang].thId;
+            document.getElementById('thName').innerText = translations[currentLang].thName;
+            document.getElementById('thPhone').innerText = translations[currentLang].thPhone;
+            document.getElementById('thType').innerText = translations[currentLang].thType;
+            document.getElementById('thCar').innerText = translations[currentLang].thCar;
+            document.getElementById('thAction').innerText = translations[currentLang].thAction;
+            document.getElementById('thCustomer').innerText = translations[currentLang].thCustomer;
+            document.getElementById('thProduct').innerText = translations[currentLang].thProduct;
+            document.getElementById('thAmount').innerText = translations[currentLang].thAmount;
+            document.getElementById('thTimeLeft').innerText = translations[currentLang].thTimeLeft;
+            document.getElementById('thActionRes').innerText = translations[currentLang].thActionRes;
+            document.getElementById('thOrderNum').innerText = translations[currentLang].thOrderNum;
+            document.getElementById('thCustomerOrd').innerText = translations[currentLang].thCustomerOrd;
+            document.getElementById('thAmountOrd').innerText = translations[currentLang].thAmountOrd;
+            document.getElementById('thPaymentStatus').innerText = translations[currentLang].thPaymentStatus;
+            document.getElementById('thOrderStatus').innerText = translations[currentLang].thOrderStatus;
+            document.getElementById('thActionOrd').innerText = translations[currentLang].thActionOrd;
+            document.getElementById('thNameVer').innerText = translations[currentLang].thNameVer;
+            document.getElementById('thPhoneVer').innerText = translations[currentLang].thPhoneVer;
+            document.getElementById('thStatusVer').innerText = translations[currentLang].thStatusVer;
+            document.getElementById('thDeliveries').innerText = translations[currentLang].thDeliveries;
+            document.getElementById('refreshPendingBtn').innerText = translations[currentLang].refreshPendingBtn;
+            document.getElementById('refreshReservationsBtn').innerText = translations[currentLang].refreshReservationsBtn;
+            
+            // Обновляем активный класс на кнопках языка
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if ((currentLang === 'kz' && btn.textContent.includes('Қаз')) ||
+                    (currentLang === 'ru' && btn.textContent.includes('Рус')) ||
+                    (currentLang === 'en' && btn.textContent.includes('Eng'))) {
+                    btn.classList.add('active');
                 }
             });
         }
         
-        let ws = null;
-        
-        function connectWS() {
-            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${location.host}/ws`);
-            ws.onopen = () => ws.send(JSON.stringify({ type: 'subscribe', channel: 'admin' }));
-            ws.onmessage = (e) => { const d = JSON.parse(e.data); if (d.type === 'new_reservation') { showNotif('New reservation!'); loadReservations(); loadStats(); } if (d.type === 'new_courier_registration') { showNotif('New courier request!'); loadPending(); loadStats(); } };
-            ws.onclose = () => setTimeout(connectWS, 3000);
+        // ✅ ФУНКЦИЯ ДЛЯ СМЕНЫ ЯЗЫКА
+        function setLanguage(lang) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('lang', lang);
+            window.location.href = url.toString();
         }
         
-        function showNotif(m) { if (Notification.permission === 'granted') new Notification('Sarqyt GO', { body: m }); const t = document.createElement('div'); t.className = 'notification'; t.innerHTML = m; document.body.appendChild(t); setTimeout(() => t.remove(), 5000); }
-        
-        async function loadStats() {
-            try {
-                const r = await fetch('/api/admin/stats', { credentials: 'include' });
-                const d = await r.json();
-                document.getElementById('totalUsers').innerText = d.total_users || 0;
-                document.getElementById('totalSuppliers').innerText = d.total_suppliers || 0;
-                document.getElementById('totalCouriers').innerText = d.total_couriers || 0;
-                document.getElementById('totalRevenue').innerText = (d.total_revenue || 0).toLocaleString() + ' ₸';
-                const b = document.getElementById('pendingBadge');
-                if (b) { b.style.display = d.pending_couriers > 0 ? 'inline-block' : 'none'; b.innerText = d.pending_couriers || 0; }
-            } catch(e) { console.error(e); }
+        // ============ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ============
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;';
+            });
         }
         
-        async function loadPending() {
-            try {
-                const r = await fetch('/api/admin/pending-couriers', { credentials: 'include' });
-                const d = await r.json();
-                const tbody = document.getElementById('pendingCouriersTable');
-                if (!d.couriers || d.couriers.length === 0) { tbody.innerHTML = '<tr><td colspan="6">No pending requests</td></tr>'; return; }
-                tbody.innerHTML = '';
-                for (const c of d.couriers) {
-                    tbody.innerHTML += `<tr>
-                        <td>#${c.id}</td>
-                        <td><strong>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</strong></td>
-                        <td>${escapeHtml(c.phone)}</td>
-                        <td>${c.courier_type === 'driver' ? 'Driver' : 'Pedestrian'}</td>
-                        <td class="mobile-hide">${escapeHtml(c.car_model || '-')}</td>
-                        <td><button class="btn-verify" onclick="verifyCourier(${c.id})">Verify</button><button class="btn-reject" onclick="rejectCourier(${c.id})">Reject</button></td>
-                    </tr>`;
-                }
-            } catch(e) { console.error(e); }
+        function showNotification(message) {
+            const toast = document.createElement('div');
+            toast.className = 'notification';
+            toast.innerHTML = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
         }
-        
-        async function verifyCourier(id) { if (!confirm('Verify courier?')) return; try { const r = await fetch(`/api/admin/verify-courier/${id}`, { method: 'POST', credentials: 'include' }); const d = await r.json(); if (d.success) { alert('Verified!'); loadPending(); loadCouriers(); loadStats(); } } catch(e) { alert('Error'); } }
-        async function rejectCourier(id) { if (!confirm('Reject courier?')) return; try { const r = await fetch(`/api/admin/reject-courier/${id}`, { method: 'POST', credentials: 'include' }); const d = await r.json(); if (d.success) { alert('Rejected'); loadPending(); loadStats(); } } catch(e) { alert('Error'); } }
-        
-        async function loadReservations() {
-            try {
-                const r = await fetch('/api/admin/reservations', { credentials: 'include' });
-                const d = await r.json();
-                const tbody = document.getElementById('reservationsTable');
-                if (!d.reservations || d.reservations.length === 0) { tbody.innerHTML = '<tr><td colspan="6">No active reservations</td></tr>'; return; }
-                tbody.innerHTML = '';
-                for (const res of d.reservations) {
-                    const timeLeft = res.time_left_minutes;
-                    tbody.innerHTML += `<tr>
-                        <td>#${res.id}</td>
-                        <td>${escapeHtml(res.user_name)}</td>
-                        <td>${escapeHtml(res.bag_name)}</td>
-                        <td><strong>${res.total_amount.toLocaleString()} ₸</strong></td>
-                        <td class="${timeLeft < 3 ? 'timer-warning' : ''}">${timeLeft} min</td>
-                        <td><button class="btn-paid" onclick="markPaid(${res.id})">Mark Paid</button></td>
-                    </tr>`;
-                }
-            } catch(e) { console.error(e); }
-        }
-        
-        async function markPaid(id) { if (!confirm('Confirm payment?')) return; try { const r = await fetch(`/api/admin/mark-reservation-paid/${id}`, { method: 'POST', credentials: 'include' }); const d = await r.json(); if (d.success) { alert('Payment confirmed!'); loadReservations(); loadOrders(); loadStats(); } } catch(e) { alert('Error'); } }
-        
-        async function loadOrders() {
-            try {
-                const r = await fetch('/api/admin/orders', { credentials: 'include' });
-                const d = await r.json();
-                const tbody = document.getElementById('ordersTable');
-                if (!d.orders || d.orders.length === 0) { tbody.innerHTML = '<tr><td colspan="7">No orders</td></tr>'; return; }
-                tbody.innerHTML = '';
-                for (const o of d.orders) {
-                    tbody.innerHTML += `<tr>
-                        <td>#${o.id}</td>
-                        <td>${o.order_number}</td>
-                        <td>${escapeHtml(o.customer_name)}</td>
-                        <td><strong>${o.amount.toLocaleString()} ₸</strong></td>
-                        <td><select class="status-select" data-id="${o.id}" data-field="payment_status"><option value="pending" ${o.payment_status === 'pending' ? 'selected' : ''}>Pending</option><option value="paid" ${o.payment_status === 'paid' ? 'selected' : ''}>Paid</option><option value="refunded" ${o.payment_status === 'refunded' ? 'selected' : ''}>Refunded</option></select></td>
-                        <td><select class="status-select" data-id="${o.id}" data-field="order_status"><option value="pending" ${o.status === 'pending' ? 'selected' : ''}>Pending</option><option value="confirmed" ${o.status === 'confirmed' ? 'selected' : ''}>Confirmed</option><option value="preparing" ${o.status === 'preparing' ? 'selected' : ''}>Preparing</option><option value="ready_for_pickup" ${o.status === 'ready_for_pickup' ? 'selected' : ''}>Ready</option><option value="out_for_delivery" ${o.status === 'out_for_delivery' ? 'selected' : ''}>In Transit</option><option value="delivered" ${o.status === 'delivered' ? 'selected' : ''}>Delivered</option><option value="cancelled" ${o.status === 'cancelled' ? 'selected' : ''}>Cancelled</option></select></td>
-                        <td><button class="btn-refund" onclick="refund(${o.id})">Refund</button></td>
-                    </tr>`;
-                }
-                document.querySelectorAll('.status-select').forEach(s => { s.addEventListener('change', function() { updateStatus(this.dataset.id, this.dataset.field, this.value); }); });
-            } catch(e) { console.error(e); }
-        }
-        
-        async function updateStatus(id, field, val) { try { const r = await fetch(`/api/admin/update-order-status/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ field, value: val }) }); const d = await r.json(); if (d.success) { loadOrders(); loadStats(); } } catch(e) { console.error(e); } }
-        async function refund(id) { if (!confirm('Refund?')) return; const reason = prompt('Reason:'); if (!reason) return; try { const r = await fetch(`/api/admin/process-refund/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ reason }) }); const d = await r.json(); if (d.success) { alert('Refund processed!'); loadOrders(); loadStats(); } } catch(e) { alert('Error'); } }
-        
-        async function loadCouriers() {
-            try {
-                const r = await fetch('/api/admin/couriers', { credentials: 'include' });
-                const d = await r.json();
-                const tbody = document.getElementById('couriersTable');
-                if (!d.couriers || d.couriers.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No couriers</td></tr>'; return; }
-                tbody.innerHTML = '';
-                for (const c of d.couriers) {
-                    tbody.innerHTML += `<tr>
-                        <td>#${c.id}</td>
-                        <td>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</td>
-                        <td class="mobile-hide">${escapeHtml(c.phone)}</td>
-                        <td>${c.is_online ? 'Online' : 'Offline'}</td>
-                        <td>${c.total_deliveries}</td>
-                    </tr>`;
-                }
-            } catch(e) { console.error(e); }
-        }
-        
-        function escapeHtml(s) { if (!s) return ''; return s.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
         
         // Splash screen - only once per session
         (function() {
@@ -778,11 +742,141 @@
             }
         })();
         
+        // ============ API ВЫЗОВЫ ============
+        async function loadStats() {
+            try {
+                const r = await fetch('/api/admin/stats', { credentials: 'include' });
+                const d = await r.json();
+                document.getElementById('totalUsers').innerText = d.total_users || 0;
+                document.getElementById('totalSuppliers').innerText = d.total_suppliers || 0;
+                document.getElementById('totalCouriers').innerText = d.total_couriers || 0;
+                document.getElementById('totalRevenue').innerText = (d.total_revenue || 0).toLocaleString() + ' ₸';
+                const badge = document.getElementById('pendingBadge');
+                if (badge) {
+                    badge.style.display = (d.pending_couriers || 0) > 0 ? 'inline-block' : 'none';
+                    badge.innerText = d.pending_couriers || 0;
+                }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function loadPendingCouriers() {
+            try {
+                const r = await fetch('/api/admin/pending-couriers', { credentials: 'include' });
+                const d = await r.json();
+                const tbody = document.getElementById('pendingCouriersTable');
+                if (!d.couriers || d.couriers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6">No pending requests</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = '';
+                for (const c of d.couriers) {
+                    tbody.innerHTML += `<tr>
+                        <td>#${c.id}</td>
+                        <td><strong>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</strong></td>
+                        <td>${escapeHtml(c.phone)}</td>
+                        <td>${c.courier_type === 'driver' ? 'Driver' : 'Pedestrian'}</td>
+                        <td class="mobile-hide">${escapeHtml(c.car_model || '-')}</td>
+                        <td><button class="btn-verify" onclick="verifyCourier(${c.id})">Verify</button><button class="btn-reject" onclick="rejectCourier(${c.id})">Reject</button></td>
+                    </tr>`;
+                }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function verifyCourier(id) { if (!confirm('Verify courier?')) return; try { const r = await fetch(`/api/admin/verify-courier/${id}`, { method: 'POST', credentials: 'include' }); const d = await r.json(); if (d.success) { alert('Verified!'); loadPendingCouriers(); loadCouriers(); loadStats(); } } catch(e) { alert('Error'); } }
+        async function rejectCourier(id) { if (!confirm('Reject courier?')) return; try { const r = await fetch(`/api/admin/reject-courier/${id}`, { method: 'POST', credentials: 'include' }); const d = await r.json(); if (d.success) { alert('Rejected'); loadPendingCouriers(); loadStats(); } } catch(e) { alert('Error'); } }
+        
+        async function loadActiveReservations() {
+            try {
+                const r = await fetch('/api/admin/reservations', { credentials: 'include' });
+                const d = await r.json();
+                const tbody = document.getElementById('reservationsTable');
+                if (!d.reservations || d.reservations.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6">No active reservations</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = '';
+                for (const res of d.reservations) {
+                    const timeLeft = res.time_left_minutes;
+                    tbody.innerHTML += `<tr>
+                        <td>#${res.id}</td>
+                        <td>${escapeHtml(res.user_name)}</td>
+                        <td>${escapeHtml(res.bag_name)}</td>
+                        <td><strong>${res.total_amount.toLocaleString()} ₸</strong></td>
+                        <td class="${timeLeft < 3 ? 'timer-warning' : ''}">${timeLeft} min</td>
+                        <td><button class="btn-paid" onclick="markAsPaid(${res.id})">Mark Paid</button></td>
+                    </tr>`;
+                }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function markAsPaid(id) { if (!confirm('Confirm payment?')) return; try { const r = await fetch(`/api/admin/mark-reservation-paid/${id}`, { method: 'POST', credentials: 'include' }); const d = await r.json(); if (d.success) { alert('Payment confirmed!'); loadActiveReservations(); loadOrders(); loadStats(); } } catch(e) { alert('Error'); } }
+        
+        async function loadOrders() {
+            try {
+                const r = await fetch('/api/admin/orders', { credentials: 'include' });
+                const d = await r.json();
+                const tbody = document.getElementById('ordersTable');
+                if (!d.orders || d.orders.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7">No orders</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = '';
+                for (const o of d.orders) {
+                    tbody.innerHTML += `<tr>
+                        <td>#${o.id}</td>
+                        <td>${o.order_number}</td>
+                        <td>${escapeHtml(o.customer_name)}</td>
+                        <td><strong>${o.amount.toLocaleString()} ₸</strong></td>
+                        <td><select class="status-select" data-id="${o.id}" data-field="payment_status"><option value="pending" ${o.payment_status === 'pending' ? 'selected' : ''}>Pending</option><option value="paid" ${o.payment_status === 'paid' ? 'selected' : ''}>Paid</option><option value="refunded" ${o.payment_status === 'refunded' ? 'selected' : ''}>Refunded</option></select></td>
+                        <td><select class="status-select" data-id="${o.id}" data-field="order_status"><option value="pending" ${o.status === 'pending' ? 'selected' : ''}>Pending</option><option value="confirmed" ${o.status === 'confirmed' ? 'selected' : ''}>Confirmed</option><option value="preparing" ${o.status === 'preparing' ? 'selected' : ''}>Preparing</option><option value="ready_for_pickup" ${o.status === 'ready_for_pickup' ? 'selected' : ''}>Ready</option><option value="out_for_delivery" ${o.status === 'out_for_delivery' ? 'selected' : ''}>In Transit</option><option value="delivered" ${o.status === 'delivered' ? 'selected' : ''}>Delivered</option><option value="cancelled" ${o.status === 'cancelled' ? 'selected' : ''}>Cancelled</option></select></td>
+                        <td><button class="btn-refund" onclick="processRefund(${o.id})">Refund</button></td>
+                    </tr>`;
+                }
+                document.querySelectorAll('.status-select').forEach(s => { s.addEventListener('change', function() { updateOrderStatus(this.dataset.id, this.dataset.field, this.value); }); });
+            } catch(e) { console.error(e); }
+        }
+        
+        async function updateOrderStatus(id, field, val) { try { const r = await fetch(`/api/admin/update-order-status/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ field, value: val }) }); const d = await r.json(); if (d.success) { loadOrders(); loadStats(); } } catch(e) { console.error(e); } }
+        async function processRefund(id) { if (!confirm('Process refund?')) return; const reason = prompt('Reason:'); if (!reason) return; try { const r = await fetch(`/api/admin/process-refund/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ reason }) }); const d = await r.json(); if (d.success) { alert('Refund processed!'); loadOrders(); loadStats(); } } catch(e) { alert('Error'); } }
+        
+        async function loadCouriers() {
+            try {
+                const r = await fetch('/api/admin/couriers', { credentials: 'include' });
+                const d = await r.json();
+                const tbody = document.getElementById('couriersTable');
+                if (!d.couriers || d.couriers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5">No couriers</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = '';
+                for (const c of d.couriers) {
+                    tbody.innerHTML += `<tr>
+                        <td>#${c.id}</td>
+                        <td>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</td>
+                        <td class="mobile-hide">${escapeHtml(c.phone)}</td>
+                        <td>${c.is_online ? 'Online' : 'Offline'}</td>
+                        <td>${c.total_deliveries}</td>
+                    </tr>`;
+                }
+            } catch(e) { console.error(e); }
+        }
+        
+        // WebSocket
+        let ws = null;
+        
+        function connectWS() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${location.host}/ws`);
+            ws.onopen = () => ws.send(JSON.stringify({ type: 'subscribe', channel: 'admin' }));
+            ws.onmessage = (e) => { const d = JSON.parse(e.data); if (d.type === 'new_reservation') { showNotification('New reservation!'); loadActiveReservations(); loadStats(); } if (d.type === 'new_courier_registration') { showNotification('New courier request!'); loadPendingCouriers(); loadStats(); } };
+            ws.onclose = () => setTimeout(connectWS, 3000);
+        }
+        
         if (Notification.permission === 'default') Notification.requestPermission();
         
         updateUI();
-        loadStats(); loadPending(); loadReservations(); loadOrders(); loadCouriers(); connectWS();
-        setInterval(() => { loadPending(); loadReservations(); loadOrders(); loadCouriers(); loadStats(); }, 30000);
+        loadStats(); loadPendingCouriers(); loadActiveReservations(); loadOrders(); loadCouriers(); connectWS();
+        setInterval(() => { loadPendingCouriers(); loadActiveReservations(); loadOrders(); loadCouriers(); loadStats(); }, 30000);
     </script>
 </body>
 </html>

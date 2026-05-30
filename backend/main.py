@@ -3169,8 +3169,8 @@ def get_current_admin(request: Request):
 @app.get("/admin/login")
 async def admin_login_page(request: Request):
     """Страница входа в админ-панель"""
-    return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
-
+    lang = request.query_params.get("lang", request.cookies.get("lang", "ru"))
+    return templates.TemplateResponse("admin_login.html", {"request": request, "error": None, "lang": lang})
 
 @app.post("/admin/login")
 async def admin_login(request: Request, db: Session = Depends(get_db)):
@@ -3178,40 +3178,21 @@ async def admin_login(request: Request, db: Session = Depends(get_db)):
     form_data = await request.form()
     username = form_data.get("username")
     password = form_data.get("password")
+    lang = request.query_params.get("lang", request.cookies.get("lang", "ru"))
     
-    print(f"🔐 Попытка входа админа: {username}")
-    
-    # Ищем админа
     admin = db.query(Admin).filter(Admin.username == username).first()
     
-    if not admin:
-        print(f"❌ Админ не найден")
+    if not admin or not verify_password(password, admin.password_hash):
         return templates.TemplateResponse("admin_login.html", {
             "request": request,
-            "error": "Неверный логин или пароль"
+            "error": "Неверный логин или пароль" if lang == "ru" else "Қате логин немесе пароль" if lang == "kz" else "Invalid username or password",
+            "lang": lang
         })
     
-    # Проверка пароля
-    if not verify_password(password, admin.password_hash):
-        print(f"❌ Неверный пароль")
-        return templates.TemplateResponse("admin_login.html", {
-            "request": request,
-            "error": "Неверный логин или пароль"
-        })
-    
-    # Создаем ответ
     response = RedirectResponse(url="/admin/dashboard", status_code=303)
-    response.set_cookie(
-        key="admin_id",
-        value=str(admin.id),
-        httponly=True,
-        max_age=60*60*8,
-        path="/"
-    )
-    
-    print(f"✅ Админ {username} вошел")
+    response.set_cookie(key="admin_id", value=str(admin.id), httponly=True, max_age=60*60*8, path="/")
+    response.set_cookie(key="lang", value=lang, max_age=31536000, path="/")
     return response
-
 
 @app.get("/admin/dashboard")
 async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
