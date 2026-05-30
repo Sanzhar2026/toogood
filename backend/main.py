@@ -1626,7 +1626,7 @@ async def courier_go_offline(request: Request, db: Session = Depends(get_db)):
 async def update_courier_location(request: Request, db: Session = Depends(get_db)):
     """Обновление геолокации курьера (только Bearer токен)"""
     
-    # ✅ ТОЛЬКО Bearer токен, БЕЗ fallback на cookies
+    # ✅ ТОЛЬКО Bearer токен
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated - Bearer token required")
@@ -1660,6 +1660,9 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
     if not courier:
         raise HTTPException(status_code=404, detail="Courier not found")
     
+    # ✅ Получаем courier_id из профиля (для логов)
+    courier_id = courier.id
+    
     # Обновляем локацию
     courier.current_lat = lat
     courier.current_lon = lon
@@ -1681,7 +1684,8 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
             distance_km = haversine(lat, lon, order.customer_lat, order.customer_lon)
             if distance_km <= 0.5 and courier.current_order_status != "almost_done":
                 courier.current_order_status = "almost_done"
-                print(f"✅ Курьер {courier_id} почти у цели! (расстояние {distance_km:.2f} км)")
+                # ✅ ИСПРАВЛЕНО: используем courier.id вместо неопределенного courier_id
+                print(f"✅ Курьер {courier.id} почти у цели! (расстояние {distance_km:.2f} км)")
     
     db.commit()
     
