@@ -288,6 +288,143 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
     }
 
 
+
+@app.post("/api/admin/cancel-order/{order_id}")
+async def admin_cancel_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Админ отменяет заказ и возвращает деньги"""
+    
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    reason = data.get("reason", "Отменено администратором")
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Получаем курьера, которому был назначен заказ
+    courier = None
+    if order.assigned_courier_id:
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+    
+    # Обновляем статусы
+    order.status = OrderStatus.CANCELLED
+    order.payment_status = "refunded"
+    order.refund_status = "completed"
+    order.refund_processed_at = datetime.utcnow()
+    order.refund_amount = order.amount_paid
+    order.refund_reason = reason
+    order.cancelled_at = datetime.utcnow()
+    
+    # Освобождаем курьера, если заказ был назначен
+    if courier and courier.current_order_id == order_id:
+        courier.current_order_id = None
+        courier.current_order_status = None
+        courier.is_available = True
+        courier.is_online = True
+    
+    # Возвращаем количество сюрприза
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+    if bag:
+        bag.available_quantity += 1
+        if bag.available_quantity > 0:
+            bag.is_active = True
+    
+    db.commit()
+    
+    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРУ
+    if courier:
+        await manager.broadcast({
+            "type": "order_cancelled",
+            "data": {
+                "order_id": order_id,
+                "order_number": order.order_number,
+                "reason": reason,
+                "cancelled_by": "admin",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        }, channel=f"courier_{courier.user_id}")
+    
+    # Отправляем уведомление клиенту
+    await manager.broadcast({
+        "type": "order_cancelled",
+        "data": {
+            "order_id": order_id,
+            "order_number": order.order_number,
+            "reason": reason,
+            "refund_amount": order.amount_paid
+        }
+    }, channel=f"order_{order_id}")
+    
+    return {"success": True, "message": f"Заказ #{order.order_number} отменен, деньги возвращены"}
+
+@app.post("/api/customer/cancel-order/{order_id}")
+async def customer_cancel_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Клиент отменяет заказ (только если он в статусе PENDING или CONFIRMED)"""
+    
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    reason = data.get("reason", "Отменено клиентом")
+    
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.user_id == int(user_id)
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Проверяем, можно ли отменить заказ
+    if order.status not in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
+        raise HTTPException(status_code=400, detail="Заказ уже нельзя отменить")
+    
+    # Получаем курьера
+    courier = None
+    if order.assigned_courier_id:
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+    
+    # Обновляем статусы
+    order.status = OrderStatus.CANCELLED
+    order.payment_status = "refunded"
+    order.refund_status = "completed"
+    order.refund_processed_at = datetime.utcnow()
+    order.refund_amount = order.amount_paid
+    order.refund_reason = reason
+    order.cancelled_at = datetime.utcnow()
+    
+    # Освобождаем курьера
+    if courier and courier.current_order_id == order_id:
+        courier.current_order_id = None
+        courier.current_order_status = None
+        courier.is_available = True
+    
+    # Возвращаем количество сюрприза
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+    if bag:
+        bag.available_quantity += 1
+    
+    db.commit()
+    
+    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРУ
+    if courier:
+        await manager.broadcast({
+            "type": "order_cancelled",
+            "data": {
+                "order_id": order_id,
+                "order_number": order.order_number,
+                "reason": reason,
+                "cancelled_by": "customer",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        }, channel=f"courier_{courier.user_id}")
+    
+    return {"success": True, "message": f"Заказ #{order.order_number} отменен, деньги возвращены"}
+
 @app.get("/api/admin/orders")
 async def get_admin_orders(request: Request, db: Session = Depends(get_db)):
     """Получить все заказы для админ-панели"""

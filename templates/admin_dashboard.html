@@ -1,10 +1,11 @@
 <!-- templates/admin_dashboard.html -->
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="{{ lang }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Админ-панель Sarqyn Food</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Sarqyt GO - Admin Panel</title>
+    <link rel="icon" type="image/png" href="/icon.png">
     <style>
         * {
             margin: 0;
@@ -17,86 +18,305 @@
             background: #f1f5f9;
         }
         
+        .splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        
+        .splash-content {
+            text-align: center;
+        }
+        
+        .splash-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1rem;
+            border-radius: 50%;
+            overflow: hidden;
+            background: #1e293b;
+        }
+        
+        .splash-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .splash-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .splash-title span {
+            color: #fbbf24;
+        }
+        
+        .splash-loader {
+            width: 40px;
+            height: 40px;
+            margin: 1rem auto 0;
+            border: 3px solid #334155;
+            border-top-color: #fbbf24;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .splash-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
         .admin-header {
             background: #0f172a;
             color: white;
-            padding: 1.5rem 2rem;
+            padding: 1rem;
             display: flex;
+            flex-wrap: wrap;
             justify-content: space-between;
             align-items: center;
+            gap: 0.8rem;
         }
         
-        .admin-header h1 {
-            font-size: 1.5rem;
+        @media (min-width: 768px) {
+            .admin-header {
+                padding: 1.5rem 2rem;
+            }
         }
         
-        .admin-header span {
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            overflow: hidden;
+        }
+        
+        .logo-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .logo h1 {
+            font-size: 1.2rem;
+        }
+        
+        @media (min-width: 768px) {
+            .logo h1 {
+                font-size: 1.5rem;
+            }
+        }
+        
+        .logo span {
             color: #fbbf24;
         }
         
         .logout-btn {
             background: #dc2626;
             color: white;
-            padding: 0.5rem 1rem;
+            padding: 0.3rem 0.8rem;
             border: none;
             border-radius: 0.5rem;
             cursor: pointer;
             text-decoration: none;
+            font-size: 0.8rem;
+        }
+        
+        @media (min-width: 768px) {
+            .logout-btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+            }
         }
         
         .admin-container {
-            padding: 2rem;
+            padding: 1rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        @media (min-width: 768px) {
+            .admin-container {
+                padding: 2rem;
+            }
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .nav-link {
+            color: #94a3b8;
+            text-decoration: none;
+            padding: 0.3rem 0.7rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        
+        @media (min-width: 768px) {
+            .nav-link {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+            }
+        }
+        
+        .nav-link:hover {
+            background: #1e293b;
+            color: white;
+        }
+        
+        .nav-link.active {
+            background: #fbbf24;
+            color: #0f172a;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+        
+        .lang-buttons {
+            display: flex;
+            gap: 0.3rem;
+        }
+        
+        .lang-btn {
+            background: #1e293b;
+            color: #94a3b8;
+            border: none;
+            padding: 0.3rem 0.6rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-decoration: none;
+        }
+        
+        @media (min-width: 768px) {
+            .lang-btn {
+                padding: 0.4rem 0.9rem;
+                font-size: 0.85rem;
+            }
+        }
+        
+        .lang-btn.active {
+            background: #fbbf24;
+            color: #0f172a;
         }
         
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        @media (min-width: 640px) {
+            .stats-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
         }
         
         .stat-card {
             background: white;
-            padding: 1.5rem;
+            padding: 1rem;
             border-radius: 1rem;
             text-align: center;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         
+        @media (min-width: 768px) {
+            .stat-card {
+                padding: 1.5rem;
+            }
+        }
+        
         .stat-number {
-            font-size: 2rem;
+            font-size: 1.5rem;
             font-weight: bold;
             color: #0f172a;
+        }
+        
+        @media (min-width: 768px) {
+            .stat-number {
+                font-size: 2rem;
+            }
         }
         
         .stat-label {
             color: #64748b;
             margin-top: 0.5rem;
+            font-size: 0.7rem;
+        }
+        
+        @media (min-width: 768px) {
+            .stat-label {
+                font-size: 0.85rem;
+            }
         }
         
         .section {
             background: white;
             border-radius: 1rem;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         
+        @media (min-width: 768px) {
+            .section {
+                padding: 1.5rem;
+            }
+        }
+        
         .section-title {
-            font-size: 1.3rem;
+            font-size: 1rem;
             font-weight: bold;
             margin-bottom: 1rem;
             border-left: 4px solid #fbbf24;
             padding-left: 0.75rem;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        @media (min-width: 768px) {
+            .section-title {
+                font-size: 1.3rem;
+            }
         }
         
         .live-badge {
             background: #10b981;
             color: white;
-            font-size: 0.7rem;
+            font-size: 0.6rem;
             padding: 0.2rem 0.6rem;
             border-radius: 2rem;
-            margin-left: 0.5rem;
             animation: pulse 2s infinite;
         }
         
@@ -105,19 +325,54 @@
             50% { opacity: 0.6; }
         }
         
+        .badge-pending {
+            background: #f59e0b;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 2rem;
+            font-size: 0.7rem;
+        }
+        
+        .refresh-btn {
+            background: #f1f5f9;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.7rem;
+            float: right;
+        }
+        
+        @media (min-width: 768px) {
+            .refresh-btn {
+                padding: 0.4rem 1rem;
+                font-size: 0.8rem;
+            }
+        }
+        
         .table-container {
             overflow-x: auto;
+            margin-top: 0.5rem;
         }
         
         table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 500px;
         }
         
         th, td {
-            padding: 0.75rem;
+            padding: 0.5rem;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
+            font-size: 0.7rem;
+        }
+        
+        @media (min-width: 768px) {
+            th, td {
+                padding: 0.75rem;
+                font-size: 0.85rem;
+            }
         }
         
         th {
@@ -125,32 +380,31 @@
             font-weight: 600;
         }
         
-        .status-badge {
-            display: inline-block;
+        .btn-verify, .btn-reject, .btn-paid, .btn-refund {
             padding: 0.2rem 0.6rem;
-            border-radius: 2rem;
-            font-size: 0.7rem;
-            font-weight: 600;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.65rem;
+            border: none;
         }
         
-        .status-active {
-            background: #d1fae5;
-            color: #065f46;
+        .btn-verify { background: #10b981; color: white; margin-right: 0.3rem; }
+        .btn-reject { background: #ef4444; color: white; }
+        .btn-paid { background: #3b82f6; color: white; }
+        .btn-refund { background: #f59e0b; color: white; }
+        
+        @media (min-width: 768px) {
+            .btn-verify, .btn-reject, .btn-paid, .btn-refund {
+                padding: 0.3rem 0.8rem;
+                font-size: 0.75rem;
+            }
         }
         
-        .status-pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-        
-        .status-paid {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-        
-        .status-refunded {
-            background: #fee2e2;
-            color: #991b1b;
+        .status-select {
+            padding: 0.2rem;
+            border-radius: 0.5rem;
+            font-size: 0.65rem;
+            border: 1px solid #e2e8f0;
         }
         
         .timer-warning {
@@ -170,11 +424,12 @@
             right: 1rem;
             background: #0f172a;
             color: white;
-            padding: 0.75rem 1.25rem;
+            padding: 0.5rem 1rem;
             border-radius: 0.75rem;
             z-index: 1000;
+            font-size: 0.75rem;
+            max-width: 90%;
             animation: slideIn 0.3s ease;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
         
         @keyframes slideIn {
@@ -182,97 +437,50 @@
             to { transform: translateX(0); opacity: 1; }
         }
         
-        .refresh-btn {
-            background: #f1f5f9;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            font-size: 0.8rem;
-            float: right;
-            margin-left: 0.5rem;
+        .mobile-hide {
+            display: none;
         }
         
-        .refresh-btn:hover {
-            background: #e2e8f0;
-        }
-        
-        .btn-verify {
-            background: #10b981;
-            color: white;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            margin-right: 0.5rem;
-        }
-        
-        .btn-verify:hover {
-            background: #059669;
-        }
-        
-        .btn-reject {
-            background: #ef4444;
-            color: white;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-        }
-        
-        .btn-reject:hover {
-            background: #dc2626;
-        }
-        
-        .btn-paid {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            margin-right: 0.5rem;
-        }
-        
-        .btn-paid:hover {
-            background: #2563eb;
-        }
-        
-        .btn-refund {
-            background: #f59e0b;
-            color: white;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-        }
-        
-        .btn-refund:hover {
-            background: #d97706;
-        }
-        
-        .badge-pending {
-            background: #f59e0b;
-            color: white;
-            padding: 0.2rem 0.5rem;
-            border-radius: 2rem;
-            font-size: 0.7rem;
-            margin-left: 0.5rem;
-        }
-        
-        .status-select {
-            padding: 0.3rem;
-            border-radius: 0.5rem;
-            border: 1px solid #e2e8f0;
-            background: white;
-            font-size: 0.75rem;
+        @media (min-width: 768px) {
+            .mobile-hide {
+                display: table-cell;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Splash Screen -->
+    <div id="splash" class="splash-screen" style="display: flex;">
+        <div class="splash-content">
+            <div class="splash-icon">
+                <img src="/icon.png" alt="Sarqyt GO">
+            </div>
+            <div class="splash-title">Sarqyt <span>GO</span> | Admin</div>
+            <div class="splash-loader"></div>
+        </div>
+    </div>
+    
     <div class="admin-header">
-        <h1>👑 Sarqyn <span>Admin</span></h1>
-        <a href="/admin/logout" class="logout-btn">🚪 Выйти</a>
+        <div class="logo">
+            <div class="logo-icon">
+                <img src="/icon.png" alt="Sarqyt GO">
+            </div>
+            <h1>Sarqyt <span>GO</span> | Admin</h1>
+        </div>
+        
+        <div class="nav-links">
+            <a href="/admin/dashboard" class="nav-link active">Dashboard</a>
+            <a href="/courier/dashboard" class="nav-link" target="_blank">Courier Panel</a>
+        </div>
+        
+        <div class="header-right">
+            <div class="lang-buttons">
+                <a href="?lang=kz" class="lang-btn {% if lang == 'kz' %}active{% endif %}">Қаз</a>
+                <a href="?lang=ru" class="lang-btn {% if lang == 'ru' %}active{% endif %}">Рус</a>
+                <a href="?lang=en" class="lang-btn {% if lang == 'en' %}active{% endif %}">Eng</a>
+            </div>
+            <a href="/admin/logout" class="logout-btn">Logout</a>
+        </div>
     </div>
     
     <div class="admin-container">
@@ -280,138 +488,118 @@
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-number" id="totalUsers">0</div>
-                <div class="stat-label">Всего пользователей</div>
+                <div class="stat-label" data-i18n="total_users">Total Users</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="totalSuppliers">0</div>
-                <div class="stat-label">Ресторанов</div>
+                <div class="stat-label" data-i18n="total_restaurants">Restaurants</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="totalCouriers">0</div>
-                <div class="stat-label">Курьеров</div>
+                <div class="stat-label" data-i18n="total_couriers">Couriers</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="totalRevenue">0 ₸</div>
-                <div class="stat-label">Общая выручка</div>
+                <div class="stat-label" data-i18n="total_revenue">Total Revenue</div>
             </div>
         </div>
         
-        <!-- 👥 ЗАЯВКИ НА ПОДТВЕРЖДЕНИЕ КУРЬЕРОВ -->
+        <!-- Pending Couriers -->
         <div class="section">
-            <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
                 <h2 class="section-title">
-                    👥 ЗАЯВКИ НА ПОДТВЕРЖДЕНИЕ КУРЬЕРОВ
-                    <span class="live-badge">● LIVE</span>
+                    <span data-i18n="pending_requests">Pending Courier Requests</span>
+                    <span class="live-badge">LIVE</span>
                     <span id="pendingBadge" class="badge-pending" style="display: none;">0</span>
                 </h2>
-                <button class="refresh-btn" onclick="loadPendingCouriers()">🔄 Обновить</button>
+                <button class="refresh-btn" onclick="loadPendingCouriers()"><span data-i18n="refresh">Refresh</span></button>
             </div>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Имя и фамилия</th>
-                            <th>Телефон</th>
-                            <th>Тип</th>
-                            <th>Автомобиль</th>
-                            <th>Госномер</th>
-                            <th>Дата заявки</th>
-                            <th>Действие</th>
+                            <th data-i18n="id">ID</th>
+                            <th data-i18n="name">Name</th>
+                            <th data-i18n="phone">Phone</th>
+                            <th data-i18n="type">Type</th>
+                            <th class="mobile-hide" data-i18n="car">Car</th>
+                            <th data-i18n="action">Action</th>
                         </tr>
                     </thead>
                     <tbody id="pendingCouriersTable">
-                        <tr>
-                            <td colspan="8" style="text-align: center;">Загрузка...<\/td>
-                        </tr>
+                        <tr><td colspan="6">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
         
-        <!-- ⏳ АКТИВНЫЕ БРОНИРОВАНИЯ (Ожидают оплаты) -->
+        <!-- Active Reservations -->
         <div class="section">
-            <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
                 <h2 class="section-title">
-                    ⏳ АКТИВНЫЕ БРОНИРОВАНИЯ (Ожидают оплаты)
-                    <span class="live-badge">● LIVE</span>
+                    <span data-i18n="active_reservations">Active Reservations</span>
+                    <span class="live-badge">LIVE</span>
                 </h2>
-                <button class="refresh-btn" onclick="loadActiveReservations()">🔄 Обновить</button>
+                <button class="refresh-btn" onclick="loadActiveReservations()"><span data-i18n="refresh">Refresh</span></button>
             </div>
             <div class="table-container">
-                <table>
+                <tr>
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Клиент</th>
-                            <th>Телефон</th>
-                            <th>Товар</th>
-                            <th>Ресторан</th>
-                            <th>Кол-во</th>
-                            <th>Сумма</th>
-                            <th>Времени осталось</th>
-                            <th>Забронирован</th>
-                            <th>Действие</th>
+                            <th data-i18n="customer">Customer</th>
+                            <th data-i18n="product">Product</th>
+                            <th data-i18n="amount">Amount</th>
+                            <th data-i18n="time_left">Time Left</th>
+                            <th data-i18n="action">Action</th>
                         </tr>
                     </thead>
                     <tbody id="reservationsTable">
-                        <tr>
-                            <td colspan="10" style="text-align: center;">Загрузка...<\/td>
-                        </tr>
+                        <tr><td colspan="6">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
         
-        <!-- 📋 ЗАКАЗЫ (ОПЛАЧЕННЫЕ) -->
+        <!-- Paid Orders -->
         <div class="section">
-            <h2 class="section-title">📋 ОПЛАЧЕННЫЕ ЗАКАЗЫ</h2>
+            <h2 class="section-title"><span data-i18n="paid_orders">Paid Orders</span></h2>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>№ заказа</th>
-                            <th>Клиент</th>
-                            <th>Телефон</th>
-                            <th>Товар</th>
-                            <th>Сумма</th>
-                            <th>Статус оплаты</th>
-                            <th>Статус заказа</th>
-                            <th>Дата</th>
-                            <th>Действие</th>
+                            <th data-i18n="order_number">Order #</th>
+                            <th data-i18n="customer">Customer</th>
+                            <th data-i18n="amount">Amount</th>
+                            <th data-i18n="payment_status">Payment</th>
+                            <th data-i18n="order_status">Status</th>
+                            <th data-i18n="action">Action</th>
                         </tr>
                     </thead>
                     <tbody id="ordersTable">
-                        <tr>
-                            <td colspan="10" style="text-align: center;">Загрузка...<\/td>
-                        </tr>
+                        <tr><td colspan="7">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
         
-        <!-- 🚚 КУРЬЕРЫ (ПОДТВЕРЖДЕННЫЕ) -->
+        <!-- Verified Couriers -->
         <div class="section">
-            <h2 class="section-title">🚚 ПОДТВЕРЖДЕННЫЕ КУРЬЕРЫ</h2>
+            <h2 class="section-title"><span data-i18n="verified_couriers">Verified Couriers</span></h2>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Имя</th>
-                            <th>Телефон</th>
-                            <th>Тип</th>
-                            <th>Авто</th>
-                            <th>Статус</th>
-                            <th>Доставок</th>
-                            <th>Рейтинг</th>
+                            <th data-i18n="name">Name</th>
+                            <th data-i18n="phone">Phone</th>
+                            <th data-i18n="status">Status</th>
+                            <th data-i18n="deliveries">Deliveries</th>
                         </tr>
                     </thead>
                     <tbody id="couriersTable">
-                        <tr>
-                            <td colspan="8" style="text-align: center;">Загрузка...<\/td>
-                        </tr>
+                        <tr><td colspan="5">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -419,396 +607,182 @@
     </div>
     
     <script>
-        // WebSocket для получения уведомлений в реальном времени
-        let adminWs = null;
-        
-        function connectAdminWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-            
-            ws.onopen = function() {
-                console.log('🔌 Admin WebSocket connected');
-                ws.send(JSON.stringify({ type: 'subscribe', channel: 'admin' }));
-            };
-            
-            ws.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                console.log('📨 Admin notification:', data);
-                
-                if (data.type === 'new_reservation') {
-                    showAdminNotification(`🆕 НОВОЕ БРОНИРОВАНИЕ! ${data.data.user_name} заказал ${data.data.bag_name} на ${data.data.amount} ₸`);
-                    loadActiveReservations();
-                    loadStats();
-                }
-                
-                if (data.type === 'new_courier_registration') {
-                    showAdminNotification(`🆕 НОВАЯ ЗАЯВКА! ${data.data.first_name} ${data.data.last_name} хочет стать курьером`);
-                    loadPendingCouriers();
-                    loadStats();
-                }
-            };
-            
-            ws.onclose = function() {
-                console.log('🔌 Admin WebSocket disconnected, reconnecting...');
-                setTimeout(connectAdminWebSocket, 3000);
-            };
-            
-            ws.onerror = function(error) {
-                console.error('WebSocket error:', error);
-            };
-            
-            adminWs = ws;
-        }
-        
-        function showAdminNotification(message) {
-            if (Notification.permission === 'granted') {
-                new Notification('Sarqyn Admin', { body: message });
+        const translations = {
+            kz: {
+                total_users: 'Жалпы пайдаланушылар', total_restaurants: 'Мейрамханалар', total_couriers: 'Курьерлер', total_revenue: 'Жалпы табыс',
+                pending_requests: 'Курьерлердің өтініштері', active_reservations: 'Белсенді броньдаулар', paid_orders: 'Төленген тапсырыстар', verified_couriers: 'Расталған курьерлер',
+                id: 'ID', name: 'Аты', phone: 'Телефон', type: 'Түрі', car: 'Көлік', action: 'Әрекет', customer: 'Клиент', product: 'Тауар',
+                amount: 'Сома', time_left: 'Уақыт қалды', order_number: 'Тапсырыс №', payment_status: 'Төлем күйі', order_status: 'Тапсырыс күйі',
+                status: 'Күй', deliveries: 'Жеткізулер', refresh: 'Жаңарту'
+            },
+            ru: {
+                total_users: 'Всего пользователей', total_restaurants: 'Ресторанов', total_couriers: 'Курьеров', total_revenue: 'Общая выручка',
+                pending_requests: 'Заявки на подтверждение курьеров', active_reservations: 'Активные бронирования', paid_orders: 'Оплаченные заказы', verified_couriers: 'Подтвержденные курьеры',
+                id: 'ID', name: 'Имя', phone: 'Телефон', type: 'Тип', car: 'Автомобиль', action: 'Действие', customer: 'Клиент', product: 'Товар',
+                amount: 'Сумма', time_left: 'Времени осталось', order_number: '№ заказа', payment_status: 'Статус оплаты', order_status: 'Статус заказа',
+                status: 'Статус', deliveries: 'Доставок', refresh: 'Обновить'
+            },
+            en: {
+                total_users: 'Total Users', total_restaurants: 'Restaurants', total_couriers: 'Couriers', total_revenue: 'Total Revenue',
+                pending_requests: 'Pending Courier Requests', active_reservations: 'Active Reservations', paid_orders: 'Paid Orders', verified_couriers: 'Verified Couriers',
+                id: 'ID', name: 'Name', phone: 'Phone', type: 'Type', car: 'Car', action: 'Action', customer: 'Customer', product: 'Product',
+                amount: 'Amount', time_left: 'Time Left', order_number: 'Order #', payment_status: 'Payment Status', order_status: 'Order Status',
+                status: 'Status', deliveries: 'Deliveries', refresh: 'Refresh'
             }
-            const toast = document.createElement('div');
-            toast.className = 'notification';
-            toast.innerHTML = '🎉 ' + message;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 5000);
-        }
+        };
         
-        // Загрузка статистики
-        async function loadStats() {
-            try {
-                const response = await fetch('/api/admin/stats', { credentials: 'include' });
-                const data = await response.json();
-                
-                document.getElementById('totalUsers').textContent = data.total_users || 0;
-                document.getElementById('totalSuppliers').textContent = data.total_suppliers || 0;
-                document.getElementById('totalCouriers').textContent = data.total_couriers || 0;
-                document.getElementById('totalRevenue').textContent = (data.total_revenue || 0).toLocaleString() + ' ₸';
-                
-                const pendingCount = data.pending_couriers || 0;
-                const pendingBadge = document.getElementById('pendingBadge');
-                if (pendingBadge) {
-                    pendingBadge.style.display = pendingCount > 0 ? 'inline-block' : 'none';
-                    pendingBadge.textContent = pendingCount;
-                }
-            } catch (error) {
-                console.error('Error loading stats:', error);
-            }
-        }
+        let currentLang = '{{ lang }}';
         
-        // ЗАГРУЗКА ЗАЯВОК НА ПОДТВЕРЖДЕНИЕ
-        async function loadPendingCouriers() {
-            try {
-                const response = await fetch('/api/admin/pending-couriers', { credentials: 'include' });
-                const data = await response.json();
-                const tbody = document.getElementById('pendingCouriersTable');
-                
-                if (!data.couriers || data.couriers.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">✅ Нет новых заявок</td></tr>';
-                    return;
+        function updateUI() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[currentLang] && translations[currentLang][key]) {
+                    el.textContent = translations[currentLang][key];
                 }
-                
-                tbody.innerHTML = '';
-                for (const c of data.couriers) {
-                    const row = `
-                        <tr>
-                            <td>#${c.id}</td>
-                            <td><strong>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</strong></td>
-                            <td>${escapeHtml(c.phone)}</td>
-                            <td>${c.courier_type === 'driver' ? '🚗 На машине' : '🚶 Пеший'}</td>
-                            <td>${escapeHtml(c.car_model || '-')}</td>
-                            <td>${escapeHtml(c.car_number || '-')}</td>
-                            <td>${new Date(c.created_at).toLocaleString()}</td>
-                            <td>
-                                <button class="btn-verify" onclick="verifyCourier(${c.id})">✅ Подтвердить</button>
-                                <button class="btn-reject" onclick="rejectCourier(${c.id})">❌ Отклонить</button>
-                            </td>
-                        </tr>
-                    `;
-                    tbody.innerHTML += row;
-                }
-            } catch (error) {
-                console.error('Error loading pending couriers:', error);
-                document.getElementById('pendingCouriersTable').innerHTML = '<tr><td colspan="8" style="text-align: center; color: red;">❌ Ошибка загрузки</td></tr>';
-            }
-        }
-        
-        // ПОДТВЕРЖДЕНИЕ КУРЬЕРА
-        async function verifyCourier(courierId) {
-            if (!confirm('Подтвердить регистрацию курьера?')) return;
-            try {
-                const response = await fetch(`/api/admin/verify-courier/${courierId}`, { method: 'POST', credentials: 'include' });
-                const data = await response.json();
-                if (data.success) {
-                    alert('✅ Курьер подтвержден!');
-                    loadPendingCouriers();
-                    loadCouriers();
-                    loadStats();
-                } else {
-                    alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
-                }
-            } catch (error) {
-                alert('❌ Ошибка при подтверждении');
-            }
-        }
-        
-        // ОТКЛОНЕНИЕ ЗАЯВКИ
-        async function rejectCourier(courierId) {
-            if (!confirm('Отклонить заявку курьера?')) return;
-            try {
-                const response = await fetch(`/api/admin/reject-courier/${courierId}`, { method: 'POST', credentials: 'include' });
-                const data = await response.json();
-                if (data.success) {
-                    alert('❌ Заявка отклонена');
-                    loadPendingCouriers();
-                    loadStats();
-                } else {
-                    alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
-                }
-            } catch (error) {
-                alert('❌ Ошибка при отклонении');
-            }
-        }
-        
-        // Загрузка активных бронирований
-        async function loadActiveReservations() {
-            try {
-                const response = await fetch('/api/admin/reservations', { credentials: 'include' });
-                const data = await response.json();
-                const tbody = document.getElementById('reservationsTable');
-                
-                if (!data.reservations || data.reservations.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">✅ Нет активных бронирований</td></tr>';
-                    return;
-                }
-                
-                tbody.innerHTML = '';
-                for (const res of data.reservations) {
-                    const timeLeft = res.time_left_minutes;
-                    const timeClass = timeLeft < 3 ? 'timer-warning' : '';
-                    const row = `
-                        <tr>
-                            <td>#${res.id}</td>
-                            <td><strong>${escapeHtml(res.user_name)}</strong></td>
-                            <td>${escapeHtml(res.user_phone)}</td>
-                            <td>${escapeHtml(res.bag_name)}</td>
-                            <td>${escapeHtml(res.supplier_name)}</td>
-                            <td>${res.quantity}</td>
-                            <td><strong>${res.total_amount.toLocaleString()} ₸</strong></td>
-                            <td class="${timeClass}">⏰ ${timeLeft} мин</td>
-                            <td>${new Date(res.reserved_at).toLocaleTimeString()}</td>
-                            <td>
-                                <button class="btn-paid" onclick="markAsPaid(${res.id})">💰 Отметить оплаченным</button>
-                            </td>
-                        </tr>
-                    `;
-                    tbody.innerHTML += row;
-                }
-            } catch (error) {
-                console.error('Error loading reservations:', error);
-                document.getElementById('reservationsTable').innerHTML = '<tr><td colspan="10" style="text-align: center; color: red;">❌ Ошибка загрузки</td></tr>';
-            }
-        }
-        
-        // ОТМЕТИТЬ БРОНИРОВАНИЕ КАК ОПЛАЧЕННОЕ
-// В админ-панели, функция markAsPaid
-async function markAsPaid(reservationId) {
-    if (!confirm('Подтвердить оплату и создать заказ?')) return;
-    
-    try {
-        const response = await fetch(`/api/admin/mark-reservation-paid/${reservationId}`, {
-            method: 'POST',
-            credentials: 'include'
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            alert('✅ Оплата подтверждена! Заказ создан и отправлен курьерам.');
-            loadActiveReservations();  // Обновляем список бронирований
-            loadOrders();              // Обновляем список заказов
-            loadStats();               // Обновляем статистику
-        } else {
-            alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('❌ Ошибка при подтверждении оплаты');
-    }
-}
-        
-        // Загрузка оплаченных заказов
-        async function loadOrders() {
-            try {
-                const response = await fetch('/api/admin/orders', { credentials: 'include' });
-                const data = await response.json();
-                const tbody = document.getElementById('ordersTable');
-                
-                if (!data.orders || data.orders.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="10" style="text-align: center;">📭 Нет заказов</td></tr>';
-                    return;
-                }
-                
-                tbody.innerHTML = '';
-                for (const order of data.orders) {
-                    const row = `
-                        <tr>
-                            <td>#${order.id}</td>
-                            <td>${order.order_number}</td>
-                            <td>${escapeHtml(order.customer_name)}</td>
-                            <td>${escapeHtml(order.customer_phone)}</td>
-                            <td>${escapeHtml(order.bag_name)}</td>
-                            <td><strong>${order.amount.toLocaleString()} ₸</strong></td>
-                            <td>
-                                <select class="status-select" data-order-id="${order.id}" data-field="payment_status">
-                                    <option value="pending" ${order.payment_status === 'pending' ? 'selected' : ''}>⏳ Ожидает оплаты</option>
-                                    <option value="paid" ${order.payment_status === 'paid' ? 'selected' : ''}>✅ Оплачен</option>
-                                    <option value="refunded" ${order.payment_status === 'refunded' ? 'selected' : ''}>💰 Возвращен</option>
-                                </select>
-                            </td>
-                            <td>
-                                <select class="status-select" data-order-id="${order.id}" data-field="order_status">
-                                    <option value="pending" ${order.status === 'pending' ? 'selected' : ''}>⏳ Ожидает</option>
-                                    <option value="confirmed" ${order.status === 'confirmed' ? 'selected' : ''}>✅ Подтвержден</option>
-                                    <option value="preparing" ${order.status === 'preparing' ? 'selected' : ''}>🍳 Готовится</option>
-                                    <option value="ready_for_pickup" ${order.status === 'ready_for_pickup' ? 'selected' : ''}>📦 Готов к выдаче</option>
-                                    <option value="out_for_delivery" ${order.status === 'out_for_delivery' ? 'selected' : ''}>🚚 В пути</option>
-                                    <option value="delivered" ${order.status === 'delivered' ? 'selected' : ''}>🏠 Доставлен</option>
-                                    <option value="cancelled" ${order.status === 'cancelled' ? 'selected' : ''}>❌ Отменен</option>
-                                </select>
-                            </td>
-                            <td>${new Date(order.created_at).toLocaleString()}</td>
-                            <td>
-                                <button class="btn-refund" onclick="processRefund(${order.id})">💰 Возврат</button>
-                            </td>
-                        </tr>
-                    `;
-                    tbody.innerHTML += row;
-                }
-                
-                // Добавляем обработчики для select
-                document.querySelectorAll('.status-select').forEach(select => {
-                    select.addEventListener('change', function() {
-                        const orderId = this.getAttribute('data-order-id');
-                        const field = this.getAttribute('data-field');
-                        const newValue = this.value;
-                        updateOrderStatus(orderId, field, newValue);
-                    });
-                });
-            } catch (error) {
-                console.error('Error loading orders:', error);
-                document.getElementById('ordersTable').innerHTML = '<tr><td colspan="10" style="text-align: center; color: red;">❌ Ошибка загрузки</td></tr>';
-            }
-        }
-        
-        // Обновление статуса заказа
-        async function updateOrderStatus(orderId, field, newValue) {
-            try {
-                const response = await fetch(`/api/admin/update-order-status/${orderId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ field: field, value: newValue })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    showAdminNotification(`✅ Заказ #${orderId}: статус изменен на ${newValue}`);
-                    loadOrders();
-                    loadStats();
-                } else {
-                    alert('❌ Ошибка обновления статуса');
-                    loadOrders(); // Перезагружаем для сброса select
-                }
-            } catch (error) {
-                console.error('Error updating order status:', error);
-                alert('❌ Ошибка при обновлении статуса');
-                loadOrders();
-            }
-        }
-        
-        // Обработка возврата
-        async function processRefund(orderId) {
-            if (!confirm('Вы уверены, что хотите вернуть деньги за этот заказ?')) return;
-            const reason = prompt('Укажите причину возврата:');
-            if (!reason) return;
-            
-            try {
-                const response = await fetch(`/api/admin/process-refund/${orderId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ reason: reason })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    alert('✅ Возврат обработан! Деньги возвращены клиенту.');
-                    loadOrders();
-                    loadStats();
-                } else {
-                    alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
-                }
-            } catch (error) {
-                alert('❌ Ошибка при возврате');
-            }
-        }
-        
-        // Загрузка подтвержденных курьеров
-        async function loadCouriers() {
-            try {
-                const response = await fetch('/api/admin/couriers', { credentials: 'include' });
-                const data = await response.json();
-                const tbody = document.getElementById('couriersTable');
-                
-                if (!data.couriers || data.couriers.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">🚚 Нет курьеров</td></tr>';
-                    return;
-                }
-                
-                tbody.innerHTML = '';
-                for (const courier of data.couriers) {
-                    const row = `
-                        <tr>
-                            <td>#${courier.id}</td>
-                            <td>${escapeHtml(courier.first_name)} ${escapeHtml(courier.last_name)}</td>
-                            <td>${escapeHtml(courier.phone)}</td>
-                            <td>${courier.courier_type === 'driver' ? '🚗 На машине' : '🚶 Пеший'}</td>
-                            <td>${escapeHtml(courier.car_model || '-')} ${escapeHtml(courier.car_number || '')}</td>
-                            <td>${courier.is_online ? '🟢 Онлайн' : '⚫ Офлайн'}</td>
-                            <td>${courier.total_deliveries}</td>
-                            <td>⭐ ${courier.rating}</td>
-                        </tr>
-                    `;
-                    tbody.innerHTML += row;
-                }
-            } catch (error) {
-                console.error('Error loading couriers:', error);
-                document.getElementById('couriersTable').innerHTML = '<tr><td colspan="8" style="text-align: center;">❌ Ошибка загрузки</td></tr>';
-            }
-        }
-        
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;';
             });
         }
         
-        // Автообновление каждые 30 секунд
-        setInterval(() => {
-            loadPendingCouriers();
-            loadActiveReservations();
-            loadOrders();
-            loadCouriers();
-            loadStats();
-        }, 30000);
+        let ws = null;
         
-        if (Notification.permission === 'default') {
-            Notification.requestPermission();
+        function connectWS() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${location.host}/ws`);
+            ws.onopen = () => ws.send(JSON.stringify({ type: 'subscribe', channel: 'admin' }));
+            ws.onmessage = (e) => { const d = JSON.parse(e.data); if (d.type === 'new_reservation') { showNotif('New reservation!'); loadReservations(); loadStats(); } if (d.type === 'new_courier_registration') { showNotif('New courier request!'); loadPending(); loadStats(); } };
+            ws.onclose = () => setTimeout(connectWS, 3000);
         }
         
-        loadStats();
-        loadPendingCouriers();
-        loadActiveReservations();
-        loadOrders();
-        loadCouriers();
-        connectAdminWebSocket();
+        function showNotif(m) { if (Notification.permission === 'granted') new Notification('Sarqyt GO', { body: m }); const t = document.createElement('div'); t.className = 'notification'; t.innerHTML = m; document.body.appendChild(t); setTimeout(() => t.remove(), 5000); }
+        
+        async function loadStats() {
+            try {
+                const r = await fetch('/api/admin/stats', { credentials: 'include' });
+                const d = await r.json();
+                document.getElementById('totalUsers').innerText = d.total_users || 0;
+                document.getElementById('totalSuppliers').innerText = d.total_suppliers || 0;
+                document.getElementById('totalCouriers').innerText = d.total_couriers || 0;
+                document.getElementById('totalRevenue').innerText = (d.total_revenue || 0).toLocaleString() + ' ₸';
+                const b = document.getElementById('pendingBadge');
+                if (b) { b.style.display = d.pending_couriers > 0 ? 'inline-block' : 'none'; b.innerText = d.pending_couriers || 0; }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function loadPending() {
+            try {
+                const r = await fetch('/api/admin/pending-couriers', { credentials: 'include' });
+                const d = await r.json();
+                const tbody = document.getElementById('pendingCouriersTable');
+                if (!d.couriers || d.couriers.length === 0) { tbody.innerHTML = '<tr><td colspan="6">No pending requests</td></tr>'; return; }
+                tbody.innerHTML = '';
+                for (const c of d.couriers) {
+                    tbody.innerHTML += `<tr>
+                        <td>#${c.id}</td>
+                        <td><strong>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</strong></td>
+                        <td>${escapeHtml(c.phone)}</td>
+                        <td>${c.courier_type === 'driver' ? 'Driver' : 'Pedestrian'}</td>
+                        <td class="mobile-hide">${escapeHtml(c.car_model || '-')}</td>
+                        <td><button class="btn-verify" onclick="verifyCourier(${c.id})">Verify</button><button class="btn-reject" onclick="rejectCourier(${c.id})">Reject</button></td>
+                    </tr>`;
+                }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function verifyCourier(id) { if (!confirm('Verify courier?')) return; try { const r = await fetch(`/api/admin/verify-courier/${id}`, { method: 'POST', credentials: 'include' }); const d = await r.json(); if (d.success) { alert('Verified!'); loadPending(); loadCouriers(); loadStats(); } } catch(e) { alert('Error'); } }
+        async function rejectCourier(id) { if (!confirm('Reject courier?')) return; try { const r = await fetch(`/api/admin/reject-courier/${id}`, { method: 'POST', credentials: 'include' }); const d = await r.json(); if (d.success) { alert('Rejected'); loadPending(); loadStats(); } } catch(e) { alert('Error'); } }
+        
+        async function loadReservations() {
+            try {
+                const r = await fetch('/api/admin/reservations', { credentials: 'include' });
+                const d = await r.json();
+                const tbody = document.getElementById('reservationsTable');
+                if (!d.reservations || d.reservations.length === 0) { tbody.innerHTML = '<tr><td colspan="6">No active reservations</td></tr>'; return; }
+                tbody.innerHTML = '';
+                for (const res of d.reservations) {
+                    const timeLeft = res.time_left_minutes;
+                    tbody.innerHTML += `<tr>
+                        <td>#${res.id}</td>
+                        <td>${escapeHtml(res.user_name)}</td>
+                        <td>${escapeHtml(res.bag_name)}</td>
+                        <td><strong>${res.total_amount.toLocaleString()} ₸</strong></td>
+                        <td class="${timeLeft < 3 ? 'timer-warning' : ''}">${timeLeft} min</td>
+                        <td><button class="btn-paid" onclick="markPaid(${res.id})">Mark Paid</button></td>
+                    </tr>`;
+                }
+            } catch(e) { console.error(e); }
+        }
+        
+        async function markPaid(id) { if (!confirm('Confirm payment?')) return; try { const r = await fetch(`/api/admin/mark-reservation-paid/${id}`, { method: 'POST', credentials: 'include' }); const d = await r.json(); if (d.success) { alert('Payment confirmed!'); loadReservations(); loadOrders(); loadStats(); } } catch(e) { alert('Error'); } }
+        
+        async function loadOrders() {
+            try {
+                const r = await fetch('/api/admin/orders', { credentials: 'include' });
+                const d = await r.json();
+                const tbody = document.getElementById('ordersTable');
+                if (!d.orders || d.orders.length === 0) { tbody.innerHTML = '<tr><td colspan="7">No orders</td></tr>'; return; }
+                tbody.innerHTML = '';
+                for (const o of d.orders) {
+                    tbody.innerHTML += `<tr>
+                        <td>#${o.id}</td>
+                        <td>${o.order_number}</td>
+                        <td>${escapeHtml(o.customer_name)}</td>
+                        <td><strong>${o.amount.toLocaleString()} ₸</strong></td>
+                        <td><select class="status-select" data-id="${o.id}" data-field="payment_status"><option value="pending" ${o.payment_status === 'pending' ? 'selected' : ''}>Pending</option><option value="paid" ${o.payment_status === 'paid' ? 'selected' : ''}>Paid</option><option value="refunded" ${o.payment_status === 'refunded' ? 'selected' : ''}>Refunded</option></select></td>
+                        <td><select class="status-select" data-id="${o.id}" data-field="order_status"><option value="pending" ${o.status === 'pending' ? 'selected' : ''}>Pending</option><option value="confirmed" ${o.status === 'confirmed' ? 'selected' : ''}>Confirmed</option><option value="preparing" ${o.status === 'preparing' ? 'selected' : ''}>Preparing</option><option value="ready_for_pickup" ${o.status === 'ready_for_pickup' ? 'selected' : ''}>Ready</option><option value="out_for_delivery" ${o.status === 'out_for_delivery' ? 'selected' : ''}>In Transit</option><option value="delivered" ${o.status === 'delivered' ? 'selected' : ''}>Delivered</option><option value="cancelled" ${o.status === 'cancelled' ? 'selected' : ''}>Cancelled</option></select></td>
+                        <td><button class="btn-refund" onclick="refund(${o.id})">Refund</button></td>
+                    </tr>`;
+                }
+                document.querySelectorAll('.status-select').forEach(s => { s.addEventListener('change', function() { updateStatus(this.dataset.id, this.dataset.field, this.value); }); });
+            } catch(e) { console.error(e); }
+        }
+        
+        async function updateStatus(id, field, val) { try { const r = await fetch(`/api/admin/update-order-status/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ field, value: val }) }); const d = await r.json(); if (d.success) { loadOrders(); loadStats(); } } catch(e) { console.error(e); } }
+        async function refund(id) { if (!confirm('Refund?')) return; const reason = prompt('Reason:'); if (!reason) return; try { const r = await fetch(`/api/admin/process-refund/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ reason }) }); const d = await r.json(); if (d.success) { alert('Refund processed!'); loadOrders(); loadStats(); } } catch(e) { alert('Error'); } }
+        
+        async function loadCouriers() {
+            try {
+                const r = await fetch('/api/admin/couriers', { credentials: 'include' });
+                const d = await r.json();
+                const tbody = document.getElementById('couriersTable');
+                if (!d.couriers || d.couriers.length === 0) { tbody.innerHTML = '<tr><td colspan="5">No couriers</td></tr>'; return; }
+                tbody.innerHTML = '';
+                for (const c of d.couriers) {
+                    tbody.innerHTML += `<tr>
+                        <td>#${c.id}</td>
+                        <td>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</td>
+                        <td class="mobile-hide">${escapeHtml(c.phone)}</td>
+                        <td>${c.is_online ? 'Online' : 'Offline'}</td>
+                        <td>${c.total_deliveries}</td>
+                    </tr>`;
+                }
+            } catch(e) { console.error(e); }
+        }
+        
+        function escapeHtml(s) { if (!s) return ''; return s.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
+        
+        // Splash screen - only once per session
+        (function() {
+            var splash = document.getElementById('splash');
+            if (!splash) return;
+            
+            if (!sessionStorage.getItem('splash_shown_admin_dashboard')) {
+                splash.style.display = 'flex';
+                setTimeout(function() {
+                    splash.classList.add('splash-hidden');
+                    setTimeout(function() {
+                        splash.style.display = 'none';
+                        sessionStorage.setItem('splash_shown_admin_dashboard', 'true');
+                    }, 500);
+                }, 1500);
+            } else {
+                splash.style.display = 'none';
+            }
+        })();
+        
+        if (Notification.permission === 'default') Notification.requestPermission();
+        
+        updateUI();
+        loadStats(); loadPending(); loadReservations(); loadOrders(); loadCouriers(); connectWS();
+        setInterval(() => { loadPending(); loadReservations(); loadOrders(); loadCouriers(); loadStats(); }, 30000);
     </script>
 </body>
 </html>

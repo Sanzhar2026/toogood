@@ -2,18 +2,106 @@
 
 {% block content %}
 <style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    
+    /* Splash Screen */
+    .splash-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #0f172a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease;
+    }
+    
+    .splash-content {
+        text-align: center;
+    }
+    
+    .splash-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 1rem;
+        border-radius: 50%;
+        overflow: hidden;
+        background: #1e293b;
+    }
+    
+    .splash-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .splash-title {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: white;
+    }
+    
+    .splash-title span {
+        color: #fbbf24;
+    }
+    
+    .splash-loader {
+        width: 40px;
+        height: 40px;
+        margin: 1rem auto 0;
+        border: 3px solid #334155;
+        border-top-color: #fbbf24;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    .splash-hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+    
     .login-container {
-        max-width: 400px;
-        margin: 100px auto;
+        max-width: 450px;
+        margin: 60px auto;
         background: white;
-        border-radius: 20px;
-        padding: 40px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        border-radius: 24px;
+        padding: 2rem;
+        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+        animation: fadeInUp 0.5s ease;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @media (min-width: 768px) {
+        .login-container {
+            padding: 2.5rem;
+            margin: 100px auto;
+        }
     }
     
     .login-header {
         text-align: center;
-        margin-bottom: 30px;
+        margin-bottom: 2rem;
     }
     
     .login-logo {
@@ -21,17 +109,31 @@
         align-items: center;
         justify-content: center;
         gap: 8px;
-        margin-bottom: 15px;
+        margin-bottom: 1rem;
     }
     
-    .login-logo img {
-        width: 40px;
-        height: 40px;
+    .login-logo-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        overflow: hidden;
+    }
+    
+    .login-logo-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
     
     .login-logo-text {
-        font-size: 24px;
+        font-size: 1.5rem;
         font-weight: 800;
+    }
+    
+    @media (min-width: 768px) {
+        .login-logo-text {
+            font-size: 1.8rem;
+        }
     }
     
     .login-logo-text .sarqyt {
@@ -42,68 +144,193 @@
         color: #fbbf24;
     }
     
-    .form-group {
-        margin-bottom: 20px;
+    .login-header h2 {
+        font-size: 1.1rem;
+        color: #64748b;
+        font-weight: normal;
     }
+    
+    @media (min-width: 768px) {
+        .login-header h2 {
+            font-size: 1.25rem;
+        }
+    }
+    
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+    
     label {
         display: block;
-        margin-bottom: 8px;
+        margin-bottom: 0.5rem;
         font-weight: 600;
-        color: #166534;
+        color: #0f172a;
+        font-size: 0.85rem;
     }
+    
+    @media (min-width: 768px) {
+        label {
+            font-size: 0.9rem;
+        }
+    }
+    
     input {
         width: 100%;
-        padding: 12px;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        font-size: 14px;
+        padding: 0.75rem 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        font-size: 0.85rem;
+        transition: all 0.2s;
     }
+    
+    @media (min-width: 768px) {
+        input {
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+        }
+    }
+    
     input:focus {
         outline: none;
-        border-color: #166534;
+        border-color: #fbbf24;
+        box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1);
     }
+    
     .btn-login {
         width: 100%;
-        background: #166534;
+        background: #0f172a;
         color: white;
-        padding: 14px;
+        padding: 0.75rem;
         border: none;
-        border-radius: 8px;
-        font-size: 16px;
-        font-weight: bold;
+        border-radius: 0.75rem;
+        font-size: 0.9rem;
+        font-weight: 600;
         cursor: pointer;
+        transition: all 0.2s;
     }
+    
+    @media (min-width: 768px) {
+        .btn-login {
+            padding: 0.75rem;
+            font-size: 1rem;
+        }
+    }
+    
     .btn-login:hover {
-        background: #0f4a27;
+        background: #1e293b;
+        transform: translateY(-1px);
     }
-    h2 {
-        color: #166534;
-        text-align: center;
-        margin-bottom: 30px;
-    }
+    
     .register-link {
         text-align: center;
-        margin-top: 20px;
+        margin-top: 1.25rem;
     }
+    
+    .register-link a {
+        color: #fbbf24;
+        text-decoration: none;
+        font-size: 0.85rem;
+    }
+    
+    .register-link a:hover {
+        text-decoration: underline;
+    }
+    
     .error-msg {
         background: #fee2e2;
         color: #dc2626;
-        padding: 10px;
-        border-radius: 8px;
-        margin-bottom: 20px;
+        padding: 0.75rem;
+        border-radius: 0.75rem;
+        margin-bottom: 1.25rem;
         text-align: center;
+        font-size: 0.85rem;
+    }
+    
+    .info-box {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        background: #f0fdf4;
+        border-radius: 0.75rem;
+        border-left: 3px solid #10b981;
+    }
+    
+    .info-box p {
+        font-size: 0.7rem;
+        color: #065f46;
+        line-height: 1.5;
+    }
+    
+    @media (min-width: 768px) {
+        .info-box p {
+            font-size: 0.75rem;
+        }
+    }
+    
+    .lang-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .lang-btn {
+        background: #f1f5f9;
+        color: #64748b;
+        border: none;
+        padding: 0.3rem 0.8rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        font-size: 0.7rem;
+        font-weight: 500;
+        text-decoration: none;
+    }
+    
+    @media (min-width: 768px) {
+        .lang-btn {
+            padding: 0.4rem 1rem;
+            font-size: 0.8rem;
+        }
+    }
+    
+    .lang-btn.active {
+        background: #fbbf24;
+        color: #0f172a;
+    }
+    
+    .lang-btn:hover:not(.active) {
+        background: #e2e8f0;
+        color: #0f172a;
     }
 </style>
+
+<!-- Splash Screen -->
+<div id="splash" class="splash-screen">
+    <div class="splash-content">
+        <div class="splash-icon">
+            <img src="/static/images/icon.png" alt="Sarqyt GO">
+        </div>
+        <div class="splash-title">Sarqyt <span>GO</span></div>
+        <div class="splash-loader"></div>
+    </div>
+</div>
 
 <div class="login-container">
     <div class="login-header">
         <div class="login-logo">
-            <img src="/static/images/icon.png" alt="Sarqyt GO">
+            <div class="login-logo-icon">
+                <img src="/static/images/icon.png" alt="Sarqyt GO">
+            </div>
             <div class="login-logo-text">
                 <span class="sarqyt">Sarqyt</span><span class="go">GO</span>
             </div>
         </div>
-        <h2>🏪 {% if lang == 'kz' %}Дүкен кабинетіне кіру{% else %}Вход в кабинет магазина{% endif %}</h2>
+        <h2 data-i18n="login_title">Supplier Login</h2>
+    </div>
+    
+    <div class="lang-buttons">
+        <a href="?lang=kz" class="lang-btn {% if lang == 'kz' %}active{% endif %}">Қаз</a>
+        <a href="?lang=ru" class="lang-btn {% if lang == 'ru' %}active{% endif %}">Рус</a>
+        <a href="?lang=en" class="lang-btn {% if lang == 'en' %}active{% endif %}">Eng</a>
     </div>
     
     {% if error %}
@@ -112,36 +339,79 @@
     
     <form method="post" action="/supplier/login">
         <div class="form-group">
-            <label>Email</label>
+            <label data-i18n="email">Email</label>
             <input type="email" name="email" required autofocus>
         </div>
         
         <div class="form-group">
-            <label>{% if lang == 'kz' %}Құпия сөз{% else %}Пароль{% endif %}</label>
+            <label data-i18n="password">Password</label>
             <input type="password" name="password" required>
         </div>
         
-        <button type="submit" class="btn-login">
-            🔑 {% if lang == 'kz' %}Кіру{% else %}Войти{% endif %}
-        </button>
+        <button type="submit" class="btn-login" data-i18n="login_btn">Login</button>
         
         <div class="register-link">
-            <a href="/supplier/register">{% if lang == 'kz' %}Дүкен ретінде тіркелу{% else %}Зарегистрироваться как магазин{% endif %}</a>
+            <a href="/supplier/register" data-i18n="register_link">Register as supplier</a>
         </div>
     </form>
     
-    <div style="margin-top: 30px; padding: 15px; background: #f0fdf4; border-radius: 8px;">
-        <p style="font-size: 13px; color: #166534; text-align: center;">
-            💡 {% if lang == 'kz' %}Тіркелгеннен кейін сіз:<br>
-            - Тосын сыйлар қоса аласыз<br>
-            - Тапсырыстарды басқара аласыз<br>
-            - Статистиканы көре аласыз
-            {% else %}После регистрации вы сможете:<br>
-            - Добавлять сюрпризы<br>
-            - Управлять заказами<br>
-            - Видеть статистику
-            {% endif %}
-        </p>
+    <div class="info-box">
+        <p data-i18n="info_text">After registration you can: add surprise bags, manage orders, view statistics</p>
     </div>
 </div>
+
+<script>
+    // Hide splash screen after load
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            var splash = document.getElementById('splash');
+            if (splash) {
+                splash.classList.add('splash-hidden');
+                setTimeout(function() {
+                    splash.style.display = 'none';
+                }, 500);
+            }
+        }, 1000);
+    });
+    
+    const translations = {
+        kz: {
+            login_title: 'Дүкен кабинетіне кіру',
+            email: 'Электрондық пошта',
+            password: 'Құпия сөз',
+            login_btn: 'Кіру',
+            register_link: 'Дүкен ретінде тіркелу',
+            info_text: 'Тіркелгеннен кейін сіз: Тосын сыйлар қоса аласыз, Тапсырыстарды басқара аласыз, Статистиканы көре аласыз'
+        },
+        ru: {
+            login_title: 'Вход в кабинет магазина',
+            email: 'Email',
+            password: 'Пароль',
+            login_btn: 'Войти',
+            register_link: 'Зарегистрироваться как магазин',
+            info_text: 'После регистрации вы сможете: Добавлять сюрпризы, Управлять заказами, Видеть статистику'
+        },
+        en: {
+            login_title: 'Supplier Login',
+            email: 'Email',
+            password: 'Password',
+            login_btn: 'Login',
+            register_link: 'Register as supplier',
+            info_text: 'After registration you can: add surprise bags, manage orders, view statistics'
+        }
+    };
+    
+    let currentLang = '{{ lang }}';
+    
+    function updateUI() {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (translations[currentLang] && translations[currentLang][key]) {
+                el.textContent = translations[currentLang][key];
+            }
+        });
+    }
+    
+    updateUI();
+</script>
 {% endblock %}
