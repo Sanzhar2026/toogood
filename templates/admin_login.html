@@ -1,11 +1,10 @@
-<!-- templates/admin_login.html - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ -->
+<!-- templates/admin_login.html -->
 <!DOCTYPE html>
-<html lang="{{ lang }}">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Sarqyt GO - Admin Login</title>
-    <link rel="icon" type="image/png" href="/icon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в панель администратора - Sarqyn Food</title>
     <style>
         * {
             margin: 0;
@@ -23,87 +22,13 @@
             padding: 1rem;
         }
         
-        .splash-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #0f172a;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease;
-        }
-        
-        .splash-content {
-            text-align: center;
-        }
-        
-        .splash-icon {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 1rem;
-            border-radius: 50%;
-            overflow: hidden;
-            background: #1e293b;
-        }
-        
-        .splash-icon img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .splash-title {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: white;
-        }
-        
-        .splash-title span {
-            color: #fbbf24;
-        }
-        
-        .splash-loader {
-            width: 40px;
-            height: 40px;
-            margin: 1rem auto 0;
-            border: 3px solid #334155;
-            border-top-color: #fbbf24;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .splash-hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-        
         .login-container {
             background: white;
             border-radius: 2rem;
-            padding: 2rem;
+            padding: 2.5rem;
             max-width: 450px;
             width: 100%;
             box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
-            animation: fadeInUp 0.5s ease;
-        }
-        
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        @media (min-width: 768px) {
-            .login-container {
-                padding: 2.5rem;
-            }
         }
         
         .logo {
@@ -111,30 +36,9 @@
             margin-bottom: 2rem;
         }
         
-        .logo-icon {
-            width: 64px;
-            height: 64px;
-            margin: 0 auto 1rem;
-            border-radius: 50%;
-            overflow: hidden;
-            background: #f1f5f9;
-        }
-        
-        .logo-icon img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
         .logo h1 {
-            font-size: 1.5rem;
+            font-size: 2rem;
             color: #0f172a;
-        }
-        
-        @media (min-width: 768px) {
-            .logo h1 {
-                font-size: 2rem;
-            }
         }
         
         .logo span {
@@ -143,14 +47,8 @@
         
         .logo p {
             color: #64748b;
-            font-size: 0.8rem;
+            font-size: 0.85rem;
             margin-top: 0.5rem;
-        }
-        
-        @media (min-width: 768px) {
-            .logo p {
-                font-size: 0.85rem;
-            }
         }
         
         .form-group {
@@ -162,7 +60,6 @@
             margin-bottom: 0.5rem;
             font-weight: 600;
             color: #0f172a;
-            font-size: 0.9rem;
         }
         
         input {
@@ -170,20 +67,14 @@
             padding: 0.75rem 1rem;
             border: 1px solid #e2e8f0;
             border-radius: 0.75rem;
-            font-size: 0.9rem;
+            font-size: 1rem;
             transition: all 0.2s;
-        }
-        
-        @media (min-width: 768px) {
-            input {
-                font-size: 1rem;
-            }
         }
         
         input:focus {
             outline: none;
             border-color: #fbbf24;
-            box-shadow: 0 0 0 3px rgba(251,191,36,0.1);
+            box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1);
         }
         
         .btn {
@@ -193,16 +84,10 @@
             color: white;
             border: none;
             border-radius: 0.75rem;
-            font-size: 0.9rem;
+            font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
-        }
-        
-        @media (min-width: 768px) {
-            .btn {
-                font-size: 1rem;
-            }
         }
         
         .btn:hover {
@@ -216,7 +101,7 @@
             padding: 0.75rem;
             border-radius: 0.75rem;
             margin-bottom: 1rem;
-            font-size: 0.8rem;
+            font-size: 0.85rem;
         }
         
         .back-link {
@@ -227,206 +112,56 @@
         .back-link a {
             color: #64748b;
             text-decoration: none;
-            font-size: 0.8rem;
+            font-size: 0.85rem;
         }
         
         .back-link a:hover {
             color: #fbbf24;
         }
         
-        .credential-hint {
-            background: #fef3c7;
-            border-left: 3px solid #fbbf24;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-            font-size: 0.7rem;
-            color: #92400e;
-        }
-        
-        .credential-hint code {
-            background: #fff;
-            padding: 0.1rem 0.3rem;
-            border-radius: 0.25rem;
-            font-family: monospace;
-            font-size: 0.75rem;
-        }
-        
-        .lang-buttons {
-            display: flex;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-bottom: 1.5rem;
-        }
-        
-        .lang-btn {
+        .demo-info {
             background: #f1f5f9;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1rem;
+            font-size: 0.75rem;
             color: #64748b;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            font-size: 0.7rem;
-            font-weight: 500;
-            text-decoration: none;
-        }
-        
-        @media (min-width: 768px) {
-            .lang-btn {
-                padding: 0.4rem 1rem;
-                font-size: 0.8rem;
-            }
-        }
-        
-        .lang-btn.active {
-            background: #fbbf24;
-            color: #0f172a;
-        }
-        
-        .lang-btn:hover:not(.active) {
-            background: #e2e8f0;
-            color: #0f172a;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <!-- Splash Screen -->
-    <div id="splash" class="splash-screen" style="display: flex;">
-        <div class="splash-content">
-            <div class="splash-icon">
-                <img src="/icon.png" alt="Sarqyt GO">
-            </div>
-            <div class="splash-title">Sarqyt <span>GO</span> | Admin</div>
-            <div class="splash-loader"></div>
-        </div>
-    </div>
-    
     <div class="login-container">
         <div class="logo">
-            <div class="logo-icon">
-                <img src="/icon.png" alt="Sarqyt GO">
-            </div>
-            <h1>Sarqyt <span>GO</span> | Admin</h1>
-            <p id="loginTitle">Login to Admin Panel</p>
-        </div>
-        
-        <div class="lang-buttons">
-            <button onclick="setLanguage('kz')" class="lang-btn {% if lang == 'kz' %}active{% endif %}">🇰🇿 Қаз</button>
-            <button onclick="setLanguage('ru')" class="lang-btn {% if lang == 'ru' %}active{% endif %}">🇷🇺 Рус</button>
-            <button onclick="setLanguage('en')" class="lang-btn {% if lang == 'en' %}active{% endif %}">🇬🇧 Eng</button>
+            <h1>👑 Sarqyn <span>Admin</span></h1>
+            <p>Вход в панель управления</p>
         </div>
         
         {% if error %}
-        <div class="error" id="errorMsg">{{ error }}</div>
+        <div class="error">
+            ⚠️ {{ error }}
+        </div>
         {% endif %}
         
-        <div class="credential-hint">
-            <strong id="credLabel">Login credentials:</strong><br>
-            <span id="userLabel">Username</span>: <code>ACCOUNTA@#$26</code><br>
-            <span id="passLabel">Password</span>: <code>CEVONICQW%&%y*</code>
-        </div>
+  
         
         <form method="POST" action="/admin/login">
             <div class="form-group">
-                <label id="usernameLabel">Username</label>
+                <label>👤 Имя пользователя</label>
                 <input type="text" name="username" required placeholder="admin">
             </div>
+            
             <div class="form-group">
-                <label id="passwordLabel">Password</label>
+                <label>🔒 Пароль</label>
                 <input type="password" name="password" required placeholder="••••••••">
             </div>
-            <button type="submit" class="btn" id="loginBtn">Login</button>
+            
+            <button type="submit" class="btn">Войти в панель</button>
         </form>
         
         <div class="back-link">
-            <a href="/" id="backLink">Back to Home</a>
+            <a href="/">← Вернуться на главную</a>
         </div>
     </div>
-    
-    <script>
-        const translations = {
-            kz: {
-                login_title: 'Әкімші панеліне кіру',
-                login_credentials: 'Кіру деректері:',
-                username_label: 'Логин',
-                password_label: 'Құпия сөз',
-                username: 'Пайдаланушы аты',
-                password: 'Құпия сөз',
-                login_btn: 'Кіру',
-                back_home: '← Басты бетке оралу'
-            },
-            ru: {
-                login_title: 'Вход в панель администратора',
-                login_credentials: 'Данные для входа:',
-                username_label: 'Логин',
-                password_label: 'Пароль',
-                username: 'Имя пользователя',
-                password: 'Пароль',
-                login_btn: 'Войти',
-                back_home: '← Вернуться на главную'
-            },
-            en: {
-                login_title: 'Admin Panel Login',
-                login_credentials: 'Login credentials:',
-                username_label: 'Username',
-                password_label: 'Password',
-                username: 'Username',
-                password: 'Password',
-                login_btn: 'Login',
-                back_home: '← Back to Home'
-            }
-        };
-        
-        let currentLang = '{{ lang }}';
-        
-        function updateUI() {
-            document.getElementById('loginTitle').innerText = translations[currentLang].login_title;
-            document.getElementById('credLabel').innerText = translations[currentLang].login_credentials;
-            document.getElementById('userLabel').innerText = translations[currentLang].username_label;
-            document.getElementById('passLabel').innerText = translations[currentLang].password_label;
-            document.getElementById('usernameLabel').innerText = translations[currentLang].username;
-            document.getElementById('passwordLabel').innerText = translations[currentLang].password;
-            document.getElementById('loginBtn').innerText = translations[currentLang].login_btn;
-            document.getElementById('backLink').innerText = translations[currentLang].back_home;
-            
-            // Обновляем активный класс на кнопках
-            document.querySelectorAll('.lang-btn').forEach(btn => {
-                btn.classList.remove('active');
-                if ((currentLang === 'kz' && btn.textContent.includes('Қаз')) ||
-                    (currentLang === 'ru' && btn.textContent.includes('Рус')) ||
-                    (currentLang === 'en' && btn.textContent.includes('Eng'))) {
-                    btn.classList.add('active');
-                }
-            });
-        }
-        
-        // ✅ ФУНКЦИЯ ДЛЯ СМЕНЫ ЯЗЫКА
-        function setLanguage(lang) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('lang', lang);
-            window.location.href = url.toString();
-        }
-        
-        // Splash screen - only once per session
-        (function() {
-            var splash = document.getElementById('splash');
-            if (!splash) return;
-            
-            if (!sessionStorage.getItem('splash_shown_admin')) {
-                splash.style.display = 'flex';
-                setTimeout(function() {
-                    splash.classList.add('splash-hidden');
-                    setTimeout(function() {
-                        splash.style.display = 'none';
-                        sessionStorage.setItem('splash_shown_admin', 'true');
-                    }, 500);
-                }, 1500);
-            } else {
-                splash.style.display = 'none';
-            }
-        })();
-        
-        updateUI();
-    </script>
 </body>
 </html>
