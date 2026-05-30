@@ -288,80 +288,6 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
     }
 
 
-
-@app.post("/api/admin/cancel-order/{order_id}")
-async def admin_cancel_order(order_id: int, request: Request, db: Session = Depends(get_db)):
-    """Админ отменяет заказ и возвращает деньги"""
-    
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    data = await request.json()
-    reason = data.get("reason", "Отменено администратором")
-    
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Получаем курьера, которому был назначен заказ
-    courier = None
-    if order.assigned_courier_id:
-        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
-    
-    # Обновляем статусы
-    order.status = OrderStatus.CANCELLED
-    order.payment_status = "refunded"
-    order.refund_status = "completed"
-    order.refund_processed_at = datetime.utcnow()
-    order.refund_amount = order.amount_paid
-    order.refund_reason = reason
-    order.cancelled_at = datetime.utcnow()
-    
-    # Освобождаем курьера, если заказ был назначен
-    if courier and courier.current_order_id == order_id:
-        courier.current_order_id = None
-        courier.current_order_status = None
-        courier.is_available = True
-        courier.is_online = True
-    
-    # Возвращаем количество сюрприза
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-    if bag:
-        bag.available_quantity += 1
-        if bag.available_quantity > 0:
-            bag.is_active = True
-    
-    db.commit()
-    
-    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРУ
-    if courier:
-        await manager.broadcast({
-            "type": "order_cancelled",
-            "data": {
-                "order_id": order_id,
-                "order_number": order.order_number,
-                "reason": reason,
-                "cancelled_by": "admin",
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        }, channel=f"courier_{courier.user_id}")
-    
-    # Отправляем уведомление клиенту
-    await manager.broadcast({
-        "type": "order_cancelled",
-        "data": {
-            "order_id": order_id,
-            "order_number": order.order_number,
-            "reason": reason,
-            "refund_amount": order.amount_paid
-        }
-    }, channel=f"order_{order_id}")
-    
-    return {"success": True, "message": f"Заказ #{order.order_number} отменен, деньги возвращены"}
-
-
-
 @app.get("/api/admin/orders")
 async def get_admin_orders(request: Request, db: Session = Depends(get_db)):
     """Получить все заказы для админ-панели"""
@@ -1119,73 +1045,20 @@ def get_current_user_from_token(request: Request) -> int:
 
 @app.websocket("/ws/courier-tracking")
 async def courier_tracking_websocket(websocket: WebSocket):
-    """WebSocket для отслеживания курьеров"""
-    
-    # Получаем токен из query параметра
-    token = websocket.query_params.get("token")
-    user_id = None
-    
-    if token:
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-        except:
-            pass
-    
-    if not user_id:
-        await websocket.close(code=1008, reason="Not authenticated")
-        return
-    
-    db = SessionLocal()
+    await websocket.accept()
+    print("✅ WebSocket connected")
     
     try:
-        courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-        if not courier:
-            await websocket.close(code=1008, reason="Courier not found")
-            return
-        
-        courier_id = courier.id
-        
-        # ✅ ИСПРАВЛЕНО: используем connect с параметрами
-        await manager.connect(websocket, "courier", courier_id)
-        
         while True:
+            data = await websocket.receive_text()
             try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
                 message = json.loads(data)
-                
                 if message.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
-                elif message.get("type") == "update_location":
-                    lat = message.get("lat")
-                    lon = message.get("lon")
-                    if lat and lon:
-                        courier.current_lat = lat
-                        courier.current_lon = lon
-                        courier.last_location_update = datetime.utcnow()
-                        db.commit()
-                        
-                        await manager.broadcast_to_all({
-                            "type": "courier_location",
-                            "courier_id": courier_id,
-                            "first_name": courier.first_name,
-                            "last_name": courier.last_name,
-                            "lat": lat,
-                            "lon": lon,
-                            "timestamp": datetime.utcnow().isoformat()
-                        })
-                        
-            except asyncio.TimeoutError:
-                await websocket.send_json({"type": "ping"})
-            except WebSocketDisconnect:
-                break
-                
-    except Exception as e:
-        print(f"WebSocket error: {e}")
-    finally:
-        manager.disconnect(websocket, "courier", courier_id if 'courier_id' in locals() else None)
-        db.close()
+            except:
+                pass
+    except WebSocketDisconnect:
+        print("WebSocket disconnected")
 # ============ ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ============
 # backend/main.py - обновленный эндпоинт
 
@@ -1787,9 +1660,6 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
     if not courier:
         raise HTTPException(status_code=404, detail="Courier not found")
     
-    # ✅ Получаем courier_id из профиля
-    courier_id = courier.id
-    
     # Обновляем локацию
     courier.current_lat = lat
     courier.current_lon = lon
@@ -1820,10 +1690,12 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
         "status": courier.current_order_status,
         "message": "Location updated"
     }
+
 # backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
 
 # backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
 # backend/main.py - полный эндпоинт
+
 
 @app.get("/api/courier/status")
 async def get_courier_status(request: Request, db: Session = Depends(get_db)):
@@ -1831,48 +1703,28 @@ async def get_courier_status(request: Request, db: Session = Depends(get_db)):
     
     print("🔍 GET /api/courier/status вызван")
     
-    # ✅ ПРАВИЛЬНО получаем user_id из Bearer токена
+    # Получаем user_id из Bearer токена
     user_id = None
-    
-    # 1. Пробуем Authorization header
     auth_header = request.headers.get("Authorization")
     print(f"📨 Authorization header: {auth_header}")
     
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
-        print(f"🔑 Токен получен: {token[:50]}...")
-        
         try:
             from jose import jwt
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             user_id = payload.get("sub")
-            print(f"✅ user_id из токена: {user_id}")
-        except jwt.ExpiredSignatureError:
-            print("❌ Токен просрочен")
-            return JSONResponse(
-                status_code=401,
-                content={"success": False, "detail": "Token expired"}
-            )
-        except jwt.JWTError as e:
-            print(f"❌ Ошибка декодирования: {e}")
-            return JSONResponse(
-                status_code=401,
-                content={"success": False, "detail": f"Invalid token: {str(e)}"}
-            )
+            print(f"🔑 Пользователь из Bearer токена: {user_id}")
         except Exception as e:
-            print(f"❌ Другая ошибка: {e}")
-            return JSONResponse(
-                status_code=401,
-                content={"success": False, "detail": str(e)}
-            )
+            print(f"❌ Ошибка декодирования токена: {e}")
     
-    # 2. Fallback на cookie (для обратной совместимости)
+    # Fallback на cookies
     if not user_id:
         user_id = request.cookies.get("user_id")
-        print(f"🍪 user_id из cookie: {user_id}")
+        print(f"🍪 Пользователь из cookie: {user_id}")
     
     if not user_id:
-        print("❌ Нет user_id нигде")
+        print("❌ Нет user_id")
         return JSONResponse(
             status_code=401,
             content={"success": False, "detail": "Not authenticated"}
@@ -2956,15 +2808,11 @@ async def confirm_reservation(request: Request, db: Session = Depends(get_db)):
 
 
 # # Запускаем фоновую задачу при старте приложения
-# backend/main.py - добавьте в конец файла
-
-@app.on_event("startup")
-async def startup_event():
-    """Запуск фоновых задач при старте сервера"""
-    asyncio.create_task(manager.start_cleanup_task())
-    asyncio.create_task(cleanup_expired_reservations())
-    asyncio.create_task(cleanup_dead_connections())
-    print("✅ Все фоновые задачи запущены")
+# @app.on_event("startup")
+# async def startup_event():
+#     # asyncio.create_task(manager.start_cleanup_task())
+#     asyncio.create_task(cleanup_expired_reservations())
+#     print("✅ Фоновая задача очистки резерваций запущена")
 # Клиент запрашивает возврат
 @app.post("/api/refund/request")
 async def request_refund(
@@ -4634,50 +4482,34 @@ async def notify_bag_deleted(bag_id: int):
 # backend/main.py - добавьте WebSocket обработку
 
 # backend/main.py - исправленный WebSocket эндпоинт
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket для общих уведомлений (без авторизации)"""
-    
-    # ✅ ИСПРАВЛЕНО: используем connect_legacy вместо connect
-    await manager.connect_legacy(websocket)
-    
+    await manager.connect(websocket)
     try:
         while True:
+            data = await websocket.receive_text()
             try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-                try:
-                    message = json.loads(data)
-                    msg_type = message.get("type")
-                    
-                    if msg_type == "ping":
-                        await manager.send_personal_message({"type": "pong"}, websocket)
-                        print("💓 Heartbeat pong sent")
-                        
-                    elif msg_type == "subscribe":
-                        channel = message.get("channel")
-                        if channel and channel.startswith("supplier_"):
-                            supplier_id = channel.replace("supplier_", "")
-                            await manager.subscribe_supplier(websocket, supplier_id)
-                    elif msg_type == "unsubscribe":
-                        pass
-                        
-                except json.JSONDecodeError:
+                message = json.loads(data)
+                msg_type = message.get("type")
+                
+                if msg_type == "ping":
+                    await manager.send_personal_message({"type": "pong"}, websocket)
+                elif msg_type == "subscribe":
+                    channel = message.get("channel")
+                    if channel and channel.startswith("supplier_"):
+                        supplier_id = channel.replace("supplier_", "")
+                        await manager.subscribe_supplier(websocket, supplier_id)
+                elif msg_type == "unsubscribe":
                     pass
-                    
-            except asyncio.TimeoutError:
-                try:
-                    await manager.send_personal_message({"type": "ping"}, websocket)
-                    print("💓 Heartbeat ping sent")
-                except:
-                    break
-                    
+            except:
+                pass
+                
     except WebSocketDisconnect:
-        print("🔌 WebSocket disconnected")
-        manager.disconnect_legacy(websocket)
+        manager.disconnect(websocket)
     except Exception as e:
         print(f"WebSocket error: {e}")
-        manager.disconnect_legacy(websocket)
-
+        manager.disconnect(websocket)
 
 
 # backend/main.py - добавьте эту функцию
@@ -5763,6 +5595,7 @@ supplier_connections = {}  # {supplier_id: [websocket1, websocket2]}
 @app.websocket("/ws/supplier")
 async def supplier_websocket_endpoint(websocket: WebSocket):
     """WebSocket для поставщиков"""
+    global ws_connection_count
     
     supplier_id = websocket.query_params.get("supplier_id")
     
@@ -5770,8 +5603,19 @@ async def supplier_websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1008, reason="Supplier ID required")
         return
     
-    # ✅ Используем ConnectionManager (вся логика уже внутри)
-    await manager.connect(websocket, "supplier", int(supplier_id))
+    async with ws_lock:
+        if ws_connection_count >= MAX_WS_CONNECTIONS:
+            await websocket.close(code=1008, reason="Too many connections")
+            return
+        ws_connection_count += 1
+    
+    await websocket.accept()
+    print(f"✅ Поставщик {supplier_id} подключен. Всего: {ws_connection_count}")
+    
+    if supplier_id not in supplier_connections:
+        supplier_connections[supplier_id] = []
+    supplier_connections[supplier_id].append(websocket)
+    active_connections.add(websocket)
     
     try:
         await websocket.send_json({
@@ -5794,7 +5638,14 @@ async def supplier_websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"Ошибка: {e}")
     finally:
-        manager.disconnect(websocket, "supplier", int(supplier_id))
+        if supplier_id in supplier_connections:
+            if websocket in supplier_connections[supplier_id]:
+                supplier_connections[supplier_id].remove(websocket)
+        active_connections.discard(websocket)
+        async with ws_lock:
+            ws_connection_count -= 1
+        print(f"🔌 Поставщик {supplier_id} отключен. Осталось: {ws_connection_count}")
+
 
 # ============ ФОНОВАЯ ОЧИСТКА МЕРТВЫХ СОЕДИНЕНИЙ ============
 async def cleanup_dead_connections():
