@@ -55,28 +55,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from starlette.middleware.base import BaseHTTPMiddleware
-
-class LanguageMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        # Получаем язык
-        lang = get_lang(request)
-        
-        # Добавляем язык в request state для использования в эндпоинтах
-        request.state.lang = lang
-        
-        # Обрабатываем запрос
-        response = await call_next(request)
-        
-        # Устанавливаем cookie с языком (если его нет или он изменился)
-        if not request.cookies.get("lang") or request.cookies.get("lang") != lang:
-            response.set_cookie(key="lang", value=lang, max_age=31536000, path="/")
-        
-        return response
-
-# Добавьте middleware после создания app
-app.add_middleware(LanguageMiddleware)
 # ============ CATEGORIES ============
 categories = [
     {"id": "all", "name_kz": "Барлығы", "name_ru": "Все", "emoji": "🍽️"},
@@ -3181,12 +3159,8 @@ def get_current_admin(request: Request):
 @app.get("/admin/login")
 async def admin_login_page(request: Request):
     """Страница входа в админ-панель"""
-    lang = request.state.lang  # ← берем язык из middleware
-    return templates.TemplateResponse("admin_login.html", {
-        "request": request,
-        "error": None,
-        "lang": lang
-    })
+    return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
+
 
 @app.post("/admin/login")
 async def admin_login(request: Request, db: Session = Depends(get_db)):
@@ -3257,13 +3231,11 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         "total_orders": total_orders,
         "pending_couriers": pending_couriers
     }
-    lang = request.state.lang 
+    
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
         "stats": stats,
-        "admin": admin,
-        "lang": lang
-
+        "admin": admin
     })
 
 
@@ -6153,14 +6125,9 @@ async def supplier_register(
     return response
 
 @app.get("/supplier/login")
-async def supplier_login_page(request: Request):
-    """Страница входа для поставщика"""
-    lang = request.state.lang  # ← берем язык из middleware
-    return templates.TemplateResponse("supplier_login.html", {
-        "request": request,
-        "error": None,
-        "lang": lang
-    })
+async def supplier_login_page(request: Request, lang: str = "kz"):
+    return templates.TemplateResponse("supplier_login.html", {"request": request, "lang": lang})
+
 @app.post("/supplier/login")
 async def supplier_login(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == email, User.role == UserRole.SUPPLIER).first()
