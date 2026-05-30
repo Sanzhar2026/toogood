@@ -1825,35 +1825,54 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
 # backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
 # backend/main.py - полный эндпоинт
 
-
 @app.get("/api/courier/status")
 async def get_courier_status(request: Request, db: Session = Depends(get_db)):
     """Получить статус курьера"""
     
     print("🔍 GET /api/courier/status вызван")
     
-    # Получаем user_id из Bearer токена
+    # ✅ ПРАВИЛЬНО получаем user_id из Bearer токена
     user_id = None
+    
+    # 1. Пробуем Authorization header
     auth_header = request.headers.get("Authorization")
     print(f"📨 Authorization header: {auth_header}")
     
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
+        print(f"🔑 Токен получен: {token[:50]}...")
+        
         try:
             from jose import jwt
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             user_id = payload.get("sub")
-            print(f"🔑 Пользователь из Bearer токена: {user_id}")
+            print(f"✅ user_id из токена: {user_id}")
+        except jwt.ExpiredSignatureError:
+            print("❌ Токен просрочен")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Token expired"}
+            )
+        except jwt.JWTError as e:
+            print(f"❌ Ошибка декодирования: {e}")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": f"Invalid token: {str(e)}"}
+            )
         except Exception as e:
-            print(f"❌ Ошибка декодирования токена: {e}")
+            print(f"❌ Другая ошибка: {e}")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": str(e)}
+            )
     
-    # Fallback на cookies
+    # 2. Fallback на cookie (для обратной совместимости)
     if not user_id:
         user_id = request.cookies.get("user_id")
-        print(f"🍪 Пользователь из cookie: {user_id}")
+        print(f"🍪 user_id из cookie: {user_id}")
     
     if not user_id:
-        print("❌ Нет user_id")
+        print("❌ Нет user_id нигде")
         return JSONResponse(
             status_code=401,
             content={"success": False, "detail": "Not authenticated"}
@@ -5776,20 +5795,7 @@ async def supplier_websocket_endpoint(websocket: WebSocket):
         print(f"Ошибка: {e}")
     finally:
         manager.disconnect(websocket, "supplier", int(supplier_id))
-def get_lang(request: Request) -> str:
-    """Получить язык из query параметра или cookie"""
-    # Сначала проверяем query параметр
-    lang = request.query_params.get("lang")
-    if lang and lang in ["kz", "ru", "en"]:
-        return lang
-    
-    # Затем проверяем cookie
-    lang = request.cookies.get("lang")
-    if lang and lang in ["kz", "ru", "en"]:
-        return lang
-    
-    # По умолчанию русский
-    return "ru"
+
 # ============ ФОНОВАЯ ОЧИСТКА МЕРТВЫХ СОЕДИНЕНИЙ ============
 async def cleanup_dead_connections():
     """Фоновая очистка мертвых WebSocket соединений"""
