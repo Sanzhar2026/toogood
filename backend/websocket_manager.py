@@ -1,16 +1,15 @@
-# backend/websocket_manager.py - ПОЛНАЯ ВЕРСИЯ СО ВСЕМИ ФУНКЦИЯМИ
+# backend/websocket_manager.py - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
 from typing import Dict, List, Set
 from fastapi import WebSocket
 import asyncio
 
 class ConnectionManager:
     def __init__(self):
-        # Новые структуры
         self.active_connections: Set[WebSocket] = set()
         self.courier_connections: Dict[int, Set[WebSocket]] = {}
         self.user_connections: Dict[int, Set[WebSocket]] = {}
-        self.supplier_connections: Dict[int, Set[WebSocket]] = {}  # Новая версия (int)
-        self.supplier_connections_str: Dict[str, List[WebSocket]] = {}  # Старая версия (str)
+        self.supplier_connections: Dict[int, Set[WebSocket]] = {}
+        self.supplier_connections_str: Dict[str, List[WebSocket]] = {}
     
     # ============ НОВЫЕ МЕТОДЫ (с поддержкой типов) ============
     
@@ -62,7 +61,6 @@ class ConnectionManager:
             if not self.supplier_connections[user_id]:
                 del self.supplier_connections[user_id]
         else:
-            # Fallback: поиск по всем словарям
             self._remove_from_all_dicts(websocket)
         
         # Также удаляем из старого словаря supplier_connections_str
@@ -102,7 +100,6 @@ class ConnectionManager:
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
         
-        # Удаляем из supplier_connections_str
         for supplier_id in list(self.supplier_connections_str.keys()):
             if websocket in self.supplier_connections_str[supplier_id]:
                 self.supplier_connections_str[supplier_id].remove(websocket)
@@ -142,7 +139,7 @@ class ConnectionManager:
             self.disconnect_legacy(connection)
     
     async def broadcast_to_all(self, message: dict):
-        """Отправить всем подключенным клиентам (новый метод)"""
+        """Отправить всем подключенным клиентам"""
         disconnected = []
         for conn in self.active_connections:
             try:
@@ -165,27 +162,28 @@ class ConnectionManager:
                 self.disconnect(conn, "user", user_id)
     
     async def subscribe_supplier(self, websocket: WebSocket, supplier_id: str):
-        """Подписать поставщика на его канал (старый метод)"""
+        """Подписать поставщика на его канал"""
         if supplier_id not in self.supplier_connections_str:
             self.supplier_connections_str[supplier_id] = []
         if websocket not in self.supplier_connections_str[supplier_id]:
             self.supplier_connections_str[supplier_id].append(websocket)
             print(f"📡 Supplier {supplier_id} subscribed")
     
-    # async def start_cleanup_task(self):
-    #     """Фоновая очистка мертвых соединений"""
-    #     while True:
-    #         await asyncio.sleep(300)  # 5 минут
+    # ✅ РАСКОММЕНТИРОВАНО - теперь работает!
+    async def start_cleanup_task(self):
+        """Фоновая очистка мертвых соединений"""
+        while True:
+            await asyncio.sleep(300)  # 5 минут
             
-    #         dead_connections = []
-    #         for conn in self.active_connections:
-    #             try:
-    #                 await asyncio.wait_for(conn.send_json({"type": "ping"}), timeout=1.0)
-    #             except:
-    #                 dead_connections.append(conn)
+            dead_connections = []
+            for conn in self.active_connections:
+                try:
+                    await asyncio.wait_for(conn.send_json({"type": "ping"}), timeout=1.0)
+                except:
+                    dead_connections.append(conn)
             
-    #         for conn in dead_connections:
-    #             self.disconnect(conn)
+            for conn in dead_connections:
+                self.disconnect(conn)
             
-    #         if dead_connections:
-    #             print(f"🧹 Очищено {len(dead_connections)} мертвых соединений")
+            if dead_connections:
+                print(f"🧹 Очищено {len(dead_connections)} мертвых соединений")

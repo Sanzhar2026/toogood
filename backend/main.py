@@ -1660,6 +1660,9 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
     if not courier:
         raise HTTPException(status_code=404, detail="Courier not found")
     
+    # ✅ Получаем courier_id из профиля
+    courier_id = courier.id
+    
     # Обновляем локацию
     courier.current_lat = lat
     courier.current_lon = lon
@@ -1690,7 +1693,6 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
         "status": courier.current_order_status,
         "message": "Location updated"
     }
-
 # backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
 
 # backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
@@ -2808,11 +2810,15 @@ async def confirm_reservation(request: Request, db: Session = Depends(get_db)):
 
 
 # # Запускаем фоновую задачу при старте приложения
-# @app.on_event("startup")
-# async def startup_event():
-#     # asyncio.create_task(manager.start_cleanup_task())
-#     asyncio.create_task(cleanup_expired_reservations())
-#     print("✅ Фоновая задача очистки резерваций запущена")
+# backend/main.py - добавьте в конец файла
+
+@app.on_event("startup")
+async def startup_event():
+    """Запуск фоновых задач при старте сервера"""
+    asyncio.create_task(manager.start_cleanup_task())
+    asyncio.create_task(cleanup_expired_reservations())
+    asyncio.create_task(cleanup_dead_connections())
+    print("✅ Все фоновые задачи запущены")
 # Клиент запрашивает возврат
 @app.post("/api/refund/request")
 async def request_refund(
@@ -4482,34 +4488,55 @@ async def notify_bag_deleted(bag_id: int):
 # backend/main.py - добавьте WebSocket обработку
 
 # backend/main.py - исправленный WebSocket эндпоинт
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
+    
+    # ✅ Добавляем heartbeat для поддержания соединения
+    last_ping = datetime.utcnow()
+    
     try:
         while True:
-            data = await websocket.receive_text()
             try:
-                message = json.loads(data)
-                msg_type = message.get("type")
-                
-                if msg_type == "ping":
-                    await manager.send_personal_message({"type": "pong"}, websocket)
-                elif msg_type == "subscribe":
-                    channel = message.get("channel")
-                    if channel and channel.startswith("supplier_"):
-                        supplier_id = channel.replace("supplier_", "")
-                        await manager.subscribe_supplier(websocket, supplier_id)
-                elif msg_type == "unsubscribe":
+                # ✅ Устанавливаем таймаут на получение сообщения (30 секунд)
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                try:
+                    message = json.loads(data)
+                    msg_type = message.get("type")
+                    
+                    if msg_type == "ping":
+                        await manager.send_personal_message({"type": "pong"}, websocket)
+                        last_ping = datetime.utcnow()
+                        print("💓 Heartbeat pong sent")
+                        
+                    elif msg_type == "subscribe":
+                        channel = message.get("channel")
+                        if channel and channel.startswith("supplier_"):
+                            supplier_id = channel.replace("supplier_", "")
+                            await manager.subscribe_supplier(websocket, supplier_id)
+                    elif msg_type == "unsubscribe":
+                        pass
+                        
+                except json.JSONDecodeError:
                     pass
-            except:
-                pass
-                
+                    
+            except asyncio.TimeoutError:
+                # ✅ Нет сообщений 30 секунд - отправляем ping для проверки
+                try:
+                    await manager.send_personal_message({"type": "ping"}, websocket)
+                    print("💓 Heartbeat ping sent")
+                except:
+                    break
+                    
     except WebSocketDisconnect:
+        print("🔌 WebSocket disconnected")
         manager.disconnect(websocket)
     except Exception as e:
         print(f"WebSocket error: {e}")
         manager.disconnect(websocket)
+
+
+
 
 
 # backend/main.py - добавьте эту функцию
