@@ -187,6 +187,30 @@ async def get_delivery_route(order_id: int, request: Request, db: Session = Depe
             print(f"ORS error: {e}")
             return get_straight_line_route(start_lat, start_lon, end_lat, end_lon)
 
+def get_user_id_from_request(request: Request) -> int | None:
+    """Универсальное получение user_id из запроса (Bearer token или cookie)"""
+    
+    # 1. Bearer token (для мобильного приложения)
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            if user_id:
+                print(f"🔑 user_id из Bearer токена: {user_id}")
+                return int(user_id)
+        except Exception as e:
+            print(f"❌ Ошибка Bearer токена: {e}")
+    
+    # 2. Cookie (для веб-версии)
+    user_id = request.cookies.get("user_id")
+    if user_id:
+        print(f"🍪 user_id из cookie: {user_id}")
+        return int(user_id)
+    
+    return None
 
 def get_straight_line_route(start_lat, start_lon, end_lat, end_lon):
     """Прямая линия если ORS не работает"""
@@ -1561,17 +1585,16 @@ async def courier_accept_order(order_id: int, request: Request, db: Session = De
 
 
 # backend/main.py - добавьте
-
 @app.get("/api/cart/reservation")
 async def get_active_reservation(request: Request, db: Session = Depends(get_db)):
     """Получить активную резервацию для текущего пользователя"""
-    user_id = request.cookies.get("user_id")
+    user_id = get_user_id_from_request(request)
     
     if not user_id:
         return {"reservation": None}
     
     reservation = db.query(TemporaryReservation).filter(
-        TemporaryReservation.user_id == int(user_id),
+        TemporaryReservation.user_id == user_id,
         TemporaryReservation.is_paid == False,
         TemporaryReservation.expires_at > datetime.utcnow()
     ).first()
@@ -1586,6 +1609,10 @@ async def get_active_reservation(request: Request, db: Session = Depends(get_db)
         }
     
     return {"reservation": None}
+
+
+
+
 @app.get("/api/courier/me")
 async def get_courier_info(request: Request, db: Session = Depends(get_db)):
     """Получить информацию о текущем курьере"""
@@ -4118,17 +4145,16 @@ class RealHalykPayment:
 # backend/main.py - добавь эти эндпоинты
 
 # ============ CART API ENDPOINTS ============
-
 @app.get("/api/cart")
 async def get_cart(request: Request, db: Session = Depends(get_db)):
     """Get current user's cart"""
-    user_id = request.cookies.get("user_id")
+    user_id = get_user_id_from_request(request)
     
     if not user_id:
         return {"success": False, "error": "Not authenticated", "items": [], "total": 0, "count": 0}
     
     cart_items = db.query(CartItem).filter(
-        CartItem.user_id == int(user_id)
+        CartItem.user_id == user_id
     ).all()
     
     items = []
@@ -4170,29 +4196,14 @@ async def get_cart(request: Request, db: Session = Depends(get_db)):
 
 # backend/main.py - убедитесь, что эндпоинт возвращает success
 # backend/main.py - замените ваш существующий эндпоинт
-
 @app.post("/api/cart/add")
 async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     """Добавление товара в корзину"""
     
-    # 1. Получаем user_id из разных источников
-    user_id = request.cookies.get("user_id")
+    user_id = get_user_id_from_request(request)
     
-    # 2. Если нет в cookies, проверяем Authorization header
+    # Если нет авторизации - создаем тестового пользователя
     if not user_id:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            try:
-                from jose import jwt
-                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-                user_id = payload.get("sub")
-            except:
-                pass
-    
-    # 3. Если все еще нет, создаем временного пользователя для теста
-    if not user_id:
-        # Создаем или получаем тестового пользователя
         test_user = db.query(User).filter(User.phone == "test_mobile_user").first()
         if not test_user:
             test_user = User(
@@ -4208,7 +4219,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
             db.add(test_user)
             db.commit()
             db.refresh(test_user)
-        user_id = str(test_user.id)
+        user_id = test_user.id
         print(f"🆕 Создан тестовый пользователь для мобильного: {user_id}")
     
     print(f"🛒 Добавление в корзину: user_id={user_id}")
@@ -4218,19 +4229,13 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
         bag_id = data.get("bag_id")
         quantity = data.get("quantity", 1)
         
-        print(f"📦 bag_id={bag_id}, quantity={quantity}")
-        
-        # Получаем сюрприз
         bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
         
         if not bag:
-            print(f"❌ Сюрприз {bag_id} не найден")
             return JSONResponse(
                 status_code=404,
                 content={"success": False, "detail": "Товар не найден"}
             )
-        
-        print(f"📊 Текущее количество: {bag.available_quantity}")
         
         if bag.available_quantity < quantity:
             return JSONResponse(
@@ -4244,10 +4249,9 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
             bag.is_active = False
         
         # Создаем временную резервацию
-        
         reservation = TemporaryReservation(
             bag_id=bag_id,
-            user_id=int(user_id),
+            user_id=user_id,
             quantity=quantity,
             reserved_at=datetime.utcnow(),
             expires_at=datetime.utcnow() + timedelta(minutes=15),
@@ -4255,9 +4259,9 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
         )
         db.add(reservation)
         
-        # Добавляем в корзину пользователя
+        # Добавляем в корзину
         existing = db.query(CartItem).filter(
-            CartItem.user_id == int(user_id),
+            CartItem.user_id == user_id,
             CartItem.surprise_bag_id == bag_id
         ).first()
         
@@ -4265,7 +4269,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
             existing.quantity += quantity
         else:
             cart_item = CartItem(
-                user_id=int(user_id),
+                user_id=user_id,
                 surprise_bag_id=bag_id,
                 quantity=quantity
             )
@@ -4273,9 +4277,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
         
         db.commit()
         
-        print(f"✅ Успешно! Осталось: {bag.available_quantity}")
-        
-        # Отправляем WebSocket уведомление
+        # WebSocket уведомление
         await manager.broadcast({
             "type": "bag_quantity_updated",
             "data": {
@@ -4339,17 +4341,16 @@ async def get_admin_reservations(request: Request, db: Session = Depends(get_db)
     
     return {"reservations": result}
 
-
 @app.delete("/api/cart/remove/{bag_id}")
 async def remove_from_cart(bag_id: int, request: Request, db: Session = Depends(get_db)):
     """Remove item from cart"""
-    user_id = request.cookies.get("user_id")
+    user_id = get_user_id_from_request(request)
     
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     cart_item = db.query(CartItem).filter(
-        CartItem.user_id == int(user_id),
+        CartItem.user_id == user_id,
         CartItem.surprise_bag_id == bag_id
     ).first()
     
@@ -4360,10 +4361,14 @@ async def remove_from_cart(bag_id: int, request: Request, db: Session = Depends(
     return {"success": True, "message": "Removed from cart"}
 
 
+
+
+
+
 @app.put("/api/cart/update/{bag_id}")
 async def update_cart_quantity(bag_id: int, request: Request, db: Session = Depends(get_db)):
     """Update item quantity in cart"""
-    user_id = request.cookies.get("user_id")
+    user_id = get_user_id_from_request(request)
     
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -4375,7 +4380,7 @@ async def update_cart_quantity(bag_id: int, request: Request, db: Session = Depe
         return await remove_from_cart(bag_id, request, db)
     
     cart_item = db.query(CartItem).filter(
-        CartItem.user_id == int(user_id),
+        CartItem.user_id == user_id,
         CartItem.surprise_bag_id == bag_id
     ).first()
     
@@ -4385,7 +4390,6 @@ async def update_cart_quantity(bag_id: int, request: Request, db: Session = Depe
         db.commit()
     
     return {"success": True, "message": "Cart updated"}
-
 # backend/main.py - добавь этот эндпоинт для проверки
 
 @app.get("/api/debug/users")
@@ -4419,24 +4423,24 @@ async def debug_users(request: Request, db: Session = Depends(get_db)):
 
 
 
-
 @app.delete("/api/cart/clear")
 async def clear_cart(request: Request, db: Session = Depends(get_db)):
     """Clear all items from cart"""
-    user_id = request.cookies.get("user_id")
+    user_id = get_user_id_from_request(request)
     
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    db.query(CartItem).filter(CartItem.user_id == int(user_id)).delete()
+    db.query(CartItem).filter(CartItem.user_id == user_id).delete()
     db.commit()
     
     return {"success": True, "message": "Cart cleared"}
 
+
 @app.post("/api/orders/create-from-cart")
 async def create_orders_from_cart(request: Request, db: Session = Depends(get_db)):
     """Create orders from all items in cart"""
-    user_id = request.cookies.get("user_id")
+    user_id = get_user_id_from_request(request)
     
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -4446,9 +4450,8 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
     customer_lon = data.get("lon")
     customer_address = data.get("address")
     
-    # Get cart items
     cart_items = db.query(CartItem).filter(
-        CartItem.user_id == int(user_id)
+        CartItem.user_id == user_id
     ).all()
     
     if not cart_items:
@@ -4622,14 +4625,16 @@ async def confirm_order_by_supplier(
 @app.get("/api/orders/my")
 async def get_my_orders(request: Request, db: Session = Depends(get_db)):
     """Get all orders for current user"""
-    user_id = request.cookies.get("user_id")
+    user_id = get_user_id_from_request(request)
     
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     orders = db.query(Order).filter(
-        Order.user_id == int(user_id)
+        Order.user_id == user_id
     ).order_by(Order.created_at.desc()).all()
+    
+    
     
     result = []
     for order in orders:
@@ -5945,13 +5950,43 @@ from fastapi import Request  # Убедитесь, что импортирова
 async def create_order(order_data: OrderCreate, request: Request, db: Session = Depends(get_db)):
     """Создание заказа после оплаты"""
     
-    user_id = request.cookies.get("user_id")
+    user_id = None
     
+    # ✅ 1. Пробуем получить user_id из Bearer токена
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            if user_id:
+                user_id = int(user_id)
+                print(f"🔑 user_id из Bearer токена: {user_id}")
+        except jwt.ExpiredSignatureError:
+            print("❌ Токен просрочен")
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.JWTError as e:
+            print(f"❌ Ошибка декодирования токена: {e}")
+            raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+        except Exception as e:
+            print(f"❌ Другая ошибка: {e}")
+            raise HTTPException(status_code=401, detail=str(e))
+    
+    # ✅ 2. Fallback на cookies (для веб-версии)
     if not user_id:
+        user_id_cookie = request.cookies.get("user_id")
+        if user_id_cookie:
+            user_id = int(user_id_cookie)
+            print(f"🍪 user_id из cookie: {user_id}")
+    
+    # ✅ 3. Если нет ни токена, ни cookie - ошибка
+    if not user_id:
+        print("❌ Нет авторизации")
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     # Получаем пользователя
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -5960,18 +5995,20 @@ async def create_order(order_data: OrderCreate, request: Request, db: Session = 
     if not bag:
         raise HTTPException(status_code=404, detail="Bag not found")
     
+    # Проверяем наличие товара
+    if bag.available_quantity < 1:
+        raise HTTPException(status_code=400, detail="Товар временно недоступен")
+    
     # Получаем ресторан
     supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
     
-    # ✅ Получаем адрес из данных или из профиля пользователя
+    # Получаем адрес из данных или из геолокации
     customer_address = order_data.address
     if not customer_address or customer_address == "Address not specified":
-        # Если адрес не передан, пробуем получить из геолокации или использовать адрес по умолчанию
         if order_data.lat and order_data.lon:
             try:
-                # Обратный геокодинг для получения адреса
                 async with httpx.AsyncClient() as client:
                     response = await client.get(
                         f"https://nominatim.openstreetmap.org/reverse?format=json&lat={order_data.lat}&lon={order_data.lon}&accept-language=ru"
@@ -5994,7 +6031,7 @@ async def create_order(order_data: OrderCreate, request: Request, db: Session = 
         status=OrderStatus.PENDING,
         customer_lat=order_data.lat,
         customer_lon=order_data.lon,
-        customer_address=customer_address,  # ✅ Теперь адрес сохраняется
+        customer_address=customer_address,
         amount_paid=bag.discounted_price,
         created_at=datetime.utcnow()
     )
@@ -6003,11 +6040,13 @@ async def create_order(order_data: OrderCreate, request: Request, db: Session = 
     db.commit()
     db.refresh(order)
     
-    # Уменьшаем количество (если еще не уменьшено через корзину)
+    # Уменьшаем количество
     bag.available_quantity -= 1
     if bag.available_quantity <= 0:
         bag.is_active = False
     db.commit()
+    
+    print(f"✅ Заказ #{order.id} создан пользователем {user_id}")
     
     return {
         "order_id": order.id,
