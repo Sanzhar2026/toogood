@@ -1234,18 +1234,26 @@ def get_current_user_from_token(request: Request) -> int:
 #         print(f"🔌 Курьер {courier_id} отключен. Осталось: {ws_connection_count}")
 
 # backend/main.py - Improved WebSocket endpoint
-
 @app.websocket("/ws/courier-tracking")
 async def courier_tracking_websocket(websocket: WebSocket):
     """WebSocket для отслеживания курьеров с улучшенной стабильностью"""
     
-    # Получаем токен из query параметра
+    # ✅ CRITICAL FIX: Accept connection FIRST
+    try:
+        await websocket.accept()
+        print("✅ WebSocket connection accepted")
+    except Exception as e:
+        print(f"❌ Failed to accept connection: {e}")
+        return
+    
+    # Now get token from query parameter
     token = websocket.query_params.get("token")
     
     print(f"🔍 WebSocket connection attempt with token: {token[:50] if token else 'None'}...")
     
     if not token:
         print("❌ No token provided")
+        await websocket.send_json({"type": "error", "message": "Token required"})
         await websocket.close(code=1008, reason="Token required")
         return
     
@@ -1258,19 +1266,23 @@ async def courier_tracking_websocket(websocket: WebSocket):
         print(f"✅ Token decoded, user_id: {user_id}")
     except jwt.ExpiredSignatureError:
         print("❌ Token expired")
+        await websocket.send_json({"type": "error", "message": "Token expired"})
         await websocket.close(code=1008, reason="Token expired")
         return
     except jwt.JWTError as e:
         print(f"❌ Invalid token: {e}")
+        await websocket.send_json({"type": "error", "message": f"Invalid token: {str(e)}"})
         await websocket.close(code=1008, reason=f"Invalid token: {str(e)}")
         return
     except Exception as e:
         print(f"❌ Token decode error: {e}")
+        await websocket.send_json({"type": "error", "message": f"Token decode error: {str(e)}"})
         await websocket.close(code=1008, reason=f"Token decode error: {str(e)}")
         return
     
     if not user_id:
         print("❌ No user_id in token")
+        await websocket.send_json({"type": "error", "message": "No user_id in token"})
         await websocket.close(code=1008, reason="No user_id in token")
         return
     
@@ -1280,15 +1292,12 @@ async def courier_tracking_websocket(websocket: WebSocket):
         courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
         if not courier:
             print(f"❌ Courier not found for user_id={user_id}")
+            await websocket.send_json({"type": "error", "message": "Courier not found"})
             await websocket.close(code=1008, reason="Courier not found")
             return
         
         courier_id = courier.id
         print(f"✅ Courier found: id={courier_id}, name={courier.first_name}")
-        
-        # Принимаем соединение
-        await websocket.accept()
-        print(f"✅ WebSocket accepted for courier {courier_id}")
         
         # Отправляем подтверждение
         await websocket.send_json({
@@ -1380,6 +1389,7 @@ async def courier_tracking_websocket(websocket: WebSocket):
     except Exception as e:
         print(f"❌ WebSocket error for courier: {e}")
         try:
+            await websocket.send_json({"type": "error", "message": str(e)})
             await websocket.close(code=1011, reason=str(e))
         except:
             pass
@@ -1390,11 +1400,10 @@ async def courier_tracking_websocket(websocket: WebSocket):
             if not manager.courier_connections[courier_id]:
                 del manager.courier_connections[courier_id]
                 print(f"🗑️ Removed courier {courier_id} from connections")
-        db.close()# ============ ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ============
-# backend/main.py - обновленный эндпоинт
+        db.close()
 
-# backend/main.py - ИСПРАВЛЕННЫЙ полный эндпоинт
 
+        
 @app.get("/api/courier/available-orders")
 async def get_available_orders_for_courier(request: Request, db: Session = Depends(get_db)):
     """Умное получение доступных заказов с учетом прогресса текущего заказа"""
