@@ -2992,42 +2992,49 @@ async def auto_refund_on_deadline():
 
 import asyncio
 from datetime import datetime, timedelta
-
 async def cleanup_expired_reservations():
     """Каждую минуту проверяем истекшие резервации и возвращаем товары"""
+    print("🟢 [cleanup_expired_reservations] ФОНовая задача ЗАПУЩЕНА и РАБОТАЕТ")
+    
     while True:
-        await asyncio.sleep(60)  # Каждую минуту
-        
-        db = SessionLocal()
         try:
-            # Находим истекшие резервации
+            current_time = datetime.utcnow()
+            print(f"🔍 [{current_time}] Проверка истекших резерваций...")
+            
+            db = SessionLocal()
+            
+            # Находим истекшие НЕоплаченные резервации
             expired = db.query(TemporaryReservation).filter(
                 TemporaryReservation.is_paid == False,
-                TemporaryReservation.expires_at < datetime.utcnow()
+                TemporaryReservation.expires_at <= current_time
             ).all()
             
+            print(f"📊 Найдено истекших резерваций: {len(expired)}")
+            
             for reservation in expired:
-                # Возвращаем товар обратно
+                print(f"  - Обработка резервации #{reservation.id}, bag_id={reservation.bag_id}, user_id={reservation.user_id}")
+                
+                # Возвращаем товар
                 bag = db.query(SurpriseBag).filter(SurpriseBag.id == reservation.bag_id).first()
                 if bag:
+                    old_qty = bag.available_quantity
                     bag.available_quantity += reservation.quantity
                     if bag.available_quantity > 0:
                         bag.is_active = True
                     
-                    print(f"🔄 Возврат товара: {bag.name} +{reservation.quantity}, теперь {bag.available_quantity}")
+                    print(f"    ✅ Товар '{bag.name}': {old_qty} → {bag.available_quantity} (+{reservation.quantity})")
                     
-                    # Уведомляем всех клиентов
+                    # WebSocket уведомление
                     await manager.broadcast({
                         "type": "bag_quantity_updated",
                         "data": {
                             "bag_id": bag.id,
                             "available_quantity": bag.available_quantity,
                             "is_active": bag.is_active
-                        },
-                        "timestamp": datetime.utcnow().isoformat()
+                        }
                     }, channel="surprise_bags")
                 
-                # Удаляем из корзины пользователя
+                # Удаляем резервацию из корзины пользователя
                 cart_item = db.query(CartItem).filter(
                     CartItem.user_id == reservation.user_id,
                     CartItem.surprise_bag_id == reservation.bag_id
@@ -3037,18 +3044,25 @@ async def cleanup_expired_reservations():
                         cart_item.quantity -= reservation.quantity
                     else:
                         db.delete(cart_item)
+                    print(f"    🗑️ Обновлена корзина пользователя {reservation.user_id}")
                 
                 # Удаляем резервацию
                 db.delete(reservation)
-                print(f"🗑️ Резервация #{reservation.id} удалена")
+                print(f"    ✅ Резервация #{reservation.id} удалена")
             
             if expired:
                 db.commit()
-                
-        except Exception as e:
-            print(f"Ошибка очистки резерваций: {e}")
-        finally:
+                print(f"✅ Обработано {len(expired)} истекших резерваций")
+            
             db.close()
+            
+        except Exception as e:
+            print(f"❌ Ошибка в cleanup_expired_reservations: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Ждем 60 секунд до следующей проверки
+        await asyncio.sleep(60)
 # backend/main.py - добавьте этот эндпоинт
 
 @app.get("/api/debug/bags")
@@ -3072,6 +3086,29 @@ async def debug_all_bags(db: Session = Depends(get_db)):
     return {"bags": result}
 
 # backend/main.py - добавьте
+
+@app.post("/api/admin/force-cleanup")
+async def force_cleanup(request: Request, db: Session = Depends(get_db)):
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        return {"error": "Not admin"}
+    
+    now = datetime.utcnow()
+    expired = db.query(TemporaryReservation).filter(
+        TemporaryReservation.is_paid == False,
+        TemporaryReservation.expires_at <= now
+    ).all()
+    
+    for res in expired:
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == res.bag_id).first()
+        if bag:
+            bag.available_quantity += res.quantity
+            bag.is_active = True
+        db.delete(res)
+    
+    db.commit()
+    return {"message": f"Очищено {len(expired)} резерваций"}
+
 
 @app.get("/api/debug/bag/{bag_id}")
 async def debug_bag(bag_id: int, db: Session = Depends(get_db)):
@@ -3138,14 +3175,16 @@ async def confirm_reservation(request: Request, db: Session = Depends(get_db)):
 # # Запускаем фоновую задачу при старте приложения
 # backend/main.py - добавьте в конец файла
 
+
+
 @app.on_event("startup")
 async def startup_event():
-    """Запуск фоновых задач при старте сервера"""
-    asyncio.create_task(manager.start_cleanup_task())
+    print("🚀 СТАРТ...")
     asyncio.create_task(cleanup_expired_reservations())
-    asyncio.create_task(cleanup_dead_connections())
-    print("✅ Все фоновые задачи запущены")
-# Клиент запрашивает возврат
+    print("✅ cleanup_expired_reservations запущена")
+
+
+
 @app.post("/api/refund/request")
 async def request_refund(
     request: Request,
