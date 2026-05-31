@@ -4354,23 +4354,11 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     
     # Если нет авторизации - создаем тестового пользователя
     if not user_id:
-        test_user = db.query(User).filter(User.phone == "test_mobile_user").first()
-        if not test_user:
-            test_user = User(
-                phone="test_mobile_user",
-                first_name="Test",
-                last_name="User",
-                full_name="Test User",
-                password=hash_password("test123"),
-                role=UserRole.CUSTOMER,
-                is_active=True,
-                created_at=datetime.utcnow()
-            )
-            db.add(test_user)
-            db.commit()
-            db.refresh(test_user)
-        user_id = test_user.id
-        print(f"🆕 Создан тестовый пользователь для мобильного: {user_id}")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Пожалуйста, войдите в аккаунт"}
+        )
+    
     
     print(f"🛒 Добавление в корзину: user_id={user_id}")
     
