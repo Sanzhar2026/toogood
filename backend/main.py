@@ -4531,7 +4531,7 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
                     "customer_lat": order.customer_lat,
                     "customer_lon": order.customer_lon
                 }
-            }, channel="courier_notifications")
+            }, channel="couriers")  # ← ИЗМЕНИТЬ НА "couriers"
             print(f"📢 Уведомление о заказе #{order.id} отправлено курьерам")
         except Exception as e:
             print(f"❌ Ошибка отправки уведомления для заказа #{order.id}: {e}")
