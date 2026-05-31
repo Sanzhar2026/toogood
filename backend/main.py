@@ -186,7 +186,6 @@ async def get_delivery_route(order_id: int, request: Request, db: Session = Depe
         except Exception as e:
             print(f"ORS error: {e}")
             return get_straight_line_route(start_lat, start_lon, end_lat, end_lon)
-
 def get_user_id_from_request(request: Request) -> int | None:
     """Универсальное получение user_id из запроса (Bearer token или cookie)"""
     
@@ -610,22 +609,91 @@ async def admin_update_order_status(order_id: int, request: Request, db: Session
     
     return {"success": True, "message": f"Статус обновлен на {value}"}
 # backend/main.py - добавить
-
-@app.post("/api/orders/confirm/{order_id}")
-async def confirm_order(order_id: int, request: Request, db: Session = Depends(get_db)):
-    """Принудительно подтвердить заказ (для теста)"""
+@app.post("/api/orders")
+async def create_order(order_data: OrderCreate, request: Request, db: Session = Depends(get_db)):
+    """Создание заказа после оплаты"""
     
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    print(f"📦 Получены данные: bag_id={order_data.bag_id}, lat={order_data.lat}, lon={order_data.lon}, address={order_data.address}")
     
-    order.status = OrderStatus.CONFIRMED
-    order.payment_status = "paid"
-    order.paid_at = datetime.utcnow()
+    # ✅ Получаем user_id универсальным способом
+    user_id = get_user_id_from_request(request)
+    
+    if not user_id:
+        print("❌ Нет авторизации")
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Получаем пользователя
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        print(f"❌ Пользователь {user_id} не найден")
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Получаем сюрприз
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order_data.bag_id).first()
+    if not bag:
+        print(f"❌ Сюрприз {order_data.bag_id} не найден")
+        raise HTTPException(status_code=404, detail="Bag not found")
+    
+    # Проверяем наличие товара
+    if bag.available_quantity < 1:
+        print(f"❌ Товар {bag.id} недоступен, осталось: {bag.available_quantity}")
+        raise HTTPException(status_code=400, detail="Товар временно недоступен")
+    
+    # Получаем ресторан
+    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    # Получаем адрес
+    customer_address = order_data.address
+    if not customer_address or customer_address == "Address not specified":
+        if order_data.lat and order_data.lon:
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        f"https://nominatim.openstreetmap.org/reverse?format=json&lat={order_data.lat}&lon={order_data.lon}&accept-language=ru"
+                    )
+                    geo_data = response.json()
+                    customer_address = geo_data.get('display_name', f"{order_data.lat}, {order_data.lon}")
+            except:
+                customer_address = f"{order_data.lat}, {order_data.lon}"
+        else:
+            customer_address = "Адрес не указан"
+    
+    # Создаем заказ
+    order_number = f"ORD-{secrets.token_hex(4).upper()}"
+    
+    order = Order(
+        user_id=user.id,
+        supplier_id=bag.supplier_id,
+        surprise_bag_id=bag.id,
+        order_number=order_number,
+        status=OrderStatus.PENDING,
+        customer_lat=order_data.lat,
+        customer_lon=order_data.lon,
+        customer_address=customer_address,
+        amount_paid=bag.discounted_price,
+        created_at=datetime.utcnow()
+    )
+    
+    db.add(order)
+    
+    # Уменьшаем количество
+    bag.available_quantity -= 1
+    if bag.available_quantity <= 0:
+        bag.is_active = False
+    
     db.commit()
+    db.refresh(order)
     
-    return {"success": True, "message": "Заказ подтвержден", "status": "confirmed"}
-
+    print(f"✅ Заказ #{order.id} создан для пользователя {user_id}")
+    
+    return {
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "status": order.status.value,
+        "message": "Order created successfully"
+    }
 
 
     
@@ -1588,6 +1656,7 @@ async def courier_accept_order(order_id: int, request: Request, db: Session = De
 @app.get("/api/cart/reservation")
 async def get_active_reservation(request: Request, db: Session = Depends(get_db)):
     """Получить активную резервацию для текущего пользователя"""
+    
     user_id = get_user_id_from_request(request)
     
     if not user_id:
@@ -1609,8 +1678,6 @@ async def get_active_reservation(request: Request, db: Session = Depends(get_db)
         }
     
     return {"reservation": None}
-
-
 
 
 @app.get("/api/courier/me")
