@@ -128,10 +128,10 @@ class SurpriseBagResponse(BaseModel):
 
 # ============ ORDER SCHEMAS ============
 class OrderCreate(BaseModel):
-    surprise_bag_id: int
-    customer_lat: float
-    customer_lon: float
-    customer_address: str
+    bag_id: int          # ← Правильно
+    lat: float           # ← Правильно
+    lon: float           # ← Правильно
+    address: str      
     pickup_time: Optional[str] = None
     user_id: Optional[int] = 1  # Temporary, will be from auth
 
