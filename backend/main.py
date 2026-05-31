@@ -1232,9 +1232,12 @@ def get_current_user_from_token(request: Request) -> int:
 #         async with ws_lock:
 #             ws_connection_count -= 1
 #         print(f"🔌 Курьер {courier_id} отключен. Осталось: {ws_connection_count}")
+
+# backend/main.py - Improved WebSocket endpoint
+
 @app.websocket("/ws/courier-tracking")
 async def courier_tracking_websocket(websocket: WebSocket):
-    """WebSocket для отслеживания курьеров"""
+    """WebSocket для отслеживания курьеров с улучшенной стабильностью"""
     
     # Получаем токен из query параметра
     token = websocket.query_params.get("token")
@@ -1294,11 +1297,11 @@ async def courier_tracking_websocket(websocket: WebSocket):
             "timestamp": datetime.utcnow().isoformat()
         })
         
-        # Подписываем курьера на канал "couriers" для получения новых заказов
+        # Подписываем курьера
         if courier_id not in manager.courier_connections:
             manager.courier_connections[courier_id] = set()
         manager.courier_connections[courier_id].add(websocket)
-        print(f"📡 Courier {courier_id} subscribed to couriers channel")
+        print(f"📡 Courier {courier_id} subscribed")
         
         await websocket.send_json({
             "type": "subscribed",
@@ -1306,14 +1309,21 @@ async def courier_tracking_websocket(websocket: WebSocket):
             "message": "Вы будете получать уведомления о новых заказах"
         })
         
+        # ✅ Улучшенный heartbeat с таймаутом
+        last_pong = datetime.utcnow()
+        heartbeat_interval = 25  # секунд
+        heartbeat_timeout = 60   # секунд без ответа
+        
         while True:
             try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                # Ждем сообщение с таймаутом
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=heartbeat_interval)
                 message = json.loads(data)
                 
                 if message.get("type") == "ping":
                     await websocket.send_json({"type": "pong"})
                     print(f"💓 Heartbeat from courier {courier_id}")
+                    last_pong = datetime.utcnow()
                     
                 elif message.get("type") == "update_location":
                     lat = message.get("lat")
@@ -1335,34 +1345,52 @@ async def courier_tracking_websocket(websocket: WebSocket):
                             "lon": lon,
                             "timestamp": datetime.utcnow().isoformat()
                         })
-                        
+                
+                elif message.get("type") == "pong":
+                    print(f"💓 Pong received from courier {courier_id}")
+                    last_pong = datetime.utcnow()
+                
             except asyncio.TimeoutError:
-                # Отправляем ping для проверки соединения
-                try:
-                    await websocket.send_json({"type": "ping"})
-                except:
+                # Проверяем, не истекло ли время ожидания pong
+                time_since_last_pong = (datetime.utcnow() - last_pong).total_seconds()
+                if time_since_last_pong > heartbeat_timeout:
+                    print(f"⚠️ Heartbeat timeout for courier {courier_id}, closing connection")
                     break
+                else:
+                    # Отправляем ping для проверки
+                    try:
+                        await websocket.send_json({"type": "ping"})
+                        print(f"💓 Sending ping to courier {courier_id}")
+                    except:
+                        print(f"❌ Failed to send ping to courier {courier_id}")
+                        break
+                        
             except WebSocketDisconnect:
-                print(f"🔌 Courier {courier_id} disconnected")
+                print(f"🔌 Courier {courier_id} disconnected normally")
                 break
+                
+            except json.JSONDecodeError as e:
+                print(f"❌ Invalid JSON from courier {courier_id}: {e}")
+                continue
+                
             except Exception as e:
-                print(f"❌ Error in WebSocket loop: {e}")
+                print(f"❌ Error in WebSocket loop for courier {courier_id}: {e}")
                 break
                 
     except Exception as e:
-        print(f"❌ WebSocket error: {e}")
+        print(f"❌ WebSocket error for courier: {e}")
         try:
             await websocket.close(code=1011, reason=str(e))
         except:
             pass
     finally:
-        # Отписываемся от канала
+        # Очищаем соединение
         if 'courier_id' in locals() and courier_id in manager.courier_connections:
             manager.courier_connections[courier_id].discard(websocket)
             if not manager.courier_connections[courier_id]:
                 del manager.courier_connections[courier_id]
-        db.close()
-# ============ ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ============
+                print(f"🗑️ Removed courier {courier_id} from connections")
+        db.close()# ============ ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ ============
 # backend/main.py - обновленный эндпоинт
 
 # backend/main.py - ИСПРАВЛЕННЫЙ полный эндпоинт
