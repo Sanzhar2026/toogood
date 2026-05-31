@@ -2994,75 +2994,61 @@ import asyncio
 from datetime import datetime, timedelta
 async def cleanup_expired_reservations():
     """Каждую минуту проверяем истекшие резервации и возвращаем товары"""
-    print("🟢 [cleanup_expired_reservations] ФОНовая задача ЗАПУЩЕНА и РАБОТАЕТ")
+    print("🟢 cleanup_expired_reservations ЗАПУЩЕНА")
     
     while True:
         try:
-            current_time = datetime.utcnow()
-            print(f"🔍 [{current_time}] Проверка истекших резерваций...")
-            
             db = SessionLocal()
+            now = datetime.utcnow()
             
-            # Находим истекшие НЕоплаченные резервации
+            # Находим все истекшие неоплаченные резервации
             expired = db.query(TemporaryReservation).filter(
                 TemporaryReservation.is_paid == False,
-                TemporaryReservation.expires_at <= current_time
+                TemporaryReservation.expires_at < now
             ).all()
             
-            print(f"📊 Найдено истекших резерваций: {len(expired)}")
-            
-            for reservation in expired:
-                print(f"  - Обработка резервации #{reservation.id}, bag_id={reservation.bag_id}, user_id={reservation.user_id}")
-                
-                # Возвращаем товар
-                bag = db.query(SurpriseBag).filter(SurpriseBag.id == reservation.bag_id).first()
-                if bag:
-                    old_qty = bag.available_quantity
-                    bag.available_quantity += reservation.quantity
-                    if bag.available_quantity > 0:
-                        bag.is_active = True
-                    
-                    print(f"    ✅ Товар '{bag.name}': {old_qty} → {bag.available_quantity} (+{reservation.quantity})")
-                    
-                    # WebSocket уведомление
-                    await manager.broadcast({
-                        "type": "bag_quantity_updated",
-                        "data": {
-                            "bag_id": bag.id,
-                            "available_quantity": bag.available_quantity,
-                            "is_active": bag.is_active
-                        }
-                    }, channel="surprise_bags")
-                
-                # Удаляем резервацию из корзины пользователя
-                cart_item = db.query(CartItem).filter(
-                    CartItem.user_id == reservation.user_id,
-                    CartItem.surprise_bag_id == reservation.bag_id
-                ).first()
-                if cart_item:
-                    if cart_item.quantity > reservation.quantity:
-                        cart_item.quantity -= reservation.quantity
-                    else:
-                        db.delete(cart_item)
-                    print(f"    🗑️ Обновлена корзина пользователя {reservation.user_id}")
-                
-                # Удаляем резервацию
-                db.delete(reservation)
-                print(f"    ✅ Резервация #{reservation.id} удалена")
-            
             if expired:
+                print(f"🔍 Найдено {len(expired)} истекших резерваций")
+                
+                for res in expired:
+                    bag = db.query(SurpriseBag).filter(SurpriseBag.id == res.bag_id).first()
+                    if bag:
+                        bag.available_quantity += res.quantity
+                        bag.is_active = True
+                        print(f"✅ Товар '{bag.name}' ID:{bag.id} восстановлен: +{res.quantity}, теперь {bag.available_quantity}")
+                        
+                        # WebSocket уведомление
+                        await manager.broadcast({
+                            "type": "bag_quantity_updated",
+                            "data": {
+                                "bag_id": bag.id,
+                                "available_quantity": bag.available_quantity,
+                                "is_active": bag.is_active
+                            }
+                        }, channel="surprise_bags")
+                    
+                    # Удаляем из корзины пользователя
+                    cart_item = db.query(CartItem).filter(
+                        CartItem.user_id == res.user_id,
+                        CartItem.surprise_bag_id == res.bag_id
+                    ).first()
+                    if cart_item:
+                        if cart_item.quantity > res.quantity:
+                            cart_item.quantity -= res.quantity
+                        else:
+                            db.delete(cart_item)
+                    
+                    db.delete(res)
+                
                 db.commit()
-                print(f"✅ Обработано {len(expired)} истекших резерваций")
+                print(f"✅ Обработано {len(expired)} резерваций")
             
             db.close()
             
         except Exception as e:
-            print(f"❌ Ошибка в cleanup_expired_reservations: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ Ошибка: {e}")
         
-        # Ждем 60 секунд до следующей проверки
-        await asyncio.sleep(60)
+        await asyncio.sleep(60)  # Проверка каждую минуту
 # backend/main.py - добавьте этот эндпоинт
 
 @app.get("/api/debug/bags")
@@ -3175,15 +3161,48 @@ async def confirm_reservation(request: Request, db: Session = Depends(get_db)):
 # # Запускаем фоновую задачу при старте приложения
 # backend/main.py - добавьте в конец файла
 
-
+@app.post("/api/admin/fix-all-bags")
+async def fix_all_bags(request: Request, db: Session = Depends(get_db)):
+    """Восстановить ВСЕ товары (для админов)"""
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        return {"error": "Not admin"}
+    
+    # Восстанавливаем ВСЕ товары
+    bags = db.query(SurpriseBag).all()
+    fixed_count = 0
+    
+    for bag in bags:
+        if bag.available_quantity == 0:
+            bag.available_quantity = 10
+            bag.is_active = True
+            fixed_count += 1
+            print(f"✅ Восстановлен товар #{bag.id}: {bag.name}")
+    
+    # Удаляем ВСЕ неоплаченные резервации
+    deleted = db.query(TemporaryReservation).filter(
+        TemporaryReservation.is_paid == False
+    ).delete()
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Восстановлено {fixed_count} товаров, удалено {deleted} резерваций"
+    }
 
 @app.on_event("startup")
 async def startup_event():
-    print("🚀 СТАРТ...")
+    """Запуск фоновых задач при старте сервера"""
+    print("=" * 50)
+    print("🚀 ЗАПУСК СЕРВЕРА")
+    print("=" * 50)
+    
+    # Запускаем очистку истекших резерваций
     asyncio.create_task(cleanup_expired_reservations())
-    print("✅ cleanup_expired_reservations запущена")
-
-
+    print("✅ cleanup_expired_reservations - ЗАПУЩЕНА")
+    
+    print("✅ Все фоновые задачи запущены")
 
 @app.post("/api/refund/request")
 async def request_refund(
