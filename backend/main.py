@@ -6124,51 +6124,51 @@ supplier_connections = {}  # {supplier_id: [websocket1, websocket2]}
 # backend/main.py - исправленный Supplier WebSocket
 
 
-@app.websocket("/ws/supplier")
-async def supplier_websocket(websocket: WebSocket):
-    """WebSocket для поставщиков"""
+# @app.websocket("/ws/supplier")
+# async def supplier_websocket(websocket: WebSocket):
+#     """WebSocket для поставщиков"""
     
-    # ✅ Сначала ACCEPT
-    try:
-        await websocket.accept()
-        print("✅ Supplier WebSocket accepted")
-    except Exception as e:
-        print(f"❌ Failed to accept supplier WebSocket: {e}")
-        return
+#     # ✅ Сначала ACCEPT
+#     try:
+#         await websocket.accept()
+#         print("✅ Supplier WebSocket accepted")
+#     except Exception as e:
+#         print(f"❌ Failed to accept supplier WebSocket: {e}")
+#         return
     
-    # Получаем supplier_id из query params
-    supplier_id = websocket.query_params.get("supplier_id")
+#     # Получаем supplier_id из query params
+#     supplier_id = websocket.query_params.get("supplier_id")
     
-    if not supplier_id:
-        await websocket.close(code=1008, reason="supplier_id required")
-        return
+#     if not supplier_id:
+#         await websocket.close(code=1008, reason="supplier_id required")
+#         return
     
-    # ✅ Используем ConnectionManager (вся логика уже внутри)
-    await manager.connect(websocket, "supplier", int(supplier_id))
+#     # ✅ Используем ConnectionManager (вся логика уже внутри)
+#     await manager.connect(websocket, "supplier", int(supplier_id))
     
-    try:
-        await websocket.send_json({
-            "type": "connected",
-            "supplier_id": supplier_id,
-            "timestamp": datetime.utcnow().isoformat()
-        })
+#     try:
+#         await websocket.send_json({
+#             "type": "connected",
+#             "supplier_id": supplier_id,
+#             "timestamp": datetime.utcnow().isoformat()
+#         })
         
-        while True:
-            try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-                message = json.loads(data)
-                if message.get("type") == "ping":
-                    await websocket.send_json({"type": "pong"})
-            except asyncio.TimeoutError:
-                await websocket.send_json({"type": "ping"})
-            except WebSocketDisconnect:
-                break
+#         while True:
+#             try:
+#                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+#                 message = json.loads(data)
+#                 if message.get("type") == "ping":
+#                     await websocket.send_json({"type": "pong"})
+#             except asyncio.TimeoutError:
+#                 await websocket.send_json({"type": "ping"})
+#             except WebSocketDisconnect:
+#                 break
                 
-    except Exception as e:
-        print(f"Ошибка: {e}")
-    finally:
-        # ✅ ДОБАВИТЬ await
-        await manager.disconnect(websocket, "supplier", int(supplier_id))
+#     except Exception as e:
+#         print(f"Ошибка: {e}")
+#     finally:
+#         # ✅ ДОБАВИТЬ await
+#         await manager.disconnect(websocket, "supplier", int(supplier_id))
 # ============ ФОНОВАЯ ОЧИСТКА МЕРТВЫХ СОЕДИНЕНИЙ ============
 async def cleanup_dead_connections():
     """Фоновая очистка мертвых WebSocket соединений"""
