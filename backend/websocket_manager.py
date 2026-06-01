@@ -15,7 +15,7 @@ class ConnectionManager:
     
     async def connect(self, websocket: WebSocket, user_type: str, user_id: int):
         """Подключение с указанием типа пользователя"""
-        await websocket.accept()
+        # await websocket.accept()
         self.active_connections.add(websocket)
         
         if user_type == "courier":
@@ -37,7 +37,7 @@ class ConnectionManager:
     
     async def connect_legacy(self, websocket: WebSocket):
         """Старый метод подключения (без указания типа)"""
-        await websocket.accept()
+        # await websocket.accept()
         self.active_connections.add(websocket)
         print(f"✅ WebSocket connected. Total: {len(self.active_connections)}")
     
