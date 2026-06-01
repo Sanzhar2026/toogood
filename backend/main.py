@@ -4894,28 +4894,48 @@ async def notify_bag_deleted(bag_id: int):
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket для общих уведомлений (без авторизации)"""
     
-    # Получаем параметры из query string
-    token = websocket.query_params.get("token")
-    user_type = websocket.query_params.get("type", "user")  # user, courier, supplier
-    user_id_str = websocket.query_params.get("user_id")
-    
-    # Если есть токен, декодируем user_id
-    if token and not user_id_str:
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id_str = payload.get("sub")
-        except:
-            pass
-    
-    # Если нет user_id - используем connect_legacy (для обратной совместимости)
-    if not user_id_str:
-        await manager.connect_legacy(websocket)
-    else:
-        user_id = int(user_id_str)
-        await manager.connect(websocket, user_type, user_id)
-    
+    # ✅ КРИТИЧЕСКИ ВАЖНО: Сначала ПРИНИМАЕМ соединение
     try:
+        await websocket.accept()
+        print("✅ WebSocket /ws connection accepted")
+    except Exception as e:
+        print(f"❌ Failed to accept WebSocket connection: {e}")
+        return
+    
+    # ТОЛЬКО ПОСЛЕ accept() можно получать параметры
+    try:
+        # Получаем параметры из query string (работает только после accept)
+        token = websocket.query_params.get("token")
+        user_type = websocket.query_params.get("type", "user")  # user, courier, supplier
+        user_id_str = websocket.query_params.get("user_id")
+        
+        # Если есть токен, декодируем user_id
+        if token and not user_id_str:
+            try:
+                from jose import jwt
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_id_str = payload.get("sub")
+                print(f"🔑 Token decoded: user_id={user_id_str}")
+            except Exception as e:
+                print(f"❌ Token decode error: {e}")
+        
+        # Отправляем приветственное сообщение
+        await websocket.send_json({
+            "type": "connected",
+            "message": "WebSocket connected",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        # Если нет user_id - используем connect_legacy (для обратной совместимости)
+        if not user_id_str:
+            await manager.connect_legacy(websocket)
+            print("📡 Client connected via legacy mode")
+        else:
+            user_id = int(user_id_str)
+            await manager.connect(websocket, user_type, user_id)
+            print(f"📡 {user_type} {user_id} connected")
+        
+        # Основной цикл
         while True:
             try:
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
@@ -4932,6 +4952,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         if channel and channel.startswith("supplier_"):
                             supplier_id = channel.replace("supplier_", "")
                             await manager.subscribe_supplier(websocket, supplier_id)
+                            print(f"📡 Subscribed to supplier {supplier_id}")
                             
                 except json.JSONDecodeError:
                     pass
@@ -4944,17 +4965,26 @@ async def websocket_endpoint(websocket: WebSocket):
                     break
                     
     except WebSocketDisconnect:
-        print("🔌 WebSocket disconnected")
-        if user_id_str:
-            manager.disconnect(websocket, user_type, int(user_id_str))
-        else:
-            manager.disconnect_legacy(websocket)
+        print("🔌 WebSocket disconnected normally")
+        try:
+            if 'user_id_str' in locals() and user_id_str:
+                manager.disconnect(websocket, user_type, int(user_id_str))
+            else:
+                manager.disconnect_legacy(websocket)
+        except:
+            pass
+            
     except Exception as e:
-        print(f"WebSocket error: {e}")
-        if user_id_str:
-            manager.disconnect(websocket, user_type, int(user_id_str))
-        else:
-            manager.disconnect_legacy(websocket)
+        print(f"❌ WebSocket error: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            if 'user_id_str' in locals() and user_id_str:
+                manager.disconnect(websocket, user_type, int(user_id_str))
+            else:
+                manager.disconnect_legacy(websocket)
+        except:
+            pass
 
 # backend/main.py - добавьте эту функцию
 
@@ -6037,14 +6067,25 @@ async def get_bag_by_id(bag_id: int, db: Session = Depends(get_db)):
 supplier_connections = {}  # {supplier_id: [websocket1, websocket2]}
 # backend/main.py - исправленный Supplier WebSocket
 @app.websocket("/ws/supplier")
-async def supplier_websocket_endpoint(websocket: WebSocket):
+async def supplier_websocket(websocket: WebSocket):
     """WebSocket для поставщиков"""
     
+    # ✅ Сначала ACCEPT
+    try:
+        await websocket.accept()
+        print("✅ Supplier WebSocket accepted")
+    except Exception as e:
+        print(f"❌ Failed to accept supplier WebSocket: {e}")
+        return
+    
+    # Получаем supplier_id из query params
     supplier_id = websocket.query_params.get("supplier_id")
     
     if not supplier_id:
-        await websocket.close(code=1008, reason="Supplier ID required")
+        await websocket.close(code=1008, reason="supplier_id required")
         return
+    
+    # ... остальной код
     
     # ✅ Используем ConnectionManager (вся логика уже внутри)
     await manager.connect(websocket, "supplier", int(supplier_id))
@@ -6844,7 +6885,7 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
         return {"authenticated": False, "error": "Invalid token"}
     
 
-    
+
 @app.get("/api/debug-cookies")
 async def debug_cookies(request: Request):
     cookies = request.cookies
