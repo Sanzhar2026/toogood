@@ -6802,30 +6802,49 @@ async def get_order_statuses():
         ]
     }
 
+# backend/main.py - ЗАМЕНИТЕ ваш существующий check-auth
+
 @app.get("/api/check-auth")
 async def check_auth(request: Request, db: Session = Depends(get_db)):
-    user_id = request.cookies.get("user_id")
+    """Проверка авторизации через JWT токен (НЕ cookies!)"""
     
-    print(f"🔍 CHECK-AUTH: user_id from cookie = {user_id}")  # ← Для отладки
+    # ✅ Проверяем Authorization header
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return {"authenticated": False, "error": "No token provided"}
     
-    if user_id:
-        try:
-            user = db.query(User).filter(User.id == int(user_id)).first()
-            if user:
-                print(f"✅ User found: {user.phone}")
-                return {
-                    "authenticated": True,
-                    "user_id": user.id,
-                    "user_name": user.full_name,
-                    "full_name": user.full_name,
-                    "user_phone": user.phone
-                }
-        except:
-            pass
+    token = auth_header.split(" ")[1]
     
-    print("❌ No valid user_id cookie")
-    return {"authenticated": False}
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            return {"authenticated": False}
+        
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            return {"authenticated": False}
+        
+        return {
+            "authenticated": True,
+            "user_id": user.id,
+            "user": {
+                "id": user.id,
+                "phone": user.phone,
+                "full_name": user.full_name,
+                "role": user.role.value if user.role else "customer"
+            }
+        }
+    except jwt.ExpiredSignatureError:
+        return {"authenticated": False, "error": "Token expired"}
+    except jwt.JWTError as e:
+        print(f"❌ JWT Error: {e}")
+        return {"authenticated": False, "error": "Invalid token"}
+    
 
+    
 @app.get("/api/debug-cookies")
 async def debug_cookies(request: Request):
     cookies = request.cookies
