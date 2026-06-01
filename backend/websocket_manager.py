@@ -2,6 +2,8 @@
 from typing import Dict, List, Set
 from fastapi import WebSocket
 import asyncio
+import gc 
+
 
 class ConnectionManager:
     def __init__(self):
@@ -35,43 +37,29 @@ class ConnectionManager:
     
     # ============ СТАРЫЙ МЕТОД connect (для обратной совместимости) ============
     
-    async def connect_legacy(self, websocket: WebSocket):
-        """Старый метод подключения (без указания типа)"""
-        # await websocket.accept()
-        self.active_connections.add(websocket)
-        print(f"✅ WebSocket connected. Total: {len(self.active_connections)}")
-    
-    # ============ НОВЫЙ disconnect ============
-    
-    def disconnect(self, websocket: WebSocket, user_type: str = None, user_id: int = None):
-        """Отключение с указанием типа пользователя"""
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
+    # backend/websocket_manager.py - в метод disconnect_legacy и disconnect
+
+    async def disconnect_legacy(self, websocket: WebSocket):
+      """Отключение клиента без авторизации"""
+      if websocket in self.general_connections:
+        self.general_connections.remove(websocket)
+        print(f"🔌 Legacy client disconnected. Total: {len(self.general_connections)}")
+        # ✅ Принудительный сбор мусора при отключении
+        import gc
+        gc.collect()
+
+    async def disconnect(self, websocket: WebSocket, user_type: str, user_id: int):
+      """Отключение авторизованного пользователя"""
+      if user_type in self.connections and user_id in self.connections[user_type]:
+        if websocket in self.connections[user_type][user_id]:
+            self.connections[user_type][user_id].remove(websocket)
+            print(f"🔌 {user_type} {user_id} disconnected")
+            # ✅ Принудительный сбор мусора при отключении
+            import gc
+            gc.collect()
         
-        if user_type == "courier" and user_id and user_id in self.courier_connections:
-            self.courier_connections[user_id].discard(websocket)
-            if not self.courier_connections[user_id]:
-                del self.courier_connections[user_id]
-        elif user_type == "user" and user_id and user_id in self.user_connections:
-            self.user_connections[user_id].discard(websocket)
-            if not self.user_connections[user_id]:
-                del self.user_connections[user_id]
-        elif user_type == "supplier" and user_id and user_id in self.supplier_connections:
-            self.supplier_connections[user_id].discard(websocket)
-            if not self.supplier_connections[user_id]:
-                del self.supplier_connections[user_id]
-        else:
-            self._remove_from_all_dicts(websocket)
-        
-        # Также удаляем из старого словаря supplier_connections_str
-        for supplier_id in list(self.supplier_connections_str.keys()):
-            if websocket in self.supplier_connections_str[supplier_id]:
-                self.supplier_connections_str[supplier_id].remove(websocket)
-                if not self.supplier_connections_str[supplier_id]:
-                    del self.supplier_connections_str[supplier_id]
-        
-        print(f"🔌 WebSocket disconnected. Total: {len(self.active_connections)}")
-    
+        if not self.connections[user_type][user_id]:
+            del self.connections[user_type][user_id]
     def _remove_from_all_dicts(self, websocket: WebSocket):
         """Поиск и удаление websocket из всех словарей"""
         for uid, conns in self.courier_connections.items():
@@ -95,18 +83,7 @@ class ConnectionManager:
     
     # ============ СТАРЫЙ МЕТОД disconnect (для обратной совместимости) ============
     
-    def disconnect_legacy(self, websocket: WebSocket):
-        """Старый метод отключения"""
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-        
-        for supplier_id in list(self.supplier_connections_str.keys()):
-            if websocket in self.supplier_connections_str[supplier_id]:
-                self.supplier_connections_str[supplier_id].remove(websocket)
-                if not self.supplier_connections_str[supplier_id]:
-                    del self.supplier_connections_str[supplier_id]
-        
-        print(f"🔌 WebSocket disconnected. Total: {len(self.active_connections)}")
+
     
     # ============ НОВЫЕ МЕТОДЫ ============
     
@@ -187,3 +164,21 @@ class ConnectionManager:
             
             if dead_connections:
                 print(f"🧹 Очищено {len(dead_connections)} мертвых соединений")
+
+    async def cleanup_stale_connections(self):
+        """Очистка мертвых соединений"""
+        # Очистка general_connections
+        alive = []
+        for ws in self.general_connections:
+            try:
+                # Проверяем, живо ли соединение
+                await ws.send_json({"type": "ping"})
+                alive.append(ws)
+            except:
+                pass
+        
+        self.general_connections = alive
+        print(f"🧹 Cleaned up connections. Total: {len(self.general_connections)}")
+        
+        # Принудительный сбор мусора
+        gc.collect()
