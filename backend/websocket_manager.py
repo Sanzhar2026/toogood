@@ -2,22 +2,43 @@
 from typing import Dict, List, Set
 from fastapi import WebSocket
 import asyncio
-import gc 
-
+import gc
 
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
+        self.general_connections: List[WebSocket] = []  # ✅ ДОБАВЛЕНО
         self.courier_connections: Dict[int, Set[WebSocket]] = {}
         self.user_connections: Dict[int, Set[WebSocket]] = {}
         self.supplier_connections: Dict[int, Set[WebSocket]] = {}
         self.supplier_connections_str: Dict[str, List[WebSocket]] = {}
     
-    # ============ НОВЫЕ МЕТОДЫ (с поддержкой типов) ============
+    # ============ МЕТОДЫ ДЛЯ LEGACY КЛИЕНТОВ ============
+    
+    async def connect_legacy(self, websocket: WebSocket):
+        """Подключение клиента без авторизации"""
+        self.general_connections.append(websocket)
+        print(f"✅ Legacy client connected. Total: {len(self.general_connections)}")
+        
+        try:
+            await websocket.send_json({
+                "type": "connected",
+                "message": "Connected to WebSocket"
+            })
+        except:
+            pass
+    
+    async def disconnect_legacy(self, websocket: WebSocket):
+        """Отключение клиента без авторизации"""
+        if websocket in self.general_connections:
+            self.general_connections.remove(websocket)
+            print(f"🔌 Legacy client disconnected. Total: {len(self.general_connections)}")
+            gc.collect()
+    
+    # ============ МЕТОДЫ ДЛЯ АВТОРИЗОВАННЫХ КЛИЕНТОВ ============
     
     async def connect(self, websocket: WebSocket, user_type: str, user_id: int):
         """Подключение с указанием типа пользователя"""
-        # await websocket.accept()
         self.active_connections.add(websocket)
         
         if user_type == "courier":
@@ -34,32 +55,43 @@ class ConnectionManager:
             self.supplier_connections[user_id].add(websocket)
         
         print(f"✅ {user_type} {user_id} connected. Total: {len(self.active_connections)}")
-    
-    # ============ СТАРЫЙ МЕТОД connect (для обратной совместимости) ============
-    
-    # backend/websocket_manager.py - в метод disconnect_legacy и disconnect
-
-    async def disconnect_legacy(self, websocket: WebSocket):
-      """Отключение клиента без авторизации"""
-      if websocket in self.general_connections:
-        self.general_connections.remove(websocket)
-        print(f"🔌 Legacy client disconnected. Total: {len(self.general_connections)}")
-        # ✅ Принудительный сбор мусора при отключении
-        import gc
-        gc.collect()
-
-    async def disconnect(self, websocket: WebSocket, user_type: str, user_id: int):
-      """Отключение авторизованного пользователя"""
-      if user_type in self.connections and user_id in self.connections[user_type]:
-        if websocket in self.connections[user_type][user_id]:
-            self.connections[user_type][user_id].remove(websocket)
-            print(f"🔌 {user_type} {user_id} disconnected")
-            # ✅ Принудительный сбор мусора при отключении
-            import gc
-            gc.collect()
         
-        if not self.connections[user_type][user_id]:
-            del self.connections[user_type][user_id]
+        try:
+            await websocket.send_json({
+                "type": "connected",
+                "user_type": user_type,
+                "user_id": user_id
+            })
+        except:
+            pass
+    
+    async def disconnect(self, websocket: WebSocket, user_type: str = None, user_id: int = None):
+        """Отключение авторизованного пользователя"""
+        # Удаляем из active_connections
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        
+        # Если знаем тип и ID - удаляем из соответствующего словаря
+        if user_type and user_id:
+            if user_type == "courier" and user_id in self.courier_connections:
+                self.courier_connections[user_id].discard(websocket)
+                if not self.courier_connections[user_id]:
+                    del self.courier_connections[user_id]
+            elif user_type == "user" and user_id in self.user_connections:
+                self.user_connections[user_id].discard(websocket)
+                if not self.user_connections[user_id]:
+                    del self.user_connections[user_id]
+            elif user_type == "supplier" and user_id in self.supplier_connections:
+                self.supplier_connections[user_id].discard(websocket)
+                if not self.supplier_connections[user_id]:
+                    del self.supplier_connections[user_id]
+        else:
+            # Если не знаем тип - ищем во всех словарях
+            self._remove_from_all_dicts(websocket)
+        
+        print(f"🔌 User disconnected. Total: {len(self.active_connections)}")
+        gc.collect()
+    
     def _remove_from_all_dicts(self, websocket: WebSocket):
         """Поиск и удаление websocket из всех словарей"""
         for uid, conns in self.courier_connections.items():
@@ -81,11 +113,7 @@ class ConnectionManager:
                     del self.supplier_connections[uid]
                 return
     
-    # ============ СТАРЫЙ МЕТОД disconnect (для обратной совместимости) ============
-    
-
-    
-    # ============ НОВЫЕ МЕТОДЫ ============
+    # ============ МЕТОДЫ ДЛЯ ОТПРАВКИ СООБЩЕНИЙ ============
     
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         """Отправить личное сообщение"""
@@ -113,7 +141,7 @@ class ConnectionManager:
                 disconnected.append(connection)
         
         for connection in disconnected:
-            self.disconnect_legacy(connection)
+            await self.disconnect_legacy(connection)
     
     async def broadcast_to_all(self, message: dict):
         """Отправить всем подключенным клиентам"""
@@ -124,7 +152,7 @@ class ConnectionManager:
             except:
                 disconnected.append(conn)
         for conn in disconnected:
-            self.disconnect(conn)
+            await self.disconnect(conn)
     
     async def send_to_user(self, user_id: int, message: dict):
         """Отправить сообщение конкретному пользователю"""
@@ -136,7 +164,7 @@ class ConnectionManager:
                 except:
                     disconnected.append(conn)
             for conn in disconnected:
-                self.disconnect(conn, "user", user_id)
+                await self.disconnect(conn, "user", user_id)
     
     async def subscribe_supplier(self, websocket: WebSocket, supplier_id: str):
         """Подписать поставщика на его канал"""
@@ -146,7 +174,8 @@ class ConnectionManager:
             self.supplier_connections_str[supplier_id].append(websocket)
             print(f"📡 Supplier {supplier_id} subscribed")
     
-    # ✅ РАСКОММЕНТИРОВАНО - теперь работает!
+    # ============ ФОНОВЫЕ ЗАДАЧИ ============
+    
     async def start_cleanup_task(self):
         """Фоновая очистка мертвых соединений"""
         while True:
@@ -160,18 +189,17 @@ class ConnectionManager:
                     dead_connections.append(conn)
             
             for conn in dead_connections:
-                self.disconnect(conn)
+                await self.disconnect(conn)
             
             if dead_connections:
                 print(f"🧹 Очищено {len(dead_connections)} мертвых соединений")
-
+            gc.collect()
+    
     async def cleanup_stale_connections(self):
         """Очистка мертвых соединений"""
-        # Очистка general_connections
         alive = []
         for ws in self.general_connections:
             try:
-                # Проверяем, живо ли соединение
                 await ws.send_json({"type": "ping"})
                 alive.append(ws)
             except:
@@ -179,6 +207,7 @@ class ConnectionManager:
         
         self.general_connections = alive
         print(f"🧹 Cleaned up connections. Total: {len(self.general_connections)}")
-        
-        # Принудительный сбор мусора
         gc.collect()
+
+# Создаем глобальный экземпляр
+manager = ConnectionManager()
