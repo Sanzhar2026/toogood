@@ -4937,130 +4937,130 @@ async def notify_bag_deleted(bag_id: int):
 
 # backend/main.py - исправленный WebSocket эндпоинт
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket для общих уведомлений (без авторизации)"""
+# @app.websocket("/ws")
+# async def websocket_endpoint(websocket: WebSocket):
+#     """WebSocket для общих уведомлений (без авторизации)"""
     
-    # ✅ КРИТИЧЕСКИ ВАЖНО: Сначала ПРИНИМАЕМ соединение
-    try:
-        await websocket.accept()
-        print("✅ WebSocket /ws connection accepted")
-    except Exception as e:
-        print(f"❌ Failed to accept WebSocket connection: {e}")
-        return
+#     # ✅ КРИТИЧЕСКИ ВАЖНО: Сначала ПРИНИМАЕМ соединение
+#     try:
+#         await websocket.accept()
+#         print("✅ WebSocket /ws connection accepted")
+#     except Exception as e:
+#         print(f"❌ Failed to accept WebSocket connection: {e}")
+#         return
     
-    # ТОЛЬКО ПОСЛЕ accept() можно получать параметры
-    try:
-        # Получаем параметры из query string (работает только после accept)
-        token = websocket.query_params.get("token")
-        user_type = websocket.query_params.get("type", "user")  # user, courier, supplier
-        user_id_str = websocket.query_params.get("user_id")
+#     # ТОЛЬКО ПОСЛЕ accept() можно получать параметры
+#     try:
+#         # Получаем параметры из query string (работает только после accept)
+#         token = websocket.query_params.get("token")
+#         user_type = websocket.query_params.get("type", "user")  # user, courier, supplier
+#         user_id_str = websocket.query_params.get("user_id")
         
-        # Если есть токен, декодируем user_id
-        if token and not user_id_str:
-            try:
-                from jose import jwt
-                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-                user_id_str = payload.get("sub")
-                print(f"🔑 Token decoded: user_id={user_id_str}")
-            except Exception as e:
-                print(f"❌ Token decode error: {e}")
+#         # Если есть токен, декодируем user_id
+#         if token and not user_id_str:
+#             try:
+#                 from jose import jwt
+#                 payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#                 user_id_str = payload.get("sub")
+#                 print(f"🔑 Token decoded: user_id={user_id_str}")
+#             except Exception as e:
+#                 print(f"❌ Token decode error: {e}")
         
-        # Отправляем приветственное сообщение
-        await websocket.send_json({
-            "type": "connected",
-            "message": "WebSocket connected",
-            "timestamp": datetime.utcnow().isoformat()
-        })
+#         # Отправляем приветственное сообщение
+#         await websocket.send_json({
+#             "type": "connected",
+#             "message": "WebSocket connected",
+#             "timestamp": datetime.utcnow().isoformat()
+#         })
         
-        # Если нет user_id - используем connect_legacy (для обратной совместимости)
-        if not user_id_str:
-            await manager.connect_legacy(websocket)
-            print("📡 Client connected via legacy mode")
-        else:
-            user_id = int(user_id_str)
-            await manager.connect(websocket, user_type, user_id)
-            print(f"📡 {user_type} {user_id} connected")
+#         # Если нет user_id - используем connect_legacy (для обратной совместимости)
+#         if not user_id_str:
+#             await manager.connect_legacy(websocket)
+#             print("📡 Client connected via legacy mode")
+#         else:
+#             user_id = int(user_id_str)
+#             await manager.connect(websocket, user_type, user_id)
+#             print(f"📡 {user_type} {user_id} connected")
         
-        # Основной цикл
-        while True:
-            try:
-                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-                try:
-                    message = json.loads(data)
-                    msg_type = message.get("type")
+#         # Основной цикл
+#         while True:
+#             try:
+#                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+#                 try:
+#                     message = json.loads(data)
+#                     msg_type = message.get("type")
                     
-                    if msg_type == "ping":
-                        await manager.send_personal_message({"type": "pong"}, websocket)
-                        print("💓 Heartbeat pong sent")
+#                     if msg_type == "ping":
+#                         await manager.send_personal_message({"type": "pong"}, websocket)
+#                         print("💓 Heartbeat pong sent")
                         
-                    elif msg_type == "subscribe":
-                        channel = message.get("channel")
-                        if channel and channel.startswith("supplier_"):
-                            supplier_id = channel.replace("supplier_", "")
-                            await manager.subscribe_supplier(websocket, supplier_id)
-                            print(f"📡 Subscribed to supplier {supplier_id}")
+#                     elif msg_type == "subscribe":
+#                         channel = message.get("channel")
+#                         if channel and channel.startswith("supplier_"):
+#                             supplier_id = channel.replace("supplier_", "")
+#                             await manager.subscribe_supplier(websocket, supplier_id)
+#                             print(f"📡 Subscribed to supplier {supplier_id}")
                             
-                except json.JSONDecodeError:
-                    pass
+#                 except json.JSONDecodeError:
+#                     pass
                     
-            except asyncio.TimeoutError:
-                try:
-                    await manager.send_personal_message({"type": "ping"}, websocket)
-                    print("💓 Heartbeat ping sent")
-                except:
-                    break
+#             except asyncio.TimeoutError:
+#                 try:
+#                     await manager.send_personal_message({"type": "ping"}, websocket)
+#                     print("💓 Heartbeat ping sent")
+#                 except:
+#                     break
                     
-    except WebSocketDisconnect:
-        print("🔌 WebSocket disconnected normally")
-        try:
-            if 'user_id_str' in locals() and user_id_str:
-                # ✅ ДОБАВИТЬ await
-                await manager.disconnect(websocket, user_type, int(user_id_str))
-            else:
-                # ✅ ДОБАВИТЬ await
-                await manager.disconnect_legacy(websocket)
-        except:
-            pass
+#     except WebSocketDisconnect:
+#         print("🔌 WebSocket disconnected normally")
+#         try:
+#             if 'user_id_str' in locals() and user_id_str:
+#                 # ✅ ДОБАВИТЬ await
+#                 await manager.disconnect(websocket, user_type, int(user_id_str))
+#             else:
+#                 # ✅ ДОБАВИТЬ await
+#                 await manager.disconnect_legacy(websocket)
+#         except:
+#             pass
             
-    except Exception as e:
-        print(f"❌ WebSocket error: {e}")
-        import traceback
-        traceback.print_exc()
-        try:
-            if 'user_id_str' in locals() and user_id_str:
-                # ✅ ДОБАВИТЬ await
-                await manager.disconnect(websocket, user_type, int(user_id_str))
-            else:
-                # ✅ ДОБАВИТЬ await
-                await manager.disconnect_legacy(websocket)
-        except:
-            pass
+#     except Exception as e:
+#         print(f"❌ WebSocket error: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         try:
+#             if 'user_id_str' in locals() and user_id_str:
+#                 # ✅ ДОБАВИТЬ await
+#                 await manager.disconnect(websocket, user_type, int(user_id_str))
+#             else:
+#                 # ✅ ДОБАВИТЬ await
+#                 await manager.disconnect_legacy(websocket)
+#         except:
+#             pass
 
-# backend/main.py - добавьте эту функцию
+# # backend/main.py - добавьте эту функцию
 
-async def notify_supplier_new_order(supplier_id: int, order_data: dict):
-    """Отправить уведомление поставщику о новом заказе"""
-    supplier_id_str = str(supplier_id)
+# async def notify_supplier_new_order(supplier_id: int, order_data: dict):
+#     """Отправить уведомление поставщику о новом заказе"""
+#     supplier_id_str = str(supplier_id)
     
-    if supplier_id_str in manager.supplier_connections:
-        disconnected = []
-        for connection in manager.supplier_connections[supplier_id_str]:
-            try:
-                await connection.send_json({
-                    "type": "new_order",
-                    "data": order_data,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-                print(f"📢 Notified supplier {supplier_id} about new order")
-            except:
-                disconnected.append(connection)
+#     if supplier_id_str in manager.supplier_connections:
+#         disconnected = []
+#         for connection in manager.supplier_connections[supplier_id_str]:
+#             try:
+#                 await connection.send_json({
+#                     "type": "new_order",
+#                     "data": order_data,
+#                     "timestamp": datetime.utcnow().isoformat()
+#                 })
+#                 print(f"📢 Notified supplier {supplier_id} about new order")
+#             except:
+#                 disconnected.append(connection)
         
-        for conn in disconnected:
-            if conn in manager.supplier_connections[supplier_id_str]:
-                manager.supplier_connections[supplier_id_str].remove(conn)
-    else:
-        print(f"⚠️ Supplier {supplier_id} has no active WebSocket connection")
+#         for conn in disconnected:
+#             if conn in manager.supplier_connections[supplier_id_str]:
+#                 manager.supplier_connections[supplier_id_str].remove(conn)
+#     else:
+#         print(f"⚠️ Supplier {supplier_id} has no active WebSocket connection")
 
 
 def decode_polyline(encoded):
