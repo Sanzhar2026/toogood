@@ -10,3 +10,4 @@ polyline==2.0.0
 python-dotenv
 psutil
 python-jose[cryptography]
+psycopg2-binary>=2.9.0
