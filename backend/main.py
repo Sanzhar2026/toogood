@@ -85,7 +85,12 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 30  # 30 дней
 
 
+# backend/main.py - в самое начало файла
+import faulthandler
+faulthandler.enable()
 
+# После импортов
+print(f"✅ faulthandler enabled. PID: {os.getpid()}")
 
 # Добавьте в начало файла backend/main.py
 def get_current_user_from_token(request: Request) -> int:
