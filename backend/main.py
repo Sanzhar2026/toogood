@@ -4936,6 +4936,7 @@ async def notify_bag_deleted(bag_id: int):
 # backend/main.py - добавьте WebSocket обработку
 
 # backend/main.py - исправленный WebSocket эндпоинт
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket для общих уведомлений (без авторизации)"""
@@ -5014,9 +5015,11 @@ async def websocket_endpoint(websocket: WebSocket):
         print("🔌 WebSocket disconnected normally")
         try:
             if 'user_id_str' in locals() and user_id_str:
-                manager.disconnect(websocket, user_type, int(user_id_str))
+                # ✅ ДОБАВИТЬ await
+                await manager.disconnect(websocket, user_type, int(user_id_str))
             else:
-                manager.disconnect_legacy(websocket)
+                # ✅ ДОБАВИТЬ await
+                await manager.disconnect_legacy(websocket)
         except:
             pass
             
@@ -5026,9 +5029,11 @@ async def websocket_endpoint(websocket: WebSocket):
         traceback.print_exc()
         try:
             if 'user_id_str' in locals() and user_id_str:
-                manager.disconnect(websocket, user_type, int(user_id_str))
+                # ✅ ДОБАВИТЬ await
+                await manager.disconnect(websocket, user_type, int(user_id_str))
             else:
-                manager.disconnect_legacy(websocket)
+                # ✅ ДОБАВИТЬ await
+                await manager.disconnect_legacy(websocket)
         except:
             pass
 
@@ -6112,6 +6117,8 @@ async def get_bag_by_id(bag_id: int, db: Session = Depends(get_db)):
 # Хранилище для supplier WebSocket соединений
 supplier_connections = {}  # {supplier_id: [websocket1, websocket2]}
 # backend/main.py - исправленный Supplier WebSocket
+
+
 @app.websocket("/ws/supplier")
 async def supplier_websocket(websocket: WebSocket):
     """WebSocket для поставщиков"""
@@ -6130,8 +6137,6 @@ async def supplier_websocket(websocket: WebSocket):
     if not supplier_id:
         await websocket.close(code=1008, reason="supplier_id required")
         return
-    
-    # ... остальной код
     
     # ✅ Используем ConnectionManager (вся логика уже внутри)
     await manager.connect(websocket, "supplier", int(supplier_id))
@@ -6157,8 +6162,8 @@ async def supplier_websocket(websocket: WebSocket):
     except Exception as e:
         print(f"Ошибка: {e}")
     finally:
-        manager.disconnect(websocket, "supplier", int(supplier_id))
-
+        # ✅ ДОБАВИТЬ await
+        await manager.disconnect(websocket, "supplier", int(supplier_id))
 # ============ ФОНОВАЯ ОЧИСТКА МЕРТВЫХ СОЕДИНЕНИЙ ============
 async def cleanup_dead_connections():
     """Фоновая очистка мертвых WebSocket соединений"""
