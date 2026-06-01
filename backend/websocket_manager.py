@@ -154,17 +154,22 @@ class ConnectionManager:
         for conn in disconnected:
             await self.disconnect(conn)
     
+    # backend/websocket_manager.py
     async def send_to_user(self, user_id: int, message: dict):
-        """Отправить сообщение конкретному пользователю"""
-        if user_id in self.user_connections:
-            disconnected = []
-            for conn in self.user_connections[user_id]:
-                try:
-                    await conn.send_json(message)
-                except:
-                    disconnected.append(conn)
-            for conn in disconnected:
-                await self.disconnect(conn, "user", user_id)
+      """Отправить сообщение конкретному пользователю"""
+      if user_id in self.user_connections:
+        disconnected = []
+        for ws in self.user_connections[user_id]:
+            try:
+                await ws.send_json(message)
+            except:
+                disconnected.append(ws)
+        for ws in disconnected:
+            await self.disconnect(ws, "user", user_id)
+        return True
+      else:
+        print(f"⚠️ Пользователь {user_id} не подключен к WebSocket")
+        return False
     
     async def subscribe_supplier(self, websocket: WebSocket, supplier_id: str):
         """Подписать поставщика на его канал"""

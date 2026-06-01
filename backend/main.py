@@ -846,7 +846,7 @@ async def courier_arrived(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Курьер прибыл к клиенту - отправляет уведомление клиенту"""
+    """Курьер прибыл к клиенту - отправляет уведомление ТОЛЬКО этому клиенту"""
     
     # ✅ ТОЛЬКО Bearer токен
     user_id = get_current_user_from_token(request)
@@ -865,17 +865,15 @@ async def courier_arrived(
     if order.assigned_courier_id != courier.user_id:
         raise HTTPException(status_code=403, detail="Order not assigned to you")
     
-    # ✅ Обновляем статус курьера (НЕ заказа!)
+    # ✅ Обновляем статус курьера
     courier.current_order_status = "nearby"
     db.commit()
     
-    # ✅ Отправляем уведомление клиенту через WebSocket
+    # ✅ Отправляем уведомление ТОЛЬКО этому клиенту
     try:
-        # Находим клиента
         customer = db.query(User).filter(User.id == order.user_id).first()
         
-        # ✅ ИЗМЕНЕНО: отправляем на канал "all" (все подключенные клиенты)
-        # или на персонализированный канал "user_{user_id}"
+        # ✅ ПРАВИЛЬНО: отправляем на персональный канал клиента
         await manager.broadcast({
             "type": "courier_arrived",
             "data": {
@@ -890,10 +888,10 @@ async def courier_arrived(
                 "customer_phone": customer.phone if customer else None
             },
             "timestamp": datetime.utcnow().isoformat()
-        }, channel="all")  # ← ИЗМЕНЕНО: channel="all"
+        }, channel=f"user_{order.user_id}")  # ← ТОЛЬКО этому пользователю
         
-        print(f"📢 Уведомление о прибытии курьера отправлено ВСЕМ клиентам")
-        print(f"   Заказ #{order.order_number}, курьер {courier.first_name}, клиент {customer.phone if customer else 'unknown'}")
+        print(f"📢 Уведомление о прибытии курьера отправлено клиенту {customer.phone if customer else order.user_id}")
+        print(f"   Заказ #{order.order_number}, курьер {courier.first_name}")
         
     except Exception as e:
         print(f"❌ Ошибка отправки уведомления: {e}")
@@ -4942,105 +4940,105 @@ async def notify_bag_deleted(bag_id: int):
 
 # backend/main.py - исправленный WebSocket эндпоинт
 
-# @app.websocket("/ws")
-# async def websocket_endpoint(websocket: WebSocket):
-#     """WebSocket для общих уведомлений (без авторизации)"""
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket для общих уведомлений (без авторизации)"""
     
-#     # ✅ КРИТИЧЕСКИ ВАЖНО: Сначала ПРИНИМАЕМ соединение
-#     try:
-#         await websocket.accept()
-#         print("✅ WebSocket /ws connection accepted")
-#     except Exception as e:
-#         print(f"❌ Failed to accept WebSocket connection: {e}")
-#         return
+    # ✅ КРИТИЧЕСКИ ВАЖНО: Сначала ПРИНИМАЕМ соединение
+    try:
+        await websocket.accept()
+        print("✅ WebSocket /ws connection accepted")
+    except Exception as e:
+        print(f"❌ Failed to accept WebSocket connection: {e}")
+        return
     
-#     # ТОЛЬКО ПОСЛЕ accept() можно получать параметры
-#     try:
-#         # Получаем параметры из query string (работает только после accept)
-#         token = websocket.query_params.get("token")
-#         user_type = websocket.query_params.get("type", "user")  # user, courier, supplier
-#         user_id_str = websocket.query_params.get("user_id")
+    # ТОЛЬКО ПОСЛЕ accept() можно получать параметры
+    try:
+        # Получаем параметры из query string (работает только после accept)
+        token = websocket.query_params.get("token")
+        user_type = websocket.query_params.get("type", "user")  # user, courier, supplier
+        user_id_str = websocket.query_params.get("user_id")
         
-#         # Если есть токен, декодируем user_id
-#         if token and not user_id_str:
-#             try:
-#                 from jose import jwt
-#                 payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#                 user_id_str = payload.get("sub")
-#                 print(f"🔑 Token decoded: user_id={user_id_str}")
-#             except Exception as e:
-#                 print(f"❌ Token decode error: {e}")
+        # Если есть токен, декодируем user_id
+        if token and not user_id_str:
+            try:
+                from jose import jwt
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_id_str = payload.get("sub")
+                print(f"🔑 Token decoded: user_id={user_id_str}")
+            except Exception as e:
+                print(f"❌ Token decode error: {e}")
         
-#         # Отправляем приветственное сообщение
-#         await websocket.send_json({
-#             "type": "connected",
-#             "message": "WebSocket connected",
-#             "timestamp": datetime.utcnow().isoformat()
-#         })
+        # Отправляем приветственное сообщение
+        await websocket.send_json({
+            "type": "connected",
+            "message": "WebSocket connected",
+            "timestamp": datetime.utcnow().isoformat()
+        })
         
-#         # Если нет user_id - используем connect_legacy (для обратной совместимости)
-#         if not user_id_str:
-#             await manager.connect_legacy(websocket)
-#             print("📡 Client connected via legacy mode")
-#         else:
-#             user_id = int(user_id_str)
-#             await manager.connect(websocket, user_type, user_id)
-#             print(f"📡 {user_type} {user_id} connected")
+        # Если нет user_id - используем connect_legacy (для обратной совместимости)
+        if not user_id_str:
+            await manager.connect_legacy(websocket)
+            print("📡 Client connected via legacy mode")
+        else:
+            user_id = int(user_id_str)
+            await manager.connect(websocket, user_type, user_id)
+            print(f"📡 {user_type} {user_id} connected")
         
-#         # Основной цикл
-#         while True:
-#             try:
-#                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-#                 try:
-#                     message = json.loads(data)
-#                     msg_type = message.get("type")
+        # Основной цикл
+        while True:
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                try:
+                    message = json.loads(data)
+                    msg_type = message.get("type")
                     
-#                     if msg_type == "ping":
-#                         await manager.send_personal_message({"type": "pong"}, websocket)
-#                         print("💓 Heartbeat pong sent")
+                    if msg_type == "ping":
+                        await manager.send_personal_message({"type": "pong"}, websocket)
+                        print("💓 Heartbeat pong sent")
                         
-#                     elif msg_type == "subscribe":
-#                         channel = message.get("channel")
-#                         if channel and channel.startswith("supplier_"):
-#                             supplier_id = channel.replace("supplier_", "")
-#                             await manager.subscribe_supplier(websocket, supplier_id)
-#                             print(f"📡 Subscribed to supplier {supplier_id}")
+                    elif msg_type == "subscribe":
+                        channel = message.get("channel")
+                        if channel and channel.startswith("supplier_"):
+                            supplier_id = channel.replace("supplier_", "")
+                            await manager.subscribe_supplier(websocket, supplier_id)
+                            print(f"📡 Subscribed to supplier {supplier_id}")
                             
-#                 except json.JSONDecodeError:
-#                     pass
+                except json.JSONDecodeError:
+                    pass
                     
-#             except asyncio.TimeoutError:
-#                 try:
-#                     await manager.send_personal_message({"type": "ping"}, websocket)
-#                     print("💓 Heartbeat ping sent")
-#                 except:
-#                     break
+            except asyncio.TimeoutError:
+                try:
+                    await manager.send_personal_message({"type": "ping"}, websocket)
+                    print("💓 Heartbeat ping sent")
+                except:
+                    break
                     
-#     except WebSocketDisconnect:
-#         print("🔌 WebSocket disconnected normally")
-#         try:
-#             if 'user_id_str' in locals() and user_id_str:
-#                 # ✅ ДОБАВИТЬ await
-#                 await manager.disconnect(websocket, user_type, int(user_id_str))
-#             else:
-#                 # ✅ ДОБАВИТЬ await
-#                 await manager.disconnect_legacy(websocket)
-#         except:
-#             pass
+    except WebSocketDisconnect:
+        print("🔌 WebSocket disconnected normally")
+        try:
+            if 'user_id_str' in locals() and user_id_str:
+                # ✅ ДОБАВИТЬ await
+                await manager.disconnect(websocket, user_type, int(user_id_str))
+            else:
+                # ✅ ДОБАВИТЬ await
+                await manager.disconnect_legacy(websocket)
+        except:
+            pass
             
-#     except Exception as e:
-#         print(f"❌ WebSocket error: {e}")
-#         import traceback
-#         traceback.print_exc()
-#         try:
-#             if 'user_id_str' in locals() and user_id_str:
-#                 # ✅ ДОБАВИТЬ await
-#                 await manager.disconnect(websocket, user_type, int(user_id_str))
-#             else:
-#                 # ✅ ДОБАВИТЬ await
-#                 await manager.disconnect_legacy(websocket)
-#         except:
-#             pass
+    except Exception as e:
+        print(f"❌ WebSocket error: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            if 'user_id_str' in locals() and user_id_str:
+                # ✅ ДОБАВИТЬ await
+                await manager.disconnect(websocket, user_type, int(user_id_str))
+            else:
+                # ✅ ДОБАВИТЬ await
+                await manager.disconnect_legacy(websocket)
+        except:
+            pass
 
 # # backend/main.py - добавьте эту функцию
 
@@ -6124,51 +6122,54 @@ supplier_connections = {}  # {supplier_id: [websocket1, websocket2]}
 # backend/main.py - исправленный Supplier WebSocket
 
 
-# @app.websocket("/ws/supplier")
-# async def supplier_websocket(websocket: WebSocket):
-#     """WebSocket для поставщиков"""
+@app.websocket("/ws/supplier")
+async def supplier_websocket(websocket: WebSocket):
+    """WebSocket для поставщиков"""
     
-#     # ✅ Сначала ACCEPT
-#     try:
-#         await websocket.accept()
-#         print("✅ Supplier WebSocket accepted")
-#     except Exception as e:
-#         print(f"❌ Failed to accept supplier WebSocket: {e}")
-#         return
+    # ✅ Сначала ACCEPT
+    try:
+        await websocket.accept()
+        print("✅ Supplier WebSocket accepted")
+    except Exception as e:
+        print(f"❌ Failed to accept supplier WebSocket: {e}")
+        return
     
-#     # Получаем supplier_id из query params
-#     supplier_id = websocket.query_params.get("supplier_id")
+    # Получаем supplier_id из query params
+    supplier_id = websocket.query_params.get("supplier_id")
     
-#     if not supplier_id:
-#         await websocket.close(code=1008, reason="supplier_id required")
-#         return
+    if not supplier_id:
+        await websocket.close(code=1008, reason="supplier_id required")
+        return
     
-#     # ✅ Используем ConnectionManager (вся логика уже внутри)
-#     await manager.connect(websocket, "supplier", int(supplier_id))
+    # ✅ Используем ConnectionManager (вся логика уже внутри)
+    await manager.connect(websocket, "supplier", int(supplier_id))
     
-#     try:
-#         await websocket.send_json({
-#             "type": "connected",
-#             "supplier_id": supplier_id,
-#             "timestamp": datetime.utcnow().isoformat()
-#         })
+    try:
+        await websocket.send_json({
+            "type": "connected",
+            "supplier_id": supplier_id,
+            "timestamp": datetime.utcnow().isoformat()
+        })
         
-#         while True:
-#             try:
-#                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-#                 message = json.loads(data)
-#                 if message.get("type") == "ping":
-#                     await websocket.send_json({"type": "pong"})
-#             except asyncio.TimeoutError:
-#                 await websocket.send_json({"type": "ping"})
-#             except WebSocketDisconnect:
-#                 break
+        while True:
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                message = json.loads(data)
+                if message.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except asyncio.TimeoutError:
+                await websocket.send_json({"type": "ping"})
+            except WebSocketDisconnect:
+                break
                 
-#     except Exception as e:
-#         print(f"Ошибка: {e}")
-#     finally:
-#         # ✅ ДОБАВИТЬ await
-#         await manager.disconnect(websocket, "supplier", int(supplier_id))
+    except Exception as e:
+        print(f"Ошибка: {e}")
+    finally:
+        # ✅ ДОБАВИТЬ await
+        await manager.disconnect(websocket, "supplier", int(supplier_id))
+
+
+        
 # ============ ФОНОВАЯ ОЧИСТКА МЕРТВЫХ СОЕДИНЕНИЙ ============
 async def cleanup_dead_connections():
     """Фоновая очистка мертвых WebSocket соединений"""
