@@ -1403,6 +1403,21 @@ async def courier_tracking_websocket(websocket: WebSocket):
         db.close()
 
 
+# Добавьте в main.py бекенда
+import psutil
+import os
+
+@app.get("/api/debug/memory")
+async def check_memory():
+    process = psutil.Process(os.getpid())
+    memory_mb = process.memory_info().rss / 1024 / 1024
+    
+    return {
+        "current_memory_mb": memory_mb,
+        "limit_mb": 512,
+        "free_mb": 512 - memory_mb,
+        "percent_used": (memory_mb / 512) * 100
+    }
         
 @app.get("/api/courier/available-orders")
 async def get_available_orders_for_courier(request: Request, db: Session = Depends(get_db)):
