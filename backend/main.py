@@ -314,9 +314,6 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
         "pending_couriers": pending_couriers,
         "total_revenue": total_revenue
     }
-
-
-
 @app.post("/api/admin/cancel-order/{order_id}")
 async def admin_cancel_order(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Админ отменяет заказ и возвращает деньги"""
@@ -334,14 +331,32 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     
     print(f"🔍 Отмена заказа #{order_id}, назначенный курьер: {order.assigned_courier_id}")
     
-    # Получаем курьера
-    courier = None
+    # ✅ ГАРАНТИРОВАННАЯ ОЧИСТКА КУРЬЕРА
     if order.assigned_courier_id:
+        # 1. Пытаемся найти курьера
         courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+        
         if courier:
-            print(f"👤 Курьер найден: {courier.first_name}, current_order_id: {courier.current_order_id}")
+            # Очищаем курьера
+            old_order_id = courier.current_order_id
+            courier.current_order_id = None
+            courier.current_order_status = None
+            courier.is_available = True
+            courier.is_online = True
+            print(f"✅ Курьер {courier.first_name} освобожден (был заказ #{old_order_id})")
         else:
-            print(f"❌ Курьер с user_id={order.assigned_courier_id} не найден")
+            print(f"⚠️ Курьер с user_id={order.assigned_courier_id} не найден в профилях")
+        
+        # 2. ДОПОЛНИТЕЛЬНАЯ ПРИНУДИТЕЛЬНАЯ ОЧИСТКА (на всякий случай)
+        db.query(CourierProfile).filter(
+            CourierProfile.user_id == order.assigned_courier_id
+        ).update({
+            "current_order_id": None,
+            "current_order_status": None,
+            "is_available": True,
+            "is_online": True
+        })
+        print(f"🧹 Принудительная очистка курьера user_id={order.assigned_courier_id}")
     
     # Обновляем статусы заказа
     order.status = OrderStatus.CANCELLED
@@ -352,66 +367,55 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     order.refund_reason = reason
     order.cancelled_at = datetime.utcnow()
     
-    # ✅ УСИЛЕННАЯ ОЧИСТКА КУРЬЕРА
-    if courier:
-        # Очищаем в любом случае, даже если current_order_id не совпадает
-        if courier.current_order_id == order_id:
-            courier.current_order_id = None
-            courier.current_order_status = None
-            courier.is_available = True
-            courier.is_online = True
-            print(f"✅ Курьер {courier.first_name} освобожден от заказа #{order_id}")
-        else:
-            # Если у курьера другой заказ - проверим и его
-            print(f"⚠️ У курьера другой активный заказ: {courier.current_order_id}")
-    else:
-        # Если курьера нет в БД, но он указан - ищем напрямую
-        if order.assigned_courier_id:
-            # Прямой UPDATE на всякий случай
-            db.query(CourierProfile).filter(
-                CourierProfile.user_id == order.assigned_courier_id,
-                CourierProfile.current_order_id == order_id
-            ).update({
-                "current_order_id": None,
-                "current_order_status": None,
-                "is_available": True,
-                "is_online": True
-            })
-            print(f"✅ Принудительная очистка курьера user_id={order.assigned_courier_id}")
-    
     # Возвращаем количество сюрприза
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
     if bag:
         bag.available_quantity += 1
         if bag.available_quantity > 0:
             bag.is_active = True
+        print(f"📦 Восстановлен товар '{bag.name}', теперь {bag.available_quantity} шт.")
     
     db.commit()
     
-    # Отправляем уведомления
-    if courier:
+    # Отправляем уведомление курьеру
+    if order.assigned_courier_id:
+        try:
+            await manager.broadcast({
+                "type": "order_cancelled",
+                "data": {
+                    "order_id": order_id,
+                    "order_number": order.order_number,
+                    "reason": reason,
+                    "cancelled_by": "admin",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            }, channel=f"courier_{order.assigned_courier_id}")
+            print(f"📢 Уведомление отправлено курьеру user_id={order.assigned_courier_id}")
+        except Exception as e:
+            print(f"❌ Ошибка отправки уведомления курьеру: {e}")
+    
+    # Отправляем уведомление клиенту
+    try:
         await manager.broadcast({
             "type": "order_cancelled",
             "data": {
                 "order_id": order_id,
                 "order_number": order.order_number,
                 "reason": reason,
-                "cancelled_by": "admin"
+                "refund_amount": order.amount_paid,
+                "timestamp": datetime.utcnow().isoformat()
             }
-        }, channel=f"courier_{courier.user_id}")
+        }, channel=f"order_{order_id}")
+        print(f"📢 Уведомление отправлено клиенту")
+    except Exception as e:
+        print(f"❌ Ошибка отправки уведомления клиенту: {e}")
     
-    await manager.broadcast({
-        "type": "order_cancelled",
-        "data": {
-            "order_id": order_id,
-            "order_number": order.order_number,
-            "reason": reason,
-            "refund_amount": order.amount_paid
-        }
-    }, channel=f"order_{order_id}")
-    
-    return {"success": True, "message": f"Заказ #{order.order_number} отменен, деньги возвращены"}
-
+    return {
+        "success": True, 
+        "message": f"Заказ #{order.order_number} отменен, деньги возвращены",
+        "order_id": order_id,
+        "order_number": order.order_number
+    }
 
 @app.get("/api/admin/orders")
 async def get_admin_orders(request: Request, db: Session = Depends(get_db)):
@@ -869,7 +873,7 @@ async def courier_arrived(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Курьер прибыл к клиенту - отправляет уведомление ТОЛЬКО этому клиенту"""
+    """Курьер прибыл к клиенту - отправляет уведомление и обновляет статус"""
     
     # ✅ ТОЛЬКО Bearer токен
     user_id = get_current_user_from_token(request)
@@ -888,15 +892,31 @@ async def courier_arrived(
     if order.assigned_courier_id != courier.user_id:
         raise HTTPException(status_code=403, detail="Order not assigned to you")
     
-    # ✅ Обновляем статус курьера
+    # ✅ ОБНОВЛЯЕМ СТАТУС ЗАКАЗА
+    order.status = OrderStatus.NEARBY
+    order.delivery_status = DeliveryStatus.NEARBY
+    
+    # ✅ УВЕЛИЧИВАЕМ ДЕДЛАЙН (добавляем еще 15 минут)
+    if order.delivery_deadline:
+        if order.delivery_deadline < datetime.utcnow():
+            # Если дедлайн уже истек - ставим новый
+            order.delivery_deadline = datetime.utcnow() + timedelta(minutes=15)
+        else:
+            # Если еще не истек - добавляем 15 минут
+            order.delivery_deadline = order.delivery_deadline + timedelta(minutes=15)
+    else:
+        order.delivery_deadline = datetime.utcnow() + timedelta(minutes=15)
+    
+    print(f"⏰ Новый дедлайн для заказа #{order_id}: {order.delivery_deadline}")
+    
+    # Обновляем статус курьера
     courier.current_order_status = "nearby"
     db.commit()
     
-    # ✅ Отправляем уведомление ТОЛЬКО этому клиенту
+    # Отправляем уведомление клиенту
     try:
         customer = db.query(User).filter(User.id == order.user_id).first()
         
-        # ✅ ПРАВИЛЬНО: отправляем на персональный канал клиента
         await manager.broadcast({
             "type": "courier_arrived",
             "data": {
@@ -911,10 +931,9 @@ async def courier_arrived(
                 "customer_phone": customer.phone if customer else None
             },
             "timestamp": datetime.utcnow().isoformat()
-        }, channel=f"user_{order.user_id}")  # ← ТОЛЬКО этому пользователю
+        }, channel=f"user_{order.user_id}")
         
-        print(f"📢 Уведомление о прибытии курьера отправлено клиенту {customer.phone if customer else order.user_id}")
-        print(f"   Заказ #{order.order_number}, курьер {courier.first_name}")
+        print(f"📢 Уведомление отправлено клиенту {customer.phone if customer else order.user_id}")
         
     except Exception as e:
         print(f"❌ Ошибка отправки уведомления: {e}")
@@ -923,9 +942,10 @@ async def courier_arrived(
         "success": True, 
         "message": "Уведомление о прибытии отправлено клиенту",
         "order_id": order_id,
-        "order_number": order.order_number
+        "order_number": order.order_number,
+        "delivery_deadline": order.delivery_deadline.isoformat()
     }
-
+     
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
     order_id: int,
