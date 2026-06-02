@@ -332,12 +332,18 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # Получаем курьера, которому был назначен заказ
+    print(f"🔍 Отмена заказа #{order_id}, назначенный курьер: {order.assigned_courier_id}")
+    
+    # Получаем курьера
     courier = None
     if order.assigned_courier_id:
         courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+        if courier:
+            print(f"👤 Курьер найден: {courier.first_name}, current_order_id: {courier.current_order_id}")
+        else:
+            print(f"❌ Курьер с user_id={order.assigned_courier_id} не найден")
     
-    # Обновляем статусы
+    # Обновляем статусы заказа
     order.status = OrderStatus.CANCELLED
     order.payment_status = "refunded"
     order.refund_status = "completed"
@@ -346,12 +352,32 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     order.refund_reason = reason
     order.cancelled_at = datetime.utcnow()
     
-    # Освобождаем курьера, если заказ был назначен
-    if courier and courier.current_order_id == order_id:
-        courier.current_order_id = None
-        courier.current_order_status = None
-        courier.is_available = True
-        courier.is_online = True
+    # ✅ УСИЛЕННАЯ ОЧИСТКА КУРЬЕРА
+    if courier:
+        # Очищаем в любом случае, даже если current_order_id не совпадает
+        if courier.current_order_id == order_id:
+            courier.current_order_id = None
+            courier.current_order_status = None
+            courier.is_available = True
+            courier.is_online = True
+            print(f"✅ Курьер {courier.first_name} освобожден от заказа #{order_id}")
+        else:
+            # Если у курьера другой заказ - проверим и его
+            print(f"⚠️ У курьера другой активный заказ: {courier.current_order_id}")
+    else:
+        # Если курьера нет в БД, но он указан - ищем напрямую
+        if order.assigned_courier_id:
+            # Прямой UPDATE на всякий случай
+            db.query(CourierProfile).filter(
+                CourierProfile.user_id == order.assigned_courier_id,
+                CourierProfile.current_order_id == order_id
+            ).update({
+                "current_order_id": None,
+                "current_order_status": None,
+                "is_available": True,
+                "is_online": True
+            })
+            print(f"✅ Принудительная очистка курьера user_id={order.assigned_courier_id}")
     
     # Возвращаем количество сюрприза
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
@@ -362,7 +388,7 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     
     db.commit()
     
-    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРУ
+    # Отправляем уведомления
     if courier:
         await manager.broadcast({
             "type": "order_cancelled",
@@ -370,12 +396,10 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
                 "order_id": order_id,
                 "order_number": order.order_number,
                 "reason": reason,
-                "cancelled_by": "admin",
-                "timestamp": datetime.utcnow().isoformat()
+                "cancelled_by": "admin"
             }
         }, channel=f"courier_{courier.user_id}")
     
-    # Отправляем уведомление клиенту
     await manager.broadcast({
         "type": "order_cancelled",
         "data": {
@@ -387,7 +411,6 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     }, channel=f"order_{order_id}")
     
     return {"success": True, "message": f"Заказ #{order.order_number} отменен, деньги возвращены"}
-
 
 
 @app.get("/api/admin/orders")
