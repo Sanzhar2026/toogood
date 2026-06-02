@@ -6262,20 +6262,53 @@ async def geocode(lat: float, lon: float):
 
 
 # backend/main.py - исправленный эндпоинт получения заказа
-
 @app.get("/api/orders/{order_id}")
-async def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
-    """Получить заказ по ID с полной информацией"""
+async def get_order_by_id(
+    order_id: int, 
+    request: Request,  # ✅ добавить request
+    db: Session = Depends(get_db)
+):
+    """Получить заказ по ID с полной информацией (только для владельца заказа)"""
+    
+    # ✅ Проверяем авторизацию
+    user_id = get_user_id_from_request(request)
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     
     order = db.query(Order).filter(Order.id == order_id).first()
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    # ✅ Проверяем, что пользователь - владелец заказа ИЛИ админ
+    if order.user_id != user_id:
+        # Проверяем, может быть это админ?
+        admin_id = request.cookies.get("admin_id")
+        if not admin_id:
+            raise HTTPException(status_code=403, detail="Access denied: not your order")
+        
+        # Проверяем существование админа
+        admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+        if not admin:
+            raise HTTPException(status_code=403, detail="Access denied")
+    
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
     supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
     
-    # ✅ Формируем полный адрес
+    # Информация о курьере
+    courier_info = None
+    if order.assigned_courier_id:
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+        if courier:
+            courier_info = {
+                "first_name": courier.first_name,
+                "last_name": courier.last_name,
+                "phone": courier.phone,
+                "courier_type": courier.courier_type
+            }
+    
+    # Формируем полный адрес
     customer_address = order.customer_address
     if not customer_address or customer_address == "Address not specified":
         if order.customer_lat and order.customer_lon:
@@ -6294,14 +6327,19 @@ async def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
         "supplier_address": supplier.address if supplier else "",
         "supplier_lat": supplier.lat if supplier else None,
         "supplier_lon": supplier.lon if supplier else None,
-        "customer_address": customer_address,  # ✅ Исправленный адрес
+        "customer_address": customer_address,
         "customer_lat": order.customer_lat,
         "customer_lon": order.customer_lon,
         "amount_paid": order.amount_paid or 0,
         "pickup_time": order.pickup_time or "",
         "created_at": order.created_at.isoformat() if order.created_at else datetime.utcnow().isoformat(),
         "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None,
-        "payment_status": order.payment_status or "pending"
+        "payment_status": order.payment_status or "pending",
+        "refund_status": order.refund_status or None,
+        "refund_amount": order.refund_amount or None,
+        "refund_reason": order.refund_reason or None,
+        "auto_refund_processed": order.auto_refund_processed or False,
+        "assigned_courier": courier_info
     }
 
 @app.get("/test-ors")
