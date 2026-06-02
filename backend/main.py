@@ -6261,8 +6261,7 @@ async def geocode(lat: float, lon: float):
         return {"city": city}
 
 
-# backend/main.py - исправленный эндпоинт получения заказа
-@app.get("/api/orders/{order_id}")
+#@app.get("/api/orders/{order_id}")
 async def get_order_by_id(
     order_id: int, 
     request: Request,
@@ -6270,7 +6269,7 @@ async def get_order_by_id(
 ):
     """Получить заказ по ID"""
     
-    # ✅ Получаем user_id из Bearer токена
+    # Получаем user_id из токена
     user_id = None
     auth_header = request.headers.get("Authorization")
     
@@ -6284,7 +6283,6 @@ async def get_order_by_id(
         except Exception as e:
             print(f"❌ Ошибка токена: {e}")
     
-    # Fallback на cookie
     if not user_id:
         user_id = request.cookies.get("user_id")
         print(f"🍪 user_id из cookie: {user_id}")
@@ -6297,30 +6295,40 @@ async def get_order_by_id(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # ✅ Проверяем, что пользователь - владелец заказа
-    if order.user_id != int(user_id):
-        # Проверяем, может быть админ?
-        admin_id = request.cookies.get("admin_id")
-        if not admin_id:
-            raise HTTPException(status_code=403, detail="Access denied")
-        
-        admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-        if not admin:
-            raise HTTPException(status_code=403, detail="Access denied")
+    # ✅ Проверяем, кто запрашивает заказ
+    # 1. Владелец заказа (клиент)
+    # 2. Курьер, которому назначен заказ
+    # 3. Админ
+    
+    is_owner = order.user_id == int(user_id)
+    
+    # Проверяем, является ли пользователь курьером, назначенным на этот заказ
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    is_assigned_courier = courier and order.assigned_courier_id == courier.user_id
+    
+    # Проверяем админа
+    admin_id = request.cookies.get("admin_id")
+    is_admin = admin_id is not None
+    
+    if not (is_owner or is_assigned_courier or is_admin):
+        print(f"❌ Доступ запрещен: user_id={user_id}, владелец={order.user_id}, назначенный курьер={order.assigned_courier_id}")
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    print(f"✅ Доступ разрешен: владелец={is_owner}, курьер={is_assigned_courier}, админ={is_admin}")
     
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
     supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
     
-    # Информация о курьере
+    # Информация о курьере (только если это не сам курьер или для админа)
     courier_info = None
     if order.assigned_courier_id:
-        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
-        if courier:
+        courier_profile = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+        if courier_profile:
             courier_info = {
-                "first_name": courier.first_name,
-                "last_name": courier.last_name,
-                "phone": courier.phone,
-                "courier_type": courier.courier_type
+                "first_name": courier_profile.first_name,
+                "last_name": courier_profile.last_name,
+                "phone": courier_profile.phone,
+                "courier_type": courier_profile.courier_type
             }
     
     # Формируем полный адрес
