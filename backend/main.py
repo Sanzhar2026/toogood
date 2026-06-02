@@ -1986,6 +1986,38 @@ async def customer_reject_order(
         "refund_request_id": order.id
     }
 
+
+
+@app.post("/api/courier/force-clear-order")
+async def force_clear_courier_order(request: Request, db: Session = Depends(get_db)):
+    """Принудительная очистка заказа у курьера"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False})
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except:
+        return JSONResponse(status_code=401, content={"success": False})
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        return JSONResponse(status_code=404, content={"success": False})
+    
+    old_order_id = courier.current_order_id
+    courier.current_order_id = None
+    courier.current_order_status = None
+    courier.is_available = True
+    db.commit()
+    
+    return {"success": True, "message": f"Очищен заказ #{old_order_id}"}
+
+
+
 @app.post("/api/courier/go-offline")
 async def courier_go_offline(request: Request, db: Session = Depends(get_db)):
     """Курьер уходит с линии (только Bearer токен)"""
