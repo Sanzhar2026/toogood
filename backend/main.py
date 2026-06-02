@@ -1930,6 +1930,62 @@ async def courier_go_online(request: Request, db: Session = Depends(get_db)):
         "message": "Вы на линии", 
         "is_online": True
     }
+
+@app.post("/api/order/{order_id}/reject")
+async def customer_reject_order(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Клиент отказывается от заказа"""
+    
+    # Получаем user_id из токена
+    user_id = None
+    auth_header = request.headers.get("Authorization")
+    
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+        except:
+            pass
+    
+    if not user_id:
+        user_id = request.cookies.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    reason = data.get("reason", "Не указана")
+    
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.user_id == int(user_id)
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.status != OrderStatus.OUT_FOR_DELIVERY:
+        raise HTTPException(status_code=400, detail="Cannot reject order at this stage")
+    
+    # Создаем запрос на возврат
+    order.refund_requested_by_customer = True
+    order.refund_requested_at = datetime.utcnow()
+    order.refund_reason = reason
+    order.refund_status = "requested"
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Refund requested. Admin will process.",
+        "refund_request_id": order.id
+    }
+
 @app.post("/api/courier/go-offline")
 async def courier_go_offline(request: Request, db: Session = Depends(get_db)):
     """Курьер уходит с линии (только Bearer токен)"""
@@ -1982,6 +2038,8 @@ async def courier_go_offline(request: Request, db: Session = Depends(get_db)):
         "message": "Вы офлайн", 
         "is_online": False
     }
+
+
 @app.post("/api/courier/update-location")
 async def update_courier_location(request: Request, db: Session = Depends(get_db)):
     """Обновление геолокации курьера (только Bearer токен)"""
