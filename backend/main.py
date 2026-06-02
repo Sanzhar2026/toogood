@@ -980,7 +980,54 @@ async def force_clear_courier_order(request: Request, db: Session = Depends(get_
         "success": True,
         "message": f"Очищен заказ #{old_order_id}"
     }
-
+@app.post("/api/courier/clear-order")
+async def clear_courier_order(request: Request, db: Session = Depends(get_db)):
+    """Очистить несуществующий заказ у курьера"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        print(f"🔑 Очистка заказа для user_id: {user_id}")
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "detail": "Courier not found"}
+        )
+    
+    old_order_id = courier.current_order_id
+    old_status = courier.current_order_status
+    
+    # Очищаем
+    courier.current_order_id = None
+    courier.current_order_status = None
+    courier.is_available = True
+    db.commit()
+    
+    print(f"✅ Очищен заказ #{old_order_id} у курьера {courier.first_name} (статус был: {old_status})")
+    
+    return {
+        "success": True,
+        "message": f"Очищен заказ #{old_order_id}",
+        "old_order_id": old_order_id,
+        "old_status": old_status
+    }
 
 # backend/main.py - ЕДИНСТВЕННЫЙ эндпоинт для take-order
 
