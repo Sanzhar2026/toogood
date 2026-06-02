@@ -6260,7 +6260,46 @@ async def geocode(lat: float, lon: float):
         city = data.get('address', {}).get('city', 'Не определен')
         return {"city": city}
 
-
+@app.post("/api/order/{order_id}/reject")
+async def customer_reject_order(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Клиент отказывается от заказа (создает запрос на возврат)"""
+    
+    user_id = get_user_id_from_request(request)
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    data = await request.json()
+    reason = data.get("reason", "Не указана")
+    
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.user_id == user_id
+    ).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    if order.status != OrderStatus.OUT_FOR_DELIVERY:
+        raise HTTPException(status_code=400, detail="Cannot reject order at this stage")
+    
+    # Создаем запрос на возврат
+    order.refund_requested_by_customer = True
+    order.refund_requested_at = datetime.utcnow()
+    order.refund_reason = reason
+    order.refund_status = "requested"
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Refund requested. Admin will process.",
+        "refund_request_id": order.id
+    }
 # backend/main.py - исправленный эндпоинт получения заказа
 
 @app.get("/api/orders/{order_id}")
