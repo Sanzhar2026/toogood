@@ -902,6 +902,7 @@ async def courier_arrived(
         "order_id": order_id,
         "order_number": order.order_number
     }
+
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
     order_id: int,
@@ -910,28 +911,10 @@ async def customer_confirm_delivery(
 ):
     """Клиент подтверждает получение заказа"""
     
-    # 1. Получаем пользователя (с поддержкой Bearer токена)
-    user_id = None
-    
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-            print(f"🔑 user_id из Bearer токена: {user_id}")
-        except Exception as e:
-            print(f"❌ Ошибка токена: {e}")
-    
-    if not user_id:
-        user_id = request.cookies.get("user_id")
-        print(f"🍪 user_id из cookie: {user_id}")
-    
+    user_id = request.cookies.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # 2. Находим заказ
     order = db.query(Order).filter(
         Order.id == order_id,
         Order.user_id == int(user_id)
@@ -940,86 +923,38 @@ async def customer_confirm_delivery(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # 3. Меняем статус заказа на DELIVERED
+    # ✅ ТЕПЕРЬ меняем статус на DELIVERED
     order.status = OrderStatus.DELIVERED
     order.delivered_at = datetime.utcnow()
     
-    # 4. Освобождаем курьера (очищаем его активный заказ)
-    courier_cleared = False
+    # Освобождаем курьера
     if order.assigned_courier_id:
         courier = db.query(CourierProfile).filter(
             CourierProfile.user_id == order.assigned_courier_id
         ).first()
         if courier:
-            old_order_id = courier.current_order_id
             courier.current_order_id = None
             courier.current_order_status = None
             courier.is_available = True
-            courier.total_deliveries = (courier.total_deliveries or 0) + 1
-            courier_cleared = True
-            print(f"✅ Курьер {courier.first_name} освобожден, заказ #{order_id} доставлен (был заказ #{old_order_id})")
+            courier.total_deliveries += 1
     
     db.commit()
     
-    # 5. Уведомляем курьера через WebSocket
-    if order.assigned_courier_id:
-        try:
-            await manager.broadcast({
-                "type": "delivery_confirmed",
-                "data": {
-                    "order_id": order_id,
-                    "order_number": order.order_number,
-                    "status": "delivered",
-                    "message": f"Заказ #{order.order_number} успешно доставлен клиентом!"
-                }
-            }, channel=f"courier_{order.assigned_courier_id}")
-            print(f"📢 Уведомление курьеру отправлено")
-        except Exception as e:
-            print(f"❌ Ошибка отправки уведомления курьеру: {e}")
+    # Уведомляем курьера
+    await manager.broadcast({
+        "type": "delivery_confirmed",
+        "data": {
+            "order_id": order_id,
+            "status": "delivered"
+        }
+    }, channel=f"courier_{order.assigned_courier_id}")
     
-    return {
-        "success": True, 
-        "message": "Спасибо! Заказ получен",
-        "courier_freed": courier_cleared,
-        "order_status": order.status.value
-    }
+    return {"success": True, "message": "Спасибо! Заказ получен"}
 
-
-
-
-@app.post("/api/courier/force-clear-order")
-async def force_clear_courier_order(request: Request, db: Session = Depends(get_db)):
-    """Принудительная очистка заказа у курьера (если застрял)"""
-    
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    token = auth_header.split(" ")[1]
-    try:
-        from jose import jwt
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-    except:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
-    
-    old_order_id = courier.current_order_id
-    courier.current_order_id = None
-    courier.current_order_status = None
-    courier.is_available = True
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Очищен заказ #{old_order_id}"
-    }
 
 
 # backend/main.py - ЕДИНСТВЕННЫЙ эндпоинт для take-order
+
 @app.post("/api/courier/take-order/{order_id}")
 async def courier_take_order(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Курьер берет заказ в работу"""
@@ -1090,7 +1025,7 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
             content={"success": False, "message": f"У вас уже есть активный заказ #{courier.current_order_id}"}
         )
     
-    # ✅ НАЗНАЧАЕМ ЗАКАЗ КУРЬЕРУ (НЕ УДАЛЯЕМ!)
+    # Назначаем заказ курьеру
     order.assigned_courier_id = courier.user_id
     order.status = OrderStatus.OUT_FOR_DELIVERY
     order.delivery_started_at = datetime.utcnow()
@@ -1098,7 +1033,7 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
     
     # Обновляем статус курьера
     courier.current_order_id = order_id
-    courier.current_order_status = "delivering"  # ← изменил с "assigned"
+    courier.current_order_status = "assigned"
     courier.is_available = False
     
     db.commit()
@@ -1111,7 +1046,6 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
             "type": "order_assigned",
             "data": {
                 "order_id": order_id,
-                "order_number": order.order_number,
                 "courier_name": f"{courier.first_name} {courier.last_name}",
                 "courier_phone": courier.phone,
                 "courier_lat": courier.current_lat,
@@ -1120,7 +1054,6 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
             },
             "timestamp": datetime.utcnow().isoformat()
         }, channel=f"order_{order_id}")
-        print(f"📢 Уведомление отправлено клиенту")
     except Exception as e:
         print(f"⚠️ Не удалось отправить уведомление: {e}")
     
@@ -1128,9 +1061,10 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
         "success": True,
         "message": "Заказ взят в работу!",
         "order_id": order_id,
-        "order_number": order.order_number,
         "delivery_deadline": order.delivery_deadline.isoformat()
     }
+
+
 
 
 @app.post("/api/admin/process-refund/{order_id}")
@@ -2233,54 +2167,7 @@ async def get_online_couriers(db: Session = Depends(get_db)):
     
     return {"success": True, "couriers": result}
 
-@app.post("/api/courier/clear-order")
-async def clear_courier_order(request: Request, db: Session = Depends(get_db)):
-    """Очистить несуществующий заказ у курьера"""
-    
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "detail": "Bearer token required"}
-        )
-    
-    token = auth_header.split(" ")[1]
-    
-    try:
-        from jose import jwt
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        print(f"🔑 Очистка заказа для user_id: {user_id}")
-    except Exception as e:
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "detail": f"Invalid token: {str(e)}"}
-        )
-    
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    if not courier:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "detail": "Courier not found"}
-        )
-    
-    old_order_id = courier.current_order_id
-    old_status = courier.current_order_status
-    
-    # Очищаем заказ
-    courier.current_order_id = None
-    courier.current_order_status = None
-    courier.is_available = True
-    db.commit()
-    
-    print(f"✅ Очищен заказ #{old_order_id} у курьера {courier.first_name}")
-    
-    return {
-        "success": True,
-        "message": f"Очищен заказ #{old_order_id}",
-        "old_order_id": old_order_id,
-        "old_status": old_status
-    }
+
 @app.post("/api/courier/complete-order/{order_id}")
 async def complete_order(
     order_id: int,
@@ -6374,77 +6261,21 @@ async def geocode(lat: float, lon: float):
         return {"city": city}
 
 
+# backend/main.py - исправленный эндпоинт получения заказа
+
 @app.get("/api/orders/{order_id}")
-async def get_order_by_id(
-    order_id: int, 
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Получить заказ по ID"""
-    
-    # Получаем user_id из токена
-    user_id = None
-    auth_header = request.headers.get("Authorization")
-    
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-            print(f"🔑 user_id из токена: {user_id}")
-        except Exception as e:
-            print(f"❌ Ошибка токена: {e}")
-    
-    if not user_id:
-        user_id = request.cookies.get("user_id")
-        print(f"🍪 user_id из cookie: {user_id}")
-    
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+async def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
+    """Получить заказ по ID с полной информацией"""
     
     order = db.query(Order).filter(Order.id == order_id).first()
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # ✅ Проверяем, кто запрашивает заказ
-    # 1. Владелец заказа (клиент)
-    # 2. Курьер, которому назначен заказ
-    # 3. Админ
-    
-    is_owner = order.user_id == int(user_id)
-    
-    # Проверяем, является ли пользователь курьером, назначенным на этот заказ
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    is_assigned_courier = courier and order.assigned_courier_id == courier.user_id
-    
-    # Проверяем админа
-    admin_id = request.cookies.get("admin_id")
-    is_admin = admin_id is not None
-    
-    if not (is_owner or is_assigned_courier or is_admin):
-        print(f"❌ Доступ запрещен: user_id={user_id}, владелец={order.user_id}, назначенный курьер={order.assigned_courier_id}")
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    print(f"✅ Доступ разрешен: владелец={is_owner}, курьер={is_assigned_courier}, админ={is_admin}")
-    
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
     supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
     
-    # Информация о курьере (только если это не сам курьер или для админа)
-    courier_info = None
-    if order.assigned_courier_id:
-        courier_profile = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
-        if courier_profile:
-            courier_info = {
-                "first_name": courier_profile.first_name,
-                "last_name": courier_profile.last_name,
-                "phone": courier_profile.phone,
-                "courier_type": courier_profile.courier_type
-            }
-    
-    # Формируем полный адрес
+    # ✅ Формируем полный адрес
     customer_address = order.customer_address
     if not customer_address or customer_address == "Address not specified":
         if order.customer_lat and order.customer_lon:
@@ -6463,19 +6294,14 @@ async def get_order_by_id(
         "supplier_address": supplier.address if supplier else "",
         "supplier_lat": supplier.lat if supplier else None,
         "supplier_lon": supplier.lon if supplier else None,
-        "customer_address": customer_address,
+        "customer_address": customer_address,  # ✅ Исправленный адрес
         "customer_lat": order.customer_lat,
         "customer_lon": order.customer_lon,
         "amount_paid": order.amount_paid or 0,
         "pickup_time": order.pickup_time or "",
         "created_at": order.created_at.isoformat() if order.created_at else datetime.utcnow().isoformat(),
         "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None,
-        "payment_status": order.payment_status or "pending",
-        "refund_status": order.refund_status or None,
-        "refund_amount": order.refund_amount or None,
-        "refund_reason": order.refund_reason or None,
-        "auto_refund_processed": order.auto_refund_processed or False,
-        "assigned_courier": courier_info
+        "payment_status": order.payment_status or "pending"
     }
 
 @app.get("/test-ors")
