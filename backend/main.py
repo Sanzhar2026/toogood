@@ -6265,13 +6265,29 @@ async def geocode(lat: float, lon: float):
 @app.get("/api/orders/{order_id}")
 async def get_order_by_id(
     order_id: int, 
-    request: Request,  # ✅ добавить request
+    request: Request,
     db: Session = Depends(get_db)
 ):
-    """Получить заказ по ID с полной информацией (только для владельца заказа)"""
+    """Получить заказ по ID"""
     
-    # ✅ Проверяем авторизацию
-    user_id = get_user_id_from_request(request)
+    # ✅ Получаем user_id из Bearer токена
+    user_id = None
+    auth_header = request.headers.get("Authorization")
+    
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            print(f"🔑 user_id из токена: {user_id}")
+        except Exception as e:
+            print(f"❌ Ошибка токена: {e}")
+    
+    # Fallback на cookie
+    if not user_id:
+        user_id = request.cookies.get("user_id")
+        print(f"🍪 user_id из cookie: {user_id}")
     
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -6281,14 +6297,13 @@ async def get_order_by_id(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # ✅ Проверяем, что пользователь - владелец заказа ИЛИ админ
-    if order.user_id != user_id:
-        # Проверяем, может быть это админ?
+    # ✅ Проверяем, что пользователь - владелец заказа
+    if order.user_id != int(user_id):
+        # Проверяем, может быть админ?
         admin_id = request.cookies.get("admin_id")
         if not admin_id:
-            raise HTTPException(status_code=403, detail="Access denied: not your order")
+            raise HTTPException(status_code=403, detail="Access denied")
         
-        # Проверяем существование админа
         admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
         if not admin:
             raise HTTPException(status_code=403, detail="Access denied")
