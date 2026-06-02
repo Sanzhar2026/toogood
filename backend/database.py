@@ -10,7 +10,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Если нет DATABASE_URL - используем SQLite для локальной разработки
 if not DATABASE_URL:
-    DATABASE_URL = "sqlite:///./sarqyn.db?charset=utf8"
+    DATABASE_URL = "sqlite:///./SarqytGO.db?charset=utf8"
     print("⚠️ Используется SQLite (только для разработки)")
 
 # ✅ ОПРЕДЕЛЯЕМ ТИП БД
