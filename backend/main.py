@@ -6374,7 +6374,7 @@ async def geocode(lat: float, lon: float):
         return {"city": city}
 
 
-#@app.get("/api/orders/{order_id}")
+@app.get("/api/orders/{order_id}")
 async def get_order_by_id(
     order_id: int, 
     request: Request,
