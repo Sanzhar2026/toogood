@@ -950,7 +950,36 @@ async def customer_confirm_delivery(
     }, channel=f"courier_{order.assigned_courier_id}")
     
     return {"success": True, "message": "Спасибо! Заказ получен"}
-
+@app.post("/api/courier/force-clear-order")
+async def force_clear_courier_order(request: Request, db: Session = Depends(get_db)):
+    """Принудительная очистка заказа у курьера (если застрял)"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    old_order_id = courier.current_order_id
+    courier.current_order_id = None
+    courier.current_order_status = None
+    courier.is_available = True
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Очищен заказ #{old_order_id}"
+    }
 
 
 # backend/main.py - ЕДИНСТВЕННЫЙ эндпоинт для take-order
