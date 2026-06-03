@@ -660,56 +660,162 @@ async def get_admin_reservations(
 # backend/main.py - добавьте WebSocket для курьеров
 
 # ============ АДМИН ЭНДПОИНТЫ ДЛЯ УПРАВЛЕНИЯ ЗАКАЗАМИ ============
+# backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
 
 @app.put("/api/admin/update-order-status/{order_id}")
-async def admin_update_order_status(order_id: int, request: Request, db: Session = Depends(get_db)):
-    """Админ обновляет статус заказа (оплата или статус доставки)"""
+async def admin_update_order_status(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Админ обновляет статус заказа"""
     
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # ✅ Проверяем Bearer токен админа
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
     
-    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-    if not admin:
-        raise HTTPException(status_code=403, detail="Access denied")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Admin only")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
     
+    # Получаем данные
     data = await request.json()
-    field = data.get("field")  # "payment_status" или "order_status"
+    field = data.get("field")
     value = data.get("value")
     
+    print(f"📝 Обновление заказа #{order_id}: {field} = {value}")
+    
+    # Находим заказ
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    old_status = order.status.value if order.status else "unknown"
+    
+    # Обновляем статус в зависимости от поля
     if field == "payment_status":
         order.payment_status = value
-        if value == "paid":
+        if value == "paid" and not order.paid_at:
             order.paid_at = datetime.utcnow()
             order.status = OrderStatus.CONFIRMED
-        elif value == "refunded":
-            order.refund_status = "completed"
-            order.refund_processed_at = datetime.utcnow()
+            print(f"✅ Заказ #{order_id} оплачен, статус изменен на CONFIRMED")
             
     elif field == "order_status":
-        order.status = OrderStatus(value)
-        if value == "delivered":
-            order.delivered_at = datetime.utcnow()
-        elif value == "cancelled":
-            order.payment_status = "refunded"
+        # Конвертируем строку в enum
+        status_map = {
+            "pending": OrderStatus.PENDING,
+            "confirmed": OrderStatus.CONFIRMED,
+            "preparing": OrderStatus.PREPARING,
+            "ready_for_pickup": OrderStatus.READY_FOR_PICKUP,
+            "out_for_delivery": OrderStatus.OUT_FOR_DELIVERY,
+            "nearby": OrderStatus.NEARBY,
+            "delivered": OrderStatus.DELIVERED,
+            "cancelled": OrderStatus.CANCELLED
+        }
+        
+        if value in status_map:
+            order.status = status_map[value]
             
+            # Дополнительные действия при смене статуса
+            if value == "delivered":
+                order.delivered_at = datetime.utcnow()
+                print(f"✅ Заказ #{order_id} доставлен")
+                
+            elif value == "cancelled":
+                order.cancelled_at = datetime.utcnow()
+                print(f"❌ Заказ #{order_id} отменен")
+                
+            elif value == "out_for_delivery":
+                order.delivery_started_at = datetime.utcnow()
+                order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
+                print(f"🚚 Заказ #{order_id} в пути, дедлайн: {order.delivery_deadline}")
+        
+        print(f"📦 Заказ #{order_id}: статус изменен с {old_status} на {value}")
+    
     db.commit()
     
-    # Отправляем WebSocket уведомление
-    await manager.broadcast({
-        "type": "order_status_updated",
-        "data": {
-            "order_id": order_id,
-            "field": field,
-            "value": value
-        }
-    }, channel="admin")
+    # Отправляем уведомление клиенту через WebSocket (если есть)
+    try:
+        await notify_user(order.user_id, {
+            "type": "order_status_updated",
+            "data": {
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "old_status": old_status,
+                "new_status": value,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        })
+    except Exception as e:
+        print(f"⚠️ Не удалось отправить уведомление клиенту: {e}")
     
-    return {"success": True, "message": f"Статус обновлен на {value}"}
+    return {
+        "success": True,
+        "message": f"Статус заказа #{order.order_number} изменен с {old_status} на {value}",
+        "order_id": order.id,
+        "field": field,
+        "old_value": old_status,
+        "new_value": value
+    }
+
+
+# Вспомогательная функция для отправки уведомлений пользователю
+async def notify_user(user_id: int, message: dict):
+    """Отправить уведомление конкретному пользователю"""
+    if user_id in manager.user_connections:
+        try:
+            await manager.user_connections[user_id].send_json(message)
+            print(f"📨 Уведомление отправлено пользователю {user_id}")
+        except Exception as e:
+            print(f"❌ Ошибка отправки пользователю {user_id}: {e}")
+
+@app.post("/api/admin/bulk-update-status")
+async def admin_bulk_update_status(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Массовое обновление статусов заказов"""
+    
+    # Проверка админа
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Admin only")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    
+    data = await request.json()
+    order_ids = data.get("order_ids", [])
+    new_status = data.get("status")
+    
+    updated_count = 0
+    for order_id in order_ids:
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if order:
+            order.status = OrderStatus(new_status)
+            updated_count += 1
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Обновлено {updated_count} заказов",
+        "updated_count": updated_count
+    }       
 # backend/main.py - добавить
 @app.post("/api/orders")
 async def create_order(order_data: OrderCreate, request: Request, db: Session = Depends(get_db)):
