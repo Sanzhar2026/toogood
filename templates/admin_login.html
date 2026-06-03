@@ -1,20 +1,14 @@
-<!-- templates/admin_login.html -->
+<!-- templates/admin_login.html - ПОЛНАЯ ВЕРСИЯ С JWT -->
 <!DOCTYPE html>
 <html lang="{{ lang }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sarqyt GO - Admin Login</title>
-    <link rel="icon" type="image/png" href="/icon.png">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
             min-height: 100vh;
             display: flex;
@@ -22,7 +16,6 @@
             justify-content: center;
             padding: 1rem;
         }
-        
         .login-container {
             background: white;
             border-radius: 2rem;
@@ -31,72 +24,26 @@
             width: 100%;
             box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
         }
-        
-        @media (min-width: 768px) {
-            .login-container {
-                padding: 2.5rem;
-            }
-        }
-        
-        .logo {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        
-        .logo h1 {
-            font-size: 1.5rem;
-            color: #0f172a;
-        }
-        
-        @media (min-width: 768px) {
-            .logo h1 {
-                font-size: 2rem;
-            }
-        }
-        
-        .logo span {
-            color: #fbbf24;
-        }
-        
-        .logo p {
-            color: #64748b;
-            font-size: 0.8rem;
-            margin-top: 0.5rem;
-        }
-        
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            color: #0f172a;
-            font-size: 0.9rem;
-        }
-        
+        @media (min-width: 768px) { .login-container { padding: 2.5rem; } }
+        .logo { text-align: center; margin-bottom: 2rem; }
+        .logo h1 { font-size: 2rem; color: #0f172a; }
+        .logo span { color: #fbbf24; }
+        .logo p { color: #64748b; font-size: 0.8rem; margin-top: 0.5rem; }
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #0f172a; }
         input {
             width: 100%;
             padding: 0.75rem 1rem;
             border: 1px solid #e2e8f0;
             border-radius: 0.75rem;
-            font-size: 0.9rem;
+            font-size: 1rem;
             transition: all 0.2s;
         }
-        
-        @media (min-width: 768px) {
-            input {
-                font-size: 1rem;
-            }
-        }
-        
         input:focus {
             outline: none;
             border-color: #fbbf24;
             box-shadow: 0 0 0 3px rgba(251,191,36,0.1);
         }
-        
         .btn {
             width: 100%;
             padding: 0.75rem;
@@ -104,55 +51,29 @@
             color: white;
             border: none;
             border-radius: 0.75rem;
-            font-size: 0.9rem;
+            font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
         }
-        
-        @media (min-width: 768px) {
-            .btn {
-                font-size: 1rem;
-            }
-        }
-        
-        .btn:hover {
-            background: #1e293b;
-            transform: translateY(-1px);
-        }
-        
+        .btn:hover { background: #1e293b; transform: translateY(-1px); }
         .error {
             background: #fee2e2;
             color: #dc2626;
             padding: 0.75rem;
             border-radius: 0.75rem;
             margin-bottom: 1rem;
-            font-size: 0.8rem;
+            font-size: 0.875rem;
         }
-        
-        .back-link {
-            text-align: center;
-            margin-top: 1.5rem;
-        }
-        
-        .back-link a {
-            color: #64748b;
-            text-decoration: none;
-            font-size: 0.8rem;
-        }
-        
-        .back-link a:hover {
-            color: #fbbf24;
-        }
-        
-        /* Кнопки переключения языка */
+        .back-link { text-align: center; margin-top: 1.5rem; }
+        .back-link a { color: #64748b; text-decoration: none; font-size: 0.875rem; }
+        .back-link a:hover { color: #fbbf24; }
         .lang-buttons {
             display: flex;
             justify-content: flex-end;
             gap: 0.5rem;
             margin-bottom: 1.5rem;
         }
-        
         .lang-btn {
             background: #f1f5f9;
             color: #64748b;
@@ -160,55 +81,40 @@
             padding: 0.3rem 0.8rem;
             border-radius: 0.5rem;
             cursor: pointer;
-            font-size: 0.7rem;
-            font-weight: 500;
-            text-decoration: none;
+            font-size: 0.8rem;
             transition: all 0.2s;
         }
-        
-        @media (min-width: 768px) {
-            .lang-btn {
-                padding: 0.4rem 1rem;
-                font-size: 0.8rem;
-            }
-        }
-        
         .lang-btn.active {
             background: #fbbf24;
             color: #0f172a;
         }
-        
         .lang-btn:hover:not(.active) {
             background: #e2e8f0;
             color: #0f172a;
         }
-        
         .credential-hint {
             background: #fef3c7;
             border-left: 3px solid #fbbf24;
             padding: 0.75rem;
             border-radius: 0.5rem;
             margin-bottom: 1rem;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             color: #92400e;
         }
-        
         .credential-hint code {
             background: #fff;
             padding: 0.1rem 0.3rem;
             border-radius: 0.25rem;
             font-family: monospace;
-            font-size: 0.75rem;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <!-- Кнопки переключения языка -->
         <div class="lang-buttons">
-            <button onclick="setLanguage('kz')" class="lang-btn {% if lang == 'kz' %}active{% endif %}">🇰🇿 Қаз</button>
-            <button onclick="setLanguage('ru')" class="lang-btn {% if lang == 'ru' %}active{% endif %}">🇷🇺 Рус</button>
-            <button onclick="setLanguage('en')" class="lang-btn {% if lang == 'en' %}active{% endif %}">🇬🇧 Eng</button>
+            <button class="lang-btn" onclick="setLanguage('kz')">🇰🇿 Қаз</button>
+            <button class="lang-btn" onclick="setLanguage('ru')">🇷🇺 Рус</button>
+            <button class="lang-btn" onclick="setLanguage('en')">🇬🇧 Eng</button>
         </div>
         
         <div class="logo">
@@ -216,9 +122,7 @@
             <p id="loginTitle">Login to Admin Panel</p>
         </div>
         
-        {% if error %}
-        <div class="error" id="errorMsg">{{ error }}</div>
-        {% endif %}
+        <div id="errorMsg" class="error" style="display: none;"></div>
         
         <div class="credential-hint">
             <strong id="credLabel">Login credentials:</strong><br>
@@ -226,19 +130,17 @@
             <span id="passLabel">Password</span>: <code>CEVONICQW%&%y*</code>
         </div>
         
-        <form method="POST" action="/admin/login">
-            <div class="form-group">
-                <label id="usernameLabel">Username</label>
-                <input type="text" name="username" required placeholder="admin">
-            </div>
-            
-            <div class="form-group">
-                <label id="passwordLabel">Password</label>
-                <input type="password" name="password" required placeholder="••••••••">
-            </div>
-            
-            <button type="submit" class="btn" id="loginBtn">Login</button>
-        </form>
+        <div class="form-group">
+            <label id="usernameLabel">Username</label>
+            <input type="text" id="username" value="ACCOUNTA@#$26">
+        </div>
+        
+        <div class="form-group">
+            <label id="passwordLabel">Password</label>
+            <input type="password" id="password" value="CEVONICQW%&%y*">
+        </div>
+        
+        <button class="btn" id="loginBtn" onclick="doLogin()">Login</button>
         
         <div class="back-link">
             <a href="/" id="backLink">Back to Home</a>
@@ -279,34 +181,66 @@
             }
         };
         
-        let currentLang = '{{ lang }}';
+        let currentLang = 'ru';
         
         function updateUI() {
-            document.getElementById('loginTitle').innerText = translations[currentLang].login_title;
-            document.getElementById('credLabel').innerText = translations[currentLang].login_credentials;
-            document.getElementById('userLabel').innerText = translations[currentLang].username_label;
-            document.getElementById('passLabel').innerText = translations[currentLang].password_label;
-            document.getElementById('usernameLabel').innerText = translations[currentLang].username;
-            document.getElementById('passwordLabel').innerText = translations[currentLang].password;
-            document.getElementById('loginBtn').innerText = translations[currentLang].login_btn;
-            document.getElementById('backLink').innerText = translations[currentLang].back_home;
+            const t = translations[currentLang];
+            document.getElementById('loginTitle').innerText = t.login_title;
+            document.getElementById('credLabel').innerText = t.login_credentials;
+            document.getElementById('userLabel').innerText = t.username_label;
+            document.getElementById('passLabel').innerText = t.password_label;
+            document.getElementById('usernameLabel').innerText = t.username;
+            document.getElementById('passwordLabel').innerText = t.password;
+            document.getElementById('loginBtn').innerText = t.login_btn;
+            document.getElementById('backLink').innerText = t.back_home;
             
-            // Обновляем активный класс на кнопках
             document.querySelectorAll('.lang-btn').forEach(btn => {
                 btn.classList.remove('active');
-                if ((currentLang === 'kz' && btn.textContent.includes('Қаз')) ||
-                    (currentLang === 'ru' && btn.textContent.includes('Рус')) ||
-                    (currentLang === 'en' && btn.textContent.includes('Eng'))) {
+                if ((currentLang === 'kz' && btn.innerText.includes('Қаз')) ||
+                    (currentLang === 'ru' && btn.innerText.includes('Рус')) ||
+                    (currentLang === 'en' && btn.innerText.includes('Eng'))) {
                     btn.classList.add('active');
                 }
             });
         }
         
         function setLanguage(lang) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('lang', lang);
-            window.location.href = url.toString();
+            currentLang = lang;
+            updateUI();
         }
+        
+        async function doLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMsg');
+            
+            errorDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('/admin/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    localStorage.setItem('admin_token', data.token);
+                    window.location.href = '/admin/dashboard';
+                } else {
+                    errorDiv.textContent = data.detail || 'Invalid credentials';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Network error. Please try again.';
+                errorDiv.style.display = 'block';
+            }
+        }
+        
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') doLogin();
+        });
         
         updateUI();
     </script>

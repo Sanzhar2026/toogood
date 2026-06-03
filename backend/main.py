@@ -315,7 +315,36 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
         "total_revenue": total_revenue
     }
 
+# backend/main.py - ИСПРАВЛЕННЫЙ админ логин (API, не HTML форма)
 
+@app.post("/admin/api/login")
+async def admin_api_login(request: Request, db: Session = Depends(get_db)):
+    """API логин для админа - возвращает JWT токен"""
+    
+    data = await request.json()
+    username = data.get("username")
+    password = data.get("password")
+    
+    admin = db.query(Admin).filter(Admin.username == username).first()
+    
+    if not admin or not verify_password(password, admin.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # ✅ СОЗДАЕМ JWT ТОКЕН
+    access_token = create_access_token(data={
+        "sub": str(admin.id),
+        "role": "admin",
+        "username": admin.username
+    })
+    
+    return {
+        "success": True,
+        "token": access_token,
+        "admin": {
+            "id": admin.id,
+            "username": admin.username
+        }
+    }
 
 
     
