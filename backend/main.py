@@ -3409,7 +3409,7 @@ async def startup_event():
     # Запускаем фоновые задачи
     asyncio.create_task(cleanup_expired_reservations())
     asyncio.create_task(memory_monitor())  # ✅ Добавьте это
-    syncio.create_task(auto_cleanup_cancelled_orders()) 
+    asyncio.create_task(auto_cleanup_cancelled_orders()) 
     print("✅ Все фоновые задачи запущены")
 
 @app.post("/api/refund/request")
