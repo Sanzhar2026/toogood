@@ -989,17 +989,50 @@ async def create_order(order_data: OrderCreate, request: Request, db: Session = 
     
 # backend/main.py - эндпоинт для отметки оплаты
 
+# backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
+
 @app.post("/api/admin/mark-reservation-paid/{reservation_id}")
-async def admin_mark_reservation_paid(reservation_id: int, request: Request, db: Session = Depends(get_db)):
+async def admin_mark_reservation_paid(
+    reservation_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
     """Админ отмечает бронирование как оплаченное и создает заказ"""
     
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # ✅ ПРОВЕРЯЕМ BEARER TOKEN
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": "Bearer token required"}
+        )
     
-    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-    if not admin:
-        raise HTTPException(status_code=403, detail="Access denied")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        
+        if role != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "message": "Admin only"}
+            )
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": f"Auth error: {str(e)}"}
+        )
     
     # Находим резервацию
     reservation = db.query(TemporaryReservation).filter(
@@ -1008,92 +1041,110 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
     ).first()
     
     if not reservation:
-        raise HTTPException(status_code=404, detail="Reservation not found")
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Reservation not found or already paid"}
+        )
     
-    # Помечаем как оплаченную
-    reservation.is_paid = True
-    
-    # Получаем сюрприз
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == reservation.bag_id).first()
-    if not bag:
-        raise HTTPException(status_code=404, detail="Bag not found")
-    
-    # Получаем ресторан
-    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-    
-    # Получаем пользователя
-    user = db.query(User).filter(User.id == reservation.user_id).first()
-    
-    # Генерируем номер заказа
-    import secrets
-    order_number = f"ORD-{secrets.token_hex(4).upper()}"
-    
-    # Получаем координаты
-    customer_lat = reservation.customer_lat if hasattr(reservation, 'customer_lat') else None
-    customer_lon = reservation.customer_lon if hasattr(reservation, 'customer_lon') else None
-    customer_address = reservation.customer_address if hasattr(reservation, 'customer_address') else "Адрес не указан"
-    
-    # Если нет координат клиента, используем координаты ресторана
-    if not customer_lat or not customer_lon:
-        customer_lat = supplier.lat if supplier else None
-        customer_lon = supplier.lon if supplier else None
-        customer_address = supplier.address if supplier else "Адрес не указан"
-    
-    # ✅ СОЗДАЕМ ЗАКАЗ СО СТАТУСОМ CONFIRMED (ОПЛАЧЕН)
-    order = Order(
-        user_id=reservation.user_id,
-        supplier_id=bag.supplier_id,
-        surprise_bag_id=reservation.bag_id,
-        order_number=order_number,
-        status=OrderStatus.CONFIRMED,  # ← ВАЖНО: статус CONFIRMED
-        payment_status="paid",
-        paid_at=datetime.utcnow(),
-        amount_paid=bag.discounted_price * reservation.quantity,
-        customer_lat=customer_lat,
-        customer_lon=customer_lon,
-        customer_address=customer_address,
-        created_at=datetime.utcnow()
-    )
-    db.add(order)
-    db.flush()
-    
-    # Удаляем из корзины
-    cart_item = db.query(CartItem).filter(
-        CartItem.user_id == reservation.user_id,
-        CartItem.surprise_bag_id == reservation.bag_id
-    ).first()
-    if cart_item:
-        db.delete(cart_item)
-    
-    db.commit()
-    
-    # ✅ Отправляем уведомление курьерам через WebSocket
-    await manager.broadcast({
-        "type": "new_order_for_courier",
-        "data": {
+    try:
+        # Помечаем как оплаченную
+        reservation.is_paid = True
+        
+        # Получаем сюрприз
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == reservation.bag_id).first()
+        if not bag:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Bag not found"}
+            )
+        
+        # Получаем ресторан
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        
+        # Получаем пользователя
+        user = db.query(User).filter(User.id == reservation.user_id).first()
+        
+        # Генерируем номер заказа
+        import secrets
+        order_number = f"ORD-{secrets.token_hex(4).upper()}"
+        
+        # Создаем заказ
+        order = Order(
+            user_id=reservation.user_id,
+            supplier_id=bag.supplier_id,
+            surprise_bag_id=reservation.bag_id,
+            order_number=order_number,
+            status=OrderStatus.CONFIRMED,
+            payment_status="paid",
+            paid_at=datetime.utcnow(),
+            amount_paid=bag.discounted_price * reservation.quantity,
+            created_at=datetime.utcnow(),
+            customer_address=reservation.customer_address if hasattr(reservation, 'customer_address') else "Самовывоз"
+        )
+        db.add(order)
+        db.flush()
+        
+        # Удаляем из корзины
+        cart_item = db.query(CartItem).filter(
+            CartItem.user_id == reservation.user_id,
+            CartItem.surprise_bag_id == reservation.bag_id
+        ).first()
+        if cart_item:
+            db.delete(cart_item)
+        
+        db.commit()
+        
+        # Отправляем уведомление курьерам через WebSocket
+        try:
+            await manager.broadcast({
+                "type": "new_order_for_courier",
+                "data": {
+                    "order_id": order.id,
+                    "order_number": order_number,
+                    "supplier_name": supplier.business_name if supplier else "Ресторан",
+                    "amount": order.amount_paid,
+                    "bag_name": bag.name,
+                    "customer_address": order.customer_address
+                }
+            }, channel="couriers")
+            print(f"📢 Уведомление о заказе #{order.id} отправлено курьерам")
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление курьерам: {e}")
+        
+        # Отправляем уведомление админу
+        try:
+            # backend/main.py - добавьте в начало файла
+
+admin_websocket = None
+
+async def notify_admin(message: dict):
+    """Отправить уведомление админу"""
+    global admin_websocket
+    if admin_websocket:
+        try:
+            await admin_websocket.send_json(message)
+            print(f"📨 Уведомление админу: {message.get('type')}")
+        except Exception as e:
+            print(f"❌ Ошибка отправки админу: {e}")
+            admin_websocket = None
+            
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление админу: {e}")
+        
+        return {
+            "success": True,
+            "message": "Оплата подтверждена, заказ создан",
             "order_id": order.id,
-            "order_number": order_number,
-            "supplier_id": bag.supplier_id,
-            "supplier_name": supplier.business_name if supplier else "Ресторан",
-            "supplier_lat": supplier.lat if supplier else None,
-            "supplier_lon": supplier.lon if supplier else None,
-            "bag_name": bag.name,
-            "amount": order.amount_paid,
-            "customer_address": customer_address,
-            "customer_lat": customer_lat,
-            "customer_lon": customer_lon
-        },
-        "timestamp": datetime.utcnow().isoformat()
-    }, channel="couriers")
-    
-    print(f"✅ Уведомление отправлено курьерам о новом заказе #{order.id}")
-    
-    return {
-        "success": True, 
-        "message": "Оплата подтверждена, заказ создан", 
-        "order_id": order.id,
-        "order_number": order_number
-    }
+            "order_number": order_number
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Ошибка при создании заказа: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": f"Ошибка: {str(e)}"}
+        )
 
 
 
@@ -3901,45 +3952,41 @@ async def admin_login(request: Request, db: Session = Depends(get_db)):
     return response
 
 
-# backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт дашборда
-
 @app.get("/admin/dashboard")
-async def admin_dashboard_page(request: Request, db: Session = Depends(get_db)):
-    """Панель администратора (HTML страница)"""
+async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
+    """Панель администратора"""
     
-    # ✅ Проверяем токен из параметра или заголовка
-    token = request.query_params.get("token") or request.headers.get("Authorization", "").replace("Bearer ", "")
-    
-    if token:
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            role = payload.get("role")
-            
-            if role == "admin":
-                # Токен валидный - показываем дашборд
-                admin_id = payload.get("sub")
-                admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-                if admin:
-                    return templates.TemplateResponse("admin_dashboard.html", {
-                        "request": request,
-                        "admin": admin
-                    })
-        except Exception as e:
-            print(f"Token error: {e}")
-    
-    # Проверяем куки (для обратной совместимости)
     admin_id = request.cookies.get("admin_id")
-    if admin_id:
-        admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-        if admin:
-            return templates.TemplateResponse("admin_dashboard.html", {
-                "request": request,
-                "admin": admin
-            })
+    if not admin_id:
+        return RedirectResponse(url="/admin/login", status_code=303)
     
-    # Нет валидной авторизации - редирект на логин
-    return RedirectResponse(url="/admin/login", status_code=303)
+    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+    if not admin:
+        response = RedirectResponse(url="/admin/login", status_code=303)
+        response.delete_cookie("admin_id")
+        return response
+    
+    # Статистика
+    total_users = db.query(User).count()
+    total_suppliers = db.query(Supplier).count()
+    total_couriers = db.query(CourierProfile).count()
+    total_orders = db.query(Order).count()
+    pending_couriers = db.query(CourierProfile).filter(CourierProfile.is_verified == False).count()
+    
+    stats = {
+        "total_users": total_users,
+        "total_suppliers": total_suppliers,
+        "total_couriers": total_couriers,
+        "total_orders": total_orders,
+        "pending_couriers": pending_couriers
+    }
+    
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "stats": stats,
+        "admin": admin
+    })
+
 
 @app.get("/admin/logout")
 async def admin_logout():
