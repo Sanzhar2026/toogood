@@ -315,7 +315,10 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
         "total_revenue": total_revenue
     }
 
-    @app.post("/api/admin/cancel-order/{order_id}")
+
+
+
+@app.post("/api/admin/cancel-order/{order_id}")
 async def admin_cancel_order(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Админ отменяет заказ и возвращает деньги"""
     
