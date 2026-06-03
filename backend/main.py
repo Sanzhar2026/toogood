@@ -873,7 +873,7 @@ async def courier_arrived(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Курьер прибыл к клиенту - отправляет уведомление и обновляет статус"""
+    """Курьер прибыл к клиенту - отправляет уведомление"""
     
     user_id = get_current_user_from_token(request)
     
@@ -888,28 +888,16 @@ async def courier_arrived(
     if order.assigned_courier_id != courier.user_id:
         raise HTTPException(status_code=403, detail="Order not assigned to you")
     
-    # ✅ ИСПРАВЛЕНО: используем НИЖНИЙ РЕГИСТР
-    order.status = "nearby".lower()  # всегда будет 'nearby'
-    order.delivery_status = "nearby".lower()
+    # ✅ НЕ МЕНЯЕМ СТАТУС ЗАКАЗА
+    # order.status = "nearby"
+    # order.delivery_status = "nearby"
     
-    # Обновляем дедлайн
-    if order.delivery_deadline:
-        if order.delivery_deadline < datetime.utcnow():
-            order.delivery_deadline = datetime.utcnow() + timedelta(minutes=15)
-        else:
-            order.delivery_deadline = order.delivery_deadline + timedelta(minutes=15)
-    else:
-        order.delivery_deadline = datetime.utcnow() + timedelta(minutes=15)
-    
-    print(f"⏰ Новый дедлайн для заказа #{order_id}: {order.delivery_deadline}")
-    
+    # Обновляем только статус курьера
     courier.current_order_status = "nearby"
     db.commit()
     
     # Отправляем уведомление клиенту
     try:
-        customer = db.query(User).filter(User.id == order.user_id).first()
-        
         await manager.broadcast({
             "type": "courier_arrived",
             "data": {
@@ -917,28 +905,21 @@ async def courier_arrived(
                 "order_number": order.order_number,
                 "courier_name": f"{courier.first_name} {courier.last_name}",
                 "courier_phone": courier.phone,
-                "courier_lat": courier.current_lat,
-                "courier_lon": courier.current_lon,
-                "message": f"Курьер {courier.first_name} прибыл к вам!",
-                "customer_id": customer.id if customer else None,
-                "customer_phone": customer.phone if customer else None
-            },
-            "timestamp": datetime.utcnow().isoformat()
+                "message": f"Курьер {courier.first_name} прибыл к вам!"
+            }
         }, channel=f"user_{order.user_id}")
         
-        print(f"📢 Уведомление отправлено клиенту {customer.phone if customer else order.user_id}")
+        print(f"📢 Уведомление отправлено клиенту {order.user_id}")
         
     except Exception as e:
         print(f"❌ Ошибка отправки уведомления: {e}")
     
     return {
-        "success": True, 
+        "success": True,
         "message": "Уведомление о прибытии отправлено клиенту",
         "order_id": order_id,
-        "order_number": order.order_number,
-        "delivery_deadline": order.delivery_deadline.isoformat()
-    }
-     
+        "order_number": order.order_number
+    }     
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
     order_id: int,
