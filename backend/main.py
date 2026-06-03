@@ -6388,7 +6388,6 @@ async def geocode(lat: float, lon: float):
 
 
 # backend/main.py - исправленный эндпоинт получения заказа
-
 @app.get("/api/orders/{order_id}")
 async def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
     """Получить заказ по ID с полной информацией"""
@@ -6401,7 +6400,15 @@ async def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
     supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
     
-    # ✅ Формируем полный адрес
+    # ✅ ПРОСТО ПРЕОБРАЗУЕМ В СТРОКУ
+    status_str = str(order.status) if order.status else "pending"
+    # Убираем префикс 'OrderStatus.' если есть
+    status_str = status_str.replace("OrderStatus.", "").lower()
+    
+    delivery_status_str = str(order.delivery_status) if order.delivery_status else "at_supplier"
+    delivery_status_str = delivery_status_str.replace("DeliveryStatus.", "").lower()
+    
+    # Формируем полный адрес
     customer_address = order.customer_address
     if not customer_address or customer_address == "Address not specified":
         if order.customer_lat and order.customer_lon:
@@ -6413,14 +6420,14 @@ async def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
         "id": order.id,
         "order_id": order.id,
         "order_number": order.order_number,
-        "status": order.status.value if order.status else "pending",
-        "delivery_status": order.delivery_status.value if order.delivery_status else "at_supplier",
+        "status": status_str,
+        "delivery_status": delivery_status_str,
         "bag_name": bag.name if bag else "Surprise Bag",
         "supplier_name": supplier.business_name if supplier else "Restaurant",
         "supplier_address": supplier.address if supplier else "",
         "supplier_lat": supplier.lat if supplier else None,
         "supplier_lon": supplier.lon if supplier else None,
-        "customer_address": customer_address,  # ✅ Исправленный адрес
+        "customer_address": customer_address,
         "customer_lat": order.customer_lat,
         "customer_lon": order.customer_lon,
         "amount_paid": order.amount_paid or 0,
