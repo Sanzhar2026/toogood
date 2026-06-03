@@ -6660,6 +6660,66 @@ async def get_foods(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"❌ Error getting foods: {e}")
         return []
+
+# ============ ЭНДПОИНТЫ ДЛЯ СТРАНИЦЫ МАГАЗИНА ============
+
+@app.get("/api/suppliers/{supplier_id}")
+async def get_supplier_by_id(supplier_id: int, db: Session = Depends(get_db)):
+    """Получить информацию о магазине по ID"""
+    
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    return {
+        "id": supplier.id,
+        "business_name": supplier.business_name,
+        "description": supplier.description,
+        "address": supplier.address,
+        "city": supplier.city,
+        "phone": supplier.phone,
+        "email": supplier.email,
+        "rating": supplier.rating,
+        "cover_image": supplier.cover_image,
+        "lat": supplier.lat,
+        "lon": supplier.lon,
+        "is_active": supplier.is_active
+    }
+
+
+@app.get("/api/suppliers/{supplier_id}/surprise-bags")
+async def get_supplier_surprise_bags(supplier_id: int, db: Session = Depends(get_db)):
+    """Получить все активные сюрпризы магазина"""
+    
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    bags = db.query(SurpriseBag).filter(
+        SurpriseBag.supplier_id == supplier_id,
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0
+    ).all()
+    
+    result = []
+    for bag in bags:
+        result.append({
+            "id": bag.id,
+            "name": bag.name,
+            "description": bag.description,
+            "original_price": bag.original_price,
+            "discounted_price": bag.discounted_price,
+            "discount_percentage": bag.discount_percentage,
+            "image_url": bag.image_url,
+            "available_quantity": bag.available_quantity,
+            "pickup_start_time": bag.pickup_start_time,
+            "pickup_end_time": bag.pickup_end_time,
+            "is_active": bag.is_active
+        })
+    
+    return result
+
+
 @app.get("/api/suppliers/{supplier_id}/orders")
 async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
     """Get orders for specific supplier"""
