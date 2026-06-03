@@ -5401,6 +5401,38 @@ async def debug_login(request: Request, db: Session = Depends(get_db)):
         "password_chars": [ord(c) for c in password],
         "password_repr": repr(password)
     }
+
+
+
+
+# backend/main.py - добавь функцию определения города
+
+def get_city_from_coords(lat: float, lon: float) -> str:
+    """Определить город по координатам"""
+    # Примерные координаты городов Казахстана
+    cities = {
+        "Алматы": {"lat": 43.238, "lon": 76.945, "radius": 30},
+        "Астана": {"lat": 51.169, "lon": 71.449, "radius": 30},
+        "Шымкент": {"lat": 42.341, "lon": 69.590, "radius": 30},
+        "Актобе": {"lat": 50.283, "lon": 57.167, "radius": 30},
+        "Караганда": {"lat": 49.801, "lon": 73.102, "radius": 30},
+        "Атырау": {"lat": 47.115, "lon": 51.917, "radius": 30},
+        "Усть-Каменогорск": {"lat": 49.950, "lon": 82.618, "radius": 30},
+        "Павлодар": {"lat": 52.287, "lon": 76.973, "radius": 30},
+        "Тараз": {"lat": 42.899, "lon": 71.365, "radius": 30},
+        "Кызылорда": {"lat": 44.848, "lon": 65.482, "radius": 30},
+    }
+    
+    min_distance = float('inf')
+    nearest_city = None
+    
+    for city, coords in cities.items():
+        distance = haversine_distance(lat, lon, coords["lat"], coords["lon"])
+        if distance < min_distance and distance < coords["radius"]:
+            min_distance = distance
+            nearest_city = city
+    
+    return nearest_city
 # В main.py добавьте async к функциям
 from backend.twilio_service import send_verification_code, verify_code
 
@@ -6018,14 +6050,29 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 @app.get("/api/suppliers/nearby")
 async def get_nearby_suppliers(
-    lat: float, 
-    lon: float, 
-    radius: float = None,  # ← сделай необязательным
+    lat: float = None, 
+    lon: float = None, 
     db: Session = Depends(get_db)
 ):
-    """Получить поставщиков ТОЛЬКО с доступными сюрпризами"""
+    """Получить поставщиков ТОЛЬКО из города пользователя"""
     
-    print(f"🔍 Поиск поставщиков рядом с {lat}, {lon}")
+    # Если нет координат - возвращаем пустой список
+    if lat is None or lon is None:
+        print("⚠️ Координаты не переданы")
+        return {"count": 0, "suppliers": []}
+    
+    # Определяем город пользователя
+    user_city = get_city_from_coords(lat, lon)
+    
+    if not user_city:
+        print(f"⚠️ Не удалось определить город по координатам {lat}, {lon}")
+        # Если город не определен - показываем в радиусе 10 км
+        radius_km = 10
+    else:
+        print(f"📍 Город пользователя: {user_city}")
+        radius_km = 50  # В пределах города можно увеличить радиус
+    
+    print(f"🔍 Поиск поставщиков рядом с {lat}, {lon}, радиус {radius_km}км")
     
     all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
     
@@ -6033,11 +6080,18 @@ async def get_nearby_suppliers(
     for supplier in all_suppliers:
         if not supplier.lat or not supplier.lon:
             continue
+        
+        # Проверяем город поставщика
+        supplier_city = get_city_from_coords(supplier.lat, supplier.lon)
+        
+        # Показываем только если в том же городе
+        if supplier_city != user_city:
+            print(f"  - {supplier.business_name}: в другом городе ({supplier_city}), пропускаем")
+            continue
             
         distance = haversine_distance(lat, lon, supplier.lat, supplier.lon)
         
-        # ✅ Если radius не указан - показываем ВСЕХ поставщиков
-        if radius is None or distance <= radius:
+        if distance <= radius_km:
             active_bags = db.query(SurpriseBag).filter(
                 SurpriseBag.supplier_id == supplier.id,
                 SurpriseBag.is_active == True,
@@ -6053,13 +6107,14 @@ async def get_nearby_suppliers(
                     "lon": supplier.lon,
                     "distance_km": round(distance, 2),
                     "rating": supplier.rating or 0,
-                    "surprise_bags_count": len(active_bags)
+                    "surprise_bags_count": len(active_bags),
+                    "city": supplier_city
                 })
     
     nearby.sort(key=lambda x: x["distance_km"])
-    print(f"🎯 ИТОГО: {len(nearby)} поставщиков")
+    print(f"🎯 ИТОГО: {len(nearby)} поставщиков в городе {user_city}")
     
-    return {"count": len(nearby), "suppliers": nearby}
+    return {"count": len(nearby), "suppliers": nearby, "user_city": user_city}
 # ============ HOME PAGE ============
 @app.get("/")
 async def home(request: Request, lang: str = "kz", category: str = "all", db: Session = Depends(get_db)):
