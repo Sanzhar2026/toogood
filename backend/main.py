@@ -318,6 +318,63 @@ async def get_current_admin_from_token(request: Request, db: Session = Depends(g
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
 
+# backend/main.py - ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ
+
+@app.post("/admin/api/login")
+async def admin_api_login(request: Request, db: Session = Depends(get_db)):
+    """API логин для админа - возвращает JWT токен"""
+    
+    try:
+        data = await request.json()
+        username = data.get("username")
+        password = data.get("password")
+        
+        print(f"🔐 Admin login attempt: {username}")
+        
+        # Ищем админа
+        admin = db.query(Admin).filter(Admin.username == username).first()
+        
+        if not admin:
+            print(f"❌ Admin not found: {username}")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid credentials"}
+            )
+        
+        # Проверяем пароль
+        if not verify_password(password, admin.password_hash):
+            print(f"❌ Wrong password for: {username}")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid credentials"}
+            )
+        
+        # Создаем JWT токен
+        access_token = create_access_token(data={
+            "sub": str(admin.id),
+            "role": "admin",
+            "username": admin.username
+        })
+        
+        print(f"✅ Admin logged in: {username}, token created")
+        
+        return {
+            "success": True,
+            "token": access_token,
+            "admin": {
+                "id": admin.id,
+                "username": admin.username
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Login error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+
+
 @app.get("/api/admin/stats")
 async def get_admin_stats(
     admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
