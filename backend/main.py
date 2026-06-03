@@ -889,8 +889,8 @@ async def courier_arrived(
         raise HTTPException(status_code=403, detail="Order not assigned to you")
     
     # ✅ ИСПРАВЛЕНО: используем НИЖНИЙ РЕГИСТР
-    order.status = "nearby"
-    order.delivery_status = "nearby"
+    order.status = "nearby".lower()  # всегда будет 'nearby'
+    order.delivery_status = "nearby".lower()
     
     # Обновляем дедлайн
     if order.delivery_deadline:
