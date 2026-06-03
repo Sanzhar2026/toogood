@@ -314,10 +314,6 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
         "pending_couriers": pending_couriers,
         "total_revenue": total_revenue
     }
-
-
-
-
 @app.post("/api/admin/cancel-order/{order_id}")
 async def admin_cancel_order(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Админ отменяет заказ и возвращает деньги"""
@@ -335,26 +331,32 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     
     print(f"🔍 Отмена заказа #{order_id}, назначенный курьер: {order.assigned_courier_id}")
     
-    # ✅ ПРИНУДИТЕЛЬНАЯ ОЧИСТКА КУРЬЕРА (как в force-clear-order)
+    # ✅ ГАРАНТИРОВАННАЯ ОЧИСТКА КУРЬЕРА
     if order.assigned_courier_id:
-        # Обновляем напрямую через SQLAlchemy
+        # 1. Пытаемся найти курьера
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+        
+        if courier:
+            # Очищаем курьера
+            old_order_id = courier.current_order_id
+            courier.current_order_id = None
+            courier.current_order_status = None
+            courier.is_available = True
+            courier.is_online = True
+            print(f"✅ Курьер {courier.first_name} освобожден (был заказ #{old_order_id})")
+        else:
+            print(f"⚠️ Курьер с user_id={order.assigned_courier_id} не найден в профилях")
+        
+        # 2. ДОПОЛНИТЕЛЬНАЯ ПРИНУДИТЕЛЬНАЯ ОЧИСТКА (на всякий случай)
         db.query(CourierProfile).filter(
             CourierProfile.user_id == order.assigned_courier_id
         ).update({
             "current_order_id": None,
             "current_order_status": None,
             "is_available": True,
-            "is_online": True  # Оставляем онлайн, но без заказа
+            "is_online": True
         })
         print(f"🧹 Принудительная очистка курьера user_id={order.assigned_courier_id}")
-        
-        # Также пробуем найти и очистить через объект
-        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
-        if courier:
-            courier.current_order_id = None
-            courier.current_order_status = None
-            courier.is_available = True
-            print(f"✅ Курьер {courier.first_name} освобожден")
     
     # Обновляем статусы заказа
     order.status = OrderStatus.CANCELLED
@@ -409,7 +411,7 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
         print(f"❌ Ошибка отправки уведомления клиенту: {e}")
     
     return {
-        "success": True,
+        "success": True, 
         "message": f"Заказ #{order.order_number} отменен, деньги возвращены",
         "order_id": order_id,
         "order_number": order.order_number
@@ -863,13 +865,15 @@ async def admin_mark_reservation_paid(reservation_id: int, request: Request, db:
 
 
 manager = ConnectionManager()
+
+# backend/main.py - добавьте эндпоинты для подтверждения доставки
 @app.post("/api/courier/arrived/{order_id}")
 async def courier_arrived(
     order_id: int,
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Курьер прибыл к клиенту - отправляет уведомление"""
+    """Курьер прибыл к клиенту - отправляет уведомление и обновляет статус"""
     
     user_id = get_current_user_from_token(request)
     
@@ -884,17 +888,28 @@ async def courier_arrived(
     if order.assigned_courier_id != courier.user_id:
         raise HTTPException(status_code=403, detail="Order not assigned to you")
     
-    # ✅ КОММЕНТИРУЕМ - НЕ МЕНЯЕМ СТАТУС ЗАКАЗА
-    # order.status = "nearby"
-    # order.delivery_status = "nearby"
-    # order.delivery_deadline = ...
+    # ✅ ИСПРАВЛЕНО: используем НИЖНИЙ РЕГИСТР
+    order.status = "nearby".lower()  # всегда будет 'nearby'
+    order.delivery_status = "nearby".lower()
     
-    # Обновляем только статус курьера
+    # Обновляем дедлайн
+    if order.delivery_deadline:
+        if order.delivery_deadline < datetime.utcnow():
+            order.delivery_deadline = datetime.utcnow() + timedelta(minutes=15)
+        else:
+            order.delivery_deadline = order.delivery_deadline + timedelta(minutes=15)
+    else:
+        order.delivery_deadline = datetime.utcnow() + timedelta(minutes=15)
+    
+    print(f"⏰ Новый дедлайн для заказа #{order_id}: {order.delivery_deadline}")
+    
     courier.current_order_status = "nearby"
     db.commit()
     
     # Отправляем уведомление клиенту
     try:
+        customer = db.query(User).filter(User.id == order.user_id).first()
+        
         await manager.broadcast({
             "type": "courier_arrived",
             "data": {
@@ -902,20 +917,26 @@ async def courier_arrived(
                 "order_number": order.order_number,
                 "courier_name": f"{courier.first_name} {courier.last_name}",
                 "courier_phone": courier.phone,
-                "message": f"Курьер {courier.first_name} прибыл к вам!"
-            }
+                "courier_lat": courier.current_lat,
+                "courier_lon": courier.current_lon,
+                "message": f"Курьер {courier.first_name} прибыл к вам!",
+                "customer_id": customer.id if customer else None,
+                "customer_phone": customer.phone if customer else None
+            },
+            "timestamp": datetime.utcnow().isoformat()
         }, channel=f"user_{order.user_id}")
         
-        print(f"📢 Уведомление отправлено клиенту {order.user_id}")
+        print(f"📢 Уведомление отправлено клиенту {customer.phone if customer else order.user_id}")
         
     except Exception as e:
         print(f"❌ Ошибка отправки уведомления: {e}")
     
     return {
-        "success": True,
+        "success": True, 
         "message": "Уведомление о прибытии отправлено клиенту",
         "order_id": order_id,
-        "order_number": order.order_number
+        "order_number": order.order_number,
+        "delivery_deadline": order.delivery_deadline.isoformat()
     }
      
 @app.post("/api/customer/confirm-delivery/{order_id}")
@@ -5401,38 +5422,6 @@ async def debug_login(request: Request, db: Session = Depends(get_db)):
         "password_chars": [ord(c) for c in password],
         "password_repr": repr(password)
     }
-
-
-
-
-# backend/main.py - добавь функцию определения города
-
-def get_city_from_coords(lat: float, lon: float) -> str:
-    """Определить город по координатам"""
-    # Примерные координаты городов Казахстана
-    cities = {
-        "Алматы": {"lat": 43.238, "lon": 76.945, "radius": 30},
-        "Астана": {"lat": 51.169, "lon": 71.449, "radius": 30},
-        "Шымкент": {"lat": 42.341, "lon": 69.590, "radius": 30},
-        "Актобе": {"lat": 50.283, "lon": 57.167, "radius": 30},
-        "Караганда": {"lat": 49.801, "lon": 73.102, "radius": 30},
-        "Атырау": {"lat": 47.115, "lon": 51.917, "radius": 30},
-        "Усть-Каменогорск": {"lat": 49.950, "lon": 82.618, "radius": 30},
-        "Павлодар": {"lat": 52.287, "lon": 76.973, "radius": 30},
-        "Тараз": {"lat": 42.899, "lon": 71.365, "radius": 30},
-        "Кызылорда": {"lat": 44.848, "lon": 65.482, "radius": 30},
-    }
-    
-    min_distance = float('inf')
-    nearest_city = None
-    
-    for city, coords in cities.items():
-        distance = haversine_distance(lat, lon, coords["lat"], coords["lon"])
-        if distance < min_distance and distance < coords["radius"]:
-            min_distance = distance
-            nearest_city = city
-    
-    return nearest_city
 # В main.py добавьте async к функциям
 from backend.twilio_service import send_verification_code, verify_code
 
@@ -5796,8 +5785,6 @@ async def start_real_delivery(order_id: int, db: Session = Depends(get_db)):
         "eta_minutes": eta_minutes
     }
 
-
-
 @app.get("/api/delivery/{order_id}/position")
 async def get_delivery_position(order_id: int, db: Session = Depends(get_db)):
     cache_key = str(order_id)
@@ -5899,78 +5886,69 @@ async def delivery_tracking(request: Request, order_id: int, db: Session = Depen
     })
         
     
+from typing import Optional
 
+@app.get("/api/suppliers/nearby")
+async def get_nearby_suppliers(
+    lat: Optional[str] = None,  # ← ВРЕМЕННО как строка
+    lon: Optional[str] = None, 
+    radius: float = 10,
+    db: Session = Depends(get_db)
+):
+    """Получить поставщиков рядом с пользователем"""
+    
+    # ✅ Проверяем и конвертируем
+    if lat is None or lon is None:
+        print("⚠️ Координаты не переданы")
+        return {"count": 0, "suppliers": []}
+    
+    try:
+        lat_float = float(lat)
+        lon_float = float(lon)
+    except (ValueError, TypeError) as e:
+        print(f"❌ Ошибка конвертации: lat={lat}, lon={lon}")
+        return {"count": 0, "suppliers": [], "error": "Invalid coordinates"}
+    
+    print(f"🔍 Поиск поставщиков рядом с {lat_float}, {lon_float}, радиус {radius}км")
+    
+    # Получаем всех активных поставщиков
+    all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
+    
+    nearby = []
+    for supplier in all_suppliers:
+        if not supplier.lat or not supplier.lon:
+            continue
+        
+        # Рассчитываем расстояние
+        distance = haversine_distance(lat_float, lon_float, supplier.lat, supplier.lon)
+        
+        if distance <= radius:
+            active_bags = db.query(SurpriseBag).filter(
+                SurpriseBag.supplier_id == supplier.id,
+                SurpriseBag.is_active == True,
+                SurpriseBag.available_quantity > 0
+            ).all()
+            
+            if active_bags:
+                nearby.append({
+                    "id": supplier.id,
+                    "business_name": supplier.business_name,
+                    "address": supplier.address or "",
+                    "lat": supplier.lat,
+                    "lon": supplier.lon,
+                    "distance_km": round(distance, 2),
+                    "rating": supplier.rating or 0,
+                    "surprise_bags_count": len(active_bags)
+                })
+    
+    # Сортируем по расстоянию
+    nearby.sort(key=lambda x: x["distance_km"])
+    print(f"🎯 ИТОГО: {len(nearby)} поставщиков")
+    
+    return {"count": len(nearby), "suppliers": nearby}
 
 
 # ============ API ROUTES ============
-
-# backend/main.py - добавьте эти эндпоинты
-
-@app.get("/api/suppliers/{supplier_id}")
-async def get_supplier_by_id(supplier_id: int, db: Session = Depends(get_db)):
-    """Получить информацию о магазине"""
-    
-    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Supplier not found")
-    
-    return {
-        "id": supplier.id,
-        "business_name": supplier.business_name,
-        "description": supplier.description,
-        "address": supplier.address,
-        "city": supplier.city,
-        "phone": supplier.phone,
-        "email": supplier.email,
-        "rating": supplier.rating,
-        "cover_image": supplier.cover_image,
-        "lat": supplier.lat,
-        "lon": supplier.lon,
-        "is_active": supplier.is_active
-    }
-
-
-@app.get("/api/suppliers/{supplier_id}/surprise-bags")
-async def get_supplier_surprise_bags(supplier_id: int, db: Session = Depends(get_db)):
-    """Получить все сюрпризы магазина"""
-    
-    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Supplier not found")
-    
-    bags = db.query(SurpriseBag).filter(
-        SurpriseBag.supplier_id == supplier_id,
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
-    ).all()
-    
-    result = []
-    for bag in bags:
-        result.append({
-            "id": bag.id,
-            "name": bag.name,
-            "description": bag.description,
-            "original_price": bag.original_price,
-            "discounted_price": bag.discounted_price,
-            "discount_percentage": bag.discount_percentage,
-            "image_url": bag.image_url,
-            "available_quantity": bag.available_quantity,
-            "supplier_name": supplier.business_name,
-            "supplier_id": supplier.id,
-            "pickup_start_time": bag.pickup_start_time,
-            "pickup_end_time": bag.pickup_end_time,
-            "is_active": bag.is_active
-        })
-    
-    return result
-
-
-
-
-
-
-
-
 @app.get("/api/suppliers")
 async def get_all_suppliers(db: Session = Depends(get_db)):
     suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
@@ -6047,75 +6025,7 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     c = 2 * atan2(sqrt(a), sqrt(1-a))
     
     return R * c
-
-@app.get("/api/suppliers/nearby")
-async def get_nearby_suppliers(
-    lat: float = None, 
-    lon: float = None, 
-    db: Session = Depends(get_db)
-):
-    """Получить поставщиков ТОЛЬКО из города пользователя"""
-    
-    # Если нет координат - возвращаем пустой список
-    if lat is None or lon is None:
-        print("⚠️ Координаты не переданы")
-        return {"count": 0, "suppliers": []}
-    
-    # Определяем город пользователя
-    user_city = get_city_from_coords(lat, lon)
-    
-    if not user_city:
-        print(f"⚠️ Не удалось определить город по координатам {lat}, {lon}")
-        # Если город не определен - показываем в радиусе 10 км
-        radius_km = 10
-    else:
-        print(f"📍 Город пользователя: {user_city}")
-        radius_km = 50  # В пределах города можно увеличить радиус
-    
-    print(f"🔍 Поиск поставщиков рядом с {lat}, {lon}, радиус {radius_km}км")
-    
-    all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
-    
-    nearby = []
-    for supplier in all_suppliers:
-        if not supplier.lat or not supplier.lon:
-            continue
-        
-        # Проверяем город поставщика
-        supplier_city = get_city_from_coords(supplier.lat, supplier.lon)
-        
-        # Показываем только если в том же городе
-        if supplier_city != user_city:
-            print(f"  - {supplier.business_name}: в другом городе ({supplier_city}), пропускаем")
-            continue
-            
-        distance = haversine_distance(lat, lon, supplier.lat, supplier.lon)
-        
-        if distance <= radius_km:
-            active_bags = db.query(SurpriseBag).filter(
-                SurpriseBag.supplier_id == supplier.id,
-                SurpriseBag.is_active == True,
-                SurpriseBag.available_quantity > 0
-            ).all()
-            
-            if active_bags:
-                nearby.append({
-                    "id": supplier.id,
-                    "business_name": supplier.business_name,
-                    "address": supplier.address or "",
-                    "lat": supplier.lat,
-                    "lon": supplier.lon,
-                    "distance_km": round(distance, 2),
-                    "rating": supplier.rating or 0,
-                    "surprise_bags_count": len(active_bags),
-                    "city": supplier_city
-                })
-    
-    nearby.sort(key=lambda x: x["distance_km"])
-    print(f"🎯 ИТОГО: {len(nearby)} поставщиков в городе {user_city}")
-    
-    return {"count": len(nearby), "suppliers": nearby, "user_city": user_city}
-
+    return {"count": len(nearby), "suppliers": nearby}
 
 
 
@@ -6769,8 +6679,6 @@ async def get_foods(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"❌ Error getting foods: {e}")
         return []
-    
-
 @app.get("/api/suppliers/{supplier_id}/orders")
 async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
     """Get orders for specific supplier"""
