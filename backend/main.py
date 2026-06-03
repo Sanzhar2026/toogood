@@ -875,28 +875,24 @@ async def courier_arrived(
 ):
     """Курьер прибыл к клиенту - отправляет уведомление и обновляет статус"""
     
-    # ✅ ТОЛЬКО Bearer токен
     user_id = get_current_user_from_token(request)
     
-    # Получаем курьера
     courier = db.query(CourierProfile).filter(CourierProfile.user_id == user_id).first()
     if not courier:
         raise HTTPException(status_code=404, detail="Courier not found")
     
-    # Получаем заказ
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # Проверяем, что заказ назначен этому курьеру
     if order.assigned_courier_id != courier.user_id:
         raise HTTPException(status_code=403, detail="Order not assigned to you")
     
-    # ✅ ИСПОЛЬЗУЕМ СТРОКИ (нижний регистр) вместо Enum
-    order.status = "nearby"  # ← НЕ OrderStatus.NEARBY
-    order.delivery_status = "nearby"  # ← НЕ DeliveryStatus.NEARBY
+    # ✅ ИСПРАВЛЕНО: используем НИЖНИЙ РЕГИСТР
+    order.status = "nearby"
+    order.delivery_status = "nearby"
     
-    # Увеличиваем дедлайн
+    # Обновляем дедлайн
     if order.delivery_deadline:
         if order.delivery_deadline < datetime.utcnow():
             order.delivery_deadline = datetime.utcnow() + timedelta(minutes=15)
@@ -907,7 +903,6 @@ async def courier_arrived(
     
     print(f"⏰ Новый дедлайн для заказа #{order_id}: {order.delivery_deadline}")
     
-    # Обновляем статус курьера
     courier.current_order_status = "nearby"
     db.commit()
     
