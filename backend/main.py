@@ -3901,41 +3901,45 @@ async def admin_login(request: Request, db: Session = Depends(get_db)):
     return response
 
 
-@app.get("/admin/dashboard")
-async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
-    """Панель администратора"""
-    
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        return RedirectResponse(url="/admin/login", status_code=303)
-    
-    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-    if not admin:
-        response = RedirectResponse(url="/admin/login", status_code=303)
-        response.delete_cookie("admin_id")
-        return response
-    
-    # Статистика
-    total_users = db.query(User).count()
-    total_suppliers = db.query(Supplier).count()
-    total_couriers = db.query(CourierProfile).count()
-    total_orders = db.query(Order).count()
-    pending_couriers = db.query(CourierProfile).filter(CourierProfile.is_verified == False).count()
-    
-    stats = {
-        "total_users": total_users,
-        "total_suppliers": total_suppliers,
-        "total_couriers": total_couriers,
-        "total_orders": total_orders,
-        "pending_couriers": pending_couriers
-    }
-    
-    return templates.TemplateResponse("admin_dashboard.html", {
-        "request": request,
-        "stats": stats,
-        "admin": admin
-    })
+# backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт дашборда
 
+@app.get("/admin/dashboard")
+async def admin_dashboard_page(request: Request, db: Session = Depends(get_db)):
+    """Панель администратора (HTML страница)"""
+    
+    # ✅ Проверяем токен из параметра или заголовка
+    token = request.query_params.get("token") or request.headers.get("Authorization", "").replace("Bearer ", "")
+    
+    if token:
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            role = payload.get("role")
+            
+            if role == "admin":
+                # Токен валидный - показываем дашборд
+                admin_id = payload.get("sub")
+                admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+                if admin:
+                    return templates.TemplateResponse("admin_dashboard.html", {
+                        "request": request,
+                        "admin": admin
+                    })
+        except Exception as e:
+            print(f"Token error: {e}")
+    
+    # Проверяем куки (для обратной совместимости)
+    admin_id = request.cookies.get("admin_id")
+    if admin_id:
+        admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+        if admin:
+            return templates.TemplateResponse("admin_dashboard.html", {
+                "request": request,
+                "admin": admin
+            })
+    
+    # Нет валидной авторизации - редирект на логин
+    return RedirectResponse(url="/admin/login", status_code=303)
 
 @app.get("/admin/logout")
 async def admin_logout():
