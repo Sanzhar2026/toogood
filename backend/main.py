@@ -286,18 +286,44 @@ courier_sessions = {}
 # backend/main.py - добавьте эти эндпоинты
 
 # ============ АДМИН ЭНДПОИНТЫ ============
+async def get_current_admin_from_token(request: Request, db: Session = Depends(get_db)):
+    """Получить текущего админа из Bearer токена"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        
+        # Проверяем что это админ
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Admin only")
+        
+        admin_id = payload.get("sub")
+        admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+        
+        if not admin:
+            raise HTTPException(status_code=401, detail="Admin not found")
+        
+        return admin
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+
 
 @app.get("/api/admin/stats")
-async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
+async def get_admin_stats(
+    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
+    db: Session = Depends(get_db)
+):
     """Получить статистику для админ-панели"""
-    
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-    if not admin:
-        raise HTTPException(status_code=403, detail="Access denied")
     
     total_users = db.query(User).count()
     total_suppliers = db.query(Supplier).count()
@@ -314,7 +340,6 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
         "pending_couriers": pending_couriers,
         "total_revenue": total_revenue
     }
-
 # backend/main.py - ИСПРАВЛЕННЫЙ админ логин (API, не HTML форма)
 
 @app.post("/admin/api/login")
@@ -470,12 +495,11 @@ async def admin_cancel_order(
     }
 
 @app.get("/api/admin/orders")
-async def get_admin_orders(request: Request, db: Session = Depends(get_db)):
-    """Получить все заказы для админ-панели"""
-    
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+async def get_admin_orders(
+    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
+    db: Session = Depends(get_db)
+):
+    """Получить все заказы"""
     
     orders = db.query(Order).order_by(Order.created_at.desc()).all()
     
@@ -498,14 +522,12 @@ async def get_admin_orders(request: Request, db: Session = Depends(get_db)):
     
     return {"orders": result}
 
-
 @app.get("/api/admin/couriers")
-async def get_admin_couriers(request: Request, db: Session = Depends(get_db)):
-    """Получить всех подтвержденных курьеров"""
-    
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+async def get_admin_couriers(
+    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
+    db: Session = Depends(get_db)
+):
+    """Получить подтвержденных курьеров"""
     
     couriers = db.query(CourierProfile).filter(
         CourierProfile.is_verified == True
@@ -528,14 +550,12 @@ async def get_admin_couriers(request: Request, db: Session = Depends(get_db)):
     
     return {"couriers": result}
 
-
 @app.get("/api/admin/pending-couriers")
-async def get_admin_pending_couriers(request: Request, db: Session = Depends(get_db)):
-    """Получить неподтвержденных курьеров для админ-панели"""
-    
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+async def get_admin_pending_couriers(
+    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
+    db: Session = Depends(get_db)
+):
+    """Получить неподтвержденных курьеров"""
     
     pending = db.query(CourierProfile).filter(
         CourierProfile.is_verified == False
@@ -555,7 +575,6 @@ async def get_admin_pending_couriers(request: Request, db: Session = Depends(get
         })
     
     return {"couriers": result}
-
 
 @app.post("/api/admin/verify-courier/{courier_id}")
 async def admin_verify_courier(courier_id: int, request: Request, db: Session = Depends(get_db)):
@@ -604,14 +623,12 @@ async def admin_reject_courier(courier_id: int, request: Request, db: Session = 
 
 
 @app.get("/api/admin/reservations")
-async def get_admin_reservations(request: Request, db: Session = Depends(get_db)):
-    """Получить активные бронирования (ожидающие оплаты)"""
+async def get_admin_reservations(
+    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
+    db: Session = Depends(get_db)
+):
+    """Получить активные бронирования"""
     
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    from datetime import datetime
     active_reservations = db.query(TemporaryReservation).filter(
         TemporaryReservation.is_paid == False,
         TemporaryReservation.expires_at > datetime.utcnow()
@@ -639,6 +656,7 @@ async def get_admin_reservations(request: Request, db: Session = Depends(get_db)
         })
     
     return {"reservations": result}
+
 # backend/main.py - добавьте WebSocket для курьеров
 
 # ============ АДМИН ЭНДПОИНТЫ ДЛЯ УПРАВЛЕНИЯ ЗАКАЗАМИ ============
@@ -4704,41 +4722,6 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
 
 # backend/main.py - добавьте этот эндпоинт
 
-@app.get("/api/admin/reservations")
-async def get_admin_reservations(request: Request, db: Session = Depends(get_db)):
-    """Получить все активные резервации (ожидающие оплаты)"""
-    
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    # Активные резервации (не оплачены, не истекли)
-    active_reservations = db.query(TemporaryReservation).filter(
-        TemporaryReservation.is_paid == False,
-        TemporaryReservation.expires_at > datetime.utcnow()
-    ).order_by(TemporaryReservation.expires_at.asc()).all()
-    
-    result = []
-    for res in active_reservations:
-        user = db.query(User).filter(User.id == res.user_id).first()
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == res.bag_id).first()
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first() if bag else None
-        
-        result.append({
-            "id": res.id,
-            "user_name": user.full_name if user else f"User {res.user_id}",
-            "user_phone": user.phone if user else "Не указан",
-            "bag_name": bag.name if bag else "Товар",
-            "supplier_name": supplier.business_name if supplier else "Ресторан",
-            "quantity": res.quantity,
-            "total_amount": bag.discounted_price * res.quantity if bag else 0,
-            "reserved_at": res.reserved_at.isoformat(),
-            "expires_at": res.expires_at.isoformat(),
-            "time_left_minutes": int((res.expires_at - datetime.utcnow()).total_seconds() / 60)
-        })
-    
-    return {"reservations": result}
-
 @app.delete("/api/cart/remove/{bag_id}")
 async def remove_from_cart(bag_id: int, request: Request, db: Session = Depends(get_db)):
     """Remove item from cart"""
@@ -5253,30 +5236,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 await manager.disconnect_legacy(websocket)
         except:
             pass
-# # backend/main.py - добавьте эту функцию
 
-# async def notify_supplier_new_order(supplier_id: int, order_data: dict):
-#     """Отправить уведомление поставщику о новом заказе"""
-#     supplier_id_str = str(supplier_id)
-    
-#     if supplier_id_str in manager.supplier_connections:
-#         disconnected = []
-#         for connection in manager.supplier_connections[supplier_id_str]:
-#             try:
-#                 await connection.send_json({
-#                     "type": "new_order",
-#                     "data": order_data,
-#                     "timestamp": datetime.utcnow().isoformat()
-#                 })
-#                 print(f"📢 Notified supplier {supplier_id} about new order")
-#             except:
-#                 disconnected.append(connection)
-        
-#         for conn in disconnected:
-#             if conn in manager.supplier_connections[supplier_id_str]:
-#                 manager.supplier_connections[supplier_id_str].remove(conn)
-#     else:
-#         print(f"⚠️ Supplier {supplier_id} has no active WebSocket connection")
+        # backend/main.py - ДОБАВЬТЕ ЭТУ ФУНКЦИЮ
+
 
 
 def decode_polyline(encoded):
@@ -6832,28 +6794,14 @@ async def get_supplier_surprise_bags(supplier_id: int, db: Session = Depends(get
 
 # backend/main.py - ЗАМЕНИТЕ ваш существующий эндпоинт
 @app.delete("/api/admin/cleanup-cancelled-orders")
-async def cleanup_cancelled_orders(request: Request, db: Session = Depends(get_db)):
-    """Автоматическая очистка отмененных заказов старше 1 часа"""
-    
-    # ✅ ТОЛЬКО Bearer токен
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token required")
-    
-    token = auth_header.split(" ")[1]
-    try:
-        from jose import jwt
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        role = payload.get("role")
-        
-        if role != "admin":
-            raise HTTPException(status_code=403, detail="Admin only")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+async def cleanup_cancelled_orders(
+    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
+    db: Session = Depends(get_db)
+):
+    """Очистка отмененных заказов"""
     
     one_hour_ago = datetime.utcnow() - timedelta(hours=1)
     
-    # ✅ ИСПОЛЬЗУЕМ OrderStatus.CANCELLED (enum)
     cancelled_orders = db.query(Order).filter(
         Order.status == OrderStatus.CANCELLED,
         Order.cancelled_at.isnot(None),
@@ -6862,7 +6810,6 @@ async def cleanup_cancelled_orders(request: Request, db: Session = Depends(get_d
     
     deleted_count = 0
     for order in cancelled_orders:
-        # Освобождаем курьера
         if order.assigned_courier_id:
             courier = db.query(CourierProfile).filter(
                 CourierProfile.user_id == order.assigned_courier_id,
