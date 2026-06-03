@@ -305,6 +305,10 @@
                     <span id="pendingBadge" class="badge-pending" style="display: none;">0</span>
                 </h2>
                 <button class="refresh-btn" onclick="loadPendingCouriers()">🔄 Обновить</button>
+                <button onclick="cleanupOrders()" class="bg-red-600 text-white px-4 py-2 rounded">
+  🧹 Очистить отмененные заказы
+</button>
+
             </div>
             <div class="table-container">
                 <table>
@@ -422,6 +426,17 @@
         // WebSocket для получения уведомлений в реальном времени
         let adminWs = null;
         
+
+async function cleanupOrders() {
+  const res = await fetch('/api/admin/cleanup-cancelled-orders', { method: 'DELETE' });
+  const data = await res.json();
+  alert(data.message);
+  location.reload();
+}
+
+
+
+
         function connectAdminWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);

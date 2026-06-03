@@ -3409,7 +3409,7 @@ async def startup_event():
     # Запускаем фоновые задачи
     asyncio.create_task(cleanup_expired_reservations())
     asyncio.create_task(memory_monitor())  # ✅ Добавьте это
-    
+    syncio.create_task(auto_cleanup_cancelled_orders()) 
     print("✅ Все фоновые задачи запущены")
 
 @app.post("/api/refund/request")
@@ -6718,6 +6718,93 @@ async def get_supplier_surprise_bags(supplier_id: int, db: Session = Depends(get
         })
     
     return result
+
+
+
+
+# backend/main.py - добавь этот эндпоинт
+
+@app.delete("/api/admin/cleanup-cancelled-orders")
+async def cleanup_cancelled_orders(request: Request, db: Session = Depends(get_db)):
+    """Автоматическая очистка отмененных заказов старше 1 часа"""
+    
+    admin_id = request.cookies.get("admin_id")
+    if not admin_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Находим отмененные заказы старше 1 часа
+    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+    
+    cancelled_orders = db.query(Order).filter(
+        Order.status == OrderStatus.CANCELLED,
+        Order.cancelled_at < one_hour_ago
+    ).all()
+    
+    deleted_count = 0
+    for order in cancelled_orders:
+        # Освобождаем курьера если был назначен
+        if order.assigned_courier_id:
+            courier = db.query(CourierProfile).filter(
+                CourierProfile.user_id == order.assigned_courier_id,
+                CourierProfile.current_order_id == order.id
+            ).first()
+            if courier:
+                courier.current_order_id = None
+                courier.current_order_status = None
+                courier.is_available = True
+        
+        # Удаляем заказ
+        db.delete(order)
+        deleted_count += 1
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Удалено {deleted_count} отмененных заказов",
+        "deleted_count": deleted_count
+    }
+
+# backend/main.py - добавь эту фоновую задачу
+
+async def auto_cleanup_cancelled_orders():
+    """Автоматическая очистка отмененных заказов каждые 30 минут"""
+    while True:
+        try:
+            await asyncio.sleep(1800)  # 30 минут
+            
+            db = SessionLocal()
+            one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+            
+            cancelled_orders = db.query(Order).filter(
+                Order.status == OrderStatus.CANCELLED,
+                Order.cancelled_at < one_hour_ago
+            ).all()
+            
+            deleted_count = 0
+            for order in cancelled_orders:
+                # Освобождаем курьера
+                if order.assigned_courier_id:
+                    courier = db.query(CourierProfile).filter(
+                        CourierProfile.user_id == order.assigned_courier_id,
+                        CourierProfile.current_order_id == order.id
+                    ).first()
+                    if courier:
+                        courier.current_order_id = None
+                        courier.current_order_status = None
+                        courier.is_available = True
+                
+                db.delete(order)
+                deleted_count += 1
+            
+            db.commit()
+            db.close()
+            
+            if deleted_count > 0:
+                print(f"🧹 Автоочистка: удалено {deleted_count} отмененных заказов")
+                
+        except Exception as e:
+            print(f"❌ Ошибка автоочистки: {e}")
 
 
 @app.get("/api/suppliers/{supplier_id}/orders")
