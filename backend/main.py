@@ -6115,6 +6115,10 @@ async def get_nearby_suppliers(
     print(f"🎯 ИТОГО: {len(nearby)} поставщиков в городе {user_city}")
     
     return {"count": len(nearby), "suppliers": nearby, "user_city": user_city}
+
+
+
+
 # ============ HOME PAGE ============
 @app.get("/")
 async def home(request: Request, lang: str = "kz", category: str = "all", db: Session = Depends(get_db)):
