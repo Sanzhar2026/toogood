@@ -892,17 +892,15 @@ async def courier_arrived(
     if order.assigned_courier_id != courier.user_id:
         raise HTTPException(status_code=403, detail="Order not assigned to you")
     
-    # ✅ ОБНОВЛЯЕМ СТАТУС ЗАКАЗА
-    order.status = OrderStatus.NEARBY
-    order.delivery_status = DeliveryStatus.NEARBY
+    # ✅ ИСПОЛЬЗУЕМ СТРОКИ (нижний регистр) вместо Enum
+    order.status = "nearby"  # ← НЕ OrderStatus.NEARBY
+    order.delivery_status = "nearby"  # ← НЕ DeliveryStatus.NEARBY
     
-    # ✅ УВЕЛИЧИВАЕМ ДЕДЛАЙН (добавляем еще 15 минут)
+    # Увеличиваем дедлайн
     if order.delivery_deadline:
         if order.delivery_deadline < datetime.utcnow():
-            # Если дедлайн уже истек - ставим новый
             order.delivery_deadline = datetime.utcnow() + timedelta(minutes=15)
         else:
-            # Если еще не истек - добавляем 15 минут
             order.delivery_deadline = order.delivery_deadline + timedelta(minutes=15)
     else:
         order.delivery_deadline = datetime.utcnow() + timedelta(minutes=15)
