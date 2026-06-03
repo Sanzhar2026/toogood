@@ -1,20 +1,11 @@
-# // Проверяем API с вашими координатами
-# const userLat = 50.28922594440174;
-# const userLon = 57.14937759403024;
+# check_enum.py
+from sqlalchemy import create_engine, text
 
-# fetch(`https://toogood-2ncf.onrender.com/api/suppliers/nearby?lat=${userLat}&lon=${userLon}&radius=100`)
-#   .then(r => r.json())
-#   .then(data => {
-#     console.log('📦 API вернул магазины:', data.suppliers?.map(s => s.business_name));
-#     console.log('Количество:', data.suppliers?.length);
-#   });
+DATABASE_URL = "postgresql://toogood_db_a3k0_user:2tWztMrzy1VCriWHefthkLBK1EOeeYnG@dpg-d8eo51rbc2fs73coebs0-a.frankfurt-postgres.render.com/toogood_db_a3k0"
 
-# // Проверяем, есть ли этот магазин в общем списке
-# fetch('https://toogood-2ncf.onrender.com/api/suppliers')
-#   .then(r => r.json())
-#   .then(data => {
-#     const we = data.find(s => s.business_name === 'we');
-#     console.log('Магазин "we" в БД:', we);
-#     console.log('Его координаты:', we?.lat, we?.lon);
-#     console.log('Активен:', we?.is_active);
-#   });
+engine = create_engine(DATABASE_URL)
+
+with engine.connect() as conn:
+    result = conn.execute(text("SELECT enum_range(NULL::orderstatus);"))
+    row = result.fetchone()
+    print("Значения в enum orderstatus:", row[0])
