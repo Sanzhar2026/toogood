@@ -314,7 +314,8 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
         "pending_couriers": pending_couriers,
         "total_revenue": total_revenue
     }
-@app.post("/api/admin/cancel-order/{order_id}")
+
+    @app.post("/api/admin/cancel-order/{order_id}")
 async def admin_cancel_order(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Админ отменяет заказ и возвращает деньги"""
     
@@ -331,32 +332,26 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     
     print(f"🔍 Отмена заказа #{order_id}, назначенный курьер: {order.assigned_courier_id}")
     
-    # ✅ ГАРАНТИРОВАННАЯ ОЧИСТКА КУРЬЕРА
+    # ✅ ПРИНУДИТЕЛЬНАЯ ОЧИСТКА КУРЬЕРА (как в force-clear-order)
     if order.assigned_courier_id:
-        # 1. Пытаемся найти курьера
-        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
-        
-        if courier:
-            # Очищаем курьера
-            old_order_id = courier.current_order_id
-            courier.current_order_id = None
-            courier.current_order_status = None
-            courier.is_available = True
-            courier.is_online = True
-            print(f"✅ Курьер {courier.first_name} освобожден (был заказ #{old_order_id})")
-        else:
-            print(f"⚠️ Курьер с user_id={order.assigned_courier_id} не найден в профилях")
-        
-        # 2. ДОПОЛНИТЕЛЬНАЯ ПРИНУДИТЕЛЬНАЯ ОЧИСТКА (на всякий случай)
+        # Обновляем напрямую через SQLAlchemy
         db.query(CourierProfile).filter(
             CourierProfile.user_id == order.assigned_courier_id
         ).update({
             "current_order_id": None,
             "current_order_status": None,
             "is_available": True,
-            "is_online": True
+            "is_online": True  # Оставляем онлайн, но без заказа
         })
         print(f"🧹 Принудительная очистка курьера user_id={order.assigned_courier_id}")
+        
+        # Также пробуем найти и очистить через объект
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
+        if courier:
+            courier.current_order_id = None
+            courier.current_order_status = None
+            courier.is_available = True
+            print(f"✅ Курьер {courier.first_name} освобожден")
     
     # Обновляем статусы заказа
     order.status = OrderStatus.CANCELLED
@@ -411,7 +406,7 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
         print(f"❌ Ошибка отправки уведомления клиенту: {e}")
     
     return {
-        "success": True, 
+        "success": True,
         "message": f"Заказ #{order.order_number} отменен, деньги возвращены",
         "order_id": order_id,
         "order_number": order.order_number
