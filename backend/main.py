@@ -5095,9 +5095,15 @@ async def notify_bag_deleted(bag_id: int):
 
 # backend/main.py - исправленный WebSocket эндпоинт
 
+# backend/main.py - ИСПРАВЛЕННЫЙ WebSocket эндпоинт
+
+# Глобальная переменная для единственного админа
+admin_websocket = None
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket для общих уведомлений (без авторизации)"""
+    """WebSocket для общих уведомлений (user, courier, supplier, admin)"""
+    global admin_websocket
     
     # ✅ КРИТИЧЕСКИ ВАЖНО: Сначала ПРИНИМАЕМ соединение
     try:
@@ -5109,18 +5115,75 @@ async def websocket_endpoint(websocket: WebSocket):
     
     # ТОЛЬКО ПОСЛЕ accept() можно получать параметры
     try:
-        # Получаем параметры из query string (работает только после accept)
+        # Получаем параметры из query string
         token = websocket.query_params.get("token")
-        user_type = websocket.query_params.get("type", "user")  # user, courier, supplier
+        user_type = websocket.query_params.get("type", "user")  # user, courier, supplier, admin
         user_id_str = websocket.query_params.get("user_id")
         
+        print(f"🔍 WebSocket connection: type={user_type}, token={token[:30] if token else 'None'}...")
+        
+        # 👑 ДЛЯ АДМИНА - специальная обработка
+        if user_type == "admin":
+            # Закрываем старое соединение если было
+            if admin_websocket:
+                try:
+                    await admin_websocket.close()
+                    print("🔌 Closed old admin connection")
+                except:
+                    pass
+            
+            admin_websocket = websocket
+            print(f"👑 ADMIN connected (single)")
+            
+            # Отправляем подтверждение админу
+            await websocket.send_json({
+                "type": "connected",
+                "message": "Admin WebSocket connected",
+                "role": "admin",
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            
+            # Основной цикл для админа
+            try:
+                while True:
+                    try:
+                        data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                        try:
+                            message = json.loads(data)
+                            msg_type = message.get("type")
+                            
+                            if msg_type == "ping":
+                                await websocket.send_json({"type": "pong"})
+                                print("💓 Admin heartbeat pong sent")
+                            elif msg_type == "subscribe":
+                                channel = message.get("channel")
+                                print(f"📡 Admin subscribed to {channel}")
+                                
+                        except json.JSONDecodeError:
+                            pass
+                            
+                    except asyncio.TimeoutError:
+                        try:
+                            await websocket.send_json({"type": "ping"})
+                            print("💓 Admin heartbeat ping sent")
+                        except:
+                            break
+                            
+            except WebSocketDisconnect:
+                print("🔌 Admin WebSocket disconnected normally")
+            finally:
+                admin_websocket = None
+            return
+        
+        # 👤 ДЛЯ ОБЫЧНЫХ ПОЛЬЗОВАТЕЛЕЙ (user, courier, supplier)
         # Если есть токен, декодируем user_id
         if token and not user_id_str:
             try:
                 from jose import jwt
                 payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
                 user_id_str = payload.get("sub")
-                print(f"🔑 Token decoded: user_id={user_id_str}")
+                role = payload.get("role")
+                print(f"🔑 Token decoded: user_id={user_id_str}, role={role}")
             except Exception as e:
                 print(f"❌ Token decode error: {e}")
         
@@ -5140,7 +5203,7 @@ async def websocket_endpoint(websocket: WebSocket):
             await manager.connect(websocket, user_type, user_id)
             print(f"📡 {user_type} {user_id} connected")
         
-        # Основной цикл
+        # Основной цикл для обычных пользователей
         while True:
             try:
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
@@ -5173,10 +5236,8 @@ async def websocket_endpoint(websocket: WebSocket):
         print("🔌 WebSocket disconnected normally")
         try:
             if 'user_id_str' in locals() and user_id_str:
-                # ✅ ДОБАВИТЬ await
                 await manager.disconnect(websocket, user_type, int(user_id_str))
             else:
-                # ✅ ДОБАВИТЬ await
                 await manager.disconnect_legacy(websocket)
         except:
             pass
@@ -5187,14 +5248,11 @@ async def websocket_endpoint(websocket: WebSocket):
         traceback.print_exc()
         try:
             if 'user_id_str' in locals() and user_id_str:
-                # ✅ ДОБАВИТЬ await
                 await manager.disconnect(websocket, user_type, int(user_id_str))
             else:
-                # ✅ ДОБАВИТЬ await
                 await manager.disconnect_legacy(websocket)
         except:
             pass
-
 # # backend/main.py - добавьте эту функцию
 
 # async def notify_supplier_new_order(supplier_id: int, order_data: dict):
