@@ -4624,21 +4624,35 @@ async def get_cart(request: Request, db: Session = Depends(get_db)):
 
 # backend/main.py - убедитесь, что эндпоинт возвращает success
 # backend/main.py - замените ваш существующий эндпоинт
+# backend/main.py - исправленный эндпоинт
+
 @app.post("/api/cart/add")
 async def add_to_cart(request: Request, db: Session = Depends(get_db)):
     """Добавление товара в корзину"""
     
-    user_id = get_user_id_from_request(request)
-    
-    # Если нет авторизации - создаем тестового пользователя
-    if not user_id:
+    # ✅ Получаем user_id из Bearer токена
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
             status_code=401,
-            content={"success": False, "detail": "Пожалуйста, войдите в аккаунт"}
+            content={"success": False, "detail": "Bearer token required"}
         )
     
-    
-    print(f"🛒 Добавление в корзину: user_id={user_id}")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Token error: {str(e)}"}
+        )
     
     try:
         data = await request.json()
@@ -4667,7 +4681,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
         # Создаем временную резервацию
         reservation = TemporaryReservation(
             bag_id=bag_id,
-            user_id=user_id,
+            user_id=int(user_id),
             quantity=quantity,
             reserved_at=datetime.utcnow(),
             expires_at=datetime.utcnow() + timedelta(minutes=15),
@@ -4677,7 +4691,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
         
         # Добавляем в корзину
         existing = db.query(CartItem).filter(
-            CartItem.user_id == user_id,
+            CartItem.user_id == int(user_id),
             CartItem.surprise_bag_id == bag_id
         ).first()
         
@@ -4685,7 +4699,7 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
             existing.quantity += quantity
         else:
             cart_item = CartItem(
-                user_id=user_id,
+                user_id=int(user_id),
                 surprise_bag_id=bag_id,
                 quantity=quantity
             )
@@ -4693,23 +4707,13 @@ async def add_to_cart(request: Request, db: Session = Depends(get_db)):
         
         db.commit()
         
-        # WebSocket уведомление
-        await manager.broadcast({
-            "type": "bag_quantity_updated",
-            "data": {
-                "bag_id": bag_id,
-                "available_quantity": bag.available_quantity,
-                "is_active": bag.is_active
-            }
-        }, channel="surprise_bags")
-        
-        return {
+        return JSONResponse(content={
             "success": True,
             "message": "Товар добавлен в корзину",
             "available_quantity": bag.available_quantity,
             "reservation_id": reservation.id,
             "expires_at": reservation.expires_at.isoformat()
-        }
+        })
         
     except Exception as e:
         print(f"❌ Ошибка: {e}")
