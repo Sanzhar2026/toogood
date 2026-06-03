@@ -314,13 +314,41 @@ async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
         "pending_couriers": pending_couriers,
         "total_revenue": total_revenue
     }
+
+
+
+
+    
 @app.post("/api/admin/cancel-order/{order_id}")
-async def admin_cancel_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+async def admin_cancel_order(
+    order_id: int, 
+    request: Request, 
+    db: Session = Depends(get_db)
+):
     """Админ отменяет заказ и возвращает деньги"""
     
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # ✅ ТОЛЬКО Bearer токен, НИКАКИХ КУК!
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        role = payload.get("role")
+        
+        # Проверяем что это админ
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Admin only")
+            
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")
     
     data = await request.json()
     reason = data.get("reason", "Отменено администратором")
@@ -333,11 +361,9 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     
     # ✅ ГАРАНТИРОВАННАЯ ОЧИСТКА КУРЬЕРА
     if order.assigned_courier_id:
-        # 1. Пытаемся найти курьера
         courier = db.query(CourierProfile).filter(CourierProfile.user_id == order.assigned_courier_id).first()
         
         if courier:
-            # Очищаем курьера
             old_order_id = courier.current_order_id
             courier.current_order_id = None
             courier.current_order_status = None
@@ -347,7 +373,7 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
         else:
             print(f"⚠️ Курьер с user_id={order.assigned_courier_id} не найден в профилях")
         
-        # 2. ДОПОЛНИТЕЛЬНАЯ ПРИНУДИТЕЛЬНАЯ ОЧИСТКА (на всякий случай)
+        # Принудительная очистка
         db.query(CourierProfile).filter(
             CourierProfile.user_id == order.assigned_courier_id
         ).update({
@@ -356,16 +382,15 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
             "is_available": True,
             "is_online": True
         })
-        print(f"🧹 Принудительная очистка курьера user_id={order.assigned_courier_id}")
     
-    # Обновляем статусы заказа
+    # ✅ КРИТИЧЕСКИ ВАЖНО: заполняем cancelled_at
     order.status = OrderStatus.CANCELLED
     order.payment_status = "refunded"
     order.refund_status = "completed"
     order.refund_processed_at = datetime.utcnow()
     order.refund_amount = order.amount_paid
     order.refund_reason = reason
-    order.cancelled_at = datetime.utcnow()
+    order.cancelled_at = datetime.utcnow()  # ← ЭТА СТРОКА!
     
     # Возвращаем количество сюрприза
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
@@ -377,7 +402,7 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
     
     db.commit()
     
-    # Отправляем уведомление курьеру
+    # Отправляем уведомления
     if order.assigned_courier_id:
         try:
             await manager.broadcast({
@@ -390,11 +415,9 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
                     "timestamp": datetime.utcnow().isoformat()
                 }
             }, channel=f"courier_{order.assigned_courier_id}")
-            print(f"📢 Уведомление отправлено курьеру user_id={order.assigned_courier_id}")
         except Exception as e:
             print(f"❌ Ошибка отправки уведомления курьеру: {e}")
     
-    # Отправляем уведомление клиенту
     try:
         await manager.broadcast({
             "type": "order_cancelled",
@@ -406,7 +429,6 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
                 "timestamp": datetime.utcnow().isoformat()
             }
         }, channel=f"order_{order_id}")
-        print(f"📢 Уведомление отправлено клиенту")
     except Exception as e:
         print(f"❌ Ошибка отправки уведомления клиенту: {e}")
     
@@ -414,7 +436,8 @@ async def admin_cancel_order(order_id: int, request: Request, db: Session = Depe
         "success": True, 
         "message": f"Заказ #{order.order_number} отменен, деньги возвращены",
         "order_id": order_id,
-        "order_number": order.order_number
+        "order_number": order.order_number,
+        "cancelled_at": order.cancelled_at.isoformat()
     }
 
 @app.get("/api/admin/orders")
@@ -4782,10 +4805,12 @@ async def clear_cart(request: Request, db: Session = Depends(get_db)):
     
     return {"success": True, "message": "Cart cleared"}
 
+# backend/main.py - обнови create_orders_from_cart
 
 @app.post("/api/orders/create-from-cart")
 async def create_orders_from_cart(request: Request, db: Session = Depends(get_db)):
     """Create orders from all items in cart"""
+    
     user_id = get_user_id_from_request(request)
     
     if not user_id:
@@ -4795,10 +4820,9 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
     customer_lat = data.get("lat")
     customer_lon = data.get("lon")
     customer_address = data.get("address")
+    delivery_type = data.get("delivery_type", "delivery")  # ← ДОБАВИТЬ
     
-    cart_items = db.query(CartItem).filter(
-        CartItem.user_id == user_id
-    ).all()
+    cart_items = db.query(CartItem).filter(CartItem.user_id == user_id).all()
     
     if not cart_items:
         raise HTTPException(status_code=400, detail="Cart is empty")
@@ -4818,7 +4842,6 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
         
         supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
         
-        # Create order for each item (or group by supplier)
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         amount = bag.discounted_price * cart_item.quantity
         
@@ -4827,9 +4850,10 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
             supplier_id=bag.supplier_id,
             surprise_bag_id=bag.id,
             order_number=order_number,
-            status=OrderStatus.PENDING,  # Сначала PENDING
-            customer_lat=customer_lat,
-            customer_lon=customer_lon,
+            status=OrderStatus.PENDING,
+            delivery_type=delivery_type,  # ← ДОБАВИТЬ
+            customer_lat=customer_lat if delivery_type == "delivery" else None,
+            customer_lon=customer_lon if delivery_type == "delivery" else None,
             customer_address=customer_address,
             amount_paid=amount,
             total_amount=amount,
@@ -4847,45 +4871,41 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
         
         db.add(order)
         
-        # Decrease quantity
         bag.available_quantity -= cart_item.quantity
         total_amount += amount
         orders_created.append(order)
     
-    # Clear cart
     for cart_item in cart_items:
         db.delete(cart_item)
     
     db.commit()
     
-    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРАМ ДЛЯ КАЖДОГО ЗАКАЗА
-    for order in orders_created:
-        try:
-            # Получаем информацию о ресторане
-            supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
-            supplier_name = supplier.business_name if supplier else "Ресторан"
-            
-            # Отправляем уведомление всем онлайн курьерам
-            await manager.broadcast({
-                "type": "new_order_for_courier",
-                "data": {
-                    "order_id": order.id,
-                    "order_number": order.order_number,
-                    "supplier_name": supplier_name,
-                    "amount": order.amount_paid,
-                    "bag_name": "Заказ из корзины",
-                    "customer_address": order.customer_address,
-                    "supplier_lat": supplier.lat if supplier else None,
-                    "supplier_lon": supplier.lon if supplier else None,
-                    "customer_lat": order.customer_lat,
-                    "customer_lon": order.customer_lon
-                }
-            }, channel="couriers")  # ← ИЗМЕНИТЬ НА "couriers"
-            print(f"📢 Уведомление о заказе #{order.id} отправлено курьерам")
-        except Exception as e:
-            print(f"❌ Ошибка отправки уведомления для заказа #{order.id}: {e}")
+    # Отправляем уведомления курьерам ТОЛЬКО для доставки
+    if delivery_type == "delivery":
+        for order in orders_created:
+            try:
+                supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+                supplier_name = supplier.business_name if supplier else "Ресторан"
+                
+                await manager.broadcast({
+                    "type": "new_order_for_courier",
+                    "data": {
+                        "order_id": order.id,
+                        "order_number": order.order_number,
+                        "supplier_name": supplier_name,
+                        "amount": order.amount_paid,
+                        "bag_name": "Заказ из корзины",
+                        "customer_address": order.customer_address,
+                        "supplier_lat": supplier.lat if supplier else None,
+                        "supplier_lon": supplier.lon if supplier else None,
+                        "customer_lat": order.customer_lat,
+                        "customer_lon": order.customer_lon
+                    }
+                }, channel="couriers")
+                print(f"📢 Уведомление о заказе #{order.id} отправлено курьерам")
+            except Exception as e:
+                print(f"❌ Ошибка отправки уведомления для заказа #{order.id}: {e}")
     
-    # Отправляем уведомление клиенту
     await manager.broadcast({
         "type": "order_created",
         "user_id": int(user_id),
@@ -4905,7 +4925,6 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
         "total_amount": total_amount,
         "message": f"Created {len(orders_created)} order(s)"
     }
-
 
 @app.put("/api/supplier/orders/{order_id}/confirm")
 async def confirm_order_by_supplier(
@@ -6724,25 +6743,39 @@ async def get_supplier_surprise_bags(supplier_id: int, db: Session = Depends(get
 
 # backend/main.py - добавь этот эндпоинт
 
+# backend/main.py - ЗАМЕНИТЕ ваш существующий эндпоинт
 @app.delete("/api/admin/cleanup-cancelled-orders")
 async def cleanup_cancelled_orders(request: Request, db: Session = Depends(get_db)):
     """Автоматическая очистка отмененных заказов старше 1 часа"""
     
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # ✅ ТОЛЬКО Bearer токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
     
-    # Находим отмененные заказы старше 1 часа
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Admin only")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    
     one_hour_ago = datetime.utcnow() - timedelta(hours=1)
     
+    # ✅ ИСПОЛЬЗУЕМ OrderStatus.CANCELLED (enum)
     cancelled_orders = db.query(Order).filter(
         Order.status == OrderStatus.CANCELLED,
+        Order.cancelled_at.isnot(None),
         Order.cancelled_at < one_hour_ago
     ).all()
     
     deleted_count = 0
     for order in cancelled_orders:
-        # Освобождаем курьера если был назначен
+        # Освобождаем курьера
         if order.assigned_courier_id:
             courier = db.query(CourierProfile).filter(
                 CourierProfile.user_id == order.assigned_courier_id,
@@ -6753,7 +6786,6 @@ async def cleanup_cancelled_orders(request: Request, db: Session = Depends(get_d
                 courier.current_order_status = None
                 courier.is_available = True
         
-        # Удаляем заказ
         db.delete(order)
         deleted_count += 1
     
@@ -6764,7 +6796,6 @@ async def cleanup_cancelled_orders(request: Request, db: Session = Depends(get_d
         "message": f"Удалено {deleted_count} отмененных заказов",
         "deleted_count": deleted_count
     }
-
 # backend/main.py - добавь эту фоновую задачу
 
 async def auto_cleanup_cancelled_orders():
