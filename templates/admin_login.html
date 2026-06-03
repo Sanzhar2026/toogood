@@ -225,10 +225,12 @@
                 
                 const data = await response.json();
                 
-                if (response.ok && data.token) {
-                    localStorage.setItem('admin_token', data.token);
-                    window.location.href = '/admin/dashboard';
-                } else {
+                // В admin_login.html - после успешного логина
+if (response.ok && data.token) {
+    localStorage.setItem('admin_token', data.token);
+    // ✅ Добавь токен в URL при редиректе
+    window.location.href = '/admin/dashboard?token=' + encodeURIComponent(data.token);
+}else {
                     errorDiv.textContent = data.detail || 'Invalid credentials';
                     errorDiv.style.display = 'block';
                 }
