@@ -5764,6 +5764,8 @@ async def start_real_delivery(order_id: int, db: Session = Depends(get_db)):
         "eta_minutes": eta_minutes
     }
 
+
+
 @app.get("/api/delivery/{order_id}/position")
 async def get_delivery_position(order_id: int, db: Session = Depends(get_db)):
     cache_key = str(order_id)
@@ -6014,36 +6016,33 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     
     return R * c
 
-
 @app.get("/api/suppliers/nearby")
-async def get_nearby_suppliers(lat: float, lon: float, radius: float = 500, db: Session = Depends(get_db)):
+async def get_nearby_suppliers(
+    lat: float, 
+    lon: float, 
+    radius: float = None,  # ← сделай необязательным
+    db: Session = Depends(get_db)
+):
     """Получить поставщиков ТОЛЬКО с доступными сюрпризами"""
     
-    print(f"🔍 Поиск поставщиков рядом с {lat}, {lon}, радиус {radius}км")
+    print(f"🔍 Поиск поставщиков рядом с {lat}, {lon}")
     
     all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
-    print(f"🏪 Всего активных поставщиков: {len(all_suppliers)}")
     
     nearby = []
     for supplier in all_suppliers:
-        print(f"  - Проверяем {supplier.business_name}: lat={supplier.lat}, lon={supplier.lon}")
-        
         if not supplier.lat or not supplier.lon:
-            print(f"    ⚠️ Нет координат, пропускаем")
             continue
             
         distance = haversine_distance(lat, lon, supplier.lat, supplier.lon)
-        print(f"    📍 Расстояние: {distance:.2f} км")
         
-        if distance <= radius:
-            # Проверяем активные сюрпризы
+        # ✅ Если radius не указан - показываем ВСЕХ поставщиков
+        if radius is None or distance <= radius:
             active_bags = db.query(SurpriseBag).filter(
                 SurpriseBag.supplier_id == supplier.id,
                 SurpriseBag.is_active == True,
                 SurpriseBag.available_quantity > 0
             ).all()
-            
-            print(f"    📦 Найдено активных сюрпризов: {len(active_bags)}")
             
             if active_bags:
                 nearby.append({
@@ -6054,30 +6053,13 @@ async def get_nearby_suppliers(lat: float, lon: float, radius: float = 500, db: 
                     "lon": supplier.lon,
                     "distance_km": round(distance, 2),
                     "rating": supplier.rating or 0,
-                    "surprise_bags_count": len(active_bags),
-                    "surprise_bags": [
-                        {
-                            "id": bag.id,
-                            "name": bag.name,
-                            "discounted_price": bag.discounted_price,
-                            "discount_percentage": bag.discount_percentage,
-                            "original_price": bag.original_price,
-                            "image_url": bag.image_url,
-                            "available_quantity": bag.available_quantity
-                        } for bag in active_bags
-                    ]
+                    "surprise_bags_count": len(active_bags)
                 })
-                print(f"    ✅ Добавлен в результат")
-            else:
-                print(f"    ⏸️ Нет активных сюрпризов")
-        else:
-            print(f"    ❌ Слишком далеко (> {radius} км)")
     
     nearby.sort(key=lambda x: x["distance_km"])
-    print(f"🎯 ИТОГО: {len(nearby)} поставщиков с доступными сюрпризами")
+    print(f"🎯 ИТОГО: {len(nearby)} поставщиков")
     
     return {"count": len(nearby), "suppliers": nearby}
-
 # ============ HOME PAGE ============
 @app.get("/")
 async def home(request: Request, lang: str = "kz", category: str = "all", db: Session = Depends(get_db)):
