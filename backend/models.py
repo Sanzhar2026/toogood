@@ -168,17 +168,18 @@ class Order(Base):
     confirmed_at = Column(DateTime, nullable=True)
     ready_at = Column(DateTime, nullable=True)
     delivered_at = Column(DateTime, nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)  # ✅ ДОБАВИТЬ ЭТУ СТРОКУ
     pickup_time = Column(String(50))
     amount_paid = Column(Float, nullable=True)
     
     assigned_courier_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    delivery_type = Column(String(50), default="delivery")  # ✅ ДОБАВИТЬ ЭТУ СТРОКУ (для самовывоза)
     
     user = relationship("User", back_populates="orders", foreign_keys=[user_id])
     supplier = relationship("Supplier", back_populates="orders", foreign_keys=[supplier_id])
     surprise_bag = relationship("SurpriseBag", back_populates="orders")
     assigned_courier = relationship("User", foreign_keys=[assigned_courier_id])
     tracking_updates = relationship("OrderTracking", back_populates="order")
-
 class OrderTracking(Base):
     __tablename__ = "order_tracking"
     id = Column(Integer, primary_key=True)
