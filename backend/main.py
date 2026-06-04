@@ -1301,11 +1301,12 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
             content={"success": False, "message": f"У вас уже есть активный заказ #{courier.current_order_id}"}
         )
     
-    # Назначаем заказ курьеру
+    # ✅ УСТАНАВЛИВАЕМ ДЕДЛАЙН С МОМЕНТА ВЗЯТИЯ ЗАКАЗА!
+    now = datetime.utcnow()
     order.assigned_courier_id = courier.user_id
     order.status = OrderStatus.OUT_FOR_DELIVERY
-    order.delivery_started_at = datetime.utcnow()
-    order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
+    order.delivery_started_at = now
+    order.delivery_deadline = now + timedelta(minutes=30)  # ← 30 минут с момента взятия!
     
     # Обновляем статус курьера
     courier.current_order_id = order_id
@@ -1315,6 +1316,7 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
     db.commit()
     
     print(f"✅ Заказ #{order_id} назначен курьеру {courier.first_name} {courier.last_name}")
+    print(f"⏰ Дедлайн доставки: {order.delivery_deadline}")
     
     # Отправляем уведомление клиенту через WebSocket
     try:
@@ -1339,7 +1341,6 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
         "order_id": order_id,
         "delivery_deadline": order.delivery_deadline.isoformat()
     }
-
 
 
 
@@ -4975,7 +4976,6 @@ async def clear_cart(request: Request, db: Session = Depends(get_db)):
     return {"success": True, "message": "Cart cleared"}
 
 # backend/main.py - обнови create_orders_from_cart
-
 @app.post("/api/orders/create-from-cart")
 async def create_orders_from_cart(request: Request, db: Session = Depends(get_db)):
     """Create orders from all items in cart"""
@@ -4989,7 +4989,7 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
     customer_lat = data.get("lat")
     customer_lon = data.get("lon")
     customer_address = data.get("address")
-    delivery_type = data.get("delivery_type", "delivery")  # ← ДОБАВИТЬ
+    delivery_type = data.get("delivery_type", "delivery")
     
     cart_items = db.query(CartItem).filter(CartItem.user_id == user_id).all()
     
@@ -5014,13 +5014,14 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         amount = bag.discounted_price * cart_item.quantity
         
+        # ✅ УБРАЛИ delivery_deadline ОТСЮДА!
         order = Order(
             user_id=int(user_id),
             supplier_id=bag.supplier_id,
             surprise_bag_id=bag.id,
             order_number=order_number,
             status=OrderStatus.PENDING,
-            delivery_type=delivery_type,  # ← ДОБАВИТЬ
+            delivery_type=delivery_type,
             customer_lat=customer_lat if delivery_type == "delivery" else None,
             customer_lon=customer_lon if delivery_type == "delivery" else None,
             customer_address=customer_address,
@@ -5036,6 +5037,7 @@ async def create_orders_from_cart(request: Request, db: Session = Depends(get_db
             }]),
             pickup_time=f"{bag.pickup_start_time} - {bag.pickup_end_time}" if bag.pickup_start_time else None,
             created_at=datetime.utcnow()
+            # ❌ НЕТ delivery_deadline ЗДЕСЬ!
         )
         
         db.add(order)
