@@ -988,8 +988,7 @@ async def create_order(order_data: OrderCreate, request: Request, db: Session = 
 
     
 # backend/main.py - эндпоинт для отметки оплаты
-
-# backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
+# backend/main.py - ПОЛНОСТЬЮ ЗАМЕНИТЕ существующий эндпоинт
 
 @app.post("/api/admin/mark-reservation-paid/{reservation_id}")
 async def admin_mark_reservation_paid(
@@ -999,36 +998,45 @@ async def admin_mark_reservation_paid(
 ):
     """Админ отмечает бронирование как оплаченное и создает заказ"""
     
-    # ✅ ПРОВЕРЯЕМ BEARER TOKEN
+    # ✅ ПРОВЕРКА BEARER TOKEN (НЕ COOKIES!)
     auth_header = request.headers.get("Authorization")
+    print(f"🔍 Authorization header: {auth_header[:50] if auth_header else 'None'}...")
+    
     if not auth_header or not auth_header.startswith("Bearer "):
+        print("❌ Нет Bearer токена")
         return JSONResponse(
             status_code=401,
             content={"success": False, "message": "Bearer token required"}
         )
     
     token = auth_header.split(" ")[1]
+    
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         role = payload.get("role")
+        print(f"✅ Token decoded: role={role}")
         
         if role != "admin":
+            print(f"❌ Не админ: role={role}")
             return JSONResponse(
                 status_code=403,
                 content={"success": False, "message": "Admin only"}
             )
     except jwt.ExpiredSignatureError:
+        print("❌ Токен просрочен")
         return JSONResponse(
             status_code=401,
             content={"success": False, "message": "Token expired"}
         )
     except jwt.JWTError as e:
+        print(f"❌ Ошибка токена: {e}")
         return JSONResponse(
             status_code=401,
             content={"success": False, "message": f"Invalid token: {str(e)}"}
         )
     except Exception as e:
+        print(f"❌ Другая ошибка: {e}")
         return JSONResponse(
             status_code=401,
             content={"success": False, "message": f"Auth error: {str(e)}"}
@@ -1045,6 +1053,8 @@ async def admin_mark_reservation_paid(
             status_code=404,
             content={"success": False, "message": "Reservation not found or already paid"}
         )
+    
+    print(f"✅ Найдена резервация #{reservation_id}, user_id={reservation.user_id}")
     
     try:
         # Помечаем как оплаченную
@@ -1079,7 +1089,7 @@ async def admin_mark_reservation_paid(
             paid_at=datetime.utcnow(),
             amount_paid=bag.discounted_price * reservation.quantity,
             created_at=datetime.utcnow(),
-            customer_address=reservation.customer_address if hasattr(reservation, 'customer_address') else "Самовывоз"
+            customer_address="Самовывоз"
         )
         db.add(order)
         db.flush()
@@ -1094,42 +1104,7 @@ async def admin_mark_reservation_paid(
         
         db.commit()
         
-        # Отправляем уведомление курьерам через WebSocket
-        try:
-            await manager.broadcast({
-                "type": "new_order_for_courier",
-                "data": {
-                    "order_id": order.id,
-                    "order_number": order_number,
-                    "supplier_name": supplier.business_name if supplier else "Ресторан",
-                    "amount": order.amount_paid,
-                    "bag_name": bag.name,
-                    "customer_address": order.customer_address
-                }
-            }, channel="couriers")
-            print(f"📢 Уведомление о заказе #{order.id} отправлено курьерам")
-        except Exception as e:
-            print(f"⚠️ Не удалось отправить уведомление курьерам: {e}")
-        
-        # Отправляем уведомление админу
-        try:
-            # backend/main.py - добавьте в начало файла
-
-admin_websocket = None
-
-async def notify_admin(message: dict):
-    """Отправить уведомление админу"""
-    global admin_websocket
-    if admin_websocket:
-        try:
-            await admin_websocket.send_json(message)
-            print(f"📨 Уведомление админу: {message.get('type')}")
-        except Exception as e:
-            print(f"❌ Ошибка отправки админу: {e}")
-            admin_websocket = None
-            
-        except Exception as e:
-            print(f"⚠️ Не удалось отправить уведомление админу: {e}")
+        print(f"✅ Заказ #{order.id} создан из резервации #{reservation_id}")
         
         return {
             "success": True,
@@ -1145,7 +1120,6 @@ async def notify_admin(message: dict):
             status_code=500,
             content={"success": False, "message": f"Ошибка: {str(e)}"}
         )
-
 
 
 manager = ConnectionManager()

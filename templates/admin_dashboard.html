@@ -633,18 +633,47 @@
             }
         }
         
-        async function markAsPaid(reservationId) {
-            if (!confirm('Подтвердить оплату и создать заказ?')) return;
-            try {
-                await authFetch(`/api/admin/mark-reservation-paid/${reservationId}`, { method: 'POST' });
-                alert('✅ Оплата подтверждена! Заказ создан и отправлен курьерам.');
-                loadActiveReservations();
-                loadOrders();
-                loadStats();
-            } catch (error) {
-                alert('❌ Ошибка при подтверждении оплаты');
+        // В admin_dashboard.html - функция markAsPaid
+
+async function markAsPaid(reservationId) {
+    if (!confirm('Подтвердить оплату и создать заказ?')) return;
+    
+    const token = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token');
+    
+    if (!token) {
+        alert('Нет токена авторизации');
+        window.location.href = '/admin/login';
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/admin/mark-reservation-paid/${reservationId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`  // ← КЛЮЧЕВОЙ МОМЕНТ!
+            },
+            credentials: 'omit'  // ← НЕ отправляем cookies
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            alert('✅ Оплата подтверждена! Заказ создан.');
+            loadActiveReservations();
+            loadOrders();
+            loadStats();
+        } else {
+            alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'));
+            if (response.status === 401) {
+                window.location.href = '/admin/login';
             }
         }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('❌ Ошибка при подтверждении оплаты');
+    }
+}
         
         async function loadOrders() {
             try {
