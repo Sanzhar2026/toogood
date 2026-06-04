@@ -3866,6 +3866,9 @@ def create_my_admin():
 create_my_admin()
 
 # ============ СЕССИИ АДМИНОВ ============
+
+
+
 admin_sessions = {}
 
 def get_current_admin(request: Request):
@@ -3879,21 +3882,23 @@ def get_current_admin(request: Request):
     return session
 
 # ============ СТРАНИЦА ВХОДА ============
+# backend/main.py
+
+
+
+
 @app.get("/admin/login")
 async def admin_login_page(request: Request):
-    """Страница входа в админ-панель"""
+    """Страница входа"""
     return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
 
 
 @app.post("/admin/api/login")
 async def admin_api_login(request: Request, db: Session = Depends(get_db)):
-    """API логин для админа - возвращает JWT токен (НЕ КУКИ!)"""
-    
+    """API логин - возвращает JWT токен"""
     data = await request.json()
     username = data.get("username")
     password = data.get("password")
-    
-    print(f"🔐 API логин админа: {username}")
     
     admin = db.query(Admin).filter(Admin.username == username).first()
     
@@ -3903,61 +3908,61 @@ async def admin_api_login(request: Request, db: Session = Depends(get_db)):
             content={"success": False, "detail": "Invalid credentials"}
         )
     
-    # ✅ СОЗДАЕМ JWT ТОКЕН (НЕ КУКИ!)
     access_token = create_access_token(data={
         "sub": str(admin.id),
         "role": "admin",
         "username": admin.username
     })
     
-    print(f"✅ Админ {username} получил JWT токен")
-    
     return {
         "success": True,
         "token": access_token,
-        "admin": {
-            "id": admin.id,
-            "username": admin.username
-        }
+        "admin": {"id": admin.id, "username": admin.username}
     }
-
 
 
 @app.get("/admin/dashboard")
-async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
-    """Панель администратора"""
+async def admin_dashboard_page(request: Request):
+    """Панель администратора - ТРЕБУЕТ ТОКЕН"""
     
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
+    # ✅ Проверяем токен в query params
+    token = request.query_params.get("token")
+    
+    # Если нет в query, пробуем из cookie (для обратной совместимости)
+    if not token:
+        token = request.cookies.get("admin_token")
+    
+    if not token:
+        print("❌ Нет токена, редирект на логин")
         return RedirectResponse(url="/admin/login", status_code=303)
     
-    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-    if not admin:
-        response = RedirectResponse(url="/admin/login", status_code=303)
-        response.delete_cookie("admin_id")
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        if payload.get("role") != "admin":
+            print(f"❌ Не админ: {payload.get('role')}")
+            return RedirectResponse(url="/admin/login", status_code=303)
+        
+        print(f"✅ Админ {payload.get('username')} авторизован")
+        
+        # Устанавливаем токен в cookie для последующих запросов
+        response = templates.TemplateResponse("admin_dashboard.html", {"request": request})
+        response.set_cookie(
+            key="admin_token",
+            value=token,
+            httponly=True,
+            max_age=60*60*8,
+            path="/"
+        )
         return response
-    
-    # Статистика
-    total_users = db.query(User).count()
-    total_suppliers = db.query(Supplier).count()
-    total_couriers = db.query(CourierProfile).count()
-    total_orders = db.query(Order).count()
-    pending_couriers = db.query(CourierProfile).filter(CourierProfile.is_verified == False).count()
-    
-    stats = {
-        "total_users": total_users,
-        "total_suppliers": total_suppliers,
-        "total_couriers": total_couriers,
-        "total_orders": total_orders,
-        "pending_couriers": pending_couriers
-    }
-    
-    return templates.TemplateResponse("admin_dashboard.html", {
-        "request": request,
-        "stats": stats,
-        "admin": admin
-    })
-
+        
+    except jwt.ExpiredSignatureError:
+        print("❌ Токен просрочен")
+        return RedirectResponse(url="/admin/login", status_code=303)
+    except Exception as e:
+        print(f"❌ Ошибка токена: {e}")
+        return RedirectResponse(url="/admin/login", status_code=303)
 
 @app.get("/admin/logout")
 async def admin_logout():
