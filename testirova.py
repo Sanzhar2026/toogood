@@ -1,4 +1,4 @@
-# fix_cancelled_final.py
+# check_db_fixed.py
 from sqlalchemy import create_engine, text
 
 DATABASE_URL = "postgresql://toogood_db_a3k0_user:2tWztMrzy1VCriWHefthkLBK1EOeeYnG@dpg-d8eo51rbc2fs73coebs0-a.frankfurt-postgres.render.com/toogood_db_a3k0"
@@ -6,43 +6,61 @@ DATABASE_URL = "postgresql://toogood_db_a3k0_user:2tWztMrzy1VCriWHefthkLBK1EOeeY
 engine = create_engine(DATABASE_URL)
 
 with engine.connect() as conn:
-    trans = conn.begin()
-    try:
-        # 1. Устанавливаем cancelled_at для отмененных заказов (используем CANCELLED в верхнем регистре)
-        result = conn.execute(text("""
-            UPDATE orders 
-            SET cancelled_at = NOW() 
-            WHERE status = 'CANCELLED' AND cancelled_at IS NULL
-        """))
-        print(f"✅ Обновлено {result.rowcount} заказов (установлен cancelled_at)")
-        
-        # 2. Удаляем старые отмененные заказы (старше 1 часа)
-        result2 = conn.execute(text("""
-            DELETE FROM orders 
-            WHERE status = 'CANCELLED' 
-            AND cancelled_at IS NOT NULL 
-            AND cancelled_at < NOW() - INTERVAL '1 hour'
-        """))
-        print(f"🗑️ Удалено {result2.rowcount} старых отмененных заказов")
-        
-        # 3. Проверяем результат
-        result3 = conn.execute(text("""
-            SELECT 
-                COUNT(*) as total_cancelled,
-                COUNT(CASE WHEN cancelled_at IS NULL THEN 1 END) as without_date,
-                COUNT(CASE WHEN cancelled_at IS NOT NULL THEN 1 END) as with_date
-            FROM orders 
-            WHERE status = 'CANCELLED'
-        """))
-        row = result3.fetchone()
-        print(f"\n📊 Финальная статистика:")
-        print(f"  - Всего отмененных: {row[0]}")
-        print(f"  - С cancelled_at: {row[2]}")
-        print(f"  - Без cancelled_at: {row[1]}")
-        
-        trans.commit()
-        print("\n✅ Готово!")
-        
-    except Exception as e:
-        trans.rollback()
-        print(f"❌ Ошибка: {e}")
+    print("=" * 60)
+    print("📊 СТАТИСТИКА ЗАКАЗОВ")
+    print("=" * 60)
+    
+    # ✅ ИСПОЛЬЗУЕМ ПРАВИЛЬНЫЙ РЕГИСТР (ВЕРХНИЙ)
+    result = conn.execute(text("""
+        SELECT 
+            COUNT(*) FILTER (WHERE status = 'CANCELLED') as cancelled_count,
+            COUNT(*) FILTER (WHERE status = 'CONFIRMED') as confirmed_count,
+            COUNT(*) FILTER (WHERE status = 'PENDING') as pending_count,
+            COUNT(*) FILTER (WHERE status = 'OUT_FOR_DELIVERY') as delivery_count,
+            COUNT(*) FILTER (WHERE status = 'DELIVERED') as delivered_count,
+            COUNT(*) FILTER (WHERE status = 'nearby') as nearby_count,
+            COUNT(*) as total
+        FROM orders
+    """))
+    
+    row = result.fetchone()
+    print(f"   - CANCELLED: {row[0]}")
+    print(f"   - CONFIRMED: {row[1]}")
+    print(f"   - PENDING: {row[2]}")
+    print(f"   - OUT_FOR_DELIVERY: {row[3]}")
+    print(f"   - DELIVERED: {row[4]}")
+    print(f"   - nearby: {row[5]}")
+    print(f"   - ВСЕГО: {row[6]}")
+    
+    print("\n" + "=" * 60)
+    print("📊 ЗАКАЗЫ С ДОСТАВКОЙ")
+    print("=" * 60)
+    
+    result = conn.execute(text("""
+        SELECT delivery_type, COUNT(*) 
+        FROM orders 
+        GROUP BY delivery_type
+    """))
+    for row in result:
+        print(f"   - {row[0]}: {row[1]} заказов")
+    
+    print("\n" + "=" * 60)
+    print("📊 ОТМЕНЕННЫЕ ЗАКАЗЫ")
+    print("=" * 60)
+    
+    result = conn.execute(text("""
+        SELECT 
+            COUNT(*) as total_cancelled,
+            COUNT(cancelled_at) as with_date,
+            COUNT(*) - COUNT(cancelled_at) as without_date
+        FROM orders 
+        WHERE status = 'CANCELLED'
+    """))
+    row = result.fetchone()
+    print(f"   - Всего отмененных: {row[0]}")
+    print(f"   - С cancelled_at: {row[1]}")
+    print(f"   - Без cancelled_at: {row[2]}")
+    
+    print("\n" + "=" * 60)
+    print("✅ ДИАГНОСТИКА ЗАВЕРШЕНА")
+    print("=" * 60)

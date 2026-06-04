@@ -399,35 +399,6 @@ async def get_admin_stats(
     }
 # backend/main.py - ИСПРАВЛЕННЫЙ админ логин (API, не HTML форма)
 
-@app.post("/admin/api/login")
-async def admin_api_login(request: Request, db: Session = Depends(get_db)):
-    """API логин для админа - возвращает JWT токен"""
-    
-    data = await request.json()
-    username = data.get("username")
-    password = data.get("password")
-    
-    admin = db.query(Admin).filter(Admin.username == username).first()
-    
-    if not admin or not verify_password(password, admin.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    # ✅ СОЗДАЕМ JWT ТОКЕН
-    access_token = create_access_token(data={
-        "sub": str(admin.id),
-        "role": "admin",
-        "username": admin.username
-    })
-    
-    return {
-        "success": True,
-        "token": access_token,
-        "admin": {
-            "id": admin.id,
-            "username": admin.username
-        }
-    }
-
 
     
 @app.post("/api/admin/cancel-order/{order_id}")
@@ -1697,27 +1668,26 @@ async def check_memory():
         "percent_used": (memory_mb / 512) * 100
     }
         
+# backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
+
 @app.get("/api/courier/available-orders")
 async def get_available_orders_for_courier(request: Request, db: Session = Depends(get_db)):
-    """Умное получение доступных заказов с учетом прогресса текущего заказа"""
+    """Умное получение доступных заказов для курьера (ТОЛЬКО ДОСТАВКА)"""
     
-    # ✅ 1. СНАЧАЛА ПРОВЕРЯЕМ Bearer TOKEN
-    user_id = None
+    # ✅ 1. ТОЛЬКО Bearer TOKEN (без fallback на cookies)
     auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-            print(f"🔑 Пользователь из Bearer токена: {user_id}")
-        except Exception as e:
-            print(f"❌ Ошибка декодирования токена: {e}")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
     
-    # ✅ 2. Fallback на cookies
-    if not user_id:
-        user_id = request.cookies.get("user_id")
-        print(f"🍪 Пользователь из cookie: {user_id}")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        print(f"🔑 Курьер из Bearer токена: {user_id}")
+    except Exception as e:
+        print(f"❌ Ошибка декодирования токена: {e}")
+        raise HTTPException(status_code=401, detail="Invalid token")
     
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -1763,22 +1733,23 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
                 )
                 
                 if total_distance > 0:
-                    # Прогресс в процентах (чем меньше расстояние до клиента, тем больше прогресс)
+                    # Прогресс в процентах
                     current_progress = max(0, min(100, int((1 - distance_to_customer / total_distance) * 100)))
                     
-                    # ✅ Если прогресс > 50% (проехал больше половины пути)
+                    # ✅ Если прогресс > 50% - показываем следующие заказы
                     if current_progress >= 50:
                         show_all_orders = True
-                        print(f"🎯 Курьер выполнил {current_progress}% заказа, показываем следующие заказы")
+                        print(f"🎯 Курьер выполнил {current_progress}% заказа")
     
-    # Ищем доступные заказы (только оплаченные, не назначенные)
+    # ✅ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: ТОЛЬКО ЗАКАЗЫ С ДОСТАВКОЙ!
     available_orders = db.query(Order).filter(
         Order.status == OrderStatus.CONFIRMED,
         Order.assigned_courier_id == None,
-        Order.id != courier.current_order_id  # Не предлагаем текущий заказ
+        Order.delivery_type == "delivery",  # ← ДОБАВЛЕНО! ТОЛЬКО ДОСТАВКА!
+        Order.id != courier.current_order_id
     ).all()
     
-    print(f"📋 Найдено доступных заказов: {len(available_orders)}")
+    print(f"📋 Найдено доступных заказов (только доставка): {len(available_orders)}")
     
     available_orders_list = []
     
@@ -1794,36 +1765,27 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
             supplier.lat, supplier.lon
         )
         
-        # ✅ ЛОГИКА ПОКАЗА ЗАКАЗОВ:
-        # 1. Если нет текущего заказа - показываем все в радиусе 50 км
-        # 2. Если есть текущий заказ и прогресс > 50% - показываем заказы в радиусе 10 км (рядом)
-        # 3. Если есть текущий заказ и прогресс < 50% - не показываем новые заказы
-        
+        # ЛОГИКА ПОКАЗА ЗАКАЗОВ
         if not courier.current_order_id:
             # Нет текущего заказа - показываем все в радиусе 50 км
             if distance_to_supplier <= 50.0:
                 should_show = True
-                reason = "нет текущего заказа"
             else:
                 should_show = False
-                reason = "далеко от ресторана"
         elif show_all_orders:
             # Есть текущий заказ и прогресс > 50% - показываем заказы рядом (до 10 км)
             if distance_to_supplier <= 10.0:
                 should_show = True
-                reason = f"прогресс {current_progress}% > 50%, заказ рядом"
             else:
                 should_show = False
-                reason = f"прогресс {current_progress}% > 50%, но заказ далеко ({distance_to_supplier:.1f} км)"
         else:
             # Есть текущий заказ и прогресс < 50% - не показываем новые заказы
             should_show = False
-            reason = f"прогресс {current_progress}% < 50%, сначала завершите текущий заказ"
         
         if should_show:
             bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
             
-            # Расчет времени в зависимости от типа курьера
+            # Расчет времени
             if courier.courier_type == "pedestrian":
                 estimated_time = int((distance_to_supplier / 5) * 60)
             else:
@@ -1842,17 +1804,14 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
                 "supplier_lat": supplier.lat,
                 "supplier_lon": supplier.lon,
                 "customer_lat": order.customer_lat,
-                "customer_lon": order.customer_lon,
-                "reason": reason  # Для отладки
+                "customer_lon": order.customer_lon
             })
-            print(f"✅ Заказ #{order.id} добавлен: {reason}")
-        else:
-            print(f"⏸️ Заказ #{order.id} скрыт: {reason}")
+            print(f"✅ Заказ #{order.id} добавлен")
     
     # Сортируем по расстоянию
     available_orders_list.sort(key=lambda x: x["distance_km"])
     
-    # Ограничиваем количество предложений (показываем до 5 ближайших)
+    # Ограничиваем количество
     max_orders = 5 if courier.current_order_id else 20
     available_orders_list = available_orders_list[:max_orders]
     
@@ -1864,8 +1823,7 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
         "current_order_progress": current_progress,
         "show_all_orders": show_all_orders,
         "courier_location": {"lat": courier_lat, "lon": courier_lon}
-    }
-# backend/main.py - обновите эндпоинт
+    }# backend/main.py - обновите эндпоинт
 
 # backend/main.py - обновите эндпоинт
 
@@ -3915,40 +3873,7 @@ async def admin_login_page(request: Request):
     return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
 
 
-@app.post("/admin/api/login")
-async def admin_api_login(request: Request, db: Session = Depends(get_db)):
-    """API логин - возвращает JWT токен"""
-    
-    try:
-        data = await request.json()
-        username = data.get("username")
-        password = data.get("password")
-        
-        admin = db.query(Admin).filter(Admin.username == username).first()
-        
-        if not admin or not verify_password(password, admin.password_hash):
-            return JSONResponse(
-                status_code=401,
-                content={"success": False, "detail": "Invalid credentials"}
-            )
-        
-        access_token = create_access_token(data={
-            "sub": str(admin.id),
-            "role": "admin",
-            "username": admin.username
-        })
-        
-        return {
-            "success": True,
-            "token": access_token,
-            "admin": {"id": admin.id, "username": admin.username}
-        }
-        
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "detail": str(e)}
-        )
+
 
 
 @app.get("/admin/dashboard")
