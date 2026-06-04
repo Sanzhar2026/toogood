@@ -3885,45 +3885,42 @@ async def admin_login_page(request: Request):
     return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
 
 
-@app.post("/admin/login")
-async def admin_login(request: Request, db: Session = Depends(get_db)):
-    """Обработка входа в админ-панель"""
-    form_data = await request.form()
-    username = form_data.get("username")
-    password = form_data.get("password")
+@app.post("/admin/api/login")
+async def admin_api_login(request: Request, db: Session = Depends(get_db)):
+    """API логин для админа - возвращает JWT токен (НЕ КУКИ!)"""
     
-    print(f"🔐 Попытка входа админа: {username}")
+    data = await request.json()
+    username = data.get("username")
+    password = data.get("password")
     
-    # Ищем админа
+    print(f"🔐 API логин админа: {username}")
+    
     admin = db.query(Admin).filter(Admin.username == username).first()
     
-    if not admin:
-        print(f"❌ Админ не найден")
-        return templates.TemplateResponse("admin_login.html", {
-            "request": request,
-            "error": "Неверный логин или пароль"
-        })
+    if not admin or not verify_password(password, admin.password_hash):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Invalid credentials"}
+        )
     
-    # Проверка пароля
-    if not verify_password(password, admin.password_hash):
-        print(f"❌ Неверный пароль")
-        return templates.TemplateResponse("admin_login.html", {
-            "request": request,
-            "error": "Неверный логин или пароль"
-        })
+    # ✅ СОЗДАЕМ JWT ТОКЕН (НЕ КУКИ!)
+    access_token = create_access_token(data={
+        "sub": str(admin.id),
+        "role": "admin",
+        "username": admin.username
+    })
     
-    # Создаем ответ
-    response = RedirectResponse(url="/admin/dashboard", status_code=303)
-    response.set_cookie(
-        key="admin_id",
-        value=str(admin.id),
-        httponly=True,
-        max_age=60*60*8,
-        path="/"
-    )
+    print(f"✅ Админ {username} получил JWT токен")
     
-    print(f"✅ Админ {username} вошел")
-    return response
+    return {
+        "success": True,
+        "token": access_token,
+        "admin": {
+            "id": admin.id,
+            "username": admin.username
+        }
+    }
+
 
 
 @app.get("/admin/dashboard")
