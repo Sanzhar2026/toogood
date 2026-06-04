@@ -1,4 +1,4 @@
-# check_db_fixed.py
+# check_delivery_type_column.py
 from sqlalchemy import create_engine, text
 
 DATABASE_URL = "postgresql://toogood_db_a3k0_user:2tWztMrzy1VCriWHefthkLBK1EOeeYnG@dpg-d8eo51rbc2fs73coebs0-a.frankfurt-postgres.render.com/toogood_db_a3k0"
@@ -7,33 +7,30 @@ engine = create_engine(DATABASE_URL)
 
 with engine.connect() as conn:
     print("=" * 60)
-    print("📊 СТАТИСТИКА ЗАКАЗОВ")
+    print("🔍 ПРОВЕРКА КОЛОНКИ delivery_type В ТАБЛИЦЕ orders")
     print("=" * 60)
     
-    # ✅ ИСПОЛЬЗУЕМ ПРАВИЛЬНЫЙ РЕГИСТР (ВЕРХНИЙ)
+    # 1. Проверяем существует ли колонка
     result = conn.execute(text("""
-        SELECT 
-            COUNT(*) FILTER (WHERE status = 'CANCELLED') as cancelled_count,
-            COUNT(*) FILTER (WHERE status = 'CONFIRMED') as confirmed_count,
-            COUNT(*) FILTER (WHERE status = 'PENDING') as pending_count,
-            COUNT(*) FILTER (WHERE status = 'OUT_FOR_DELIVERY') as delivery_count,
-            COUNT(*) FILTER (WHERE status = 'DELIVERED') as delivered_count,
-            COUNT(*) FILTER (WHERE status = 'nearby') as nearby_count,
-            COUNT(*) as total
-        FROM orders
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns 
+        WHERE table_name = 'orders' AND column_name = 'delivery_type'
     """))
     
-    row = result.fetchone()
-    print(f"   - CANCELLED: {row[0]}")
-    print(f"   - CONFIRMED: {row[1]}")
-    print(f"   - PENDING: {row[2]}")
-    print(f"   - OUT_FOR_DELIVERY: {row[3]}")
-    print(f"   - DELIVERED: {row[4]}")
-    print(f"   - nearby: {row[5]}")
-    print(f"   - ВСЕГО: {row[6]}")
+    column = result.fetchone()
     
+    if column:
+        print(f"\n✅ Колонка 'delivery_type' СУЩЕСТВУЕТ!")
+        print(f"   Тип данных: {column[1]}")
+        print(f"   Может быть NULL: {column[2]}")
+    else:
+        print(f"\n❌ Колонка 'delivery_type' НЕ СУЩЕСТВУЕТ!")
+        print("\n   Нужно добавить:")
+        print("   ALTER TABLE orders ADD COLUMN delivery_type VARCHAR(50) DEFAULT 'delivery';")
+    
+    # 2. Проверяем значения
     print("\n" + "=" * 60)
-    print("📊 ЗАКАЗЫ С ДОСТАВКОЙ")
+    print("📊 ПРОВЕРКА ЗНАЧЕНИЙ delivery_type")
     print("=" * 60)
     
     result = conn.execute(text("""
@@ -41,26 +38,30 @@ with engine.connect() as conn:
         FROM orders 
         GROUP BY delivery_type
     """))
-    for row in result:
-        print(f"   - {row[0]}: {row[1]} заказов")
     
+    rows = result.fetchall()
+    if rows:
+        print("\n📋 Текущие значения:")
+        for row in rows:
+            print(f"   - {row[0]}: {row[1]} заказов")
+    else:
+        print("\n⚠️ Нет данных или колонка отсутствует")
+    
+    # 3. Показываем примеры заказов
     print("\n" + "=" * 60)
-    print("📊 ОТМЕНЕННЫЕ ЗАКАЗЫ")
+    print("📋 ПРИМЕРЫ ЗАКАЗОВ")
     print("=" * 60)
     
     result = conn.execute(text("""
-        SELECT 
-            COUNT(*) as total_cancelled,
-            COUNT(cancelled_at) as with_date,
-            COUNT(*) - COUNT(cancelled_at) as without_date
+        SELECT id, order_number, status, delivery_type, delivery_deadline, customer_lat
         FROM orders 
-        WHERE status = 'CANCELLED'
+        ORDER BY id DESC 
+        LIMIT 5
     """))
-    row = result.fetchone()
-    print(f"   - Всего отмененных: {row[0]}")
-    print(f"   - С cancelled_at: {row[1]}")
-    print(f"   - Без cancelled_at: {row[2]}")
+    
+    print("\nID | № заказа | Статус | Тип доставки | Дедлайн | Координаты клиента")
+    print("-" * 80)
+    for row in result:
+        print(f"{row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]}")
     
     print("\n" + "=" * 60)
-    print("✅ ДИАГНОСТИКА ЗАВЕРШЕНА")
-    print("=" * 60)

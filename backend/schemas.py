@@ -1,3 +1,5 @@
+# backend/schemas.py
+
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional, List
@@ -25,9 +27,8 @@ class DeliveryStatus(str, Enum):
 
 # ============ USER SCHEMAS ============
 class UserCreate(BaseModel):
-    """For creating a new user"""
-    email: Optional[str] = None  # Made optional - phone is primary
-    phone: str  # REQUIRED - phone number
+    email: Optional[str] = None
+    phone: str
     password: str
     full_name: Optional[str] = None
     role: UserRole = UserRole.CUSTOMER
@@ -44,7 +45,6 @@ class UserResponse(BaseModel):
 
 # ============ PHONE VERIFICATION SCHEMAS ============
 class PhoneVerificationRequest(BaseModel):
-    """Request to send SMS verification code"""
     phone_number: str
 
 class PhoneVerificationResponse(BaseModel):
@@ -53,14 +53,12 @@ class PhoneVerificationResponse(BaseModel):
     demo: bool = False
 
 class PhoneRegisterRequest(BaseModel):
-    """Complete registration with phone verification"""
     phone_number: str
     full_name: str
     password: str
     verification_code: str
 
 class PhoneLoginRequest(BaseModel):
-    """Login with phone number"""
     phone_number: str
     password: str
 
@@ -128,12 +126,13 @@ class SurpriseBagResponse(BaseModel):
 
 # ============ ORDER SCHEMAS ============
 class OrderCreate(BaseModel):
-    bag_id: int          # ← Правильно
-    lat: float           # ← Правильно
-    lon: float           # ← Правильно
-    address: str      
+    bag_id: int
+    lat: float = 0  # ← сделаем необязательным
+    lon: float = 0  # ← сделаем необязательным
+    address: str
     pickup_time: Optional[str] = None
-    user_id: Optional[int] = 1  # Temporary, will be from auth
+    user_id: Optional[int] = 1
+    delivery_type: str = "delivery"  # ← ДОБАВЛЕНО! "delivery" или "pickup"
 
 class OrderResponse(BaseModel):
     id: int
@@ -145,6 +144,12 @@ class OrderResponse(BaseModel):
     created_at: datetime
     supplier: Optional[SupplierResponse]
     surprise_bag: Optional[SurpriseBagResponse]
+    # Добавляем поля
+    delivery_type: Optional[str] = None  # ← ДОБАВЛЕНО!
+    payment_status: Optional[str] = None
+    payment_method: Optional[str] = None
+    paid_at: Optional[datetime] = None
+    delivery_deadline: Optional[datetime] = None
 
 class OrderTrackingUpdate(BaseModel):
     order_id: int
@@ -186,15 +191,6 @@ class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
 
-    # backend/schemas.py - Add these schemas
-
-from pydantic import BaseModel
-from datetime import datetime
-from typing import Optional, List
-from enum import Enum
-
-# ... existing code ...
-
 # ============ PAYMENT SCHEMAS ============
 
 class PaymentMethod(str, Enum):
@@ -210,7 +206,6 @@ class PaymentStatus(str, Enum):
     REFUNDED = "refunded"
 
 class PaymentRequest(BaseModel):
-    """Payment initiation request"""
     order_id: int
     payment_method: PaymentMethod
     amount: float
@@ -220,7 +215,6 @@ class PaymentRequest(BaseModel):
     card_holder: Optional[str] = None
 
 class PaymentResponse(BaseModel):
-    """Payment response"""
     success: bool
     payment_id: str
     transaction_id: str
@@ -231,7 +225,6 @@ class PaymentResponse(BaseModel):
     timestamp: str
 
 class PaymentStatusResponse(BaseModel):
-    """Payment status check response"""
     payment_id: str
     order_id: int
     order_number: str
@@ -242,7 +235,6 @@ class PaymentStatusResponse(BaseModel):
     timestamp: str
 
 class PaymentHistoryItem(BaseModel):
-    """Single payment history item"""
     order_id: int
     order_number: str
     amount: float
@@ -252,24 +244,7 @@ class PaymentHistoryItem(BaseModel):
     status: str
 
 class PaymentHistoryResponse(BaseModel):
-    """Payment history response"""
     history: List[PaymentHistoryItem]
-
-# Update OrderResponse to include payment info
-class OrderResponse(BaseModel):
-    id: int
-    order_number: str
-    status: OrderStatus
-    delivery_status: Optional[str]
-    customer_address: str
-    amount_paid: float
-    created_at: datetime
-    supplier: Optional[SupplierResponse]
-    surprise_bag: Optional[SurpriseBagResponse]
-    # Payment fields
-    payment_status: Optional[str] = None
-    payment_method: Optional[str] = None
-    paid_at: Optional[datetime] = None
 
 # ============ ADMIN SCHEMAS ============
 class AdminCreate(BaseModel):
@@ -288,8 +263,6 @@ class AdminResponse(BaseModel):
 class AdminUpdatePassword(BaseModel):
     old_password: str
     new_password: str
-
-# backend/schemas.py - добавьте в самый конец файла
 
 # ============ COURIER SCHEMAS ============
 

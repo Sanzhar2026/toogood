@@ -854,7 +854,38 @@ async def create_order(order_data: OrderCreate, request: Request, db: Session = 
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # ✅ СНАЧАЛА ПРОВЕРЯЕМ - ЕСТЬ ЛИ АКТИВНАЯ РЕЗЕРВАЦИЯ
+    # ✅ ДОБАВЛЯЕМ delivery_type (если нет в order_data, то "delivery")
+    delivery_type = getattr(order_data, 'delivery_type', 'delivery')
+    
+    # ✅ ПРОВЕРКА КООРДИНАТ
+    customer_lat = order_data.lat
+    customer_lon = order_data.lon
+    
+    # Если координаты не переданы и это доставка - пробуем получить из адреса
+    if delivery_type == "delivery" and (not customer_lat or not customer_lon):
+        if order_data.address and order_data.address != "Самовывоз":
+            try:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        f"https://nominatim.openstreetmap.org/search?q={order_data.address}&format=json&limit=1"
+                    )
+                    if response.status_code == 200:
+                        geo_data = response.json()
+                        if geo_data:
+                            customer_lat = float(geo_data[0]["lat"])
+                            customer_lon = float(geo_data[0]["lon"])
+                            print(f"📍 Геокодинг: {order_data.address} -> {customer_lat}, {customer_lon}")
+            except Exception as e:
+                print(f"❌ Геокодинг ошибка: {e}")
+        
+        # Если всё ещё нет - используем координаты по умолчанию
+        if not customer_lat or not customer_lon:
+            customer_lat = 43.238
+            customer_lon = 76.945
+            print(f"⚠️ Используем координаты по умолчанию")
+    
+    # СНАЧАЛА ПРОВЕРЯЕМ - ЕСТЬ ЛИ АКТИВНАЯ РЕЗЕРВАЦИЯ
     active_reservation = db.query(TemporaryReservation).filter(
         TemporaryReservation.user_id == user_id,
         TemporaryReservation.bag_id == order_data.bag_id,
@@ -865,37 +896,36 @@ async def create_order(order_data: OrderCreate, request: Request, db: Session = 
     if active_reservation:
         print(f"✅ Найдена активная резервация для user {user_id}, bag {order_data.bag_id}")
         
-        # Получаем товар
         bag = db.query(SurpriseBag).filter(SurpriseBag.id == order_data.bag_id).first()
         
         if not bag:
             raise HTTPException(status_code=404, detail="Bag not found")
         
-        # Создаем заказ (НЕ проверяем available_quantity, т.к. товар уже зарезервирован)
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         
+        # ✅ ДОБАВЛЯЕМ delivery_type
         order = Order(
-            user_id=user_id,
-            supplier_id=bag.supplier_id,
-            surprise_bag_id=bag.id,
-            order_number=order_number,
-            status=OrderStatus.PENDING,
-            customer_lat=order_data.lat,
-            customer_lon=order_data.lon,
-            customer_address=order_data.address,
-            amount_paid=bag.discounted_price,
-            created_at=datetime.utcnow()
-        )
+        user_id=user_id,
+        supplier_id=bag.supplier_id,
+        surprise_bag_id=bag.id,
+        order_number=order_number,
+        status=OrderStatus.PENDING,
+        payment_status="pending",  # ← НЕ ОПЛАЧЕН!
+        delivery_type=order_data.delivery_type if hasattr(order_data, 'delivery_type') else "delivery",  # ← ДОБАВИТЬ!
+        customer_lat=order_data.lat if order_data.delivery_type == "delivery" else None,
+        customer_lon=order_data.lon if order_data.delivery_type == "delivery" else None,
+        customer_address=order_data.address,
+        amount_paid=bag.discounted_price,
+        created_at=datetime.utcnow()
+    )
         
         db.add(order)
-        
-        # Помечаем резервацию как оплаченную
         active_reservation.is_paid = True
         
         db.commit()
         db.refresh(order)
         
-        print(f"✅ Заказ {order.id} создан из резервации")
+        print(f"✅ Заказ {order.id} создан из резервации, тип доставки: {delivery_type}")
         
         return {
             "order_id": order.id,
@@ -914,12 +944,10 @@ async def create_order(order_data: OrderCreate, request: Request, db: Session = 
         if bag.available_quantity < 1:
             raise HTTPException(status_code=400, detail=f"Товар недоступен, осталось: {bag.available_quantity}")
         
-        # Уменьшаем количество
         bag.available_quantity -= 1
         if bag.available_quantity <= 0:
             bag.is_active = False
         
-        # Создаем резервацию
         reservation = TemporaryReservation(
             bag_id=bag.id,
             user_id=user_id,
@@ -930,17 +958,18 @@ async def create_order(order_data: OrderCreate, request: Request, db: Session = 
         )
         db.add(reservation)
         
-        # Создаем заказ
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         
+        # ✅ ДОБАВЛЯЕМ delivery_type
         order = Order(
             user_id=user_id,
             supplier_id=bag.supplier_id,
             surprise_bag_id=bag.id,
             order_number=order_number,
             status=OrderStatus.PENDING,
-            customer_lat=order_data.lat,
-            customer_lon=order_data.lon,
+            delivery_type=delivery_type,  # ← ДОБАВИТЬ!
+            customer_lat=customer_lat if delivery_type == "delivery" else None,
+            customer_lon=customer_lon if delivery_type == "delivery" else None,
             customer_address=order_data.address,
             amount_paid=bag.discounted_price,
             created_at=datetime.utcnow()
@@ -1149,6 +1178,7 @@ async def courier_arrived(
         "order_id": order_id,
         "order_number": order.order_number
     }     
+
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
     order_id: int,
