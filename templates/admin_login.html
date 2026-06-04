@@ -1,10 +1,9 @@
-<!-- templates/admin_login.html - ПОЛНАЯ ВЕРСИЯ С JWT -->
 <!DOCTYPE html>
-<html lang="{{ lang }}">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sarqyt GO - Admin Login</title>
+    <title>Админ вход - Sarqyn GO</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -64,34 +63,10 @@
             border-radius: 0.75rem;
             margin-bottom: 1rem;
             font-size: 0.875rem;
+            display: none;
         }
         .back-link { text-align: center; margin-top: 1.5rem; }
         .back-link a { color: #64748b; text-decoration: none; font-size: 0.875rem; }
-        .back-link a:hover { color: #fbbf24; }
-        .lang-buttons {
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.5rem;
-            margin-bottom: 1.5rem;
-        }
-        .lang-btn {
-            background: #f1f5f9;
-            color: #64748b;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            font-size: 0.8rem;
-            transition: all 0.2s;
-        }
-        .lang-btn.active {
-            background: #fbbf24;
-            color: #0f172a;
-        }
-        .lang-btn:hover:not(.active) {
-            background: #e2e8f0;
-            color: #0f172a;
-        }
         .credential-hint {
             background: #fef3c7;
             border-left: 3px solid #fbbf24;
@@ -107,6 +82,24 @@
             border-radius: 0.25rem;
             font-family: monospace;
         }
+        .lang-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .lang-btn {
+            background: #f1f5f9;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .lang-btn.active {
+            background: #fbbf24;
+            color: #0f172a;
+        }
     </style>
 </head>
 <body>
@@ -118,11 +111,11 @@
         </div>
         
         <div class="logo">
-            <h1>Sarqyt <span>GO</span> | Admin</h1>
+            <h1>Sarqyn <span>GO</span> | Admin</h1>
             <p id="loginTitle">Login to Admin Panel</p>
         </div>
         
-        <div id="errorMsg" class="error" style="display: none;"></div>
+        <div id="errorMsg" class="error"></div>
         
         <div class="credential-hint">
             <strong id="credLabel">Login credentials:</strong><br>
@@ -146,7 +139,7 @@
             <a href="/" id="backLink">Back to Home</a>
         </div>
     </div>
-    
+
     <script>
         const translations = {
             kz: {
@@ -154,8 +147,6 @@
                 login_credentials: 'Кіру деректері:',
                 username_label: 'Логин',
                 password_label: 'Құпия сөз',
-                username: 'Пайдаланушы аты',
-                password: 'Құпия сөз',
                 login_btn: 'Кіру',
                 back_home: '← Басты бетке оралу'
             },
@@ -164,8 +155,6 @@
                 login_credentials: 'Данные для входа:',
                 username_label: 'Логин',
                 password_label: 'Пароль',
-                username: 'Имя пользователя',
-                password: 'Пароль',
                 login_btn: 'Войти',
                 back_home: '← Вернуться на главную'
             },
@@ -174,8 +163,6 @@
                 login_credentials: 'Login credentials:',
                 username_label: 'Username',
                 password_label: 'Password',
-                username: 'Username',
-                password: 'Password',
                 login_btn: 'Login',
                 back_home: '← Back to Home'
             }
@@ -215,6 +202,7 @@
             const errorDiv = document.getElementById('errorMsg');
             
             errorDiv.style.display = 'none';
+            errorDiv.innerText = '';
             
             try {
                 const response = await fetch('/admin/api/login', {
@@ -225,17 +213,17 @@
                 
                 const data = await response.json();
                 
-                // В admin_login.html - после успешного логина
-if (response.ok && data.token) {
-    localStorage.setItem('admin_token', data.token);
-    // ✅ Добавь токен в URL при редиректе
-    window.location.href = '/admin/dashboard?token=' + encodeURIComponent(data.token);
-}else {
-                    errorDiv.textContent = data.detail || 'Invalid credentials';
+                if (response.ok && data.token) {
+                    // ✅ ТОЛЬКО sessionStorage
+                    sessionStorage.setItem('admin_token', data.token);
+                    window.location.href = '/admin/dashboard?token=' + encodeURIComponent(data.token);
+                } else {
+                    errorDiv.innerText = data.detail || 'Invalid credentials';
                     errorDiv.style.display = 'block';
                 }
             } catch (error) {
-                errorDiv.textContent = 'Network error. Please try again.';
+                console.error('Login error:', error);
+                errorDiv.innerText = 'Network error. Please try again.';
                 errorDiv.style.display = 'block';
             }
         }

@@ -3885,55 +3885,71 @@ def get_current_admin(request: Request):
 # backend/main.py
 
 
-
-
 @app.get("/admin/login")
 async def admin_login_page(request: Request):
-    """Страница входа"""
+    """Страница входа в админ-панель"""
     return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
 
 
 @app.post("/admin/api/login")
 async def admin_api_login(request: Request, db: Session = Depends(get_db)):
-    """API логин - возвращает JWT токен"""
-    data = await request.json()
-    username = data.get("username")
-    password = data.get("password")
+    """API логин для админа - возвращает JWT токен"""
     
-    admin = db.query(Admin).filter(Admin.username == username).first()
-    
-    if not admin or not verify_password(password, admin.password_hash):
+    try:
+        data = await request.json()
+        username = data.get("username")
+        password = data.get("password")
+        
+        print(f"🔐 Admin login attempt: {username}")
+        
+        admin = db.query(Admin).filter(Admin.username == username).first()
+        
+        if not admin:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid credentials"}
+            )
+        
+        if not verify_password(password, admin.password_hash):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid credentials"}
+            )
+        
+        # Создаем JWT токен
+        access_token = create_access_token(data={
+            "sub": str(admin.id),
+            "role": "admin",
+            "username": admin.username
+        })
+        
+        print(f"✅ Admin logged in: {username}")
+        
+        return {
+            "success": True,
+            "token": access_token,
+            "admin": {
+                "id": admin.id,
+                "username": admin.username
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Login error: {e}")
         return JSONResponse(
-            status_code=401,
-            content={"success": False, "detail": "Invalid credentials"}
+            status_code=500,
+            content={"success": False, "detail": str(e)}
         )
-    
-    access_token = create_access_token(data={
-        "sub": str(admin.id),
-        "role": "admin",
-        "username": admin.username
-    })
-    
-    return {
-        "success": True,
-        "token": access_token,
-        "admin": {"id": admin.id, "username": admin.username}
-    }
 
 
 @app.get("/admin/dashboard")
 async def admin_dashboard_page(request: Request):
-    """Панель администратора - ТРЕБУЕТ ТОКЕН"""
+    """Панель администратора - проверяет токен из query params"""
     
-    # ✅ Проверяем токен в query params
+    # Берем токен из URL
     token = request.query_params.get("token")
     
-    # Если нет в query, пробуем из cookie (для обратной совместимости)
     if not token:
-        token = request.cookies.get("admin_token")
-    
-    if not token:
-        print("❌ Нет токена, редирект на логин")
         return RedirectResponse(url="/admin/login", status_code=303)
     
     try:
@@ -3941,29 +3957,19 @@ async def admin_dashboard_page(request: Request):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
         if payload.get("role") != "admin":
-            print(f"❌ Не админ: {payload.get('role')}")
             return RedirectResponse(url="/admin/login", status_code=303)
         
-        print(f"✅ Админ {payload.get('username')} авторизован")
-        
-        # Устанавливаем токен в cookie для последующих запросов
-        response = templates.TemplateResponse("admin_dashboard.html", {"request": request})
-        response.set_cookie(
-            key="admin_token",
-            value=token,
-            httponly=True,
-            max_age=60*60*8,
-            path="/"
-        )
-        return response
+        # Токен валидный - показываем дашборд
+        return templates.TemplateResponse("admin_dashboard.html", {
+            "request": request
+        })
         
     except jwt.ExpiredSignatureError:
-        print("❌ Токен просрочен")
+        print("❌ Token expired")
         return RedirectResponse(url="/admin/login", status_code=303)
     except Exception as e:
-        print(f"❌ Ошибка токена: {e}")
+        print(f"❌ Token error: {e}")
         return RedirectResponse(url="/admin/login", status_code=303)
-
 @app.get("/admin/logout")
 async def admin_logout():
     """Выход из админ-панели"""
