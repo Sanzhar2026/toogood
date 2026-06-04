@@ -7002,7 +7002,7 @@ async def cleanup_cancelled_orders(
 ):
     """Очистка отмененных заказов"""
     
-    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+    one_hour_ago = datetime.utcnow() - timedelta(hours=0.01)
     
     cancelled_orders = db.query(Order).filter(
         Order.status == OrderStatus.CANCELLED,
