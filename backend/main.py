@@ -216,6 +216,32 @@ def get_user_id_from_request(request: Request) -> int | None:
     
     return None
 
+@app.post("/api/courier/pickup-order/{order_id}")
+async def courier_pickup_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Курьер забрал заказ из ресторана"""
+    
+    user_id = get_current_user_from_token(request)
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == user_id).first()
+    
+    order = db.query(Order).filter(Order.id == order_id).first()
+    
+    if order.assigned_courier_id != courier.user_id:
+        raise HTTPException(status_code=403, detail="Order not assigned to you")
+    
+    if order.status != OrderStatus.READY_FOR_PICKUP:
+        raise HTTPException(status_code=400, detail="Order not ready for pickup")
+    
+    # ✅ Меняем статус
+    order.status = OrderStatus.PICKED_UP
+    
+    # ✅ Устанавливаем дедлайн доставки клиенту (30 минут с момента забора)
+    order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
+    
+    db.commit()
+    
+    return {"success": True, "message": "Заказ забран из ресторана"}
+
+
 def get_straight_line_route(start_lat, start_lon, end_lat, end_lon):
     """Прямая линия если ORS не работает"""
     waypoints = []
@@ -1746,7 +1772,7 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
     
     # Если есть текущий заказ, рассчитываем прогресс
     if courier.current_order_id:
-        current_order = db.query(Order).filter(Order.id == courier.current_order_id).first()
+        current_order = db.query(OrderStatus).filter(Order.id == courier.current_order_id).first()
         
         if current_order and current_order.customer_lat and current_order.customer_lon:
             # Рассчитываем расстояние от курьера до клиента
