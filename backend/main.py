@@ -1306,7 +1306,11 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
         raise HTTPException(status_code=404, detail="Order not found")
     
     print(f"📋 Заказ #{order_id}: статус={order.status}, назначен курьеру={order.assigned_courier_id}")
-    
+    if order.delivery_type != "delivery":
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "message": "Это заказ на самовывоз! Курьер не требуется."}
+        )
     # Проверяем, что заказ доступен для взятия
     if order.status != OrderStatus.CONFIRMED:
         return JSONResponse(
@@ -1731,7 +1735,7 @@ async def check_memory():
 async def get_available_orders_for_courier(request: Request, db: Session = Depends(get_db)):
     """Умное получение доступных заказов для курьера (ТОЛЬКО ДОСТАВКА)"""
     
-    # ✅ 1. ТОЛЬКО Bearer TOKEN (без fallback на cookies)
+    # ✅ 1. ТОЛЬКО Bearer TOKEN
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -1772,7 +1776,8 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
     
     # Если есть текущий заказ, рассчитываем прогресс
     if courier.current_order_id:
-        current_order = db.query(OrderStatus).filter(Order.id == courier.current_order_id).first()
+        # ✅ ИСПРАВЛЕНО: Order вместо OrderStatus!
+        current_order = db.query(Order).filter(Order.id == courier.current_order_id).first()
         
         if current_order and current_order.customer_lat and current_order.customer_lon:
             # Рассчитываем расстояние от курьера до клиента
@@ -1783,7 +1788,7 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
             
             # Получаем общее расстояние маршрута (если есть)
             supplier = db.query(Supplier).filter(Supplier.id == current_order.supplier_id).first()
-            if supplier:
+            if supplier and supplier.lat and supplier.lon:
                 total_distance = haversine_distance(
                     supplier.lat, supplier.lon,
                     current_order.customer_lat, current_order.customer_lon
@@ -1802,7 +1807,7 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
     available_orders = db.query(Order).filter(
         Order.status == OrderStatus.CONFIRMED,
         Order.assigned_courier_id == None,
-        Order.delivery_type == "delivery",  # ← ДОБАВЛЕНО! ТОЛЬКО ДОСТАВКА!
+        Order.delivery_type == "delivery",  # ← ТОЛЬКО ДОСТАВКА!
         Order.id != courier.current_order_id
     ).all()
     
@@ -1861,7 +1866,8 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
                 "supplier_lat": supplier.lat,
                 "supplier_lon": supplier.lon,
                 "customer_lat": order.customer_lat,
-                "customer_lon": order.customer_lon
+                "customer_lon": order.customer_lon,
+                "delivery_type": order.delivery_type  # ← ДОБАВЛЯЕМ ДЛЯ ФРОНТЕНДА!
             })
             print(f"✅ Заказ #{order.id} добавлен")
     
@@ -1880,8 +1886,7 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
         "current_order_progress": current_progress,
         "show_all_orders": show_all_orders,
         "courier_location": {"lat": courier_lat, "lon": courier_lon}
-    }# backend/main.py - обновите эндпоинт
-
+    }
 # backend/main.py - обновите эндпоинт
 
 @app.get("/api/couriers/online")

@@ -1,67 +1,35 @@
-# check_delivery_type_column.py
-from sqlalchemy import create_engine, text
+# fix_pickup_orders.py
+import psycopg2
 
-DATABASE_URL = "postgresql://toogood_db_a3k0_user:2tWztMrzy1VCriWHefthkLBK1EOeeYnG@dpg-d8eo51rbc2fs73coebs0-a.frankfurt-postgres.render.com/toogood_db_a3k0"
+conn = psycopg2.connect(
+    host="dpg-d8eo51rbc2fs73coebs0-a.frankfurt-postgres.render.com",
+    port=5432,
+    database="toogood_db_a3k0",
+    user="toogood_db_a3k0_user",
+    password="2tWztMrzy1VCriWHefthkLBK1EOeeYnG",
+    sslmode="require"
+)
 
-engine = create_engine(DATABASE_URL)
+cur = conn.cursor()
 
-with engine.connect() as conn:
-    print("=" * 60)
-    print("🔍 ПРОВЕРКА КОЛОНКИ delivery_type В ТАБЛИЦЕ orders")
-    print("=" * 60)
-    
-    # 1. Проверяем существует ли колонка
-    result = conn.execute(text("""
-        SELECT column_name, data_type, is_nullable
-        FROM information_schema.columns 
-        WHERE table_name = 'orders' AND column_name = 'delivery_type'
-    """))
-    
-    column = result.fetchone()
-    
-    if column:
-        print(f"\n✅ Колонка 'delivery_type' СУЩЕСТВУЕТ!")
-        print(f"   Тип данных: {column[1]}")
-        print(f"   Может быть NULL: {column[2]}")
-    else:
-        print(f"\n❌ Колонка 'delivery_type' НЕ СУЩЕСТВУЕТ!")
-        print("\n   Нужно добавить:")
-        print("   ALTER TABLE orders ADD COLUMN delivery_type VARCHAR(50) DEFAULT 'delivery';")
-    
-    # 2. Проверяем значения
-    print("\n" + "=" * 60)
-    print("📊 ПРОВЕРКА ЗНАЧЕНИЙ delivery_type")
-    print("=" * 60)
-    
-    result = conn.execute(text("""
-        SELECT delivery_type, COUNT(*) 
-        FROM orders 
-        GROUP BY delivery_type
-    """))
-    
-    rows = result.fetchall()
-    if rows:
-        print("\n📋 Текущие значения:")
-        for row in rows:
-            print(f"   - {row[0]}: {row[1]} заказов")
-    else:
-        print("\n⚠️ Нет данных или колонка отсутствует")
-    
-    # 3. Показываем примеры заказов
-    print("\n" + "=" * 60)
-    print("📋 ПРИМЕРЫ ЗАКАЗОВ")
-    print("=" * 60)
-    
-    result = conn.execute(text("""
-        SELECT id, order_number, status, delivery_type, delivery_deadline, customer_lat
-        FROM orders 
-        ORDER BY id DESC 
-        LIMIT 5
-    """))
-    
-    print("\nID | № заказа | Статус | Тип доставки | Дедлайн | Координаты клиента")
-    print("-" * 80)
-    for row in result:
-        print(f"{row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]}")
-    
-    print("\n" + "=" * 60)
+# Проверяем
+cur.execute("""
+    SELECT id, order_number, delivery_type, status, assigned_courier_id 
+    FROM orders 
+    WHERE delivery_type = 'pickup'
+""")
+print("📋 Заказы с самовывозом:")
+for row in cur.fetchall():
+    print(f"   ID: {row[0]}, №: {row[1]}, статус: {row[3]}, курьер: {row[4]}")
+
+# ✅ ИСПРАВЛЕНО: статус большими буквами 'CONFIRMED'
+cur.execute("""
+    UPDATE orders 
+    SET assigned_courier_id = NULL, status = 'CONFIRMED' 
+    WHERE delivery_type = 'pickup' AND assigned_courier_id IS NOT NULL
+""")
+print(f"\n✅ Обновлено {cur.rowcount} заказов")
+
+conn.commit()
+cur.close()
+conn.close()
