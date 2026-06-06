@@ -676,7 +676,7 @@ async def admin_verify_courier(
     
     return {"success": True, "message": "Курьер подтвержден"}
 
-@@app.post("/api/admin/reject-courier/{courier_id}")
+@app.post("/api/admin/reject-courier/{courier_id}")
 async def admin_reject_courier(
     courier_id: int, 
     request: Request, 
