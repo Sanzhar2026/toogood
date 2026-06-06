@@ -630,17 +630,38 @@ async def get_admin_pending_couriers(
     
     return {"couriers": result}
 
+# backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
+
 @app.post("/api/admin/verify-courier/{courier_id}")
-async def admin_verify_courier(courier_id: int, request: Request, db: Session = Depends(get_db)):
+async def admin_verify_courier(
+    courier_id: int, 
+    request: Request, 
+    db: Session = Depends(get_db)
+):
     """Админ подтверждает курьера"""
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
     
+    # ✅ ТОЛЬКО Bearer токен (НЕ cookies!)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Admin only")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    
+    # Находим курьера
     courier = db.query(CourierProfile).filter(CourierProfile.id == courier_id).first()
     if not courier:
         raise HTTPException(status_code=404, detail="Courier not found")
     
+    # Подтверждаем
     courier.is_verified = True
     courier.verified_at = datetime.utcnow()
     
@@ -651,16 +672,35 @@ async def admin_verify_courier(courier_id: int, request: Request, db: Session = 
     
     db.commit()
     
+    print(f"✅ Курьер {courier.first_name} {courier.last_name} подтвержден")
+    
     return {"success": True, "message": "Курьер подтвержден"}
 
-
-@app.post("/api/admin/reject-courier/{courier_id}")
-async def admin_reject_courier(courier_id: int, request: Request, db: Session = Depends(get_db)):
+@@app.post("/api/admin/reject-courier/{courier_id}")
+async def admin_reject_courier(
+    courier_id: int, 
+    request: Request, 
+    db: Session = Depends(get_db)
+):
     """Админ отклоняет заявку курьера"""
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
     
+    # ✅ ТОЛЬКО Bearer токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Admin only")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    
+    # Находим курьера
     courier = db.query(CourierProfile).filter(CourierProfile.id == courier_id).first()
     if not courier:
         raise HTTPException(status_code=404, detail="Courier not found")
@@ -672,9 +712,9 @@ async def admin_reject_courier(courier_id: int, request: Request, db: Session = 
     db.delete(courier)
     db.commit()
     
+    print(f"❌ Заявка курьера #{courier_id} отклонена")
+    
     return {"success": True, "message": "Заявка отклонена"}
-
-
 
 @app.get("/api/admin/reservations")
 async def get_admin_reservations(
