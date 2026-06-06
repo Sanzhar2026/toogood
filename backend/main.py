@@ -1325,6 +1325,8 @@ async def customer_confirm_delivery(
     return {"success": True, "message": "Спасибо! Заказ получен"}
 
 
+
+
 # backend/main.py - ЕДИНСТВЕННЫЙ эндпоинт для take-order
 
 @app.post("/api/courier/take-order/{order_id}")
@@ -6743,7 +6745,8 @@ async def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
         "pickup_time": order.pickup_time or "",
         "created_at": order.created_at.isoformat() if order.created_at else datetime.utcnow().isoformat(),
         "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None,
-        "payment_status": order.payment_status or "pending"
+        "payment_status": order.payment_status or "pending",
+          "delivery_type": order.delivery_type if hasattr(order, 'delivery_type') else "delivery"  # ← ДОБАВИТЬ ЭТУ СТРОКУ!
     }
 
 @app.get("/test-ors")
