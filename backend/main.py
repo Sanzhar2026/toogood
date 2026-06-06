@@ -216,32 +216,61 @@ def get_user_id_from_request(request: Request) -> int | None:
     
     return None
 
+# backend/main.py
+
 @app.post("/api/courier/pickup-order/{order_id}")
 async def courier_pickup_order(order_id: int, request: Request, db: Session = Depends(get_db)):
-    """Курьер забрал заказ из ресторана"""
+    """Курьер забрал заказ из ресторана (едет к клиенту)"""
     
-    user_id = get_current_user_from_token(request)
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == user_id).first()
+    # Проверка токена
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
     
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    
+    # Находим курьера
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    # Находим заказ
     order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
     
+    # Проверяем что заказ назначен этому курьеру
     if order.assigned_courier_id != courier.user_id:
         raise HTTPException(status_code=403, detail="Order not assigned to you")
     
+    # Проверяем статус
     if order.status != OrderStatus.READY_FOR_PICKUP:
-        raise HTTPException(status_code=400, detail="Order not ready for pickup")
+        raise HTTPException(status_code=400, detail=f"Order not ready for pickup. Current status: {order.status}")
     
-    # ✅ Меняем статус
+    # ✅ Меняем статус на PICKED_UP
     order.status = OrderStatus.PICKED_UP
     
-    # ✅ Устанавливаем дедлайн доставки клиенту (30 минут с момента забора)
-    order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
+    # ✅ УСТАНАВЛИВАЕМ ДЕДЛАЙН С МОМЕНТА ЗАБОРА!
+    now = datetime.utcnow()
+    order.delivery_started_at = now
+    order.delivery_deadline = now + timedelta(minutes=30)  # ← 30 минут на доставку клиенту!
     
     db.commit()
     
-    return {"success": True, "message": "Заказ забран из ресторана"}
-
-
+    print(f"✅ Курьер {courier.first_name} забрал заказ #{order_id} из ресторана")
+    print(f"⏰ Дедлайн доставки клиенту: {order.delivery_deadline}")
+    
+    return {
+        "success": True, 
+        "message": "Заказ забран из ресторана! Едем к клиенту.",
+        "delivery_deadline": order.delivery_deadline.isoformat()
+    }
 def get_straight_line_route(start_lat, start_lon, end_lat, end_lon):
     """Прямая линия если ORS не работает"""
     waypoints = []
@@ -1253,7 +1282,9 @@ async def customer_confirm_delivery(
 ):
     """Клиент подтверждает получение заказа"""
     
-    user_id = request.cookies.get("user_id")
+    # Получаем user_id из токена
+    user_id = get_current_user_from_token(request)
+    
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
@@ -1265,7 +1296,7 @@ async def customer_confirm_delivery(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # ✅ ТЕПЕРЬ меняем статус на DELIVERED
+    # ✅ Меняем статус на DELIVERED
     order.status = OrderStatus.DELIVERED
     order.delivered_at = datetime.utcnow()
     
@@ -1294,12 +1325,11 @@ async def customer_confirm_delivery(
     return {"success": True, "message": "Спасибо! Заказ получен"}
 
 
-
 # backend/main.py - ЕДИНСТВЕННЫЙ эндпоинт для take-order
 
 @app.post("/api/courier/take-order/{order_id}")
 async def courier_take_order(order_id: int, request: Request, db: Session = Depends(get_db)):
-    """Курьер берет заказ в работу"""
+    """Курьер берет заказ в работу (едет в ресторан)"""
     
     print("=" * 50)
     print(f"📦 ПОПЫТКА ВЗЯТЬ ЗАКАЗ #{order_id}")
@@ -1346,11 +1376,14 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
         raise HTTPException(status_code=404, detail="Order not found")
     
     print(f"📋 Заказ #{order_id}: статус={order.status}, назначен курьеру={order.assigned_courier_id}")
+    
+    # Проверяем что это доставка
     if order.delivery_type != "delivery":
         return JSONResponse(
             status_code=400,
             content={"success": False, "message": "Это заказ на самовывоз! Курьер не требуется."}
         )
+    
     # Проверяем, что заказ доступен для взятия
     if order.status != OrderStatus.CONFIRMED:
         return JSONResponse(
@@ -1371,12 +1404,12 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
             content={"success": False, "message": f"У вас уже есть активный заказ #{courier.current_order_id}"}
         )
     
-    # ✅ УСТАНАВЛИВАЕМ ДЕДЛАЙН С МОМЕНТА ВЗЯТИЯ ЗАКАЗА!
-    now = datetime.utcnow()
+    # ✅ ПРАВИЛЬНО: статус READY_FOR_PICKUP (едет в ресторан)
     order.assigned_courier_id = courier.user_id
-    order.status = OrderStatus.OUT_FOR_DELIVERY
-    order.delivery_started_at = now
-    order.delivery_deadline = now + timedelta(minutes=30)  # ← 30 минут с момента взятия!
+    order.status = OrderStatus.READY_FOR_PICKUP  # ← ИЗМЕНЕНО!
+    
+    # ❌ НЕ СТАВИМ ДЕДЛАЙН ЗДЕСЬ!
+    # order.delivery_deadline = ... (убрать!)
     
     # Обновляем статус курьера
     courier.current_order_id = order_id
@@ -1386,7 +1419,7 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
     db.commit()
     
     print(f"✅ Заказ #{order_id} назначен курьеру {courier.first_name} {courier.last_name}")
-    print(f"⏰ Дедлайн доставки: {order.delivery_deadline}")
+    print(f"📍 Курьер должен ехать в ресторан")
     
     # Отправляем уведомление клиенту через WebSocket
     try:
@@ -1398,7 +1431,7 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
                 "courier_phone": courier.phone,
                 "courier_lat": courier.current_lat,
                 "courier_lon": courier.current_lon,
-                "estimated_time": 30
+                "status": "assigned"
             },
             "timestamp": datetime.utcnow().isoformat()
         }, channel=f"order_{order_id}")
@@ -1407,11 +1440,10 @@ async def courier_take_order(order_id: int, request: Request, db: Session = Depe
     
     return {
         "success": True,
-        "message": "Заказ взят в работу!",
+        "message": "Заказ взят в работу! Едьте в ресторан.",
         "order_id": order_id,
-        "delivery_deadline": order.delivery_deadline.isoformat()
+        "status": "ready_for_pickup"
     }
-
 
 
 @app.post("/api/admin/process-refund/{order_id}")
