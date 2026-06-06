@@ -1,4 +1,4 @@
-# fix_pickup_orders.py
+# fix_enum.py
 import psycopg2
 
 conn = psycopg2.connect(
@@ -10,26 +10,23 @@ conn = psycopg2.connect(
     sslmode="require"
 )
 
+# ✅ Включаем автокоммит после подключения
+conn.autocommit = True
+
 cur = conn.cursor()
 
-# Проверяем
-cur.execute("""
-    SELECT id, order_number, delivery_type, status, assigned_courier_id 
-    FROM orders 
-    WHERE delivery_type = 'pickup'
-""")
-print("📋 Заказы с самовывозом:")
-for row in cur.fetchall():
-    print(f"   ID: {row[0]}, №: {row[1]}, статус: {row[3]}, курьер: {row[4]}")
-
-# ✅ ИСПРАВЛЕНО: статус большими буквами 'CONFIRMED'
-cur.execute("""
-    UPDATE orders 
-    SET assigned_courier_id = NULL, status = 'CONFIRMED' 
-    WHERE delivery_type = 'pickup' AND assigned_courier_id IS NOT NULL
-""")
-print(f"\n✅ Обновлено {cur.rowcount} заказов")
-
-conn.commit()
-cur.close()
-conn.close()
+try:
+    # Добавляем новое значение в enum
+    cur.execute("ALTER TYPE orderstatus ADD VALUE IF NOT EXISTS 'picked_up'")
+    print("✅ Значение 'picked_up' добавлено в enum orderstatus")
+    
+    # Проверяем
+    cur.execute("SELECT enum_range(NULL::orderstatus)")
+    result = cur.fetchone()
+    print(f"📋 Текущие значения enum: {result[0]}")
+    
+except Exception as e:
+    print(f"❌ Ошибка: {e}")
+finally:
+    cur.close()
+    conn.close()
