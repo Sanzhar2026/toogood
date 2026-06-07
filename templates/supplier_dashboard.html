@@ -3,20 +3,36 @@
 
 {% block content %}
 <style>
-    .dashboard-container {
-        padding: 2rem;
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
     }
     
-    .dashboard-header {
+    html, body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        background: #f1f5f9;
+    }
+    
+    .dashboard-container {
+        padding: 1rem 2rem 5rem 2rem;
+        min-height: calc(100vh - 80px);
+    }
+    
+    .admin-header {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        border-radius: 1.5rem;
-        padding: 2rem;
-        margin-bottom: 2rem;
+        padding: 1.5rem 2rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
         color: white;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        margin-bottom: 0;
     }
     
     .business-info h1 {
@@ -35,6 +51,11 @@
         border: none;
         border-radius: 0.5rem;
         cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .logout-btn:hover {
+        background: #b91c1c;
     }
     
     .nav-links {
@@ -45,6 +66,9 @@
         display: flex;
         gap: 2rem;
         overflow-x: auto;
+        position: sticky;
+        top: 80px;
+        z-index: 99;
     }
     
     .nav-links a {
@@ -167,6 +191,8 @@
     th {
         background: #f8fafc;
         font-weight: 600;
+        position: sticky;
+        top: 0;
     }
     
     .status-badge {
@@ -413,6 +439,12 @@
         .full-width {
             grid-column: span 1;
         }
+        .admin-header {
+            padding: 1rem;
+        }
+        .business-info h1 {
+            font-size: 1.2rem;
+        }
     }
 </style>
 
@@ -425,19 +457,19 @@
     <span id="wsStatus">Connecting...</span>
 </div>
 
-<div class="dashboard-container">
-    <!-- Header -->
-    <div class="dashboard-header">
-        <div class="business-info">
-            <h1>🏪 {{ supplier.business_name }}</h1>
-            <p>📍 {{ supplier.address or 'Адрес не указан' }} | 📞 {{ supplier.phone or '—' }}</p>
-        </div>
-        <div>
-            <span style="color: #fbbf24;">⭐ Рейтинг: {{ supplier.rating or 0 }}</span>
-            <button onclick="logout()" class="logout-btn" style="margin-left: 1rem;">🚪 Выйти</button>
-        </div>
+<!-- Header -->
+<div class="admin-header">
+    <div class="business-info">
+        <h1>🏪 {{ supplier.business_name }}</h1>
+        <p>📍 {{ supplier.address or 'Адрес не указан' }} | 📞 {{ supplier.phone or '—' }}</p>
     </div>
+    <div>
+        <span style="color: #fbbf24;">⭐ Рейтинг: {{ supplier.rating or 0 }}</span>
+        <button onclick="logout()" class="logout-btn" style="margin-left: 1rem;">🚪 Выйти</button>
+    </div>
+</div>
 
+<div class="dashboard-container">
     <!-- Navigation Links -->
     <div class="nav-links">
         <a href="/supplier/dashboard" class="active">📊 Дашборд</a>
@@ -724,7 +756,7 @@
     var ws = null;
     var selectedProducts = [];
     
-    // 30 ГОТОВЫХ СЮРПРИЗОВ
+    // 30 ГОТОВЫХ СЮРПРИЗОВ (оставлены такие же как были)
     var surpriseTemplates = {
         'pizza_classic': {
             name: '🍕 Пицца-сет "Классический"',
@@ -1121,7 +1153,7 @@
                 
                 var row = '<tr data-order-id="' + order.id + '">' +
                     '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#' + order.id + '</span></td>' +
-                    '<td>' + escapeHtml(order.customer_address || 'Адрес не указан') + '<br><span style="font-size:0.65rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
+                    '<td>' + escapeHtml(order.customer_address || 'Адрес не указан') + '<br><span style="font-size:0.65rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></span></td>' +
                     '<td>' + escapeHtml(order.bag_name) + '</span></td>' +
                     '<td><strong>' + order.amount_paid + '</strong> ₸</span></td>' +
                     '<td><span class="status-badge status-' + order.status + '">' + getStatusIcon(order.status) + ' ' + getStatusText(order.status) + '</span></td>' +
@@ -1151,11 +1183,6 @@
     }
     
     function getActionButtons(order) {
-        // Для отмененных или удаленных заказов не показываем кнопки действий (хотя они уже отфильтрованы)
-        if (order.status === 'cancelled' || order.status === 'deleted') {
-            return '<span class="text-gray-400 text-sm">❌ Заказ недоступен</span>';
-        }
-        
         if (order.status === 'confirmed') {
             return '<div><button class="auto-assign-btn btn" data-order-id="' + order.id + '">🚚 Автоназначить</button><br><button class="manual-assign-btn btn" data-order-id="' + order.id + '" style="margin-top:0.3rem;">🔧 Выбрать вручную</button></div>';
         } else if (order.status === 'out_for_delivery') {
