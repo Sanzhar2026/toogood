@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С 30 ГОТОВЫМИ СЮРПРИЗАМИ -->
+<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С JWT -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -35,7 +35,6 @@
         border: none;
         border-radius: 0.5rem;
         cursor: pointer;
-        text-decoration: none;
     }
     
     .nav-links {
@@ -435,7 +434,7 @@
         </div>
         <div>
             <span style="color: #fbbf24;">⭐ Рейтинг: {{ supplier.rating or 0 }}</span>
-            <a href="/supplier/logout" class="logout-btn" style="margin-left: 1rem;">🚪 Выйти</a>
+            <button onclick="logout()" class="logout-btn" style="margin-left: 1rem;">🚪 Выйти</button>
         </div>
     </div>
 
@@ -491,61 +490,7 @@
                     </tr>
                 </thead>
                 <tbody id="ordersTableBody">
-                    {% for order in recent_orders %}
-                    <tr data-order-id="{{ order.id }}">
-                        <td><strong>{{ order.order_number }}</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#{{ order.id }}</span></td>
-                        <td>{{ order.customer_address|truncate(35) }}<br><span style="font-size:0.65rem;color:#94a3b8;">{{ order.created_at.strftime('%d.%m.%Y %H:%M') if order.created_at else '' }}</span></td>
-                        <td>{{ order.surprise_bag_name }}</td>
-                        <td><strong>{{ order.amount_paid }}</strong> ₸</td>
-                        <td>
-                            <span class="status-badge status-{{ order.status }}">
-                                {% if order.status == 'pending' %}⏳ Ожидает
-                                {% elif order.status == 'confirmed' %}✅ Подтвержден
-                                {% elif order.status == 'preparing' %}🍳 Готовится
-                                {% elif order.status == 'ready_for_pickup' %}📦 Готов
-                                {% elif order.status == 'out_for_delivery' %}🚚 В пути
-                                {% elif order.status == 'delivered' %}🎉 Доставлен
-                                {% elif order.status == 'cancelled' %}❌ Отменен
-                                {% else %}{{ order.status }}
-                                {% endif %}
-                            </span>
-                        </td>
-                        <td id="courier-cell-{{ order.id }}">
-                            {% if order.assigned_courier_name %}
-                                🚚 {{ order.assigned_courier_name }}
-                            {% else %}
-                                <span class="text-gray-400">—</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if order.status == 'confirmed' %}
-                                <div class="flex flex-col gap-1">
-                                    <button class="auto-assign-btn btn" data-order-id="{{ order.id }}">🚚 Автоназначить</button>
-                                    <button class="manual-assign-btn btn" data-order-id="{{ order.id }}">🔧 Выбрать вручную</button>
-                                </div>
-                            {% elif order.status == 'out_for_delivery' %}
-                                <div class="text-sm">
-                                    <div class="delivery-timer" data-deadline="{{ order.delivery_deadline }}"></div>
-                                </div>
-                            {% elif order.status == 'delivered' %}
-                                <span class="text-green-600 text-sm">✅ Доставлен</span>
-                            {% else %}
-                                <select class="status-select" data-order-id="{{ order.id }}">
-                                    <option value="">📌 Изменить статус</option>
-                                    <option value="confirmed">✅ Подтвердить</option>
-                                    <option value="preparing">🍳 Готовить</option>
-                                    <option value="ready_for_pickup">📦 Готов к выдаче</option>
-                                    <option value="out_for_delivery">🚚 Отправить</option>
-                                    <option value="delivered">🎉 Доставлен</option>
-                                    <option value="cancelled">❌ Отменить</option>
-                                </select>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <button class="btn track-btn" data-order-id="{{ order.id }}">🗺️ Карта</button>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                    <!-- Загружается через JS -->
                 </tbody>
             </table>
         </div>
@@ -572,18 +517,7 @@
                     </tr>
                 </thead>
                 <tbody id="bagsTableBody">
-                    {% for bag in surprise_bags %}
-                    <tr data-bag-id="{{ bag.id }}">
-                        <td><strong>{{ bag.name }}</strong></td>
-                        <td>{{ bag.description[:50] if bag.description else '-' }}</td>
-                        <td>{{ bag.original_price }} ₸</td>
-                        <td><strong style="color: #ef4444;">{{ bag.discounted_price }} ₸</strong></td>
-                        <td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.7rem;">-{{ bag.discount_percentage }}%</span></td>
-                        <td>{{ bag.available_quantity }}/{{ bag.total_quantity }}</td>
-                        <td>{% if bag.is_active %}<span style="color: #10b981;">✅ Активен</span>{% else %}<span style="color: #ef4444;">❌ Неактивен</span>{% endif %}</td>
-                        <td><button class="btn btn-primary toggle-bag-btn" data-bag-id="{{ bag.id }}">🔄 Сменить статус</button></td>
-                    </tr>
-                    {% endfor %}
+                    <!-- Загружается через JS -->
                 </tbody>
             </table>
         </div>
@@ -592,7 +526,6 @@
         <div class="add-bag-form" id="addBagForm" style="display: none;">
             <h3 style="margin-bottom: 1rem;">✨ Добавить сюрприз</h3>
             <form id="createBagForm">
-                <!-- Выбор готового сюрприза -->
                 <div class="form-group full-width">
                     <label>🎁 Готовый сюрприз-пакет</label>
                     <select id="surpriseTemplate">
@@ -739,13 +672,60 @@
 </div>
 
 <script>
+    // ============ JWT ТОКЕН ============
+    var supplierToken = null;
     var supplierId = parseInt(document.getElementById('supplierData').getAttribute('data-supplier-id'));
+    
+    function getSupplierToken() {
+        return sessionStorage.getItem('supplier_token');
+    }
+    
+    function clearSupplierToken() {
+        sessionStorage.removeItem('supplier_token');
+    }
+    
+    function logout() {
+        clearSupplierToken();
+        window.location.href = '/supplier/login';
+    }
+    
+    async function authFetch(url, options = {}) {
+        var token = getSupplierToken();
+        
+        if (!token) {
+            window.location.href = '/supplier/login';
+            throw new Error('No token');
+        }
+        
+        var response = await fetch(url, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token,
+                ...options.headers
+            }
+        });
+        
+        if (response.status === 401) {
+            clearSupplierToken();
+            window.location.href = '/supplier/login';
+            throw new Error('Unauthorized');
+        }
+        
+        return response;
+    }
+    
+    // ============ ПРОВЕРКА ТОКЕНА ПРИ ЗАГРУЗКЕ ============
+    if (!getSupplierToken()) {
+        window.location.href = '/supplier/login';
+    }
+    
+    // ============ WEB SOCKET ============
     var ws = null;
     var selectedProducts = [];
     
-    // 30 ГОТОВЫХ СЮРПРИЗОВ
+    // 30 ГОТОВЫХ СЮРПРИЗОВ (оставлены такие же как были)
     var surpriseTemplates = {
-        // Пицца-сеты (5 шт)
         'pizza_classic': {
             name: '🍕 Пицца-сет "Классический"',
             description: 'Две классические пиццы для отличного вечера',
@@ -797,7 +777,6 @@
             ],
             image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
         },
-        // Суши-сеты (5 шт)
         'sushi_samurai': {
             name: '⚔️ Суши-сет "Самурай"',
             description: 'Классический набор японской кухни',
@@ -849,7 +828,6 @@
             ],
             image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
         },
-        // Бургер-сеты (5 шт)
         'burger_american': {
             name: '🇺🇸 Бургер-сет "Американский"',
             description: 'Классические американские бургеры',
@@ -902,7 +880,6 @@
             ],
             image: 'https://images.unsplash.com/photo-1525059696034-4967a8e1dca2?w=400&h=300&fit=crop'
         },
-        // Десерт-сеты (4 шт)
         'dessert_sweet': {
             name: '🍰 Десерт-сет "Сладкоежка"',
             description: 'Для тех, кто любит сладкое',
@@ -941,7 +918,6 @@
             ],
             image: 'https://images.unsplash.com/photo-1569864358642-9d1684040f43?w=400&h=300&fit=crop'
         },
-        // ЗОЖ-сеты (3 шт)
         'healthy_fitness': {
             name: '💪 ЗОЖ-сет "Фитнес"',
             description: 'Полезный набор для здорового питания',
@@ -972,7 +948,6 @@
             ],
             image: 'https://images.unsplash.com/photo-1550304943-4f24f54dd8c9?w=400&h=300&fit=crop'
         },
-        // Микс-сеты (4 шт)
         'mix_asia_italy': {
             name: '🍕🍣 Микс-сет "Азия & Италия"',
             description: 'Сочетание итальянской и японской кухни',
@@ -1016,7 +991,6 @@
             ],
             image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
         },
-        // Закуски-сеты (4 шт)
         'snack_party': {
             name: '🎉 Закуски-сет "Вечеринка"',
             description: 'Идеальный набор для вечеринки',
@@ -1120,7 +1094,7 @@
     // ============ ORDERS FUNCTIONS ============
     async function refreshOrders() {
         try {
-            var response = await fetch('/api/supplier/orders');
+            var response = await authFetch('/api/supplier/orders');
             var data = await response.json();
             if (!data.success) return;
             
@@ -1210,13 +1184,17 @@
             btn._handler = async function() {
                 var orderId = this.getAttribute('data-order-id');
                 if (confirm('Автоматически назначить лучшего курьера?')) {
-                    var res = await fetch('/api/supplier/auto-assign-courier/' + orderId, { method: 'POST' });
-                    var data = await res.json();
-                    if (data.success) {
-                        alert('✅ ' + data.message);
-                        location.reload();
-                    } else {
-                        alert('❌ ' + data.message);
+                    try {
+                        var res = await authFetch('/api/supplier/auto-assign-courier/' + orderId, { method: 'POST' });
+                        var data = await res.json();
+                        if (data.success) {
+                            alert('✅ ' + data.message);
+                            location.reload();
+                        } else {
+                            alert('❌ ' + data.message);
+                        }
+                    } catch(e) {
+                        alert('❌ Ошибка: ' + e.message);
                     }
                 }
             };
@@ -1227,29 +1205,32 @@
             btn.removeEventListener('click', btn._handler);
             btn._handler = async function() {
                 var orderId = this.getAttribute('data-order-id');
-                var res = await fetch('/api/supplier/available-couriers');
-                var data = await res.json();
-                if (!data.couriers.length) {
-                    alert('❌ Нет доступных курьеров');
-                    return;
-                }
-                var message = 'Выберите курьера:\n';
-                data.couriers.forEach(function(c) {
-                    message += c.id + ': ' + c.name + ' (⭐ ' + c.rating + ')\n';
-                });
-                var courierId = prompt(message + '\nВведите ID курьера:');
-                if (courierId) {
-                    var assignRes = await fetch('/api/supplier/assign-courier', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ order_id: orderId, courier_profile_id: parseInt(courierId) })
-                    });
-                    if (assignRes.ok) {
-                        alert('✅ Курьер назначен');
-                        location.reload();
-                    } else {
-                        alert('❌ Ошибка');
+                try {
+                    var res = await authFetch('/api/supplier/available-couriers');
+                    var data = await res.json();
+                    if (!data.couriers || !data.couriers.length) {
+                        alert('❌ Нет доступных курьеров');
+                        return;
                     }
+                    var message = 'Выберите курьера:\n';
+                    data.couriers.forEach(function(c) {
+                        message += c.id + ': ' + c.name + ' (⭐ ' + c.rating + ')\n';
+                    });
+                    var courierId = prompt(message + '\nВведите ID курьера:');
+                    if (courierId) {
+                        var assignRes = await authFetch('/api/supplier/assign-courier', {
+                            method: 'POST',
+                            body: JSON.stringify({ order_id: orderId, courier_profile_id: parseInt(courierId) })
+                        });
+                        if (assignRes.ok) {
+                            alert('✅ Курьер назначен');
+                            location.reload();
+                        } else {
+                            alert('❌ Ошибка');
+                        }
+                    }
+                } catch(e) {
+                    alert('❌ Ошибка: ' + e.message);
                 }
             };
             btn.addEventListener('click', btn._handler);
@@ -1258,9 +1239,8 @@
     
     async function updateOrderStatus(orderId, newStatus) {
         try {
-            var response = await fetch('/api/supplier/orders/' + orderId + '/status', {
+            var response = await authFetch('/api/supplier/orders/' + orderId + '/status', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus })
             });
             if (response.ok) {
@@ -1275,7 +1255,7 @@
     // ============ BAGS FUNCTIONS ============
     async function refreshBags() {
         try {
-            var response = await fetch('/api/supplier/surprise-bags');
+            var response = await authFetch('/api/supplier/surprise-bags');
             var data = await response.json();
             if (!data.bags) return;
             
@@ -1300,8 +1280,12 @@
             
             document.querySelectorAll('.toggle-bag-btn').forEach(function(btn) {
                 btn.onclick = async function() {
-                    await fetch('/api/supplier/surprise-bags/' + this.getAttribute('data-bag-id') + '/toggle', { method: 'PUT' });
-                    refreshBags();
+                    try {
+                        await authFetch('/api/supplier/surprise-bags/' + this.getAttribute('data-bag-id') + '/toggle', { method: 'PUT' });
+                        refreshBags();
+                    } catch(e) {
+                        alert('❌ Ошибка: ' + e.message);
+                    }
                 };
             });
         } catch(error) {
@@ -1425,15 +1409,12 @@
         var template = surpriseTemplates[templateKey];
         if (!template) return;
         
-        // Заполняем название
         document.getElementById('bagName').value = template.name;
         
-        // Заполняем описание
         if (template.description) {
             document.getElementById('bagDescription').value = template.description;
         }
         
-        // Заполняем блюда
         selectedProducts = [];
         for (var i = 0; i < template.items.length; i++) {
             selectedProducts.push({
@@ -1447,7 +1428,6 @@
         renderSelectedProducts();
         var total = updateTotalPrice();
         
-        // Заполняем изображение
         if (template.image) {
             document.getElementById('imageUrl').value = template.image;
         }
@@ -1514,9 +1494,8 @@
         };
         
         try {
-            var response = await fetch('/api/supplier/surprise-bags', {
+            var response = await authFetch('/api/supplier/surprise-bags', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
             
