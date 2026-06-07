@@ -7192,6 +7192,65 @@ async def cleanup_cancelled_orders(
     }
 # backend/main.py - добавь эту фоновую задачу
 
+
+@app.delete("/api/supplier/clear-inactive-bags")
+async def clear_inactive_surprise_bags(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Удаление только НЕАКТИВНЫХ сюрприз-пакетов поставщика"""
+    
+    # Проверяем токен поставщика
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        # Находим поставщика - используем Supplier, а не SupplierProfile
+        supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
+        if not supplier:
+            return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
+        
+        # Находим ТОЛЬКО НЕАКТИВНЫЕ сюрпризы поставщика
+        inactive_bags = db.query(SurpriseBag).filter(
+            SurpriseBag.supplier_id == supplier.id,
+            SurpriseBag.is_active == False  # только неактивные!
+        ).all()
+        
+        if not inactive_bags:
+            return JSONResponse(status_code=200, content={"success": True, "message": "Нет неактивных сюрпризов для удаления", "deleted_count": 0})
+        
+        deleted_count = 0
+        for bag in inactive_bags:
+            # Удаляем связи с продуктами (если есть)
+            if hasattr(bag, 'products'):
+                bag.products.clear()
+            
+            db.delete(bag)
+            deleted_count += 1
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Удалено {deleted_count} неактивных сюрприз-пакетов",
+            "deleted_count": deleted_count
+        }
+        
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(status_code=401, content={"success": False, "message": "Token expired"})
+    except jwt.JWTError as e:
+        return JSONResponse(status_code=401, content={"success": False, "message": f"Invalid token: {str(e)}"})
+    except Exception as e:
+        print(f"Error clearing inactive bags: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
+
 async def auto_cleanup_cancelled_orders():
     """Автоматическая очистка отмененных заказов каждые 30 минут"""
     while True:
