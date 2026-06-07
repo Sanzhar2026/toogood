@@ -1,4 +1,4 @@
-# backend/models.py - ИСПРАВЛЕННАЯ ВЕРСИЯ (без дубликатов)
+# backend/models.py - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ (без дубликатов)
 
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum
 from sqlalchemy.orm import relationship
@@ -12,51 +12,6 @@ class UserRole(str, enum.Enum):
     COURIER = "courier"  
     ADMIN = "admin"
 
-
-
-# backend/models.py - добавьте после класса SurpriseBag
-
-class SurpriseBagItem(Base):
-    __tablename__ = "surprise_bag_items"
-    
-    id = Column(Integer, primary_key=True)
-    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id", ondelete="CASCADE"))
-    product_id = Column(Integer, nullable=False)
-    product_name = Column(String(255), nullable=False)
-    product_price = Column(Integer, nullable=False)
-    quantity = Column(Integer, default=1)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # Relationship
-    surprise_bag = relationship("SurpriseBag", back_populates="items")
-
-
-# В классе SurpriseBag добавьте relationship:
-class SurpriseBag(Base):
-    __tablename__ = "surprise_bags"
-    
-    id = Column(Integer, primary_key=True)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"))
-    name = Column(String(255), nullable=False)
-    description = Column(Text)
-    original_price = Column(Float, nullable=False)
-    discounted_price = Column(Float, nullable=False)
-    discount_percentage = Column(Integer)
-    image_url = Column(String(500))
-    available_quantity = Column(Integer, default=1)
-    total_quantity = Column(Integer, default=1)
-    pickup_start_time = Column(String(50))
-    pickup_end_time = Column(String(50))
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    possible_items = Column(Text)
-    
-    # Relationships
-    supplier = relationship("Supplier", back_populates="surprise_bags")
-    orders = relationship("Order", back_populates="surprise_bag")
-    cart_items = relationship("CartItem", back_populates="surprise_bag")
-    items = relationship("SurpriseBagItem", back_populates="surprise_bag", cascade="all, delete-orphan")  # ← ДОБАВИТЬ
-
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
@@ -64,7 +19,7 @@ class OrderStatus(str, enum.Enum):
     READY_FOR_PICKUP = "ready_for_pickup"
     PICKED_UP = "picked_up"
     OUT_FOR_DELIVERY = "out_for_delivery"
-    NEARBY = "nearby"  # ← ДОБАВЬТЕ
+    NEARBY = "nearby"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
@@ -101,7 +56,7 @@ class CartItem(Base):
     user = relationship("User", back_populates="cart_items")
     surprise_bag = relationship("SurpriseBag", back_populates="cart_items")
 
-# User model - ТОЛЬКО ОДИН РАЗ!
+# User model
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
@@ -110,7 +65,6 @@ class User(Base):
     phone_verified = Column(Boolean, default=False)
     password = Column(String(255), nullable=False)
     
-    # Личные данные
     first_name = Column(String(100), nullable=True)
     last_name = Column(String(100), nullable=True)
     full_name = Column(String(255), nullable=True)
@@ -119,7 +73,6 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    # Relationships
     orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")
     supplier_profile = relationship("Supplier", back_populates="user", uselist=False)
     cart_items = relationship("CartItem", back_populates="user")
@@ -152,8 +105,22 @@ class Supplier(Base):
     surprise_bags = relationship("SurpriseBag", back_populates="supplier")
     orders = relationship("Order", back_populates="supplier", foreign_keys="Order.supplier_id")
 
+class SurpriseBagItem(Base):
+    __tablename__ = "surprise_bag_items"
+    
+    id = Column(Integer, primary_key=True)
+    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id", ondelete="CASCADE"))
+    product_id = Column(Integer, nullable=False)
+    product_name = Column(String(255), nullable=False)
+    product_price = Column(Integer, nullable=False)
+    quantity = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    surprise_bag = relationship("SurpriseBag", back_populates="items")
+
 class SurpriseBag(Base):
     __tablename__ = "surprise_bags"
+    
     id = Column(Integer, primary_key=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id"))
     name = Column(String(255), nullable=False)
@@ -173,6 +140,7 @@ class SurpriseBag(Base):
     supplier = relationship("Supplier", back_populates="surprise_bags")
     orders = relationship("Order", back_populates="surprise_bag")
     cart_items = relationship("CartItem", back_populates="surprise_bag")
+    items = relationship("SurpriseBagItem", back_populates="surprise_bag", cascade="all, delete-orphan")
 
 class Order(Base):
     __tablename__ = "orders"
@@ -214,18 +182,19 @@ class Order(Base):
     confirmed_at = Column(DateTime, nullable=True)
     ready_at = Column(DateTime, nullable=True)
     delivered_at = Column(DateTime, nullable=True)
-    cancelled_at = Column(DateTime, nullable=True)  # ✅ ДОБАВИТЬ ЭТУ СТРОКУ
+    cancelled_at = Column(DateTime, nullable=True)
     pickup_time = Column(String(50))
     amount_paid = Column(Float, nullable=True)
     
     assigned_courier_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    delivery_type = Column(String(50), default="delivery")  # ✅ ДОБАВИТЬ ЭТУ СТРОКУ (для самовывоза)
+    delivery_type = Column(String(50), default="delivery")
     
     user = relationship("User", back_populates="orders", foreign_keys=[user_id])
     supplier = relationship("Supplier", back_populates="orders", foreign_keys=[supplier_id])
     surprise_bag = relationship("SurpriseBag", back_populates="orders")
     assigned_courier = relationship("User", foreign_keys=[assigned_courier_id])
     tracking_updates = relationship("OrderTracking", back_populates="order")
+
 class OrderTracking(Base):
     __tablename__ = "order_tracking"
     id = Column(Integer, primary_key=True)
@@ -315,7 +284,6 @@ class Admin(Base):
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-
 class TemporaryReservation(Base):
     __tablename__ = "temporary_reservations"
     
@@ -324,9 +292,8 @@ class TemporaryReservation(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     quantity = Column(Integer, default=1)
     reserved_at = Column(DateTime, default=datetime.utcnow)
-    expires_at = Column(DateTime, nullable=False)  # reserved_at + 15 минут
+    expires_at = Column(DateTime, nullable=False)
     is_paid = Column(Boolean, default=False)
     
-    # Relationships
     bag = relationship("SurpriseBag", backref="reservations")
     user = relationship("User", backref="reservations")
