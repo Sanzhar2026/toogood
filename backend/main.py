@@ -7121,23 +7121,42 @@ async def get_supplier_surprise_bags(supplier_id: int, db: Session = Depends(get
 # backend/main.py - добавь этот эндпоинт
 
 # backend/main.py - ЗАМЕНИТЕ ваш существующий эндпоинт
+# backend/main.py - ЗАМЕНИТЕ эндпоинт на этот:
+
 @app.delete("/api/admin/cleanup-cancelled-orders")
 async def cleanup_cancelled_orders(
-    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
+    request: Request,
     db: Session = Depends(get_db)
 ):
-    """Очистка отмененных заказов"""
+    """Очистка ВСЕХ отмененных заказов (без ограничения по времени)"""
     
-    one_hour_ago = datetime.utcnow() - timedelta(hours=0.01)
+    # Проверяем админ-токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
     
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        # Проверяем, что пользователь - админ
+        admin = db.query(Admin).filter(Admin.user_id == int(user_id)).first()
+        if not admin:
+            return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+    except:
+        return JSONResponse(status_code=401, content={"success": False, "message": "Invalid token"})
+    
+    # Находим ВСЕ отмененные заказы (без ограничения по времени!)
     cancelled_orders = db.query(Order).filter(
-        Order.status == OrderStatus.CANCELLED,
-        Order.cancelled_at.isnot(None),
-        Order.cancelled_at < one_hour_ago
+        Order.status == OrderStatus.CANCELLED
     ).all()
     
     deleted_count = 0
     for order in cancelled_orders:
+        # Освобождаем курьера, если он был назначен
         if order.assigned_courier_id:
             courier = db.query(CourierProfile).filter(
                 CourierProfile.user_id == order.assigned_courier_id,

@@ -23,6 +23,9 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
         
         .admin-header h1 {
@@ -40,10 +43,17 @@
             border: none;
             border-radius: 0.5rem;
             cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .logout-btn:hover {
+            background: #b91c1c;
         }
         
         .admin-container {
             padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
         }
         
         .stats-grid {
@@ -59,6 +69,12 @@
             border-radius: 1rem;
             text-align: center;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         
         .stat-number {
@@ -80,10 +96,18 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
         .section-title {
             font-size: 1.3rem;
             font-weight: bold;
-            margin-bottom: 1rem;
             border-left: 4px solid #fbbf24;
             padding-left: 0.75rem;
         }
@@ -103,56 +127,6 @@
             50% { opacity: 0.6; }
         }
         
-        .table-container {
-            overflow-x: auto;
-            margin-top: 1rem;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        th, td {
-            padding: 0.75rem;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        
-        th {
-            background: #f8fafc;
-            font-weight: 600;
-        }
-        
-        .timer-warning {
-            color: #dc2626;
-            font-weight: bold;
-            animation: blink 1s infinite;
-        }
-        
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        .notification {
-            position: fixed;
-            top: 1rem;
-            right: 1rem;
-            background: #0f172a;
-            color: white;
-            padding: 0.75rem 1.25rem;
-            border-radius: 0.75rem;
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-        }
-        
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        
         .refresh-btn {
             background: #f1f5f9;
             border: none;
@@ -160,12 +134,26 @@
             border-radius: 0.5rem;
             cursor: pointer;
             font-size: 0.8rem;
-            float: right;
-            margin-left: 0.5rem;
+            transition: background 0.2s;
         }
         
         .refresh-btn:hover {
             background: #e2e8f0;
+        }
+        
+        .btn-cleanup {
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+        
+        .btn-cleanup:hover {
+            background: #7c3aed;
         }
         
         .btn-verify {
@@ -176,6 +164,7 @@
             border-radius: 0.5rem;
             cursor: pointer;
             margin-right: 0.5rem;
+            transition: background 0.2s;
         }
         
         .btn-verify:hover {
@@ -189,6 +178,7 @@
             padding: 0.3rem 0.8rem;
             border-radius: 0.5rem;
             cursor: pointer;
+            transition: background 0.2s;
         }
         
         .btn-reject:hover {
@@ -202,7 +192,7 @@
             padding: 0.3rem 0.8rem;
             border-radius: 0.5rem;
             cursor: pointer;
-            margin-right: 0.5rem;
+            transition: background 0.2s;
         }
         
         .btn-paid:hover {
@@ -216,25 +206,11 @@
             padding: 0.3rem 0.8rem;
             border-radius: 0.5rem;
             cursor: pointer;
+            transition: background 0.2s;
         }
         
         .btn-refund:hover {
             background: #d97706;
-        }
-        
-        .btn-cleanup {
-            background: #8b5cf6;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            margin-left: 1rem;
-            font-size: 0.85rem;
-        }
-        
-        .btn-cleanup:hover {
-            background: #7c3aed;
         }
         
         .badge-pending {
@@ -269,11 +245,79 @@
             border-radius: 0.5rem;
             cursor: pointer;
             font-size: 0.8rem;
+            transition: all 0.2s;
         }
         
         .lang-btn.active {
             background: #fbbf24;
             color: #0f172a;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+        
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        
+        .timer-warning {
+            color: #dc2626;
+            font-weight: bold;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: #0f172a;
+            color: white;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.75rem;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .admin-container {
+                padding: 1rem;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
@@ -312,10 +356,12 @@
         
         <!-- Заявки курьеров -->
         <div class="section">
-            <div>
+            <div class="section-header">
                 <h2 class="section-title">👥 ЗАЯВКИ НА ПОДТВЕРЖДЕНИЕ КУРЬЕРОВ <span class="live-badge">● LIVE</span><span id="pendingBadge" class="badge-pending">0</span></h2>
-                <button class="refresh-btn" onclick="loadPendingCouriers()">🔄 Обновить</button>
-                <button class="btn-cleanup" onclick="cleanupCancelledOrders()">🧹 ОЧИСТИТЬ ОТМЕНЕННЫЕ ЗАКАЗЫ</button>
+                <div>
+                    <button class="refresh-btn" onclick="loadPendingCouriers()">🔄 Обновить</button>
+                    <button class="btn-cleanup" onclick="cleanupCancelledOrders()">🧹 ОЧИСТИТЬ ОТМЕНЕННЫЕ ЗАКАЗЫ</button>
+                </div>
             </div>
             <div class="table-container">
                 <table>
@@ -340,7 +386,7 @@
         
         <!-- Активные бронирования -->
         <div class="section">
-            <div>
+            <div class="section-header">
                 <h2 class="section-title">⏳ АКТИВНЫЕ БРОНИРОВАНИЯ (Ожидают оплаты) <span class="live-badge">● LIVE</span></h2>
                 <button class="refresh-btn" onclick="loadActiveReservations()">🔄 Обновить</button>
             </div>
@@ -369,7 +415,10 @@
         
         <!-- Заказы -->
         <div class="section">
-            <h2 class="section-title">📋 ЗАКАЗЫ</h2>
+            <div class="section-header">
+                <h2 class="section-title">📋 ЗАКАЗЫ</h2>
+                <button class="refresh-btn" onclick="loadOrders()">🔄 Обновить</button>
+            </div>
             <div class="table-container">
                 <table>
                     <thead>
@@ -395,7 +444,10 @@
         
         <!-- Курьеры -->
         <div class="section">
-            <h2 class="section-title">🚚 ПОДТВЕРЖДЕННЫЕ КУРЬЕРЫ</h2>
+            <div class="section-header">
+                <h2 class="section-title">🚚 ПОДТВЕРЖДЕННЫЕ КУРЬЕРЫ</h2>
+                <button class="refresh-btn" onclick="loadCouriers()">🔄 Обновить</button>
+            </div>
             <div class="table-container">
                 <table>
                     <thead>
@@ -452,10 +504,11 @@
             return response;
         }
         
-        function showNotification(message) {
+        function showNotification(message, isError = false) {
             const toast = document.createElement('div');
             toast.className = 'notification';
-            toast.innerHTML = '🎉 ' + message;
+            toast.innerHTML = (isError ? '❌ ' : '✅ ') + message;
+            toast.style.background = isError ? '#dc2626' : '#0f172a';
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
         }
@@ -463,6 +516,38 @@
         function escapeHtml(str) { 
             if (!str) return ''; 
             return String(str).replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); 
+        }
+        
+        // ============ ОЧИСТКА ОТМЕНЕННЫХ ЗАКАЗОВ (БЕЗ ОГРАНИЧЕНИЙ) ============
+        async function cleanupCancelledOrders() {
+            if (!confirm('🧹 Удалить ВСЕ отмененные заказы (без ограничения по времени)?\n\nЭто действие нельзя отменить!')) return;
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '🔄 Очистка...';
+            btn.disabled = true;
+            
+            try {
+                const response = await authFetch('/api/admin/cleanup-cancelled-orders', { 
+                    method: 'DELETE' 
+                });
+                const data = await response.json();
+                
+                if (data.success) { 
+                    showNotification(`✅ ${data.message}`); 
+                    loadStats(); 
+                    loadOrders();
+                    loadActiveReservations();
+                } else { 
+                    showNotification('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'), true); 
+                }
+            } catch (error) { 
+                console.error('Cleanup error:', error); 
+                showNotification('❌ Ошибка при очистке заказов', true); 
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         }
         
         // ============ ЗАГРУЗКА СТАТИСТИКИ ============
@@ -526,12 +611,12 @@
             if (!confirm('Подтвердить регистрацию курьера?')) return;
             try { 
                 await authFetch(`/api/admin/verify-courier/${courierId}`, { method: 'POST' }); 
-                alert('✅ Курьер подтвержден!'); 
+                showNotification('Курьер подтвержден!'); 
                 loadPendingCouriers(); 
                 loadCouriers(); 
                 loadStats(); 
             } catch (error) { 
-                alert('❌ Ошибка при подтверждении'); 
+                showNotification('Ошибка при подтверждении', true); 
             }
         }
         
@@ -539,11 +624,11 @@
             if (!confirm('Отклонить заявку курьера?')) return;
             try { 
                 await authFetch(`/api/admin/reject-courier/${courierId}`, { method: 'POST' }); 
-                alert('❌ Заявка отклонена'); 
+                showNotification('Заявка отклонена'); 
                 loadPendingCouriers(); 
                 loadStats(); 
             } catch (error) { 
-                alert('❌ Ошибка при отклонении'); 
+                showNotification('Ошибка при отклонении', true); 
             }
         }
         
@@ -588,16 +673,16 @@
                 const response = await authFetch(`/api/admin/mark-reservation-paid/${reservationId}`, { method: 'POST' });
                 const data = await response.json();
                 if (data.success) { 
-                    alert('✅ Оплата подтверждена! Заказ создан.'); 
+                    showNotification('Оплата подтверждена! Заказ создан.'); 
                     loadActiveReservations(); 
                     loadOrders(); 
                     loadStats(); 
                 } else { 
-                    alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка')); 
+                    showNotification('Ошибка: ' + (data.message || 'Неизвестная ошибка'), true); 
                 }
             } catch (error) { 
                 console.error('Error:', error); 
-                alert('❌ Ошибка при подтверждении оплаты'); 
+                showNotification('Ошибка при подтверждении оплаты', true); 
             }
         }
         
@@ -670,11 +755,11 @@
                     loadOrders(); 
                     loadStats(); 
                 } else { 
-                    alert('Ошибка обновления статуса'); 
+                    showNotification('Ошибка обновления статуса', true); 
                 }
             } catch (error) { 
                 console.error('Error:', error); 
-                alert('Ошибка при обновлении статуса'); 
+                showNotification('Ошибка при обновлении статуса', true); 
             }
         }
         
@@ -687,11 +772,11 @@
                     method: 'POST', 
                     body: JSON.stringify({ reason }) 
                 });
-                alert('✅ Возврат обработан!'); 
+                showNotification('Возврат обработан!'); 
                 loadOrders(); 
                 loadStats();
             } catch (error) { 
-                alert('❌ Ошибка при возврате'); 
+                showNotification('Ошибка при возврате', true); 
             }
         }
         
@@ -717,32 +802,13 @@
                             <td>${courier.courier_type === 'driver' ? '🚗 На машине' : '🚶 Пеший'}</td>
                             <td>${escapeHtml(courier.car_model || '-')} ${escapeHtml(courier.car_number || '')}</td>
                             <td>${courier.is_online ? '🟢 Онлайн' : '⚫ Офлайн'}</td>
-                            <td>${courier.total_deliveries}</td>
-                            <td>⭐ ${courier.rating}</td>
+                            <td>${courier.total_deliveries || 0}</td>
+                            <td>⭐ ${courier.rating || 5.0}</td>
                         </tr>
                     `;
                 }
             } catch (error) { 
                 console.error('Error loading couriers:', error); 
-            }
-        }
-        
-        // ============ ОЧИСТКА ============
-        async function cleanupCancelledOrders() {
-            if (!confirm('🧹 Удалить все отмененные заказы старше 1 часа?')) return;
-            try {
-                const response = await authFetch('/api/admin/cleanup-cancelled-orders', { method: 'DELETE' });
-                const data = await response.json();
-                if (data.success) { 
-                    showNotification(`✅ ${data.message}`); 
-                    loadStats(); 
-                    loadOrders(); 
-                } else { 
-                    alert('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка')); 
-                }
-            } catch (error) { 
-                console.error('Cleanup error:', error); 
-                alert('❌ Ошибка при очистке заказов'); 
             }
         }
         
@@ -778,6 +844,7 @@
         loadOrders();
         loadCouriers();
         
+        // Автообновление каждые 30 секунд
         setInterval(() => {
             loadStats();
             loadPendingCouriers();
