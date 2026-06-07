@@ -123,6 +123,12 @@
         box-shadow: 0 10px 25px -5px rgba(34, 197, 94, 0.4);
     }
 
+    .btn-login:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+
     .error-msg {
         background: #fee2e2;
         color: #dc2626;
@@ -132,6 +138,11 @@
         text-align: center;
         font-weight: 500;
         border-left: 4px solid #dc2626;
+        display: none;
+    }
+
+    .error-msg.show {
+        display: block;
     }
 
     .register-link {
@@ -166,6 +177,21 @@
         color: #166534;
         line-height: 1.6;
     }
+
+    .loader {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border: 2px solid white;
+        border-radius: 50%;
+        border-top-color: transparent;
+        animation: spin 0.6s linear infinite;
+        margin-right: 8px;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
 </style>
 
 <div class="login-page">
@@ -183,25 +209,21 @@
         <div class="login-body">
             <h2>🏪 {% if lang == 'kz' %}Кабинетке кіру{% else %}Вход в кабинет{% endif %}</h2>
 
-            {% if error %}
-            <div class="error-msg">{{ error }}</div>
-            {% endif %}
+            <div id="errorMsg" class="error-msg"></div>
 
-            <form method="post" action="/supplier/login">
-                <div class="form-group">
-                    <label>📧 Email</label>
-                    <input type="email" name="email" required autofocus placeholder="your@email.com">
-                </div>
+            <div class="form-group">
+                <label>📧 Email</label>
+                <input type="email" id="email" required autofocus placeholder="your@email.com">
+            </div>
 
-                <div class="form-group">
-                    <label>🔒 {% if lang == 'kz' %}Құпия сөз{% else %}Пароль{% endif %}</label>
-                    <input type="password" name="password" required placeholder="••••••••">
-                </div>
+            <div class="form-group">
+                <label>🔒 {% if lang == 'kz' %}Құпия сөз{% else %}Пароль{% endif %}</label>
+                <input type="password" id="password" required placeholder="••••••••">
+            </div>
 
-                <button type="submit" class="btn-login">
-                    🔑 {% if lang == 'kz' %}Кіру{% else %}Войти{% endif %}
-                </button>
-            </form>
+            <button id="loginBtn" class="btn-login">
+                🔑 {% if lang == 'kz' %}Кіру{% else %}Войти{% endif %}
+            </button>
 
             <div class="register-link">
                 <a href="/supplier/register">
@@ -225,4 +247,76 @@
         </div>
     </div>
 </div>
+
+<script>
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const loginBtn = document.getElementById('loginBtn');
+    const errorMsg = document.getElementById('errorMsg');
+
+    async function doLogin() {
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+
+        if (!email || !password) {
+            showError('{% if lang == "kz" %}Email және құпия сөзді толтырыңыз{% else %}Заполните email и пароль{% endif %}');
+            return;
+        }
+
+        // Показать загрузку
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<span class="loader"></span> {% if lang == "kz" %}Кіру...{% else %}Вход...{% endif %}';
+        errorMsg.classList.remove('show');
+
+        try {
+            const response = await fetch('/supplier/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: email,
+                    password: password
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.token) {
+                // ✅ Сохраняем JWT токен
+                sessionStorage.setItem('supplier_token', data.token);
+                sessionStorage.setItem('supplier', JSON.stringify(data.supplier));
+                
+                // ✅ Редирект на дашборд
+                window.location.href = '/supplier/dashboard';
+            } else {
+                showError(data.detail || '{% if lang == "kz" %}Қате email немесе құпия сөз{% else %}Неверный email или пароль{% endif %}');
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = '🔑 {% if lang == "kz" %}Кіру{% else %}Войти{% endif %}';
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            showError('{% if lang == "kz" %}Желі қатесі. Қайталап көріңіз{% else %}Ошибка сети. Попробуйте снова{% endif %}');
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = '🔑 {% if lang == "kz" %}Кіру{% else %}Войти{% endif %}';
+        }
+    }
+
+    function showError(message) {
+        errorMsg.textContent = message;
+        errorMsg.classList.add('show');
+        setTimeout(() => {
+            errorMsg.classList.remove('show');
+        }, 5000);
+    }
+
+    // Обработчики событий
+    loginBtn.addEventListener('click', doLogin);
+    
+    passwordInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            doLogin();
+        }
+    });
+</script>
 {% endblock %}
