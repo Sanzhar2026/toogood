@@ -359,7 +359,10 @@ async def get_current_admin_from_token(request: Request, db: Session = Depends(g
         if role != "admin":
             raise HTTPException(status_code=403, detail="Admin only")
         
+        # В токене хранится admin.id, а не user_id
         admin_id = payload.get("sub")
+        
+        # Ищем админа по id (не по user_id!)
         admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
         
         if not admin:
@@ -371,8 +374,6 @@ async def get_current_admin_from_token(request: Request, db: Session = Depends(g
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.JWTError as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
-
-
 # backend/main.py - ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ
 
 @app.post("/admin/api/login")
@@ -7140,16 +7141,28 @@ async def cleanup_cancelled_orders(
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
         
-        # Проверяем, что пользователь - админ
-        admin = db.query(Admin).filter(Admin.user_id == int(user_id)).first()
-        if not admin:
+        # Проверяем роль
+        role = payload.get("role")
+        if role != "admin":
             return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
-    except:
-        return JSONResponse(status_code=401, content={"success": False, "message": "Invalid token"})
+        
+        # Получаем admin_id из токена (это admin.id)
+        admin_id = payload.get("sub")
+        
+        # Проверяем, что админ существует в БД (ищем по id, а не по user_id!)
+        admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+        if not admin:
+            return JSONResponse(status_code=403, content={"success": False, "message": "Admin not found"})
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(status_code=401, content={"success": False, "message": "Token expired"})
+    except jwt.JWTError as e:
+        return JSONResponse(status_code=401, content={"success": False, "message": f"Invalid token: {str(e)}"})
+    except Exception as e:
+        return JSONResponse(status_code=401, content={"success": False, "message": f"Auth error: {str(e)}"})
     
-    # Находим ВСЕ отмененные заказы (без ограничения по времени!)
+    # Находим ВСЕ отмененные заказы
     cancelled_orders = db.query(Order).filter(
         Order.status == OrderStatus.CANCELLED
     ).all()
