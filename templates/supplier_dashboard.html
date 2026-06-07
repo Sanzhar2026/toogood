@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С JWT -->
+<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С ФИЛЬТРАЦИЕЙ ЗАКАЗОВ -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -470,7 +470,7 @@
     <div class="orders-section">
         <div class="section-header">
             <div>
-                <span class="section-title">📋 Заказы</span>
+                <span class="section-title">📋 Активные заказы</span>
                 <span class="live-badge">● LIVE</span>
             </div>
             <button class="refresh-btn" id="refreshOrdersBtn">🔄 Обновить</button>
@@ -724,7 +724,7 @@
     var ws = null;
     var selectedProducts = [];
     
-    // 30 ГОТОВЫХ СЮРПРИЗОВ (оставлены такие же как были)
+    // 30 ГОТОВЫХ СЮРПРИЗОВ
     var surpriseTemplates = {
         'pizza_classic': {
             name: '🍕 Пицца-сет "Классический"',
@@ -1091,7 +1091,7 @@
         setTimeout(function() { notification.remove(); }, 3000);
     }
     
-    // ============ ORDERS FUNCTIONS ============
+    // ============ ORDERS FUNCTIONS (С ФИЛЬТРАЦИЕЙ ОТМЕНЕННЫХ И УДАЛЕННЫХ) ============
     async function refreshOrders() {
         try {
             var response = await authFetch('/api/supplier/orders');
@@ -1103,25 +1103,37 @@
             tbody.innerHTML = '';
             var pendingCount = 0;
             
-            for (var i = 0; i < orders.length; i++) {
-                var order = orders[i];
+            // ФИЛЬТРУЕМ заказы - исключаем отмененные и удаленные!
+            var activeOrders = orders.filter(function(order) {
+                return order.status !== 'cancelled' && order.status !== 'deleted';
+            });
+            
+            if (activeOrders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">✅ Нет активных заказов</td></tr>';
+                document.getElementById('pendingOrders').innerText = '0';
+                document.getElementById('totalOrders').innerText = '0';
+                return;
+            }
+            
+            for (var i = 0; i < activeOrders.length; i++) {
+                var order = activeOrders[i];
                 if (order.status === 'pending') pendingCount++;
                 
                 var row = '<tr data-order-id="' + order.id + '">' +
                     '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#' + order.id + '</span></td>' +
                     '<td>' + escapeHtml(order.customer_address || 'Адрес не указан') + '<br><span style="font-size:0.65rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
-                    '<td>' + escapeHtml(order.bag_name) + '</td>' +
-                    '<td><strong>' + order.amount_paid + '</strong> ₸</td>' +
+                    '<td>' + escapeHtml(order.bag_name) + '</span></td>' +
+                    '<td><strong>' + order.amount_paid + '</strong> ₸</span></td>' +
                     '<td><span class="status-badge status-' + order.status + '">' + getStatusIcon(order.status) + ' ' + getStatusText(order.status) + '</span></td>' +
-                    '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? '🚚 ' + escapeHtml(order.assigned_courier_name) : '<span class="text-gray-400">—</span>') + '</td>' +
-                    '<td>' + getActionButtons(order) + '</td>' +
-                    '<td><button class="btn track-btn" data-order-id="' + order.id + '">🗺️ Карта</button></td>' +
+                    '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? '🚚 ' + escapeHtml(order.assigned_courier_name) : '<span class="text-gray-400">—</span>') + '</span></td>' +
+                    '<td>' + getActionButtons(order) + '</span></td>' +
+                    '<td><button class="btn track-btn" data-order-id="' + order.id + '">🗺️ Карта</button></span></td>' +
                 '</tr>';
                 tbody.innerHTML += row;
             }
             
             document.getElementById('pendingOrders').innerText = pendingCount;
-            document.getElementById('totalOrders').innerText = orders.length;
+            document.getElementById('totalOrders').innerText = activeOrders.length;
             attachOrderHandlers();
         } catch(error) {
             console.error('Refresh error:', error);
@@ -1129,16 +1141,21 @@
     }
     
     function getStatusIcon(status) {
-        var icons = { pending: '⏳', confirmed: '✅', preparing: '🍳', ready_for_pickup: '📦', out_for_delivery: '🚚', delivered: '🎉', cancelled: '❌' };
+        var icons = { pending: '⏳', confirmed: '✅', preparing: '🍳', ready_for_pickup: '📦', out_for_delivery: '🚚', delivered: '🎉', cancelled: '❌', deleted: '🗑️' };
         return icons[status] || '📌';
     }
     
     function getStatusText(status) {
-        var texts = { pending: 'Ожидает', confirmed: 'Подтвержден', preparing: 'Готовится', ready_for_pickup: 'Готов', out_for_delivery: 'В пути', delivered: 'Доставлен', cancelled: 'Отменен' };
+        var texts = { pending: 'Ожидает', confirmed: 'Подтвержден', preparing: 'Готовится', ready_for_pickup: 'Готов', out_for_delivery: 'В пути', delivered: 'Доставлен', cancelled: 'Отменен', deleted: 'Удален' };
         return texts[status] || status;
     }
     
     function getActionButtons(order) {
+        // Для отмененных или удаленных заказов не показываем кнопки действий (хотя они уже отфильтрованы)
+        if (order.status === 'cancelled' || order.status === 'deleted') {
+            return '<span class="text-gray-400 text-sm">❌ Заказ недоступен</span>';
+        }
+        
         if (order.status === 'confirmed') {
             return '<div><button class="auto-assign-btn btn" data-order-id="' + order.id + '">🚚 Автоназначить</button><br><button class="manual-assign-btn btn" data-order-id="' + order.id + '" style="margin-top:0.3rem;">🔧 Выбрать вручную</button></div>';
         } else if (order.status === 'out_for_delivery') {
@@ -1267,13 +1284,13 @@
                 var bag = data.bags[i];
                 var row = '<tr data-bag-id="' + bag.id + '">' +
                     '<td><strong>' + escapeHtml(bag.name) + '</strong></td>' +
-                    '<td>' + escapeHtml(bag.description || '-') + '</td>' +
+                    '<td>' + escapeHtml(bag.description || '-') + '</span></td>' +
                     '<td>' + bag.original_price + ' ₸</span></td>' +
                     '<td><strong style="color: #ef4444;">' + bag.discounted_price + ' ₸</strong></td>' +
                     '<td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.7rem;">-' + (bag.discount_percentage || 0) + '%</span></td>' +
                     '<td>' + bag.available_quantity + '/' + bag.total_quantity + '</span></td>' +
-                    '<td>' + (bag.is_active ? '<span style="color: #10b981;">✅ Активен</span>' : '<span style="color: #ef4444;">❌ Неактивен</span>') + '</td>' +
-                    '<td><button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">🔄 Сменить статус</button></td>' +
+                    '<td>' + (bag.is_active ? '<span style="color: #10b981;">✅ Активен</span>' : '<span style="color: #ef4444;">❌ Неактивен</span>') + '</span></td>' +
+                    '<td><button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">🔄 Сменить статус</button></span></td>' +
                 '</tr>';
                 tbody.innerHTML += row;
             }
