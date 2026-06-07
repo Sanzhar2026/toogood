@@ -19,7 +19,7 @@ from backend.schemas import (
 )
 from datetime import datetime, timedelta
 from backend.models import (
-    CartItem,Food, User, UserRole, Supplier, SurpriseBag, 
+    CartItem,Food, User, UserRole, Supplier, SurpriseBag, SurpriseBagItem,
     Order, OrderStatus, DeliveryStatus, OrderTracking, Review, CourierProfile, AssignedOrder ,TemporaryReservation
 )
 from backend.websocket_manager import ConnectionManager
@@ -1942,6 +1942,7 @@ async def get_available_orders_for_courier(request: Request, db: Session = Depen
                 "customer_lat": order.customer_lat,
                 "customer_lon": order.customer_lon,
                 "delivery_type": order.delivery_type  # ← ДОБАВЛЯЕМ ДЛЯ ФРОНТЕНДА!
+           
             })
             print(f"✅ Заказ #{order.id} добавлен")
     
@@ -3034,6 +3035,40 @@ def find_best_courier(supplier_id: int, db: Session):
     
     return courier_stats[0]
 
+
+# backend/main.py - добавьте в начало файла
+
+from jose import jwt
+from fastapi import HTTPException, Depends, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+SECRET_KEY = os.getenv("SECRET_KEY", "sarqyn-super-secret-key-2024")
+ALGORITHM = "HS256"
+
+security = HTTPBearer()
+
+def verify_supplier_token(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    """Проверка JWT токена для поставщика"""
+    token = credentials.credentials
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        role = payload.get("role")
+        
+        if role != "supplier":
+            raise HTTPException(status_code=403, detail="Supplier only")
+        
+        # Проверяем что поставщик существует
+        supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
+        if not supplier:
+            raise HTTPException(status_code=404, detail="Supplier not found")
+        
+        return supplier
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
 @app.post("/api/supplier/auto-assign-courier/{order_id}")
 async def auto_assign_courier(
@@ -6879,17 +6914,45 @@ async def supplier_register(
 async def supplier_login_page(request: Request, lang: str = "kz"):
     return templates.TemplateResponse("supplier_login.html", {"request": request, "lang": lang})
 
-@app.post("/supplier/login")
-async def supplier_login(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == email, User.role == UserRole.SUPPLIER).first()
+# backend/main.py - добавьте
+
+@app.post("/supplier/api/login")
+async def supplier_login_jwt(request: Request, db: Session = Depends(get_db)):
+    """Логин поставщика - возвращает JWT токен"""
+    
+    data = await request.json()
+    email = data.get("email")
+    password = data.get("password")
+    
+    user = db.query(User).filter(
+        User.email == email,
+        User.role == UserRole.SUPPLIER
+    ).first()
+    
     if not user or not verify_password(password, user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     supplier = db.query(Supplier).filter(Supplier.user_id == user.id).first()
-    response = RedirectResponse(url="/supplier/dashboard", status_code=303)
-    response.set_cookie(key="supplier_id", value=str(supplier.id))
-    return response
-
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    
+    # ✅ СОЗДАЕМ JWT ТОКЕН
+    access_token = create_access_token(data={
+        "sub": str(user.id),
+        "role": "supplier",
+        "supplier_id": supplier.id,
+        "email": user.email
+    })
+    
+    return {
+        "success": True,
+        "token": access_token,
+        "supplier": {
+            "id": supplier.id,
+            "business_name": supplier.business_name,
+            "email": user.email
+        }
+    }
     
 @app.get("/supplier/dashboard")
 async def supplier_dashboard(request: Request, db: Session = Depends(get_db)):
@@ -7154,24 +7217,26 @@ async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
         })
     
     return result
-# Найди существующий эндпоинт @app.post("/api/supplier/surprise-bags")
-# И измени его, добавив уведомление:
+
 
 
 @app.get("/api/supplier/surprise-bags")
-async def get_supplier_surprise_bags(request: Request, db: Session = Depends(get_db)):
-    """Get all surprise bags for the authenticated supplier"""
-    supplier_id = request.cookies.get("supplier_id")
-    
-    if not supplier_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+async def get_supplier_surprise_bags(
+    supplier: Supplier = Depends(verify_supplier_token),  # ← JWT!
+    db: Session = Depends(get_db)
+):
+    """Получить сюрприз-пакеты поставщика с составом"""
     
     bags = db.query(SurpriseBag).filter(
-        SurpriseBag.supplier_id == int(supplier_id)
+        SurpriseBag.supplier_id == supplier.id
     ).order_by(SurpriseBag.created_at.desc()).all()
     
     result = []
     for bag in bags:
+        items = db.query(SurpriseBagItem).filter(
+            SurpriseBagItem.surprise_bag_id == bag.id
+        ).all()
+        
         result.append({
             "id": bag.id,
             "name": bag.name,
@@ -7181,13 +7246,21 @@ async def get_supplier_surprise_bags(request: Request, db: Session = Depends(get
             "discount_percentage": bag.discount_percentage,
             "image_url": bag.image_url,
             "available_quantity": bag.available_quantity,
-            "is_active": bag.is_active,
+            "total_quantity": bag.total_quantity,
             "pickup_start_time": bag.pickup_start_time,
             "pickup_end_time": bag.pickup_end_time,
-            "created_at": bag.created_at.isoformat() if bag.created_at else None
+            "is_active": bag.is_active,
+            "items": [
+                {
+                    "product_id": item.product_id,
+                    "name": item.product_name,
+                    "price": item.product_price,
+                    "quantity": item.quantity
+                } for item in items
+            ]
         })
     
-    return {"bags": result}
+    return {"success": True, "bags": result}
 
 
 
@@ -7195,49 +7268,61 @@ async def get_supplier_surprise_bags(request: Request, db: Session = Depends(get
 
 
 @app.post("/api/supplier/surprise-bags")
-async def create_surprise_bag(request: Request, db: Session = Depends(get_db)):
+async def create_surprise_bag(
+    request: Request,
+    supplier: Supplier = Depends(verify_supplier_token),  # ← JWT!
+    db: Session = Depends(get_db)
+):
+    """Создание сюрприз-пакета с выбором блюд"""
+    
     data = await request.json()
-    supplier_id = request.cookies.get("supplier_id")
     
-    if not supplier_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # Получаем данные из формы
+    name = data.get("name")
+    description = data.get("description")
+    original_price = data.get("original_price")
+    discounted_price = data.get("discounted_price")
+    discount_percentage = data.get("discount_percentage")
+    available_quantity = data.get("available_quantity", 1)
+    total_quantity = data.get("total_quantity", available_quantity)
+    pickup_start_time = data.get("pickup_start_time")
+    pickup_end_time = data.get("pickup_end_time")
+    image_url = data.get("image_url")
+    products = data.get("products", [])
     
-    # Get supplier info
-    supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
-    
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Supplier not found")
-    
-    # Calculate discount percentage
-    original_price = float(data.get("original_price"))
-    discounted_price = float(data.get("discounted_price"))
-    
-    if discounted_price > original_price:
-        raise HTTPException(status_code=400, detail="Discounted price cannot be greater than original price")
-    
-    discount_percentage = int(((original_price - discounted_price) / original_price) * 100)
-    
-    # Create bag
+    # Создаем сюрприз-пакет
     bag = SurpriseBag(
-        supplier_id=int(supplier_id),
-        name=data.get("name"),
-        description=data.get("description"),
+        supplier_id=supplier.id,  # ← берем из JWT, а не из cookies!
+        name=name,
+        description=description,
         original_price=original_price,
         discounted_price=discounted_price,
         discount_percentage=discount_percentage,
-        image_url=data.get("image_url"),
-        available_quantity=int(data.get("available_quantity", 1)),
-        pickup_start_time=data.get("pickup_start_time"),
-        pickup_end_time=data.get("pickup_end_time"),
+        image_url=image_url,
+        available_quantity=available_quantity,
+        total_quantity=total_quantity,
+        pickup_start_time=pickup_start_time,
+        pickup_end_time=pickup_end_time,
         is_active=True,
         created_at=datetime.utcnow()
     )
-    
     db.add(bag)
-    db.commit()
-    db.refresh(bag)
+    db.flush()
     
-    # Send WebSocket notification to all clients
+    # Сохраняем выбранные блюда
+    for product in products:
+        bag_item = SurpriseBagItem(
+            surprise_bag_id=bag.id,
+            product_id=product.get("id"),
+            product_name=product.get("name"),
+            product_price=product.get("price"),
+            quantity=product.get("quantity", 1)
+        )
+        db.add(bag_item)
+    
+    db.commit()
+    
+    # Отправляем WebSocket уведомление
     await notify_new_surprise({
         "id": bag.id,
         "name": bag.name,
@@ -7248,26 +7333,20 @@ async def create_surprise_bag(request: Request, db: Session = Depends(get_db)):
         "image_url": bag.image_url
     })
     
-    return {"success": True, "bag_id": bag.id, "bag": bag}
-
-# backend/main.py - исправленный эндпоинт для поставщика
-
+    return {"success": True, "bag_id": bag.id, "message": "Сюрприз создан"}
 @app.get("/api/supplier/orders")
-async def get_supplier_orders(request: Request, db: Session = Depends(get_db)):
+async def get_supplier_orders(
+    supplier: Supplier = Depends(verify_supplier_token),  # ← JWT!
+    db: Session = Depends(get_db)
+):
     """Получить заказы для поставщика"""
     
-    supplier_id = request.cookies.get("supplier_id")
-    
-    if not supplier_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
     orders = db.query(Order).filter(
-        Order.supplier_id == int(supplier_id)
+        Order.supplier_id == supplier.id
     ).order_by(Order.created_at.desc()).all()
     
     result = []
     for order in orders:
-        # Получаем пользователя
         user = db.query(User).filter(User.id == order.user_id).first()
         bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
         
@@ -7275,7 +7354,7 @@ async def get_supplier_orders(request: Request, db: Session = Depends(get_db)):
             "id": order.id,
             "order_number": order.order_number,
             "customer_name": user.full_name if user else "Неизвестно",
-            "customer_phone": user.phone if user else "Не указан",  # ← используем user.phone
+            "customer_phone": user.phone if user else "Не указан",
             "bag_name": bag.name if bag else "Сюрприз",
             "amount_paid": order.amount_paid or 0,
             "status": order.status.value if order.status else "pending",
@@ -7284,7 +7363,6 @@ async def get_supplier_orders(request: Request, db: Session = Depends(get_db)):
         })
     
     return {"success": True, "orders": result}
-
 
 @app.get("/api/supplier/stats")
 async def get_supplier_stats(request: Request, db: Session = Depends(get_db)):
@@ -7425,16 +7503,16 @@ async def delete_surprise_bag(bag_id: int, request: Request, db: Session = Depen
 # Например:
 
 @app.put("/api/supplier/surprise-bags/{bag_id}/toggle")
-async def toggle_bag_status(bag_id: int, request: Request, db: Session = Depends(get_db)):
-    """Toggle surprise bag active status (activate/deactivate)"""
-    supplier_id = request.cookies.get("supplier_id")
-    
-    if not supplier_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+async def toggle_bag_status(
+    bag_id: int,
+    supplier: Supplier = Depends(verify_supplier_token),  # ← JWT!
+    db: Session = Depends(get_db)
+):
+    """Включить/выключить сюрприз-пакет"""
     
     bag = db.query(SurpriseBag).filter(
         SurpriseBag.id == bag_id,
-        SurpriseBag.supplier_id == int(supplier_id)
+        SurpriseBag.supplier_id == supplier.id
     ).first()
     
     if not bag:
@@ -7443,25 +7521,20 @@ async def toggle_bag_status(bag_id: int, request: Request, db: Session = Depends
     bag.is_active = not bag.is_active
     db.commit()
     
-    # Notify clients
-    if not bag.is_active:
-        await notify_bag_deleted(bag_id)
-    else:
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    if bag.is_active:
         await notify_new_surprise({
             "id": bag.id,
             "name": bag.name,
-            "supplier_name": supplier.business_name if supplier else "Sarqyn",
+            "supplier_name": supplier.business_name,
             "discounted_price": bag.discounted_price,
             "original_price": bag.original_price,
             "discount_percentage": bag.discount_percentage,
-            "image_url": bag.image_url,
-            "is_active": bag.is_active
+            "image_url": bag.image_url
         })
+    else:
+        await notify_bag_deleted(bag_id)
     
     return {"success": True, "is_active": bag.is_active}
-
-
 
 @app.get("/api/test-websocket")
 async def test_websocket():

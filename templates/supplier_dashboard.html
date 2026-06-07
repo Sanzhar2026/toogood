@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ -->
+<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С 30 ГОТОВЫМИ СЮРПРИЗАМИ -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -204,24 +204,6 @@
         transform: scale(1.02);
     }
     
-    .btn-track {
-        background: #0f172a;
-        color: white;
-    }
-    
-    .btn-track:hover {
-        background: #1e293b;
-    }
-    
-    .status-select {
-        padding: 0.4rem;
-        border-radius: 0.5rem;
-        border: 1px solid #e2e8f0;
-        background: white;
-        cursor: pointer;
-        font-size: 0.75rem;
-    }
-    
     .auto-assign-btn {
         background: #10b981;
         color: white;
@@ -257,6 +239,7 @@
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
+        margin-bottom: 1rem;
     }
     
     .form-group label {
@@ -270,20 +253,28 @@
         border-radius: 0.5rem;
     }
     
-    /* НОВЫЕ СТИЛИ */
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+        outline: none;
+        border-color: #fbbf24;
+        box-shadow: 0 0 0 3px rgba(251,191,36,0.1);
+    }
+    
     .form-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: 1rem;
     }
+    
     .full-width {
         grid-column: span 2;
     }
+    
     .discount-buttons {
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
     }
+    
     .discount-preset {
         padding: 0.5rem 1rem;
         border: none;
@@ -291,21 +282,29 @@
         cursor: pointer;
         font-weight: bold;
     }
+    
     .discount-preset[data-percent="30"] { background: #ef4444; color: white; }
     .discount-preset[data-percent="40"] { background: #f97316; color: white; }
     .discount-preset[data-percent="50"] { background: #eab308; color: white; }
     .discount-preset[data-percent="75"] { background: #dc2626; color: white; }
     .discount-preset[data-percent="0"] { background: #6b7280; color: white; }
+    
     .product-row {
         display: flex;
         gap: 0.5rem;
         align-items: center;
     }
+    
+    .product-row select, .product-row input {
+        flex: 1;
+    }
+    
     .selected-products-list {
         max-height: 200px;
         overflow-y: auto;
         margin-top: 0.5rem;
     }
+    
     .product-item {
         display: flex;
         justify-content: space-between;
@@ -316,6 +315,7 @@
         margin-bottom: 0.5rem;
         border: 1px solid #e2e8f0;
     }
+    
     .remove-product {
         background: #ef4444;
         color: white;
@@ -324,6 +324,7 @@
         padding: 0.2rem 0.5rem;
         cursor: pointer;
     }
+    
     .quantity-input {
         width: 80px;
         padding: 0.5rem;
@@ -406,13 +407,6 @@
         th, td {
             font-size: 12px;
             padding: 0.5rem;
-        }
-        .nav-links {
-            padding: 0 1rem;
-            gap: 1rem;
-        }
-        .nav-links a {
-            font-size: 12px;
         }
         .form-grid {
             grid-template-columns: 1fr;
@@ -548,7 +542,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <button class="btn btn-track track-btn" data-order-id="{{ order.id }}">🗺️ Карта</button>
+                            <button class="btn track-btn" data-order-id="{{ order.id }}">🗺️ Карта</button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -598,31 +592,73 @@
         <div class="add-bag-form" id="addBagForm" style="display: none;">
             <h3 style="margin-bottom: 1rem;">✨ Добавить сюрприз</h3>
             <form id="createBagForm">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>🎁 Название *</label>
-                        <input type="text" id="bagName" required placeholder="Вечерний сюрприз">
-                    </div>
-                    <div class="form-group">
-                        <label>📦 Категория</label>
-                        <select id="bagCategory">
-                            <option value="main">🍕 Основные блюда</option>
-                            <option value="salads">🥗 Салаты</option>
-                            <option value="drinks">🥤 Напитки</option>
-                            <option value="desserts">🍰 Десерты</option>
-                        </select>
-                    </div>
+                <!-- Выбор готового сюрприза -->
+                <div class="form-group full-width">
+                    <label>🎁 Готовый сюрприз-пакет</label>
+                    <select id="surpriseTemplate">
+                        <option value="">-- Выберите готовый сюрприз --</option>
+                        <optgroup label="🍕 Пицца-сеты">
+                            <option value="pizza_classic">🍕 Пицца-сет "Классический"</option>
+                            <option value="pizza_italian">🇮🇹 Пицца-сет "Итальянский ужин"</option>
+                            <option value="pizza_meat">🥩 Пицца-сет "Мясной"</option>
+                            <option value="pizza_vegan">🌱 Пицца-сет "Вегетарианский"</option>
+                            <option value="pizza_kids">👧 Пицца-сет "Детский"</option>
+                        </optgroup>
+                        <optgroup label="🍣 Суши-сеты">
+                            <option value="sushi_samurai">⚔️ Суши-сет "Самурай"</option>
+                            <option value="sushi_classic">🎌 Суши-сет "Классический"</option>
+                            <option value="sushi_premium">👑 Суши-сет "Премиум"</option>
+                            <option value="sushi_spicy">🔥 Суши-сет "Острый"</option>
+                            <option value="sushi_family">👨‍👩‍👧‍👦 Суши-сет "Семейный"</option>
+                        </optgroup>
+                        <optgroup label="🍔 Бургер-сеты">
+                            <option value="burger_american">🇺🇸 Бургер-сет "Американский"</option>
+                            <option value="burger_classic">🍔 Бургер-сет "Классический"</option>
+                            <option value="burger_chicken">🐔 Бургер-сет "Куриный"</option>
+                            <option value="burger_double">🍔🍔 Бургер-сет "Двойной"</option>
+                            <option value="burger_cheesy">🧀 Бургер-сет "Сырный"</option>
+                        </optgroup>
+                        <optgroup label="🍰 Десерт-сеты">
+                            <option value="dessert_sweet">🍰 Десерт-сет "Сладкоежка"</option>
+                            <option value="dessert_chocolate">🍫 Десерт-сет "Шоколадный рай"</option>
+                            <option value="dessert_fruit">🍓 Десерт-сет "Фруктовый"</option>
+                            <option value="dessert_macaroon">🍪 Десерт-сет "Макарун"</option>
+                        </optgroup>
+                        <optgroup label="🥗 ЗОЖ-сеты">
+                            <option value="healthy_fitness">💪 ЗОЖ-сет "Фитнес"</option>
+                            <option value="healthy_vegan">🌿 ЗОЖ-сет "Веган"</option>
+                            <option value="healthy_protein">🥚 ЗОЖ-сет "Протеиновый"</option>
+                        </optgroup>
+                        <optgroup label="🍱 Микс-сеты">
+                            <option value="mix_asia_italy">🍕🍣 Микс-сет "Азия & Италия"</option>
+                            <option value="mix_burger_pizza">🍔🍕 Микс-сет "Бургер & Пицца"</option>
+                            <option value="mix_sushi_dessert">🍣🍰 Микс-сет "Суши & Десерт"</option>
+                            <option value="mix_family">👨‍👩‍👧‍👦 Микс-сет "Семейный праздник"</option>
+                        </optgroup>
+                        <optgroup label="🍟 Закуски-сеты">
+                            <option value="snack_party">🎉 Закуски-сет "Вечеринка"</option>
+                            <option value="snack_sport">⚽ Закуски-сет "Спорт"</option>
+                            <option value="snack_cheese">🧀 Закуски-сет "Сырный"</option>
+                            <option value="snack_chicken">🍗 Закуски-сет "Куриный"</option>
+                        </optgroup>
+                    </select>
+                    <small id="selectedHint" style="color: #64748b;">Выберите готовый сюрприз, чтобы автоматически заполнить состав</small>
+                </div>
+
+                <div class="form-group full-width">
+                    <label>🎨 Название сюрприз-пакета *</label>
+                    <input type="text" id="bagName" required placeholder="Например: Пицца-сет 'Итальянский ужин'">
                 </div>
 
                 <div class="form-group full-width">
                     <label>📝 Описание</label>
-                    <textarea id="bagDescription" rows="2" placeholder="Краткое описание"></textarea>
+                    <textarea id="bagDescription" rows="2" placeholder="Краткое описание сюрприз-пакета"></textarea>
                 </div>
 
                 <div class="form-group full-width">
                     <label>🍽️ Список блюд</label>
                     <div class="product-row">
-                        <select id="productSelect" style="flex: 1;">
+                        <select id="productSelect">
                             <option value="">-- Выберите блюдо --</option>
                             <option value="1">🍕 Маргарита пицца - 2500 ₸</option>
                             <option value="2">🍕 Пепперони пицца - 3200 ₸</option>
@@ -646,9 +682,9 @@
                             <option value="20">🧀 Сырные палочки - 1500 ₸</option>
                         </select>
                         <input type="number" id="productQuantity" class="quantity-input" value="1" min="1">
-                        <button type="button" class="btn-primary" id="addProductBtn" style="padding: 0.5rem 1rem;">➕ Добавить</button>
+                        <button type="button" class="btn-primary" id="addProductBtn">➕ Добавить</button>
                     </div>
-                    <div id="selectedProductsPreview" class="selected-products-preview" style="display: none;">
+                    <div id="selectedProductsPreview" style="display: none;">
                         <strong>📋 Выбранные блюда:</strong>
                         <div id="selectedProductsList" class="selected-products-list"></div>
                     </div>
@@ -707,6 +743,323 @@
     var ws = null;
     var selectedProducts = [];
     
+    // 30 ГОТОВЫХ СЮРПРИЗОВ
+    var surpriseTemplates = {
+        // Пицца-сеты (5 шт)
+        'pizza_classic': {
+            name: '🍕 Пицца-сет "Классический"',
+            description: 'Две классические пиццы для отличного вечера',
+            items: [
+                { id: 1, name: 'Маргарита пицца', price: 2500, quantity: 1 },
+                { id: 2, name: 'Пепперони пицца', price: 3200, quantity: 1 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
+        },
+        'pizza_italian': {
+            name: '🇮🇹 Пицца-сет "Итальянский ужин"',
+            description: 'Итальянский ужин с пиццей, пастой и напитками',
+            items: [
+                { id: 1, name: 'Маргарита пицца', price: 2500, quantity: 1 },
+                { id: 3, name: 'Гавайская пицца', price: 3000, quantity: 1 },
+                { id: 4, name: 'Мясная пицца', price: 3800, quantity: 1 },
+                { id: 20, name: 'Сырные палочки', price: 1500, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
+        },
+        'pizza_meat': {
+            name: '🥩 Пицца-сет "Мясной"',
+            description: 'Для любителей мяса - три мясные пиццы',
+            items: [
+                { id: 4, name: 'Мясная пицца', price: 3800, quantity: 1 },
+                { id: 2, name: 'Пепперони пицца', price: 3200, quantity: 1 },
+                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1590947132387-155cc02f3212?w=400&h=300&fit=crop'
+        },
+        'pizza_vegan': {
+            name: '🌱 Пицца-сет "Вегетарианский"',
+            description: 'Полезный набор для вегетарианцев',
+            items: [
+                { id: 5, name: 'Вегетарианская пицца', price: 2800, quantity: 1 },
+                { id: 12, name: 'Греческий салат', price: 1500, quantity: 1 },
+                { id: 15, name: 'Лимонад', price: 800, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1571407970349-bc81e7e96d47?w=400&h=300&fit=crop'
+        },
+        'pizza_kids': {
+            name: '👧 Пицца-сет "Детский"',
+            description: 'Набор для маленьких гурманов',
+            items: [
+                { id: 1, name: 'Маргарита пицца', price: 2500, quantity: 1 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 },
+                { id: 16, name: 'Чизкейк', price: 1200, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
+        },
+        // Суши-сеты (5 шт)
+        'sushi_samurai': {
+            name: '⚔️ Суши-сет "Самурай"',
+            description: 'Классический набор японской кухни',
+            items: [
+                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 1 },
+                { id: 11, name: 'Калифорния ролл', price: 3800, quantity: 1 },
+                { id: 9, name: 'Суши сет', price: 3000, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
+        },
+        'sushi_classic': {
+            name: '🎌 Суши-сет "Классический"',
+            description: 'Традиционные роллы и суши',
+            items: [
+                { id: 11, name: 'Калифорния ролл', price: 3800, quantity: 1 },
+                { id: 9, name: 'Суши сет', price: 3000, quantity: 1 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
+        },
+        'sushi_premium': {
+            name: '👑 Суши-сет "Премиум"',
+            description: 'Элитный набор для ценителей',
+            items: [
+                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 2 },
+                { id: 11, name: 'Калифорния ролл', price: 3800, quantity: 2 },
+                { id: 9, name: 'Суши сет', price: 3000, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
+        },
+        'sushi_spicy': {
+            name: '🔥 Суши-сет "Острый"',
+            description: 'Для любителей остренького',
+            items: [
+                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 1 },
+                { id: 2, name: 'Пепперони пицца', price: 3200, quantity: 1 },
+                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
+        },
+        'sushi_family': {
+            name: '👨‍👩‍👧‍👦 Суши-сет "Семейный"',
+            description: 'Большой набор для всей семьи',
+            items: [
+                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 2 },
+                { id: 11, name: 'Калифорния ролл', price: 3800, quantity: 2 },
+                { id: 9, name: 'Суши сет', price: 3000, quantity: 2 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 4 }
+            ],
+            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
+        },
+        // Бургер-сеты (5 шт)
+        'burger_american': {
+            name: '🇺🇸 Бургер-сет "Американский"',
+            description: 'Классические американские бургеры',
+            items: [
+                { id: 6, name: 'Гамбургер', price: 1800, quantity: 1 },
+                { id: 7, name: 'Чизбургер', price: 2100, quantity: 1 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 2 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
+        },
+        'burger_classic': {
+            name: '🍔 Бургер-сет "Классический"',
+            description: 'Традиционные бургеры с картошкой',
+            items: [
+                { id: 6, name: 'Гамбургер', price: 1800, quantity: 2 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
+        },
+        'burger_chicken': {
+            name: '🐔 Бургер-сет "Куриный"',
+            description: 'Куриные бургеры и крылья',
+            items: [
+                { id: 8, name: 'Чикен бургер', price: 1900, quantity: 2 },
+                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 1 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1606755962773-d324e0a13086?w=400&h=300&fit=crop'
+        },
+        'burger_double': {
+            name: '🍔🍔 Бургер-сет "Двойной"',
+            description: 'Двойная порция бургеров',
+            items: [
+                { id: 6, name: 'Гамбургер', price: 1800, quantity: 2 },
+                { id: 7, name: 'Чизбургер', price: 2100, quantity: 2 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 2 },
+                { id: 20, name: 'Сырные палочки', price: 1500, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
+        },
+        'burger_cheesy': {
+            name: '🧀 Бургер-сет "Сырный"',
+            description: 'Сырное удовольствие',
+            items: [
+                { id: 7, name: 'Чизбургер', price: 2100, quantity: 2 },
+                { id: 20, name: 'Сырные палочки', price: 1500, quantity: 2 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1525059696034-4967a8e1dca2?w=400&h=300&fit=crop'
+        },
+        // Десерт-сеты (4 шт)
+        'dessert_sweet': {
+            name: '🍰 Десерт-сет "Сладкоежка"',
+            description: 'Для тех, кто любит сладкое',
+            items: [
+                { id: 16, name: 'Чизкейк', price: 1200, quantity: 1 },
+                { id: 17, name: 'Тирамису', price: 1400, quantity: 1 },
+                { id: 15, name: 'Лимонад', price: 800, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1571115177098-24ec42ed204d?w=400&h=300&fit=crop'
+        },
+        'dessert_chocolate': {
+            name: '🍫 Десерт-сет "Шоколадный рай"',
+            description: 'Шоколадное наслаждение',
+            items: [
+                { id: 16, name: 'Чизкейк', price: 1200, quantity: 1 },
+                { id: 17, name: 'Тирамису', price: 1400, quantity: 1 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1571115177098-24ec42ed204d?w=400&h=300&fit=crop'
+        },
+        'dessert_fruit': {
+            name: '🍓 Десерт-сет "Фруктовый"',
+            description: 'Свежие фрукты и десерты',
+            items: [
+                { id: 16, name: 'Чизкейк', price: 1200, quantity: 1 },
+                { id: 15, name: 'Лимонад', price: 800, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1569864358642-9d1684040f43?w=400&h=300&fit=crop'
+        },
+        'dessert_macaroon': {
+            name: '🍪 Десерт-сет "Макарун"',
+            description: 'Французские макаруны',
+            items: [
+                { id: 17, name: 'Тирамису', price: 1400, quantity: 1 },
+                { id: 15, name: 'Лимонад', price: 800, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1569864358642-9d1684040f43?w=400&h=300&fit=crop'
+        },
+        // ЗОЖ-сеты (3 шт)
+        'healthy_fitness': {
+            name: '💪 ЗОЖ-сет "Фитнес"',
+            description: 'Полезный набор для здорового питания',
+            items: [
+                { id: 12, name: 'Греческий салат', price: 1500, quantity: 1 },
+                { id: 13, name: 'Цезарь салат', price: 2200, quantity: 1 },
+                { id: 15, name: 'Лимонад', price: 800, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'
+        },
+        'healthy_vegan': {
+            name: '🌿 ЗОЖ-сет "Веган"',
+            description: 'Полностью растительный набор',
+            items: [
+                { id: 12, name: 'Греческий салат', price: 1500, quantity: 1 },
+                { id: 5, name: 'Вегетарианская пицца', price: 2800, quantity: 1 },
+                { id: 15, name: 'Лимонад', price: 800, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'
+        },
+        'healthy_protein': {
+            name: '🥚 ЗОЖ-сет "Протеиновый"',
+            description: 'Высокобелковый набор',
+            items: [
+                { id: 13, name: 'Цезарь салат', price: 2200, quantity: 1 },
+                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 1 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1550304943-4f24f54dd8c9?w=400&h=300&fit=crop'
+        },
+        // Микс-сеты (4 шт)
+        'mix_asia_italy': {
+            name: '🍕🍣 Микс-сет "Азия & Италия"',
+            description: 'Сочетание итальянской и японской кухни',
+            items: [
+                { id: 1, name: 'Маргарита пицца', price: 2500, quantity: 1 },
+                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 1 },
+                { id: 11, name: 'Калифорния ролл', price: 3800, quantity: 1 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 }
+            ],
+            image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
+        },
+        'mix_burger_pizza': {
+            name: '🍔🍕 Микс-сет "Бургер & Пицца"',
+            description: 'Бургеры и пицца в одном наборе',
+            items: [
+                { id: 6, name: 'Гамбургер', price: 1800, quantity: 1 },
+                { id: 2, name: 'Пепперони пицца', price: 3200, quantity: 1 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
+        },
+        'mix_sushi_dessert': {
+            name: '🍣🍰 Микс-сет "Суши & Десерт"',
+            description: 'Суши и сладости',
+            items: [
+                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 1 },
+                { id: 16, name: 'Чизкейк', price: 1200, quantity: 1 },
+                { id: 15, name: 'Лимонад', price: 800, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
+        },
+        'mix_family': {
+            name: '👨‍👩‍👧‍👦 Микс-сет "Семейный праздник"',
+            description: 'Большой набор для всей семьи',
+            items: [
+                { id: 1, name: 'Маргарита пицца', price: 2500, quantity: 1 },
+                { id: 2, name: 'Пепперони пицца', price: 3200, quantity: 1 },
+                { id: 6, name: 'Гамбургер', price: 1800, quantity: 2 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 3 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 4 }
+            ],
+            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
+        },
+        // Закуски-сеты (4 шт)
+        'snack_party': {
+            name: '🎉 Закуски-сет "Вечеринка"',
+            description: 'Идеальный набор для вечеринки',
+            items: [
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 3 },
+                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 2 },
+                { id: 20, name: 'Сырные палочки', price: 1500, quantity: 2 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 4 }
+            ],
+            image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a3f58?w=400&h=300&fit=crop'
+        },
+        'snack_sport': {
+            name: '⚽ Закуски-сет "Спорт"',
+            description: 'Для просмотра матча',
+            items: [
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 2 },
+                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 1 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1630384060421-cf20c0e0e2a1?w=400&h=300&fit=crop'
+        },
+        'snack_cheese': {
+            name: '🧀 Закуски-сет "Сырный"',
+            description: 'Сырное ассорти',
+            items: [
+                { id: 20, name: 'Сырные палочки', price: 1500, quantity: 3 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'
+        },
+        'snack_chicken': {
+            name: '🍗 Закуски-сет "Куриный"',
+            description: 'Куриные крылья и картошка',
+            items: [
+                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 3 },
+                { id: 18, name: 'Картошка фри', price: 800, quantity: 2 },
+                { id: 14, name: 'Кока-кола', price: 500, quantity: 3 }
+            ],
+            image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a3f58?w=400&h=300&fit=crop'
+        }
+    };
+
     var productOptions = {
         '1': { name: 'Маргарита пицца', price: 2500 },
         '2': { name: 'Пепперони пицца', price: 3200 },
@@ -786,9 +1139,9 @@
                     '<td>' + escapeHtml(order.bag_name) + '</td>' +
                     '<td><strong>' + order.amount_paid + '</strong> ₸</td>' +
                     '<td><span class="status-badge status-' + order.status + '">' + getStatusIcon(order.status) + ' ' + getStatusText(order.status) + '</span></td>' +
-                    '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? '🚚 ' + escapeHtml(order.assigned_courier_name) : '<span style="color:#94a3b8;">—</span>') + '</td>' +
+                    '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? '🚚 ' + escapeHtml(order.assigned_courier_name) : '<span class="text-gray-400">—</span>') + '</td>' +
                     '<td>' + getActionButtons(order) + '</td>' +
-                    '<td><button class="btn btn-track track-btn" data-order-id="' + order.id + '">🗺️ Карта</button></td>' +
+                    '<td><button class="btn track-btn" data-order-id="' + order.id + '">🗺️ Карта</button></td>' +
                 '</tr>';
                 tbody.innerHTML += row;
             }
@@ -924,7 +1277,7 @@
         try {
             var response = await fetch('/api/supplier/surprise-bags');
             var data = await response.json();
-            if (!data.success) return;
+            if (!data.bags) return;
             
             var tbody = document.getElementById('bagsTableBody');
             if (!tbody) return;
@@ -964,6 +1317,7 @@
         }
         var originalPriceInput = document.getElementById('originalPrice');
         if (originalPriceInput) originalPriceInput.value = total;
+        return total;
     }
     
     function renderSelectedProducts() {
@@ -1057,6 +1411,53 @@
         }
     }
     
+    // ============ LOAD TEMPLATE ============
+    function loadSurpriseTemplate() {
+        var templateKey = document.getElementById('surpriseTemplate').value;
+        var hint = document.getElementById('selectedHint');
+        
+        if (!templateKey) {
+            hint.innerHTML = 'Выберите готовый сюрприз, чтобы автоматически заполнить состав';
+            hint.style.color = '#64748b';
+            return;
+        }
+        
+        var template = surpriseTemplates[templateKey];
+        if (!template) return;
+        
+        // Заполняем название
+        document.getElementById('bagName').value = template.name;
+        
+        // Заполняем описание
+        if (template.description) {
+            document.getElementById('bagDescription').value = template.description;
+        }
+        
+        // Заполняем блюда
+        selectedProducts = [];
+        for (var i = 0; i < template.items.length; i++) {
+            selectedProducts.push({
+                id: template.items[i].id.toString(),
+                name: template.items[i].name,
+                price: template.items[i].price,
+                quantity: template.items[i].quantity
+            });
+        }
+        
+        renderSelectedProducts();
+        var total = updateTotalPrice();
+        
+        // Заполняем изображение
+        if (template.image) {
+            document.getElementById('imageUrl').value = template.image;
+        }
+        
+        hint.innerHTML = '✅ Загружен: ' + template.name + ' (общая сумма: ' + total + ' ₸). Можете редактировать состав.';
+        hint.style.color = '#10b981';
+        
+        showNotification('Готовый сюрприз загружен! Вы можете изменить состав при необходимости.', 'success');
+    }
+    
     // ============ FORM SUBMIT ============
     async function submitBagForm() {
         var name = document.getElementById('bagName').value;
@@ -1087,6 +1488,16 @@
             discountPercentage = Math.round((1 - discountedPrice / originalPrice) * 100);
         }
         
+        var productsData = [];
+        for (var i = 0; i < selectedProducts.length; i++) {
+            productsData.push({
+                id: parseInt(selectedProducts[i].id),
+                name: selectedProducts[i].name,
+                price: selectedProducts[i].price,
+                quantity: selectedProducts[i].quantity
+            });
+        }
+        
         var data = {
             name: name,
             description: description,
@@ -1098,7 +1509,7 @@
             pickup_start_time: pickupStart,
             pickup_end_time: pickupEnd,
             image_url: imageUrl,
-            products: selectedProducts,
+            products: productsData,
             supplier_id: supplierId
         };
         
@@ -1113,19 +1524,12 @@
                 alert('✅ Сюрприз добавлен!');
                 location.reload();
             } else {
-                alert('❌ Ошибка');
+                var error = await response.json();
+                alert('❌ Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
             }
         } catch(error) {
             alert('❌ Ошибка сети');
         }
-    }
-    
-    // ============ ESCAPE HTML ============
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, function(m) {
-            return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;';
-        });
     }
     
     // ============ TIMER ============
@@ -1146,6 +1550,14 @@
         });
     }
     
+    // ============ ESCAPE HTML ============
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;';
+        });
+    }
+    
     // ============ INITIALIZATION ============
     function init() {
         document.getElementById('refreshOrdersBtn').addEventListener('click', refreshOrders);
@@ -1158,6 +1570,7 @@
             e.preventDefault();
             submitBagForm();
         });
+        document.getElementById('surpriseTemplate').addEventListener('change', loadSurpriseTemplate);
         
         document.querySelectorAll('.discount-preset').forEach(function(btn) {
             btn.addEventListener('click', function() {

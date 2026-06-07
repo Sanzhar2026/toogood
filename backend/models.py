@@ -12,6 +12,51 @@ class UserRole(str, enum.Enum):
     COURIER = "courier"  
     ADMIN = "admin"
 
+
+
+# backend/models.py - добавьте после класса SurpriseBag
+
+class SurpriseBagItem(Base):
+    __tablename__ = "surprise_bag_items"
+    
+    id = Column(Integer, primary_key=True)
+    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id", ondelete="CASCADE"))
+    product_id = Column(Integer, nullable=False)
+    product_name = Column(String(255), nullable=False)
+    product_price = Column(Integer, nullable=False)
+    quantity = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    surprise_bag = relationship("SurpriseBag", back_populates="items")
+
+
+# В классе SurpriseBag добавьте relationship:
+class SurpriseBag(Base):
+    __tablename__ = "surprise_bags"
+    
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id"))
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    original_price = Column(Float, nullable=False)
+    discounted_price = Column(Float, nullable=False)
+    discount_percentage = Column(Integer)
+    image_url = Column(String(500))
+    available_quantity = Column(Integer, default=1)
+    total_quantity = Column(Integer, default=1)
+    pickup_start_time = Column(String(50))
+    pickup_end_time = Column(String(50))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    possible_items = Column(Text)
+    
+    # Relationships
+    supplier = relationship("Supplier", back_populates="surprise_bags")
+    orders = relationship("Order", back_populates="surprise_bag")
+    cart_items = relationship("CartItem", back_populates="surprise_bag")
+    items = relationship("SurpriseBagItem", back_populates="surprise_bag", cascade="all, delete-orphan")  # ← ДОБАВИТЬ
+
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
