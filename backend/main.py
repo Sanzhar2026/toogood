@@ -7193,6 +7193,59 @@ async def cleanup_cancelled_orders(
 # backend/main.py - добавь эту фоновую задачу
 
 
+
+
+
+@app.get("/api/supplier/debug-bags")
+async def debug_bags(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Диагностика - проверка полей сюрпризов"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False})
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
+        if not supplier:
+            return JSONResponse(status_code=404, content={"success": False})
+        
+        # Получаем все сюрпризы
+        bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier.id).all()
+        
+        result = []
+        for bag in bags:
+            result.append({
+                "id": bag.id,
+                "name": bag.name,
+                "is_active": bag.is_active,
+                "has_is_active": hasattr(bag, 'is_active'),
+                "status": getattr(bag, 'status', None),
+                "all_attributes": [attr for attr in dir(bag) if not attr.startswith('_')]
+            })
+        
+        return {
+            "bags": result,
+            "columns": [c.name for c in SurpriseBag.__table__.columns]
+        }
+        
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+
+
+
+
+
 @app.delete("/api/supplier/clear-inactive-bags")
 async def clear_inactive_surprise_bags(
     request: Request,
@@ -7200,7 +7253,7 @@ async def clear_inactive_surprise_bags(
 ):
     """Удаление только НЕАКТИВНЫХ сюрприз-пакетов поставщика"""
     
-    # Проверяем токен поставщика
+    # Проверяем токен
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
@@ -7212,26 +7265,58 @@ async def clear_inactive_surprise_bags(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
         
-        # Находим поставщика - используем Supplier, а не SupplierProfile
+        # Находим поставщика
         supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
         if not supplier:
             return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
         
-        # Находим ТОЛЬКО НЕАКТИВНЫЕ сюрпризы поставщика
-        inactive_bags = db.query(SurpriseBag).filter(
+        # Пробуем разные варианты поиска неактивных сюрпризов
+        inactive_bags = []
+        
+        # Вариант 1: is_active == False
+        bags1 = db.query(SurpriseBag).filter(
             SurpriseBag.supplier_id == supplier.id,
-            SurpriseBag.is_active == False  # только неактивные!
+            SurpriseBag.is_active == False
         ).all()
+        inactive_bags.extend(bags1)
+        
+        # Вариант 2: если is_active == 0 (для MySQL/PostgreSQL)
+        bags2 = db.query(SurpriseBag).filter(
+            SurpriseBag.supplier_id == supplier.id,
+            SurpriseBag.is_active == 0
+        ).all()
+        for bag in bags2:
+            if bag not in inactive_bags:
+                inactive_bags.append(bag)
+        
+        # Вариант 3: если поле называется active или status
+        if hasattr(SurpriseBag, 'active'):
+            bags3 = db.query(SurpriseBag).filter(
+                SurpriseBag.supplier_id == supplier.id,
+                SurpriseBag.active == False
+            ).all()
+            for bag in bags3:
+                if bag not in inactive_bags:
+                    inactive_bags.append(bag)
+        
+        if hasattr(SurpriseBag, 'status'):
+            bags4 = db.query(SurpriseBag).filter(
+                SurpriseBag.supplier_id == supplier.id,
+                SurpriseBag.status == 'inactive'
+            ).all()
+            for bag in bags4:
+                if bag not in inactive_bags:
+                    inactive_bags.append(bag)
         
         if not inactive_bags:
-            return JSONResponse(status_code=200, content={"success": True, "message": "Нет неактивных сюрпризов для удаления", "deleted_count": 0})
+            return JSONResponse(status_code=200, content={
+                "success": True, 
+                "message": "Нет неактивных сюрпризов для удаления", 
+                "deleted_count": 0
+            })
         
         deleted_count = 0
         for bag in inactive_bags:
-            # Удаляем связи с продуктами (если есть)
-            if hasattr(bag, 'products'):
-                bag.products.clear()
-            
             db.delete(bag)
             deleted_count += 1
         
@@ -7249,6 +7334,65 @@ async def clear_inactive_surprise_bags(
         return JSONResponse(status_code=401, content={"success": False, "message": f"Invalid token: {str(e)}"})
     except Exception as e:
         print(f"Error clearing inactive bags: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
+
+@app.delete("/api/supplier/clear-all-bags")
+async def clear_all_surprise_bags(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Удаление ВСЕХ сюрприз-пакетов поставщика"""
+    
+    # Проверяем токен поставщика
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        # Находим поставщика
+        supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
+        if not supplier:
+            return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
+        
+        # Находим ВСЕ сюрпризы поставщика
+        all_bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier.id).all()
+        
+        if not all_bags:
+            return JSONResponse(status_code=200, content={
+                "success": True, 
+                "message": "Нет сюрпризов для удаления", 
+                "deleted_count": 0
+            })
+        
+        deleted_count = 0
+        for bag in all_bags:
+            # Удаляем связи с продуктами (если есть)
+            if hasattr(bag, 'products'):
+                bag.products.clear()
+            
+            db.delete(bag)
+            deleted_count += 1
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Удалено {deleted_count} сюрприз-пакетов",
+            "deleted_count": deleted_count
+        }
+        
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(status_code=401, content={"success": False, "message": "Token expired"})
+    except jwt.JWTError as e:
+        return JSONResponse(status_code=401, content={"success": False, "message": f"Invalid token: {str(e)}"})
+    except Exception as e:
+        print(f"Error clearing all bags: {e}")
         return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
 
 async def auto_cleanup_cancelled_orders():

@@ -534,6 +534,7 @@
             <span class="section-title">🎁 Сюрпризы</span>
             <button class="refresh-btn" id="toggleAddBagBtn">➕ Добавить сюрприз</button>
             <button class="refresh-btn" id="clearInactiveBagsBtn" style="background: #ef4444; color: white; border: none;">🗑️ Очистить неактивные</button>
+        <button class="clear-btn" id="clearAllBagsBtn" style="background: #dc2626; color: white;">🗑️ Удалить все сюрпризы</button>
         </div>
         <div class="table-container">
             <table>
@@ -1182,7 +1183,41 @@
         var texts = { pending: 'Ожидает', confirmed: 'Подтвержден', preparing: 'Готовится', ready_for_pickup: 'Готов', out_for_delivery: 'В пути', delivered: 'Доставлен', cancelled: 'Отменен', deleted: 'Удален' };
         return texts[status] || status;
     }
+    async function clearAllBags() {
+    if (!confirm('⚠️ ВНИМАНИЕ! Это действие удалит ВСЕ ваши сюрприз-пакеты без возможности восстановления.\n\nВы уверены, что хотите продолжить?')) {
+        return;
+    }
     
+    if (!confirm('Ещё раз подтвердите: Удалить ВСЕ сюрпризы?')) {
+        return;
+    }
+    
+    const btn = document.getElementById('clearAllBagsBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '⏳ Удаление...';
+    btn.disabled = true;
+    
+    try {
+        const response = await authFetch('/api/supplier/clear-all-bags', {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification(`✅ ${data.message}`, 'success');
+            refreshBags();
+        } else {
+            showNotification('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'), 'error');
+        }
+    } catch (error) {
+        console.error('Clear bags error:', error);
+        showNotification('❌ Ошибка при удалении', 'error');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
     function getActionButtons(order) {
         if (order.status === 'confirmed') {
             return '<div><button class="auto-assign-btn btn" data-order-id="' + order.id + '">🚚 Автоназначить</button><br><button class="manual-assign-btn btn" data-order-id="' + order.id + '" style="margin-top:0.3rem;">🔧 Выбрать вручную</button></div>';
@@ -1589,6 +1624,10 @@
             var form = document.getElementById('addBagForm');
             form.style.display = form.style.display === 'none' ? 'block' : 'none';
         });
+        const clearAllBtn = document.getElementById('clearAllBagsBtn');
+if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', clearAllBags);
+}
         document.getElementById('addProductBtn').addEventListener('click', addProduct);
         document.getElementById('createBagForm').addEventListener('submit', function(e) {
             e.preventDefault();
