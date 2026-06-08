@@ -6992,51 +6992,67 @@ async def supplier_login_page(request: Request, lang: str = "kz"):
 
 # backend/main.py - добавьте
 @app.post("/supplier/api/login")
-async def supplier_login_jwt(request: Request, db: Session = Depends(get_db)):
-    """JWT логин для поставщика (для React/Next.js фронтенда)"""
+async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
+    """API логин поставщика - возвращает JWT токен"""
     
-    data = await request.json()
-    email = data.get("email")
-    password = data.get("password")
-    
-    user = db.query(User).filter(
-        User.email == email,
-        User.role == UserRole.SUPPLIER
-    ).first()
-    
-    if not user or not verify_password(password, user.password):
-        return JSONResponse(
-            status_code=401, 
-            content={"success": False, "message": "Invalid credentials"}
-        )
-    
-    supplier = db.query(Supplier).filter(Supplier.user_id == user.id).first()
-    if not supplier:
-        return JSONResponse(
-            status_code=404, 
-            content={"success": False, "message": "Supplier profile not found"}
-        )
-    
-    # Создаем JWT токен
-    access_token = create_access_token(data={
-        "sub": str(user.id),
-        "role": "supplier",
-        "supplier_id": supplier.id,
-        "email": user.email
-    })
-    
-    return {
-        "success": True,
-        "token": access_token,
-        "supplier": {
-            "id": supplier.id,
-            "business_name": supplier.business_name,
+    try:
+        data = await request.json()
+        email = data.get("email")
+        password = data.get("password")
+        
+        # Ищем пользователя
+        user = db.query(User).filter(
+            User.email == email,
+            User.role == UserRole.SUPPLIER
+        ).first()
+        
+        if not user:
+            return JSONResponse(
+                status_code=401, 
+                content={"success": False, "message": "Invalid email or password"}
+            )
+        
+        if not verify_password(password, user.password):
+            return JSONResponse(
+                status_code=401, 
+                content={"success": False, "message": "Invalid email or password"}
+            )
+        
+        # Находим профиль поставщика
+        supplier = db.query(Supplier).filter(Supplier.user_id == user.id).first()
+        if not supplier:
+            return JSONResponse(
+                status_code=404, 
+                content={"success": False, "message": "Supplier profile not found"}
+            )
+        
+        # Создаем JWT токен
+        token = create_access_token(data={
+            "sub": str(user.id),
+            "role": "supplier",
+            "supplier_id": supplier.id,
             "email": user.email
+        })
+        
+        return {
+            "success": True,
+            "token": token,
+            "supplier": {
+                "id": supplier.id,
+                "business_name": supplier.business_name,
+                "email": user.email
+            }
         }
-    }
+        
+    except Exception as e:
+        print(f"Login error: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+
+
+        
 @app.get("/api/supplier/check-auth")
 async def supplier_check_auth(request: Request, db: Session = Depends(get_db)):
-    """Проверка авторизации поставщика"""
+    """Проверка валидности токена поставщика"""
     
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -7045,23 +7061,16 @@ async def supplier_check_auth(request: Request, db: Session = Depends(get_db)):
     token = auth_header.split(" ")[1]
     
     try:
-        from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
         if payload.get("role") != "supplier":
             return JSONResponse(status_code=403, content={"authenticated": False})
         
         supplier_id = payload.get("supplier_id")
-        supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
-        
-        if not supplier:
+        if not supplier_id:
             return JSONResponse(status_code=404, content={"authenticated": False})
         
-        return {
-            "authenticated": True,
-            "supplier_id": supplier.id,
-            "business_name": supplier.business_name
-        }
+        return {"authenticated": True, "supplier_id": supplier_id}
         
     except:
         return JSONResponse(status_code=401, content={"authenticated": False})
