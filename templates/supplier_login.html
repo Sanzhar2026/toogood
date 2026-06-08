@@ -203,11 +203,11 @@
                     <span class="sarqyt">Sarqyt</span><span class="go">GO</span>
                 </div>
             </div>
-            <div class="login-subtitle">{% if lang == 'kz' %}Дүкендерге арналған платформа{% else %}Платформа для магазинов{% endif %}</div>
+            <div class="login-subtitle">Платформа для магазинов</div>
         </div>
 
         <div class="login-body">
-            <h2>🏪 {% if lang == 'kz' %}Кабинетке кіру{% else %}Вход в кабинет{% endif %}</h2>
+            <h2>🏪 Вход в кабинет</h2>
 
             <div id="errorMsg" class="error-msg"></div>
 
@@ -217,31 +217,26 @@
             </div>
 
             <div class="form-group">
-                <label>🔒 {% if lang == 'kz' %}Құпия сөз{% else %}Пароль{% endif %}</label>
+                <label>🔒 Пароль</label>
                 <input type="password" id="password" required placeholder="••••••••">
             </div>
 
             <button id="loginBtn" class="btn-login">
-                🔑 {% if lang == 'kz' %}Кіру{% else %}Войти{% endif %}
+                🔑 Войти
             </button>
 
             <div class="register-link">
                 <a href="/supplier/register">
-                    ✨ {% if lang == 'kz' %}Жаңа дүкен? Тіркелу{% else %}Новый магазин? Зарегистрироваться{% endif %}
+                    ✨ Новый магазин? Зарегистрироваться
                 </a>
             </div>
 
             <div class="info-box">
                 <p>
-                    💡 {% if lang == 'kz' %}Тіркелгеннен кейін сіз:<br>
-                    ✓ Тосын сыйлар қоса аласыз<br>
-                    ✓ Тапсырыстарды басқара аласыз<br>
-                    ✓ Статистиканы көре аласыз
-                    {% else %}После регистрации вы сможете:<br>
+                    💡 После регистрации вы сможете:<br>
                     ✓ Добавлять сюрпризы<br>
                     ✓ Управлять заказами<br>
                     ✓ Видеть статистику
-                    {% endif %}
                 </p>
             </div>
         </div>
@@ -259,13 +254,13 @@
         const password = passwordInput.value;
 
         if (!email || !password) {
-            showError('{% if lang == "kz" %}Email және құпия сөзді толтырыңыз{% else %}Заполните email и пароль{% endif %}');
+            showError('Заполните email и пароль');
             return;
         }
 
         // Показать загрузку
         loginBtn.disabled = true;
-        loginBtn.innerHTML = '<span class="loader"></span> {% if lang == "kz" %}Кіру...{% else %}Вход...{% endif %}';
+        loginBtn.innerHTML = '<span class="loader"></span> Вход...';
         errorMsg.classList.remove('show');
 
         try {
@@ -287,18 +282,18 @@
                 sessionStorage.setItem('supplier_token', data.token);
                 sessionStorage.setItem('supplier', JSON.stringify(data.supplier));
                 
-                // ✅ Редирект на дашборд
-                window.location.href = '/supplier/dashboard';
+                // ✅ Редирект на дашборд С ТОКЕНОМ В URL
+                window.location.href = '/supplier/dashboard?token=' + data.token;
             } else {
-                showError(data.detail || '{% if lang == "kz" %}Қате email немесе құпия сөз{% else %}Неверный email или пароль{% endif %}');
+                showError(data.message || data.detail || 'Неверный email или пароль');
                 loginBtn.disabled = false;
-                loginBtn.innerHTML = '🔑 {% if lang == "kz" %}Кіру{% else %}Войти{% endif %}';
+                loginBtn.innerHTML = '🔑 Войти';
             }
         } catch (error) {
             console.error('Login error:', error);
-            showError('{% if lang == "kz" %}Желі қатесі. Қайталап көріңіз{% else %}Ошибка сети. Попробуйте снова{% endif %}');
+            showError('Ошибка сети. Попробуйте снова');
             loginBtn.disabled = false;
-            loginBtn.innerHTML = '🔑 {% if lang == "kz" %}Кіру{% else %}Войти{% endif %}';
+            loginBtn.innerHTML = '🔑 Войти';
         }
     }
 
