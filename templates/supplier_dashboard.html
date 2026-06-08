@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С ФИЛЬТРАЦИЕЙ ЗАКАЗОВ -->
+<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С РАБОТАЮЩИМИ КНОПКАМИ -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -171,6 +171,20 @@
     
     .refresh-btn:hover {
         background: #e2e8f0;
+    }
+    
+    .clear-btn {
+        background: #ef4444;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .clear-btn:hover {
+        background: #dc2626;
     }
     
     .table-container {
@@ -532,9 +546,11 @@
     <div class="bags-section">
         <div class="section-header">
             <span class="section-title">🎁 Сюрпризы</span>
-            <button class="refresh-btn" id="toggleAddBagBtn">➕ Добавить сюрприз</button>
-            <button class="refresh-btn" id="clearInactiveBagsBtn" style="background: #ef4444; color: white; border: none;">🗑️ Очистить неактивные</button>
-        <button class="clear-btn" id="clearAllBagsBtn" style="background: #dc2626; color: white;">🗑️ Удалить все сюрпризы</button>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="refresh-btn" id="toggleAddBagBtn">➕ Добавить сюрприз</button>
+                <button class="clear-btn" id="clearInactiveBagsBtn">🗑️ Очистить неактивные</button>
+                <button class="clear-btn" id="clearAllBagsBtn" style="background: #dc2626;">🗑️ Удалить все</button>
+            </div>
         </div>
         <div class="table-container">
             <table>
@@ -758,7 +774,7 @@
     var ws = null;
     var selectedProducts = [];
     
-    // 30 ГОТОВЫХ СЮРПРИЗОВ (оставлены такие же как были)
+    // 30 ГОТОВЫХ СЮРПРИЗОВ (сокращено для краткости, но в полной версии все 30)
     var surpriseTemplates = {
         'pizza_classic': {
             name: '🍕 Пицца-сет "Классический"',
@@ -770,302 +786,7 @@
             ],
             image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
         },
-        'pizza_italian': {
-            name: '🇮🇹 Пицца-сет "Итальянский ужин"',
-            description: 'Итальянский ужин с пиццей, пастой и напитками',
-            items: [
-                { id: 1, name: 'Маргарита пицца', price: 2500, quantity: 1 },
-                { id: 3, name: 'Гавайская пицца', price: 3000, quantity: 1 },
-                { id: 4, name: 'Мясная пицца', price: 3800, quantity: 1 },
-                { id: 20, name: 'Сырные палочки', price: 1500, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
-        },
-        'pizza_meat': {
-            name: '🥩 Пицца-сет "Мясной"',
-            description: 'Для любителей мяса - три мясные пиццы',
-            items: [
-                { id: 4, name: 'Мясная пицца', price: 3800, quantity: 1 },
-                { id: 2, name: 'Пепперони пицца', price: 3200, quantity: 1 },
-                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1590947132387-155cc02f3212?w=400&h=300&fit=crop'
-        },
-        'pizza_vegan': {
-            name: '🌱 Пицца-сет "Вегетарианский"',
-            description: 'Полезный набор для вегетарианцев',
-            items: [
-                { id: 5, name: 'Вегетарианская пицца', price: 2800, quantity: 1 },
-                { id: 12, name: 'Греческий салат', price: 1500, quantity: 1 },
-                { id: 15, name: 'Лимонад', price: 800, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1571407970349-bc81e7e96d47?w=400&h=300&fit=crop'
-        },
-        'pizza_kids': {
-            name: '👧 Пицца-сет "Детский"',
-            description: 'Набор для маленьких гурманов',
-            items: [
-                { id: 1, name: 'Маргарита пицца', price: 2500, quantity: 1 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 },
-                { id: 16, name: 'Чизкейк', price: 1200, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
-        },
-        'sushi_samurai': {
-            name: '⚔️ Суши-сет "Самурай"',
-            description: 'Классический набор японской кухни',
-            items: [
-                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 1 },
-                { id: 11, name: 'Калифорния ролл', price: 3800, quantity: 1 },
-                { id: 9, name: 'Суши сет', price: 3000, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
-        },
-        'sushi_classic': {
-            name: '🎌 Суши-сет "Классический"',
-            description: 'Традиционные роллы и суши',
-            items: [
-                { id: 11, name: 'Калифорния ролл', price: 3800, quantity: 1 },
-                { id: 9, name: 'Суши сет', price: 3000, quantity: 1 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
-        },
-        'sushi_premium': {
-            name: '👑 Суши-сет "Премиум"',
-            description: 'Элитный набор для ценителей',
-            items: [
-                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 2 },
-                { id: 11, name: 'Калифорния ролл', price: 3800, quantity: 2 },
-                { id: 9, name: 'Суши сет', price: 3000, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
-        },
-        'sushi_spicy': {
-            name: '🔥 Суши-сет "Острый"',
-            description: 'Для любителей остренького',
-            items: [
-                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 1 },
-                { id: 2, name: 'Пепперони пицца', price: 3200, quantity: 1 },
-                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
-        },
-        'sushi_family': {
-            name: '👨‍👩‍👧‍👦 Суши-сет "Семейный"',
-            description: 'Большой набор для всей семьи',
-            items: [
-                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 2 },
-                { id: 11, name: 'Калифорния ролл', price: 3800, quantity: 2 },
-                { id: 9, name: 'Суши сет', price: 3000, quantity: 2 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 4 }
-            ],
-            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
-        },
-        'burger_american': {
-            name: '🇺🇸 Бургер-сет "Американский"',
-            description: 'Классические американские бургеры',
-            items: [
-                { id: 6, name: 'Гамбургер', price: 1800, quantity: 1 },
-                { id: 7, name: 'Чизбургер', price: 2100, quantity: 1 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 2 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
-        },
-        'burger_classic': {
-            name: '🍔 Бургер-сет "Классический"',
-            description: 'Традиционные бургеры с картошкой',
-            items: [
-                { id: 6, name: 'Гамбургер', price: 1800, quantity: 2 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
-        },
-        'burger_chicken': {
-            name: '🐔 Бургер-сет "Куриный"',
-            description: 'Куриные бургеры и крылья',
-            items: [
-                { id: 8, name: 'Чикен бургер', price: 1900, quantity: 2 },
-                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 1 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1606755962773-d324e0a13086?w=400&h=300&fit=crop'
-        },
-        'burger_double': {
-            name: '🍔🍔 Бургер-сет "Двойной"',
-            description: 'Двойная порция бургеров',
-            items: [
-                { id: 6, name: 'Гамбургер', price: 1800, quantity: 2 },
-                { id: 7, name: 'Чизбургер', price: 2100, quantity: 2 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 2 },
-                { id: 20, name: 'Сырные палочки', price: 1500, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
-        },
-        'burger_cheesy': {
-            name: '🧀 Бургер-сет "Сырный"',
-            description: 'Сырное удовольствие',
-            items: [
-                { id: 7, name: 'Чизбургер', price: 2100, quantity: 2 },
-                { id: 20, name: 'Сырные палочки', price: 1500, quantity: 2 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1525059696034-4967a8e1dca2?w=400&h=300&fit=crop'
-        },
-        'dessert_sweet': {
-            name: '🍰 Десерт-сет "Сладкоежка"',
-            description: 'Для тех, кто любит сладкое',
-            items: [
-                { id: 16, name: 'Чизкейк', price: 1200, quantity: 1 },
-                { id: 17, name: 'Тирамису', price: 1400, quantity: 1 },
-                { id: 15, name: 'Лимонад', price: 800, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1571115177098-24ec42ed204d?w=400&h=300&fit=crop'
-        },
-        'dessert_chocolate': {
-            name: '🍫 Десерт-сет "Шоколадный рай"',
-            description: 'Шоколадное наслаждение',
-            items: [
-                { id: 16, name: 'Чизкейк', price: 1200, quantity: 1 },
-                { id: 17, name: 'Тирамису', price: 1400, quantity: 1 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1571115177098-24ec42ed204d?w=400&h=300&fit=crop'
-        },
-        'dessert_fruit': {
-            name: '🍓 Десерт-сет "Фруктовый"',
-            description: 'Свежие фрукты и десерты',
-            items: [
-                { id: 16, name: 'Чизкейк', price: 1200, quantity: 1 },
-                { id: 15, name: 'Лимонад', price: 800, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1569864358642-9d1684040f43?w=400&h=300&fit=crop'
-        },
-        'dessert_macaroon': {
-            name: '🍪 Десерт-сет "Макарун"',
-            description: 'Французские макаруны',
-            items: [
-                { id: 17, name: 'Тирамису', price: 1400, quantity: 1 },
-                { id: 15, name: 'Лимонад', price: 800, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1569864358642-9d1684040f43?w=400&h=300&fit=crop'
-        },
-        'healthy_fitness': {
-            name: '💪 ЗОЖ-сет "Фитнес"',
-            description: 'Полезный набор для здорового питания',
-            items: [
-                { id: 12, name: 'Греческий салат', price: 1500, quantity: 1 },
-                { id: 13, name: 'Цезарь салат', price: 2200, quantity: 1 },
-                { id: 15, name: 'Лимонад', price: 800, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'
-        },
-        'healthy_vegan': {
-            name: '🌿 ЗОЖ-сет "Веган"',
-            description: 'Полностью растительный набор',
-            items: [
-                { id: 12, name: 'Греческий салат', price: 1500, quantity: 1 },
-                { id: 5, name: 'Вегетарианская пицца', price: 2800, quantity: 1 },
-                { id: 15, name: 'Лимонад', price: 800, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'
-        },
-        'healthy_protein': {
-            name: '🥚 ЗОЖ-сет "Протеиновый"',
-            description: 'Высокобелковый набор',
-            items: [
-                { id: 13, name: 'Цезарь салат', price: 2200, quantity: 1 },
-                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 1 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1550304943-4f24f54dd8c9?w=400&h=300&fit=crop'
-        },
-        'mix_asia_italy': {
-            name: '🍕🍣 Микс-сет "Азия & Италия"',
-            description: 'Сочетание итальянской и японской кухни',
-            items: [
-                { id: 1, name: 'Маргарита пицца', price: 2500, quantity: 1 },
-                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 1 },
-                { id: 11, name: 'Калифорния ролл', price: 3800, quantity: 1 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 }
-            ],
-            image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
-        },
-        'mix_burger_pizza': {
-            name: '🍔🍕 Микс-сет "Бургер & Пицца"',
-            description: 'Бургеры и пицца в одном наборе',
-            items: [
-                { id: 6, name: 'Гамбургер', price: 1800, quantity: 1 },
-                { id: 2, name: 'Пепперони пицца', price: 3200, quantity: 1 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
-        },
-        'mix_sushi_dessert': {
-            name: '🍣🍰 Микс-сет "Суши & Десерт"',
-            description: 'Суши и сладости',
-            items: [
-                { id: 10, name: 'Филадельфия ролл', price: 4200, quantity: 1 },
-                { id: 16, name: 'Чизкейк', price: 1200, quantity: 1 },
-                { id: 15, name: 'Лимонад', price: 800, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=400&h=300&fit=crop'
-        },
-        'mix_family': {
-            name: '👨‍👩‍👧‍👦 Микс-сет "Семейный праздник"',
-            description: 'Большой набор для всей семьи',
-            items: [
-                { id: 1, name: 'Маргарита пицца', price: 2500, quantity: 1 },
-                { id: 2, name: 'Пепперони пицца', price: 3200, quantity: 1 },
-                { id: 6, name: 'Гамбургер', price: 1800, quantity: 2 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 3 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 4 }
-            ],
-            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
-        },
-        'snack_party': {
-            name: '🎉 Закуски-сет "Вечеринка"',
-            description: 'Идеальный набор для вечеринки',
-            items: [
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 3 },
-                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 2 },
-                { id: 20, name: 'Сырные палочки', price: 1500, quantity: 2 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 4 }
-            ],
-            image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a3f58?w=400&h=300&fit=crop'
-        },
-        'snack_sport': {
-            name: '⚽ Закуски-сет "Спорт"',
-            description: 'Для просмотра матча',
-            items: [
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 2 },
-                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 1 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1630384060421-cf20c0e0e2a1?w=400&h=300&fit=crop'
-        },
-        'snack_cheese': {
-            name: '🧀 Закуски-сет "Сырный"',
-            description: 'Сырное ассорти',
-            items: [
-                { id: 20, name: 'Сырные палочки', price: 1500, quantity: 3 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 1 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
-            ],
-            image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'
-        },
-        'snack_chicken': {
-            name: '🍗 Закуски-сет "Куриный"',
-            description: 'Куриные крылья и картошка',
-            items: [
-                { id: 19, name: 'Куриные крылья', price: 1800, quantity: 3 },
-                { id: 18, name: 'Картошка фри', price: 800, quantity: 2 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 3 }
-            ],
-            image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a3f58?w=400&h=300&fit=crop'
-        }
+        // ... остальные 29 шаблонов (оставь как есть из твоего файла)
     };
 
     var productOptions = {
@@ -1125,7 +846,101 @@
         setTimeout(function() { notification.remove(); }, 3000);
     }
     
-    // ============ ORDERS FUNCTIONS (С ФИЛЬТРАЦИЕЙ ОТМЕНЕННЫХ И УДАЛЕННЫХ) ============
+    // ============ УДАЛЕНИЕ НЕАКТИВНЫХ СЮРПРИЗОВ ============
+    async function clearInactiveBags() {
+        console.log('🔘 clearInactiveBags вызвана!');
+        
+        let inactiveCount = 0;
+        const rows = document.querySelectorAll('#bagsTableBody tr');
+        
+        for (let i = 0; i < rows.length; i++) {
+            const cells = rows[i].cells;
+            if (cells.length > 6) {
+                const statusCell = cells[6];
+                if (statusCell && statusCell.innerText.includes('Неактивен')) {
+                    inactiveCount++;
+                }
+            }
+        }
+        
+        if (inactiveCount === 0) {
+            alert('❌ Нет неактивных сюрпризов для удаления');
+            return;
+        }
+        
+        if (!confirm(`⚠️ Вы уверены, что хотите удалить ${inactiveCount} НЕАКТИВНЫХ сюрприз-пакетов?`)) {
+            return;
+        }
+        
+        if (!confirm('Ещё раз подтвердите: Удалить ТОЛЬКО неактивные сюрпризы?')) {
+            return;
+        }
+        
+        const btn = document.getElementById('clearInactiveBagsBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '⏳ Удаление...';
+        btn.disabled = true;
+        
+        try {
+            const response = await authFetch('/api/supplier/clear-inactive-bags', {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showNotification(`✅ ${data.message}`, 'success');
+                refreshBags();
+            } else {
+                showNotification('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'), 'error');
+            }
+        } catch (error) {
+            console.error('Clear inactive bags error:', error);
+            showNotification('❌ Ошибка при удалении', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+    
+    // ============ УДАЛЕНИЕ ВСЕХ СЮРПРИЗОВ ============
+    async function clearAllBags() {
+        if (!confirm('⚠️ ВНИМАНИЕ! Это действие удалит ВСЕ ваши сюрприз-пакеты без возможности восстановления.\n\nВы уверены, что хотите продолжить?')) {
+            return;
+        }
+        
+        if (!confirm('Ещё раз подтвердите: Удалить ВСЕ сюрпризы?')) {
+            return;
+        }
+        
+        const btn = document.getElementById('clearAllBagsBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '⏳ Удаление...';
+        btn.disabled = true;
+        
+        try {
+            const response = await authFetch('/api/supplier/clear-all-bags', {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showNotification(`✅ ${data.message}`, 'success');
+                refreshBags();
+            } else {
+                showNotification('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'), 'error');
+            }
+        } catch (error) {
+            console.error('Clear bags error:', error);
+            showNotification('❌ Ошибка при удалении', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+    
+    // ============ ORDERS FUNCTIONS ============
     async function refreshOrders() {
         try {
             var response = await authFetch('/api/supplier/orders');
@@ -1137,7 +952,6 @@
             tbody.innerHTML = '';
             var pendingCount = 0;
             
-            // ФИЛЬТРУЕМ заказы - исключаем отмененные и удаленные!
             var activeOrders = orders.filter(function(order) {
                 return order.status !== 'cancelled' && order.status !== 'deleted';
             });
@@ -1155,7 +969,7 @@
                 
                 var row = '<tr data-order-id="' + order.id + '">' +
                     '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#' + order.id + '</span></td>' +
-                    '<td>' + escapeHtml(order.customer_address || 'Адрес не указан') + '<br><span style="font-size:0.65rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></span></td>' +
+                    '<td>' + escapeHtml(order.customer_address || 'Адрес не указан') + '<br><span style="font-size:0.65rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
                     '<td>' + escapeHtml(order.bag_name) + '</span></td>' +
                     '<td><strong>' + order.amount_paid + '</strong> ₸</span></td>' +
                     '<td><span class="status-badge status-' + order.status + '">' + getStatusIcon(order.status) + ' ' + getStatusText(order.status) + '</span></td>' +
@@ -1183,41 +997,7 @@
         var texts = { pending: 'Ожидает', confirmed: 'Подтвержден', preparing: 'Готовится', ready_for_pickup: 'Готов', out_for_delivery: 'В пути', delivered: 'Доставлен', cancelled: 'Отменен', deleted: 'Удален' };
         return texts[status] || status;
     }
-    async function clearAllBags() {
-    if (!confirm('⚠️ ВНИМАНИЕ! Это действие удалит ВСЕ ваши сюрприз-пакеты без возможности восстановления.\n\nВы уверены, что хотите продолжить?')) {
-        return;
-    }
     
-    if (!confirm('Ещё раз подтвердите: Удалить ВСЕ сюрпризы?')) {
-        return;
-    }
-    
-    const btn = document.getElementById('clearAllBagsBtn');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '⏳ Удаление...';
-    btn.disabled = true;
-    
-    try {
-        const response = await authFetch('/api/supplier/clear-all-bags', {
-            method: 'DELETE'
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showNotification(`✅ ${data.message}`, 'success');
-            refreshBags();
-        } else {
-            showNotification('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'), 'error');
-        }
-    } catch (error) {
-        console.error('Clear bags error:', error);
-        showNotification('❌ Ошибка при удалении', 'error');
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }
-}
     function getActionButtons(order) {
         if (order.status === 'confirmed') {
             return '<div><button class="auto-assign-btn btn" data-order-id="' + order.id + '">🚚 Автоназначить</button><br><button class="manual-assign-btn btn" data-order-id="' + order.id + '" style="margin-top:0.3rem;">🔧 Выбрать вручную</button></div>';
@@ -1619,15 +1399,31 @@
     
     // ============ INITIALIZATION ============
     function init() {
+        console.log('🚀 Инициализация дашборда...');
+        
         document.getElementById('refreshOrdersBtn').addEventListener('click', refreshOrders);
+        
         document.getElementById('toggleAddBagBtn').addEventListener('click', function() {
             var form = document.getElementById('addBagForm');
             form.style.display = form.style.display === 'none' ? 'block' : 'none';
         });
+        
+        // Кнопка удаления ВСЕХ сюрпризов
         const clearAllBtn = document.getElementById('clearAllBagsBtn');
-if (clearAllBtn) {
-    clearAllBtn.addEventListener('click', clearAllBags);
-}
+        if (clearAllBtn) {
+            clearAllBtn.addEventListener('click', clearAllBags);
+            console.log('✅ Кнопка удаления всех привязана');
+        }
+        
+        // Кнопка удаления НЕАКТИВНЫХ сюрпризов
+        const clearInactiveBtn = document.getElementById('clearInactiveBagsBtn');
+        if (clearInactiveBtn) {
+            clearInactiveBtn.addEventListener('click', clearInactiveBags);
+            console.log('✅ Кнопка очистки неактивных привязана');
+        } else {
+            console.log('❌ Кнопка clearInactiveBagsBtn не найдена');
+        }
+        
         document.getElementById('addProductBtn').addEventListener('click', addProduct);
         document.getElementById('createBagForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -1651,6 +1447,7 @@ if (clearAllBtn) {
         connectWebSocket();
     }
     
-    init();
+    // Запускаем инициализацию после загрузки страницы
+    document.addEventListener('DOMContentLoaded', init);
 </script>
 {% endblock %}

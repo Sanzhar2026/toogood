@@ -3425,7 +3425,6 @@ async def customer_reject_order(
         "message": "Refund requested. Admin will process.",
         "refund_request_id": order.id
     }
-
 @app.delete("/api/supplier/clear-inactive-bags")
 async def clear_inactive_surprise_bags(
     request: Request,
@@ -3433,7 +3432,6 @@ async def clear_inactive_surprise_bags(
 ):
     """Удаление только НЕАКТИВНЫХ сюрприз-пакетов поставщика"""
     
-    # Проверяем токен поставщика
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
@@ -3445,21 +3443,18 @@ async def clear_inactive_surprise_bags(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
         
-        # Импортируем модели ПРАВИЛЬНО
-        from backend.models import Supplier, SurpriseBag, CartItem, Order
+        from backend.models import Supplier, SurpriseBag, CartItem, Order, TemporaryReservation
         
-        # Находим поставщика
         supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
         if not supplier:
             return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
         
-        # Находим ТОЛЬКО НЕАКТИВНЫЕ сюрпризы (is_active = False или 0)
+        # Находим ТОЛЬКО НЕАКТИВНЫЕ сюрпризы
         inactive_bags = db.query(SurpriseBag).filter(
             SurpriseBag.supplier_id == supplier.id,
             SurpriseBag.is_active == False
         ).all()
         
-        # Если не нашли через False, пробуем через 0
         if not inactive_bags:
             inactive_bags = db.query(SurpriseBag).filter(
                 SurpriseBag.supplier_id == supplier.id,
@@ -3473,25 +3468,21 @@ async def clear_inactive_surprise_bags(
                 "deleted_count": 0
             })
         
-        # Получаем ID неактивных сюрпризов
         inactive_bag_ids = [bag.id for bag in inactive_bags]
         
-        # 1. Удаляем записи из корзины (cart_items), которые ссылаются на эти сюрпризы
-        deleted_cart_items = db.query(CartItem).filter(CartItem.surprise_bag_id.in_(inactive_bag_ids)).delete(synchronize_session=False)
-        print(f"🗑️ Удалено {deleted_cart_items} записей из корзины для неактивных сюрпризов")
+        # 1. Удаляем временные резервации
+        deleted_temp_res = db.query(TemporaryReservation).filter(TemporaryReservation.bag_id.in_(inactive_bag_ids)).delete(synchronize_session=False)
         
-        # 2. Обновляем заказы (устанавливаем NULL)
+        # 2. Удаляем из корзины
+        deleted_cart_items = db.query(CartItem).filter(CartItem.surprise_bag_id.in_(inactive_bag_ids)).delete(synchronize_session=False)
+        
+        # 3. Обновляем заказы
         db.query(Order).filter(Order.surprise_bag_id.in_(inactive_bag_ids)).update(
             {Order.surprise_bag_id: None}, 
             synchronize_session=False
         )
         
-        # 3. Удаляем связи с продуктами (если есть)
-        for bag in inactive_bags:
-            if hasattr(bag, 'products'):
-                bag.products.clear()
-        
-        # 4. Удаляем сами неактивные сюрпризы
+        # 4. Удаляем сюрпризы
         deleted_count = 0
         for bag in inactive_bags:
             db.delete(bag)
@@ -3501,19 +3492,17 @@ async def clear_inactive_surprise_bags(
         
         return {
             "success": True,
-            "message": f"Удалено {deleted_count} неактивных сюрприз-пакетов и {deleted_cart_items} записей из корзины",
+            "message": f"Удалено {deleted_count} неактивных сюрпризов, {deleted_cart_items} из корзины, {deleted_temp_res} резерваций",
             "deleted_count": deleted_count,
-            "deleted_cart_items": deleted_cart_items
+            "deleted_cart_items": deleted_cart_items,
+            "deleted_temp_res": deleted_temp_res
         }
         
-    except jwt.ExpiredSignatureError:
-        return JSONResponse(status_code=401, content={"success": False, "message": "Token expired"})
-    except jwt.JWTError as e:
-        return JSONResponse(status_code=401, content={"success": False, "message": f"Invalid token: {str(e)}"})
     except Exception as e:
         print(f"Error clearing inactive bags: {e}")
         db.rollback()
-        return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})# ============ АДМИН: ПОДТВЕРДИТЬ ВОЗВРАТ ============
+        return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
+        
 @app.post("/admin/api/order/{order_id}/approve-refund")
 async def admin_approve_refund(
     order_id: int,
@@ -7331,7 +7320,6 @@ async def debug_bags(
 
 
 
-
 @app.delete("/api/supplier/clear-all-bags")
 async def clear_all_surprise_bags(
     request: Request,
@@ -7351,8 +7339,8 @@ async def clear_all_surprise_bags(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
         
-        # Импортируем все модели из backend.models
-        from backend.models import Supplier, SurpriseBag, CartItem, Order
+        # Импортируем модели
+        from backend.models import Supplier, SurpriseBag, CartItem, Order, TemporaryReservation
         
         # Находим поставщика
         supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
@@ -7372,17 +7360,21 @@ async def clear_all_surprise_bags(
         # Получаем ID всех сюрпризов
         bag_ids = [bag.id for bag in all_bags]
         
-        # 1. Удаляем записи из корзины (cart_items), которые ссылаются на эти сюрпризы
+        # 1. Удаляем временные резервации (temporary_reservations)
+        deleted_temp_res = db.query(TemporaryReservation).filter(TemporaryReservation.bag_id.in_(bag_ids)).delete(synchronize_session=False)
+        print(f"🗑️ Удалено {deleted_temp_res} временных резерваций")
+        
+        # 2. Удаляем записи из корзины (cart_items)
         deleted_cart_items = db.query(CartItem).filter(CartItem.surprise_bag_id.in_(bag_ids)).delete(synchronize_session=False)
         print(f"🗑️ Удалено {deleted_cart_items} записей из корзины")
         
-        # 2. Обновляем заказы, которые ссылаются на эти сюрпризы (устанавливаем NULL)
+        # 3. Обновляем заказы (устанавливаем NULL)
         db.query(Order).filter(Order.surprise_bag_id.in_(bag_ids)).update(
             {Order.surprise_bag_id: None}, 
             synchronize_session=False
         )
         
-        # 3. Удаляем сами сюрпризы
+        # 4. Теперь удаляем сами сюрпризы
         deleted_count = 0
         for bag in all_bags:
             db.delete(bag)
@@ -7392,20 +7384,16 @@ async def clear_all_surprise_bags(
         
         return {
             "success": True,
-            "message": f"Удалено {deleted_count} сюрприз-пакетов и {deleted_cart_items} записей из корзины",
+            "message": f"Удалено {deleted_count} сюрприз-пакетов, {deleted_cart_items} из корзины, {deleted_temp_res} резерваций",
             "deleted_count": deleted_count,
-            "deleted_cart_items": deleted_cart_items
+            "deleted_cart_items": deleted_cart_items,
+            "deleted_temp_res": deleted_temp_res
         }
         
-    except jwt.ExpiredSignatureError:
-        return JSONResponse(status_code=401, content={"success": False, "message": "Token expired"})
-    except jwt.JWTError as e:
-        return JSONResponse(status_code=401, content={"success": False, "message": f"Invalid token: {str(e)}"})
     except Exception as e:
         print(f"Error clearing all bags: {e}")
         db.rollback()
         return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
-
 async def auto_cleanup_cancelled_orders():
     """Автоматическая очистка отмененных заказов каждые 30 минут"""
     while True:
