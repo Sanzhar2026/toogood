@@ -7764,6 +7764,57 @@ async def create_surprise_bag(
     return {"success": True, "bag_id": bag.id, "message": "Сюрприз создан"}
 
 
+
+@app.delete("/api/admin/force-delete-all")
+async def admin_force_delete_all(db: Session = Depends(get_db)):
+    """Админ принудительно удаляет все сюрпризы (сначала связи)"""
+    try:
+        # 1. Удаляем из temporary_reservations
+        db.query(TemporaryReservation).delete()
+        
+        # 2. Удаляем из cart_items
+        db.query(CartItem).delete()
+        
+        # 3. Обновляем заказы (убираем ссылки)
+        db.query(Order).update({Order.surprise_bag_id: None})
+        
+        # 4. Удаляем из surprise_bag_items
+        db.query(SurpriseBagItem).delete()
+        
+        # 5. Удаляем сами сюрпризы
+        deleted = db.query(SurpriseBag).delete()
+        
+        db.commit()
+        return {"success": True, "deleted": deleted}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+
+@app.delete("/api/debug/nuke-all-bags")
+async def nuke_all_bags(db: Session = Depends(get_db)):
+    """Полностью очистить все сюрпризы и связи"""
+    try:
+        # 1. Удаляем временные резервации
+        db.query(TemporaryReservation).delete()
+        
+        # 2. Удаляем из корзины
+        db.query(CartItem).delete()
+        
+        # 3. Обновляем заказы (убираем ссылки)
+        db.query(Order).update({Order.surprise_bag_id: None})
+        
+        # 4. Удаляем связи сюрпризов с продуктами
+        db.query(SurpriseBagItem).delete()
+        
+        # 5. Удаляем сами сюрпризы
+        deleted = db.query(SurpriseBag).delete()
+        
+        db.commit()
+        return {"success": True, "deleted": deleted, "message": f"Удалено {deleted} сюрпризов"}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+
 @app.delete("/api/debug/force-delete-all-bags")
 async def force_delete_all_bags(db: Session = Depends(get_db)):
     """Принудительное удаление всех сюрпризов"""
@@ -7777,6 +7828,9 @@ async def force_delete_all_bags(db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         return {"success": False, "error": str(e)}
+    
+
+
 
 @app.get("/api/supplier/orders")
 async def get_supplier_orders(
