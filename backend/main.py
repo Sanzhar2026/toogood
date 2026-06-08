@@ -7100,9 +7100,9 @@ async def admin_delete_all_bags(
 async def debug_delete_all(db: Session = Depends(get_db)):
     """Временный эндпоинт - удалить все сюрпризы"""
     try:
-        # Удаляем записи из surprise_bag_items
+        # Сначала удаляем связи
         db.query(SurpriseBagItem).delete()
-        # Удаляем сюрпризы
+        # Потом сами сюрпризы
         deleted = db.query(SurpriseBag).delete()
         db.commit()
         return {"success": True, "deleted": deleted}
