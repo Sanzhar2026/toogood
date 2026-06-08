@@ -7096,6 +7096,21 @@ async def admin_delete_all_bags(
     }
 
 
+@app.delete("/api/debug/delete-all")
+async def debug_delete_all(db: Session = Depends(get_db)):
+    """Временный эндпоинт - удалить все сюрпризы"""
+    try:
+        # Удаляем записи из surprise_bag_items
+        db.query(SurpriseBagItem).delete()
+        # Удаляем сюрпризы
+        deleted = db.query(SurpriseBag).delete()
+        db.commit()
+        return {"success": True, "deleted": deleted}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+
+
 @app.get("/supplier/login")
 async def supplier_login_page(request: Request, lang: str = "ru"):
     """Страница логина поставщика"""
