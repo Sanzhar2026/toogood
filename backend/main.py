@@ -6940,7 +6940,6 @@ async def delete_food(food_id: int, db: Session = Depends(get_db)):
 @app.get("/supplier/register")
 async def supplier_register_page(request: Request, lang: str = "kz"):
     return templates.TemplateResponse("supplier_register.html", {"request": request, "lang": lang})
-
 @app.post("/supplier/register")
 async def supplier_register(
     business_name: str = Form(...),
@@ -6965,26 +6964,52 @@ async def supplier_register(
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    # Создаем пользователя
     user = User(
-        email=email, phone=phone, password=hash_password(password),
-        full_name=business_name, role=UserRole.SUPPLIER, is_active=True,
+        email=email, 
+        phone=phone, 
+        password=hash_password(password),
+        full_name=business_name, 
+        role=UserRole.SUPPLIER, 
+        is_active=True,
         created_at=datetime.utcnow()
     )
     db.add(user)
     db.flush()
     
+    # Создаем профиль поставщика
     supplier = Supplier(
-        user_id=user.id, business_name=business_name, business_type=business_type,
-        description=description, city=city, address=address, lat=lat, lon=lon,
-        phone=phone, email=email, pickup_start_time=pickup_start,
-        pickup_end_time=pickup_end, created_at=datetime.utcnow()
+        user_id=user.id, 
+        business_name=business_name, 
+        business_type=business_type,
+        description=description, 
+        city=city, 
+        address=address, 
+        lat=lat, 
+        lon=lon,
+        phone=phone, 
+        email=email, 
+        pickup_start_time=pickup_start,
+        pickup_end_time=pickup_end, 
+        created_at=datetime.utcnow()
     )
     db.add(supplier)
     db.commit()
     
-    response = RedirectResponse(url="/supplier/dashboard", status_code=303)
-    response.set_cookie(key="supplier_id", value=str(supplier.id))
-    return response
+    # ✅ СОЗДАЕМ JWT ТОКЕН
+    token = create_access_token(data={
+        "sub": str(user.id),
+        "role": "supplier",
+        "supplier_id": supplier.id,
+        "email": user.email
+    })
+    
+    # ✅ ВОЗВРАЩАЕМ ТОКЕН (для JSON) или РЕДИРЕКТ С ТОКЕНОМ
+    # Вариант 1: Если запрос пришел из HTML формы - редирект с токеном в URL
+    return RedirectResponse(url=f"/supplier/dashboard?token={token}", status_code=303)
+    
+    # Вариант 2: Если хочешь JSON ответ (для API)
+    # return {"success": True, "token": token, "supplier_id": supplier.id}
 
 @app.get("/supplier/login")
 async def supplier_login_page(request: Request, lang: str = "kz"):
@@ -7049,7 +7074,7 @@ async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
 
 
-        
+
 @app.get("/api/supplier/check-auth")
 async def supplier_check_auth(request: Request, db: Session = Depends(get_db)):
     """Проверка валидности токена поставщика"""
