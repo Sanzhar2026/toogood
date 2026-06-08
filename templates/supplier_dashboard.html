@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ (БЕЗ ЭМОДЗИ, КРОМЕ СЮРПРИЗОВ) -->
+<!-- templates/supplier_dashboard.html - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -462,10 +462,10 @@
     }
 </style>
 
-<!-- Supplier Data -->
+<!-- Supplier Data - С ТОКЕНОМ -->
 <div id="supplierData" 
      data-supplier-id="{{ supplier.id }}" 
-     data-token="{{ token or '' }}" 
+     data-token="{{ token if token else '' }}" 
      style="display: none;">
 </div>
 
@@ -726,29 +726,46 @@
 </div>
 
 <script>
-    // ============ JWT TOKEN ============
-    var supplierToken = null;
+    // ============ JWT TOKEN - ИСПРАВЛЕННЫЙ ============
     var supplierId = parseInt(document.getElementById('supplierData').getAttribute('data-supplier-id'));
     var tokenFromHtml = document.getElementById('supplierData').getAttribute('data-token');
-
+    
+    // Отладка
+    console.log('=== DASHBOARD DEBUG ===');
+    console.log('Supplier ID:', supplierId);
+    console.log('Token from HTML:', tokenFromHtml ? 'EXISTS (length: ' + tokenFromHtml.length + ')' : 'NO TOKEN');
+    console.log('Token from sessionStorage:', sessionStorage.getItem('supplier_token') ? 'EXISTS' : 'NO');
+    console.log('========================');
+    
     function getSupplierToken() {
         var token = sessionStorage.getItem('supplier_token');
-        if (!token && tokenFromHtml && tokenFromHtml !== '') {
+        if (!token && tokenFromHtml && tokenFromHtml !== '' && tokenFromHtml !== 'None') {
             token = tokenFromHtml;
             sessionStorage.setItem('supplier_token', token);
+            console.log('✅ Token saved from HTML to sessionStorage');
         }
         return token;
     }
-
+    
     function clearSupplierToken() {
         sessionStorage.removeItem('supplier_token');
+        console.log('🗑️ Token cleared from sessionStorage');
     }
-
+    
     function logout() {
         clearSupplierToken();
         window.location.href = '/supplier/login';
     }
-
+    
+    // Проверка токена при загрузке
+    var token = getSupplierToken();
+    if (!token) {
+        console.log('❌ No token found, redirecting to login...');
+        window.location.href = '/supplier/login';
+    } else {
+        console.log('✅ Token found, initializing dashboard...');
+    }
+    
     async function authFetch(url, options = {}) {
         var token = getSupplierToken();
         
@@ -773,11 +790,6 @@
         }
         
         return response;
-    }
-    
-    // ============ CHECK TOKEN ============
-    if (!getSupplierToken()) {
-        window.location.href = '/supplier/login';
     }
     
     // ============ WEB SOCKET ============
@@ -830,7 +842,6 @@
             ],
             image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
         }
-        // Add more templates as needed
     };
     
     // ============ WEB SOCKET ============
