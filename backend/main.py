@@ -6834,55 +6834,77 @@ async def geocode(lat: float, lon: float):
 
 # backend/main.py - исправленный эндпоинт получения заказа
 @app.get("/api/orders/{order_id}")
-async def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
+async def get_order_by_id(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Получить заказ по ID с полной информацией"""
     
-    order = db.query(Order).filter(Order.id == order_id).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-    supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
-    
-    # ✅ ПРОСТО ПРЕОБРАЗУЕМ В СТРОКУ
-    status_str = str(order.status) if order.status else "pending"
-    # Убираем префикс 'OrderStatus.' если есть
-    status_str = status_str.replace("OrderStatus.", "").lower()
-    
-    delivery_status_str = str(order.delivery_status) if order.delivery_status else "at_supplier"
-    delivery_status_str = delivery_status_str.replace("DeliveryStatus.", "").lower()
-    
-    # Формируем полный адрес
-    customer_address = order.customer_address
-    if not customer_address or customer_address == "Address not specified":
-        if order.customer_lat and order.customer_lon:
-            customer_address = f"📍 {order.customer_lat:.4f}, {order.customer_lon:.4f}"
-        else:
-            customer_address = "Адрес не указан"
-    
-    return {
-        "id": order.id,
-        "order_id": order.id,
-        "order_number": order.order_number,
-        "status": status_str,
-        "delivery_status": delivery_status_str,
-        "bag_name": bag.name if bag else "Surprise Bag",
-        "supplier_name": supplier.business_name if supplier else "Restaurant",
-        "supplier_address": supplier.address if supplier else "",
-        "supplier_lat": supplier.lat if supplier else None,
-        "supplier_lon": supplier.lon if supplier else None,
-        "customer_address": customer_address,
-        "customer_lat": order.customer_lat,
-        "customer_lon": order.customer_lon,
-        "amount_paid": order.amount_paid or 0,
-        "pickup_time": order.pickup_time or "",
-        "created_at": order.created_at.isoformat() if order.created_at else datetime.utcnow().isoformat(),
-        "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None,
-        "payment_status": order.payment_status or "pending",
-          "delivery_type": order.delivery_type if hasattr(order, 'delivery_type') else "delivery"  # ← ДОБАВИТЬ ЭТУ СТРОКУ!
-    }
-
+    try:
+        order = db.query(Order).filter(Order.id == order_id).first()
+        
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Order not found", "order_id": order_id}
+            )
+        
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+        
+        # Безопасное получение статуса
+        status_str = "pending"
+        if order.status:
+            if hasattr(order.status, 'value'):
+                status_str = order.status.value
+            else:
+                status_str = str(order.status)
+        status_str = status_str.lower()
+        
+        # Безопасное получение delivery_status
+        delivery_status_str = "at_supplier"
+        if order.delivery_status:
+            if hasattr(order.delivery_status, 'value'):
+                delivery_status_str = order.delivery_status.value
+            else:
+                delivery_status_str = str(order.delivery_status)
+        delivery_status_str = delivery_status_str.lower()
+        
+        # Формируем адрес
+        customer_address = order.customer_address
+        if not customer_address or customer_address == "Address not specified":
+            if order.customer_lat and order.customer_lon:
+                customer_address = f"📍 {order.customer_lat:.4f}, {order.customer_lon:.4f}"
+            else:
+                customer_address = "Адрес не указан"
+        
+        return {
+            "id": order.id,
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "status": status_str,
+            "delivery_status": delivery_status_str,
+            "bag_name": bag.name if bag else "Surprise Bag",
+            "supplier_name": supplier.business_name if supplier else "Restaurant",
+            "supplier_address": supplier.address if supplier else "",
+            "supplier_lat": supplier.lat if supplier else None,
+            "supplier_lon": supplier.lon if supplier else None,
+            "customer_address": customer_address,
+            "customer_lat": order.customer_lat,
+            "customer_lon": order.customer_lon,
+            "amount_paid": order.amount_paid or 0,
+            "pickup_time": order.pickup_time or "",
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None,
+            "payment_status": order.payment_status or "pending",
+            "delivery_type": getattr(order, 'delivery_type', "delivery")
+        }
+        
+    except Exception as e:
+        print(f"❌ Error in get_order_by_id: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "order_id": order_id}
+        )
 @app.get("/test-ors")
 async def test_ors():
     import httpx
