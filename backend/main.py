@@ -7046,9 +7046,9 @@ async def supplier_api_register(request: Request, db: Session = Depends(get_db))
 
 
 @app.get("/supplier/login")
-async def supplier_login_page(request: Request, lang: str = "kz"):
+async def supplier_login_page(request: Request, lang: str = "ru"):
+    """Страница логина поставщика"""
     return templates.TemplateResponse("supplier_login.html", {"request": request, "lang": lang})
-
 # backend/main.py - добавьте
 @app.post("/supplier/api/login")
 async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
