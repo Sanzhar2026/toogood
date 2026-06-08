@@ -253,13 +253,13 @@ async def courier_pickup_order(order_id: int, request: Request, db: Session = De
     if order.status != OrderStatus.READY_FOR_PICKUP:
         raise HTTPException(status_code=400, detail=f"Order not ready for pickup. Current status: {order.status}")
     
-    # ✅ Меняем статус на PICKED_UP
+    # ✅ Меняем статус на PICKED_UP (теперь есть в enum!)
     order.status = OrderStatus.PICKED_UP
     
-    # ✅ УСТАНАВЛИВАЕМ ДЕДЛАЙН С МОМЕНТА ЗАБОРА!
+    # Устанавливаем дедлайн с момента забора
     now = datetime.utcnow()
     order.delivery_started_at = now
-    order.delivery_deadline = now + timedelta(minutes=30)  # ← 30 минут на доставку клиенту!
+    order.delivery_deadline = now + timedelta(minutes=30)
     
     db.commit()
     
@@ -271,6 +271,62 @@ async def courier_pickup_order(order_id: int, request: Request, db: Session = De
         "message": "Заказ забран из ресторана! Едем к клиенту.",
         "delivery_deadline": order.delivery_deadline.isoformat()
     }
+
+
+@app.post("/api/courier/pickup-order/{order_id}")
+async def courier_pickup_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """Курьер забрал заказ из ресторана (едет к клиенту)"""
+    
+    # Проверка токена
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    
+    # Находим курьера
+    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    
+    # Находим заказ
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Проверяем что заказ назначен этому курьеру
+    if order.assigned_courier_id != courier.user_id:
+        raise HTTPException(status_code=403, detail="Order not assigned to you")
+    
+    # Проверяем статус
+    if order.status != OrderStatus.READY_FOR_PICKUP:
+        raise HTTPException(status_code=400, detail=f"Order not ready for pickup. Current status: {order.status}")
+    
+    # ✅ Меняем статус на PICKED_UP (теперь есть в enum!)
+    order.status = OrderStatus.PICKED_UP
+    
+    # Устанавливаем дедлайн с момента забора
+    now = datetime.utcnow()
+    order.delivery_started_at = now
+    order.delivery_deadline = now + timedelta(minutes=30)
+    
+    db.commit()
+    
+    print(f"✅ Курьер {courier.first_name} забрал заказ #{order_id} из ресторана")
+    print(f"⏰ Дедлайн доставки клиенту: {order.delivery_deadline}")
+    
+    return {
+        "success": True, 
+        "message": "Заказ забран из ресторана! Едем к клиенту.",
+        "delivery_deadline": order.delivery_deadline.isoformat()
+    }
+
 def get_straight_line_route(start_lat, start_lon, end_lat, end_lon):
     """Прямая линия если ORS не работает"""
     waypoints = []
