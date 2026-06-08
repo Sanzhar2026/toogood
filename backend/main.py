@@ -4050,8 +4050,7 @@ from backend.models import Admin
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
-def verify_password(plain: str, hashed: str) -> bool:
-    return hash_password(plain) == hashed
+
 
 # ⚠️ ВАШИ ДАННЫЕ (измените перед запуском) ⚠️
 MY_LOGIN = "ACCOUNTA@#$26"        # ← ВАШ ЛОГИН
@@ -5791,10 +5790,16 @@ def format_phone_number(phone: str) -> str:
         return '+' + digits
     else:
         return '+' + digits if digits else phone
+
+
 def verify_password(plain_password: str, hashed_password: str):
-    computed_hash = hashlib.sha256(plain_password.encode()).hexdigest()
-    print(f"DEBUG: Computed hash: {computed_hash}")
-    print(f"DEBUG: Stored hash: {hashed_password}")
+    """Проверка пароля"""
+    computed_hash = hash_password(plain_password)
+    print(f"🔍 VERIFY PASSWORD:")
+    print(f"   Plain: {plain_password}")
+    print(f"   Computed hash: {computed_hash}")
+    print(f"   Stored hash: {hashed_password}")
+    print(f"   Match: {computed_hash == hashed_password}")
     return computed_hash == hashed_password
 
 # ============ CREATE DATABASE TABLES ============
@@ -7036,40 +7041,32 @@ async def supplier_login_page(request: Request, lang: str = "kz"):
 # backend/main.py - добавьте
 @app.post("/supplier/api/login")
 async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
-    """API логин поставщика - возвращает JWT токен"""
-    
     try:
         data = await request.json()
         email = data.get("email")
         password = data.get("password")
         
-        # Ищем пользователя
+        print(f"🔐 LOGIN: email={email}, password={password}")
+        
         user = db.query(User).filter(
             User.email == email,
             User.role == UserRole.SUPPLIER
         ).first()
         
         if not user:
-            return JSONResponse(
-                status_code=401, 
-                content={"success": False, "message": "Invalid email or password"}
-            )
+            print(f"❌ User not found: {email}")
+            return JSONResponse(status_code=401, content={"success": False, "message": "Invalid credentials"})
+        
+        print(f"✅ User found: {user.id}, stored hash: {user.password[:20]}...")
         
         if not verify_password(password, user.password):
-            return JSONResponse(
-                status_code=401, 
-                content={"success": False, "message": "Invalid email or password"}
-            )
+            print(f"❌ Password mismatch")
+            return JSONResponse(status_code=401, content={"success": False, "message": "Invalid credentials"})
         
-        # Находим профиль поставщика
+        print(f"✅ Password verified")
+        
         supplier = db.query(Supplier).filter(Supplier.user_id == user.id).first()
-        if not supplier:
-            return JSONResponse(
-                status_code=404, 
-                content={"success": False, "message": "Supplier profile not found"}
-            )
         
-        # Создаем JWT токен
         token = create_access_token(data={
             "sub": str(user.id),
             "role": "supplier",
@@ -7077,22 +7074,14 @@ async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
             "email": user.email
         })
         
-        return {
-            "success": True,
-            "token": token,
-            "supplier": {
-                "id": supplier.id,
-                "business_name": supplier.business_name,
-                "email": user.email
-            }
-        }
+        return {"success": True, "token": token, "supplier": {"id": supplier.id, "business_name": supplier.business_name, "email": user.email}}
         
     except Exception as e:
-        print(f"Login error: {e}")
+        print(f"❌ Login error: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
-
-
-
+        
 @app.get("/api/supplier/check-auth")
 async def supplier_check_auth(request: Request, db: Session = Depends(get_db)):
     """Проверка валидности токена поставщика"""
