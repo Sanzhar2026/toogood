@@ -3445,6 +3445,9 @@ async def clear_inactive_surprise_bags(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
         
+        # Импортируем модели ПРАВИЛЬНО
+        from backend.models import Supplier, SurpriseBag, CartItem, Order
+        
         # Находим поставщика
         supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
         if not supplier:
@@ -3474,12 +3477,10 @@ async def clear_inactive_surprise_bags(
         inactive_bag_ids = [bag.id for bag in inactive_bags]
         
         # 1. Удаляем записи из корзины (cart_items), которые ссылаются на эти сюрпризы
-        from models import CartItem
         deleted_cart_items = db.query(CartItem).filter(CartItem.surprise_bag_id.in_(inactive_bag_ids)).delete(synchronize_session=False)
         print(f"🗑️ Удалено {deleted_cart_items} записей из корзины для неактивных сюрпризов")
         
         # 2. Обновляем заказы (устанавливаем NULL)
-        from models import Order
         db.query(Order).filter(Order.surprise_bag_id.in_(inactive_bag_ids)).update(
             {Order.surprise_bag_id: None}, 
             synchronize_session=False
@@ -3512,8 +3513,7 @@ async def clear_inactive_surprise_bags(
     except Exception as e:
         print(f"Error clearing inactive bags: {e}")
         db.rollback()
-        return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
-# ============ АДМИН: ПОДТВЕРДИТЬ ВОЗВРАТ ============
+        return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})# ============ АДМИН: ПОДТВЕРДИТЬ ВОЗВРАТ ============
 @app.post("/admin/api/order/{order_id}/approve-refund")
 async def admin_approve_refund(
     order_id: int,
@@ -7380,7 +7380,7 @@ async def clear_all_surprise_bags(
                 bag.products.clear()
         
         # 3. Обновляем заказы, которые ссылаются на эти сюрпризы (устанавливаем NULL)
-        from models import Order
+        from backend.models import Order
         db.query(Order).filter(Order.surprise_bag_id.in_(bag_ids)).update(
             {Order.surprise_bag_id: None}, 
             synchronize_session=False
