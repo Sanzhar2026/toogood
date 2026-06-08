@@ -7763,6 +7763,21 @@ async def create_surprise_bag(
     
     return {"success": True, "bag_id": bag.id, "message": "Сюрприз создан"}
 
+
+@app.delete("/api/debug/force-delete-all-bags")
+async def force_delete_all_bags(db: Session = Depends(get_db)):
+    """Принудительное удаление всех сюрпризов"""
+    try:
+        # Сначала удаляем связи
+        db.query(SurpriseBagItem).delete()
+        # Потом сами сюрпризы
+        deleted = db.query(SurpriseBag).delete()
+        db.commit()
+        return {"success": True, "deleted": deleted}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+
 @app.get("/api/supplier/orders")
 async def get_supplier_orders(
     request: Request,
