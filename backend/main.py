@@ -4131,7 +4131,7 @@ def verify_admin_token(request: Request):
 
 # ============ АДМИН ЭНДПОИНТЫ ============
 
-@app.get("/admin/login")
+@app.get("//admin/api/logingin")
 async def admin_login_page(request: Request):
     """Страница входа"""
     return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
@@ -7043,6 +7043,57 @@ async def supplier_api_register(request: Request, db: Session = Depends(get_db))
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+
+@app.delete("/api/admin/delete-all-bags")
+async def admin_delete_all_bags(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Админ удаляет ВСЕ сюрпризы из БД"""
+    
+    # Проверяем админ-токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        
+        if role != "admin":
+            return JSONResponse(status_code=403, content={"success": False, "message": "Admin only"})
+    except:
+        return JSONResponse(status_code=401, content={"success": False, "message": "Invalid token"})
+    
+    # Удаляем все сюрпризы
+    bags = db.query(SurpriseBag).all()
+    deleted_count = len(bags)
+    
+    # Сначала удаляем связанные записи (items)
+    for bag in bags:
+        db.query(SurpriseBagItem).filter(SurpriseBagItem.surprise_bag_id == bag.id).delete()
+        db.delete(bag)
+    
+    db.commit()
+    
+    # Отправляем уведомление через WebSocket
+    try:
+        from backend.websocket_manager import manager
+        await manager.broadcast({
+            "type": "delete_bag",
+            "data": {"all": True}
+        }, channel="surprise_bags")
+    except:
+        pass
+    
+    return {
+        "success": True, 
+        "deleted_count": deleted_count,
+        "message": f"Удалено {deleted_count} сюрпризов"
+    }
 
 
 @app.get("/supplier/login")
