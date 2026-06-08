@@ -1787,7 +1787,25 @@ async def courier_tracking_websocket(websocket: WebSocket):
                 print(f"🗑️ Removed courier {courier_id} from connections")
         db.close()
 
-
+@app.get("/api/debug/suppliers")
+async def debug_suppliers(db: Session = Depends(get_db)):
+    """Временный эндпоинт для отладки - показать всех поставщиков с email"""
+    suppliers = db.query(Supplier).all()
+    result = []
+    for s in suppliers:
+        # Получаем email из связанного пользователя
+        user = db.query(User).filter(User.id == s.user_id).first()
+        result.append({
+            "id": s.id,
+            "business_name": s.business_name,
+            "email": user.email if user else "No email",
+            "user_id": s.user_id,
+            "phone": s.phone
+        })
+    return {
+        "count": len(result),
+        "suppliers": result
+    }
 # Добавьте в main.py бекенда
 import psutil
 import os
