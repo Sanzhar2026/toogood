@@ -6967,11 +6967,11 @@ async def supplier_api_register(request: Request, db: Session = Depends(get_db))
     try:
         data = await request.json()
         
-        print(f"📥 API Register request: {data}")
+        print(f"📥 API Register: {data.get('email')}")
         
         # Проверка обязательных полей
-        required = ['business_name', 'email', 'phone', 'password', 'city', 'address', 'lat', 'lon', 'pickup_start', 'pickup_end']
-        for field in required:
+        required_fields = ['business_name', 'email', 'phone', 'password', 'city', 'address', 'lat', 'lon', 'pickup_start', 'pickup_end']
+        for field in required_fields:
             if field not in data:
                 return JSONResponse(
                     status_code=422,
@@ -6979,10 +6979,10 @@ async def supplier_api_register(request: Request, db: Session = Depends(get_db))
                 )
         
         # Проверка существующего пользователя
-        existing_user = db.query(User).filter(User.email == data.get("email")).first()
-        if existing_user:
+        existing = db.query(User).filter(User.email == data.get("email")).first()
+        if existing:
             return JSONResponse(
-                status_code=400, 
+                status_code=400,
                 content={"success": False, "message": "Email already registered"}
             )
         
@@ -7029,11 +7029,11 @@ async def supplier_api_register(request: Request, db: Session = Depends(get_db))
         })
         
         return {
-            "success": True, 
-            "token": token, 
+            "success": True,
+            "token": token,
             "supplier": {
-                "id": supplier.id, 
-                "business_name": supplier.business_name, 
+                "id": supplier.id,
+                "business_name": supplier.business_name,
                 "email": user.email
             }
         }
@@ -7045,7 +7045,6 @@ async def supplier_api_register(request: Request, db: Session = Depends(get_db))
         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
 
 
-        
 @app.get("/supplier/login")
 async def supplier_login_page(request: Request, lang: str = "kz"):
     return templates.TemplateResponse("supplier_login.html", {"request": request, "lang": lang})
