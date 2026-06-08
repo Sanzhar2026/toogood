@@ -6960,80 +6960,92 @@ async def delete_food(food_id: int, db: Session = Depends(get_db)):
     return RedirectResponse(url="/admin", status_code=303)
 
 # ============ SUPPLIER ROUTES ============
-@app.get("/supplier/api/register")
-async def supplier_register_page(request: Request, lang: str = "kz"):
-    return templates.TemplateResponse("supplier_register.html", {"request": request, "lang": lang})
 @app.post("/supplier/api/register")
-async def supplier_register(
-    business_name: str = Form(...),
-    business_type: str = Form(...),
-    email: str = Form(...),
-    phone: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...),
-    city: str = Form(...),
-    address: str = Form(...),
-    lat: float = Form(...),
-    lon: float = Form(...),
-    pickup_start: str = Form(...),
-    pickup_end: str = Form(...),
-    description: str = Form(""),
-    db: Session = Depends(get_db)
-):
-    if password != confirm_password:
-        raise HTTPException(status_code=400, detail="Passwords do not match")
+async def supplier_api_register(request: Request, db: Session = Depends(get_db)):
+    """API регистрация поставщика - принимает JSON"""
     
-    existing_user = db.query(User).filter(User.email == email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Создаем пользователя
-    user = User(
-        email=email, 
-        phone=phone, 
-        password=hash_password(password),
-        full_name=business_name, 
-        role=UserRole.SUPPLIER, 
-        is_active=True,
-        created_at=datetime.utcnow()
-    )
-    db.add(user)
-    db.flush()
-    
-    # Создаем профиль поставщика
-    supplier = Supplier(
-        user_id=user.id, 
-        business_name=business_name, 
-        business_type=business_type,
-        description=description, 
-        city=city, 
-        address=address, 
-        lat=lat, 
-        lon=lon,
-        phone=phone, 
-        email=email, 
-        pickup_start_time=pickup_start,
-        pickup_end_time=pickup_end, 
-        created_at=datetime.utcnow()
-    )
-    db.add(supplier)
-    db.commit()
-    
-    # ✅ СОЗДАЕМ JWT ТОКЕН
-    token = create_access_token(data={
-        "sub": str(user.id),
-        "role": "supplier",
-        "supplier_id": supplier.id,
-        "email": user.email
-    })
-    
-    # ✅ ВОЗВРАЩАЕМ ТОКЕН (для JSON) или РЕДИРЕКТ С ТОКЕНОМ
-    # Вариант 1: Если запрос пришел из HTML формы - редирект с токеном в URL
-    return RedirectResponse(url=f"/supplier/dashboard?token={token}", status_code=303)
-    
-    # Вариант 2: Если хочешь JSON ответ (для API)
-    # return {"success": True, "token": token, "supplier_id": supplier.id}
+    try:
+        data = await request.json()
+        
+        print(f"📥 API Register request: {data}")
+        
+        # Проверка обязательных полей
+        required = ['business_name', 'email', 'phone', 'password', 'city', 'address', 'lat', 'lon', 'pickup_start', 'pickup_end']
+        for field in required:
+            if field not in data:
+                return JSONResponse(
+                    status_code=422,
+                    content={"success": False, "message": f"Missing field: {field}"}
+                )
+        
+        # Проверка существующего пользователя
+        existing_user = db.query(User).filter(User.email == data.get("email")).first()
+        if existing_user:
+            return JSONResponse(
+                status_code=400, 
+                content={"success": False, "message": "Email already registered"}
+            )
+        
+        # Создаем пользователя
+        user = User(
+            email=data.get("email"),
+            phone=data.get("phone"),
+            password=hash_password(data.get("password")),
+            full_name=data.get("business_name"),
+            role=UserRole.SUPPLIER,
+            is_active=True,
+            created_at=datetime.utcnow()
+        )
+        db.add(user)
+        db.flush()
+        
+        # Создаем профиль поставщика
+        supplier = Supplier(
+            user_id=user.id,
+            business_name=data.get("business_name"),
+            business_type=data.get("business_type", "restaurant"),
+            description=data.get("description", ""),
+            city=data.get("city"),
+            address=data.get("address"),
+            lat=float(data.get("lat")),
+            lon=float(data.get("lon")),
+            phone=data.get("phone"),
+            email=data.get("email"),
+            pickup_start_time=data.get("pickup_start"),
+            pickup_end_time=data.get("pickup_end"),
+            created_at=datetime.utcnow()
+        )
+        db.add(supplier)
+        db.commit()
+        
+        print(f"✅ Supplier registered: {data.get('email')}")
+        
+        # Создаем JWT токен
+        token = create_access_token(data={
+            "sub": str(user.id),
+            "role": "supplier",
+            "supplier_id": supplier.id,
+            "email": user.email
+        })
+        
+        return {
+            "success": True, 
+            "token": token, 
+            "supplier": {
+                "id": supplier.id, 
+                "business_name": supplier.business_name, 
+                "email": user.email
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ API Register error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
 
+
+        
 @app.get("/supplier/login")
 async def supplier_login_page(request: Request, lang: str = "kz"):
     return templates.TemplateResponse("supplier_login.html", {"request": request, "lang": lang})
