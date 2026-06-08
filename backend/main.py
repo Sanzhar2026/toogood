@@ -6960,10 +6960,10 @@ async def delete_food(food_id: int, db: Session = Depends(get_db)):
     return RedirectResponse(url="/admin", status_code=303)
 
 # ============ SUPPLIER ROUTES ============
-@app.get("/supplier/register")
+@app.get("/supplier/api/register")
 async def supplier_register_page(request: Request, lang: str = "kz"):
     return templates.TemplateResponse("supplier_register.html", {"request": request, "lang": lang})
-@app.post("/supplier/register")
+@app.post("/supplier/api/register")
 async def supplier_register(
     business_name: str = Form(...),
     business_type: str = Form(...),
