@@ -1,4 +1,4 @@
-# backend/models.py - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ (без дубликатов)
+# backend/models.py - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
 
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum
 from sqlalchemy.orm import relationship
@@ -6,11 +6,13 @@ from datetime import datetime
 from backend.database import Base
 import enum
 
+
 class UserRole(str, enum.Enum):
     CUSTOMER = "customer"
     SUPPLIER = "supplier"
     COURIER = "courier"  
     ADMIN = "admin"
+
 
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
@@ -23,15 +25,18 @@ class OrderStatus(str, enum.Enum):
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
+
 class DeliveryStatus(str, enum.Enum):
     AT_SUPPLIER = "at_supplier"
     EN_ROUTE = "en_route"
     NEARBY = "nearby"
     ARRIVED = "arrived"
 
+
 class CourierType(str, enum.Enum):
     PEDESTRIAN = "pedestrian"
     DRIVER = "driver"
+
 
 # Food model
 class Food(Base):
@@ -43,18 +48,20 @@ class Food(Base):
     image = Column(String(500))
     discount = Column(Integer, default=0)
 
-# CartItem model
+
+# CartItem model - ИСПРАВЛЕН (ondelete внутри ForeignKey)
 class CartItem(Base):
     __tablename__ = "cart_items"
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id"),ondelete="CASCADE")
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id", ondelete="CASCADE"))
     quantity = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     user = relationship("User", back_populates="cart_items")
     surprise_bag = relationship("SurpriseBag", back_populates="cart_items")
+
 
 # User model
 class User(Base):
@@ -78,10 +85,11 @@ class User(Base):
     cart_items = relationship("CartItem", back_populates="user")
     courier_profile = relationship("CourierProfile", back_populates="user", uselist=False)
 
+
 class Supplier(Base):
     __tablename__ = "suppliers"
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     business_name = Column(String(255), nullable=False)
     business_type = Column(String(100))
     description = Column(Text)
@@ -105,6 +113,7 @@ class Supplier(Base):
     surprise_bags = relationship("SurpriseBag", back_populates="supplier")
     orders = relationship("Order", back_populates="supplier", foreign_keys="Order.supplier_id")
 
+
 class SurpriseBagItem(Base):
     __tablename__ = "surprise_bag_items"
     
@@ -118,11 +127,12 @@ class SurpriseBagItem(Base):
     
     surprise_bag = relationship("SurpriseBag", back_populates="items")
 
+
 class SurpriseBag(Base):
     __tablename__ = "surprise_bags"
     
     id = Column(Integer, primary_key=True)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"))
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"))
     name = Column(String(255), nullable=False)
     description = Column(Text)
     original_price = Column(Float, nullable=False)
@@ -142,13 +152,14 @@ class SurpriseBag(Base):
     cart_items = relationship("CartItem", back_populates="surprise_bag")
     items = relationship("SurpriseBagItem", back_populates="surprise_bag", cascade="all, delete-orphan")
 
+
 class Order(Base):
     __tablename__ = "orders"
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    food_id = Column(Integer, ForeignKey("foods.id"), nullable=True)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
-    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    food_id = Column(Integer, ForeignKey("foods.id", ondelete="SET NULL"), nullable=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True)
+    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id", ondelete="SET NULL"), nullable=True)
     items = Column(Text, nullable=True)
     total_amount = Column(Float, nullable=True)
     order_number = Column(String(50), unique=True, nullable=True)
@@ -186,7 +197,7 @@ class Order(Base):
     pickup_time = Column(String(50))
     amount_paid = Column(Float, nullable=True)
     
-    assigned_courier_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    assigned_courier_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     delivery_type = Column(String(50), default="delivery")
     
     user = relationship("User", back_populates="orders", foreign_keys=[user_id])
@@ -195,10 +206,11 @@ class Order(Base):
     assigned_courier = relationship("User", foreign_keys=[assigned_courier_id])
     tracking_updates = relationship("OrderTracking", back_populates="order")
 
+
 class OrderTracking(Base):
     __tablename__ = "order_tracking"
     id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey("orders.id"))
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
     status = Column(SQLEnum(OrderStatus), nullable=True)
     delivery_status = Column(SQLEnum(DeliveryStatus), nullable=True)
     lat = Column(Float, nullable=True)
@@ -207,10 +219,11 @@ class OrderTracking(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     order = relationship("Order", back_populates="tracking_updates")
 
+
 class CourierProfile(Base):
     __tablename__ = "courier_profiles"
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     phone = Column(String(50), nullable=False, unique=True)
@@ -233,10 +246,10 @@ class CourierProfile(Base):
     current_lon = Column(Float, nullable=True)
     last_location_update = Column(DateTime, nullable=True)
     
-    current_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    current_order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
     current_order_status = Column(String(50), default=None)
     
-    proposed_order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    proposed_order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
     proposed_order_expires_at = Column(DateTime, nullable=True)
     
     last_online_at = Column(DateTime, nullable=True)
@@ -248,34 +261,38 @@ class CourierProfile(Base):
     current_order = relationship("Order", foreign_keys=[current_order_id])
     proposed_order = relationship("Order", foreign_keys=[proposed_order_id])
 
+
 class Review(Base):
     __tablename__ = "reviews"
     id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey("orders.id"))
-    user_id = Column(Integer, ForeignKey("users.id"))
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"))
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"))
     rating = Column(Integer)
     comment = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class SupplierCourier(Base):
     __tablename__ = "supplier_couriers"
     id = Column(Integer, primary_key=True)
-    supplier_id = Column(Integer, ForeignKey("suppliers.id"))
-    courier_id = Column(Integer, ForeignKey("users.id"))
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"))
+    courier_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class AssignedOrder(Base):
     __tablename__ = "assigned_orders"
     id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey("orders.id"))
-    courier_id = Column(Integer, ForeignKey("users.id"))
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
+    courier_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     status = Column(String(50), default="assigned")
     assigned_at = Column(DateTime, default=datetime.utcnow)
     delivered_at = Column(DateTime, nullable=True)
     order = relationship("Order", backref="assignments")
     courier = relationship("User", backref="assignments")
+
 
 class Admin(Base):
     __tablename__ = "admins"
@@ -284,12 +301,13 @@ class Admin(Base):
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class TemporaryReservation(Base):
     __tablename__ = "temporary_reservations"
     
     id = Column(Integer, primary_key=True)
-    bag_id = Column(Integer, ForeignKey("surprise_bags.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    bag_id = Column(Integer, ForeignKey("surprise_bags.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     quantity = Column(Integer, default=1)
     reserved_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
