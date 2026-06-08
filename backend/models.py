@@ -48,7 +48,7 @@ class CartItem(Base):
     __tablename__ = "cart_items"
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id"), nullable=False)
+    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id"),ondelete="CASCADE")
     quantity = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

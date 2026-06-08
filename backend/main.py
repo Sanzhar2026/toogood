@@ -7246,102 +7246,12 @@ async def debug_bags(
 
 
 
-@app.delete("/api/supplier/clear-inactive-bags")
-async def clear_inactive_surprise_bags(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Удаление только НЕАКТИВНЫХ сюрприз-пакетов поставщика"""
-    
-    # Проверяем токен
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
-    
-    token = auth_header.split(" ")[1]
-    
-    try:
-        from jose import jwt
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        
-        # Находим поставщика
-        supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
-        if not supplier:
-            return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
-        
-        # Пробуем разные варианты поиска неактивных сюрпризов
-        inactive_bags = []
-        
-        # Вариант 1: is_active == False
-        bags1 = db.query(SurpriseBag).filter(
-            SurpriseBag.supplier_id == supplier.id,
-            SurpriseBag.is_active == False
-        ).all()
-        inactive_bags.extend(bags1)
-        
-        # Вариант 2: если is_active == 0 (для MySQL/PostgreSQL)
-        bags2 = db.query(SurpriseBag).filter(
-            SurpriseBag.supplier_id == supplier.id,
-            SurpriseBag.is_active == 0
-        ).all()
-        for bag in bags2:
-            if bag not in inactive_bags:
-                inactive_bags.append(bag)
-        
-        # Вариант 3: если поле называется active или status
-        if hasattr(SurpriseBag, 'active'):
-            bags3 = db.query(SurpriseBag).filter(
-                SurpriseBag.supplier_id == supplier.id,
-                SurpriseBag.active == False
-            ).all()
-            for bag in bags3:
-                if bag not in inactive_bags:
-                    inactive_bags.append(bag)
-        
-        if hasattr(SurpriseBag, 'status'):
-            bags4 = db.query(SurpriseBag).filter(
-                SurpriseBag.supplier_id == supplier.id,
-                SurpriseBag.status == 'inactive'
-            ).all()
-            for bag in bags4:
-                if bag not in inactive_bags:
-                    inactive_bags.append(bag)
-        
-        if not inactive_bags:
-            return JSONResponse(status_code=200, content={
-                "success": True, 
-                "message": "Нет неактивных сюрпризов для удаления", 
-                "deleted_count": 0
-            })
-        
-        deleted_count = 0
-        for bag in inactive_bags:
-            db.delete(bag)
-            deleted_count += 1
-        
-        db.commit()
-        
-        return {
-            "success": True,
-            "message": f"Удалено {deleted_count} неактивных сюрприз-пакетов",
-            "deleted_count": deleted_count
-        }
-        
-    except jwt.ExpiredSignatureError:
-        return JSONResponse(status_code=401, content={"success": False, "message": "Token expired"})
-    except jwt.JWTError as e:
-        return JSONResponse(status_code=401, content={"success": False, "message": f"Invalid token: {str(e)}"})
-    except Exception as e:
-        print(f"Error clearing inactive bags: {e}")
-        return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
-
 @app.delete("/api/supplier/clear-all-bags")
 async def clear_all_surprise_bags(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Удаление ВСЕХ сюрприз-пакетов поставщика"""
+    """Удаление ВСЕХ сюрприз-пакетов поставщика с очисткой связей"""
     
     # Проверяем токен поставщика
     auth_header = request.headers.get("Authorization")
@@ -7370,12 +7280,29 @@ async def clear_all_surprise_bags(
                 "deleted_count": 0
             })
         
-        deleted_count = 0
+        # Получаем ID всех сюрпризов
+        bag_ids = [bag.id for bag in all_bags]
+        
+        # 1. Удаляем записи из корзины (cart_items), которые ссылаются на эти сюрпризы
+        from models import CartItem
+        deleted_cart_items = db.query(CartItem).filter(CartItem.surprise_bag_id.in_(bag_ids)).delete(synchronize_session=False)
+        print(f"🗑️ Удалено {deleted_cart_items} записей из корзины")
+        
+        # 2. Удаляем связи с продуктами (если есть)
         for bag in all_bags:
-            # Удаляем связи с продуктами (если есть)
             if hasattr(bag, 'products'):
                 bag.products.clear()
-            
+        
+        # 3. Обновляем заказы, которые ссылаются на эти сюрпризы (устанавливаем NULL)
+        from models import Order
+        db.query(Order).filter(Order.surprise_bag_id.in_(bag_ids)).update(
+            {Order.surprise_bag_id: None}, 
+            synchronize_session=False
+        )
+        
+        # 4. Теперь удаляем сами сюрпризы
+        deleted_count = 0
+        for bag in all_bags:
             db.delete(bag)
             deleted_count += 1
         
@@ -7383,8 +7310,9 @@ async def clear_all_surprise_bags(
         
         return {
             "success": True,
-            "message": f"Удалено {deleted_count} сюрприз-пакетов",
-            "deleted_count": deleted_count
+            "message": f"Удалено {deleted_count} сюрприз-пакетов и {deleted_cart_items} записей из корзины",
+            "deleted_count": deleted_count,
+            "deleted_cart_items": deleted_cart_items
         }
         
     except jwt.ExpiredSignatureError:
@@ -7393,8 +7321,11 @@ async def clear_all_surprise_bags(
         return JSONResponse(status_code=401, content={"success": False, "message": f"Invalid token: {str(e)}"})
     except Exception as e:
         print(f"Error clearing all bags: {e}")
+        db.rollback()
         return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
 
+
+        
 async def auto_cleanup_cancelled_orders():
     """Автоматическая очистка отмененных заказов каждые 30 минут"""
     while True:
