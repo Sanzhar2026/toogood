@@ -7351,6 +7351,9 @@ async def clear_all_surprise_bags(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
         
+        # Импортируем все модели из backend.models
+        from backend.models import Supplier, SurpriseBag, CartItem, Order
+        
         # Находим поставщика
         supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
         if not supplier:
@@ -7370,23 +7373,16 @@ async def clear_all_surprise_bags(
         bag_ids = [bag.id for bag in all_bags]
         
         # 1. Удаляем записи из корзины (cart_items), которые ссылаются на эти сюрпризы
-        from models import CartItem
         deleted_cart_items = db.query(CartItem).filter(CartItem.surprise_bag_id.in_(bag_ids)).delete(synchronize_session=False)
         print(f"🗑️ Удалено {deleted_cart_items} записей из корзины")
         
-        # 2. Удаляем связи с продуктами (если есть)
-        for bag in all_bags:
-            if hasattr(bag, 'products'):
-                bag.products.clear()
-        
-        # 3. Обновляем заказы, которые ссылаются на эти сюрпризы (устанавливаем NULL)
-        from backend.models import Order
+        # 2. Обновляем заказы, которые ссылаются на эти сюрпризы (устанавливаем NULL)
         db.query(Order).filter(Order.surprise_bag_id.in_(bag_ids)).update(
             {Order.surprise_bag_id: None}, 
             synchronize_session=False
         )
         
-        # 4. Теперь удаляем сами сюрпризы
+        # 3. Удаляем сами сюрпризы
         deleted_count = 0
         for bag in all_bags:
             db.delete(bag)
@@ -7409,8 +7405,6 @@ async def clear_all_surprise_bags(
         print(f"Error clearing all bags: {e}")
         db.rollback()
         return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
-
-
 
 async def auto_cleanup_cancelled_orders():
     """Автоматическая очистка отмененных заказов каждые 30 минут"""
