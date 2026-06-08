@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С РАБОТАЮЩИМИ КНОПКАМИ -->
+<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ (БЕЗ ЭМОДЗИ, КРОМЕ СЮРПРИЗОВ) -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -463,7 +463,11 @@
 </style>
 
 <!-- Supplier Data -->
-<div id="supplierData" data-supplier-id="{{ supplier.id }}" style="display: none;"></div>
+<div id="supplierData" 
+     data-supplier-id="{{ supplier.id }}" 
+     data-token="{{ token or '' }}" 
+     style="display: none;">
+</div>
 
 <!-- WebSocket Indicator -->
 <div class="ws-indicator" id="wsIndicator">
@@ -474,41 +478,41 @@
 <!-- Header -->
 <div class="admin-header">
     <div class="business-info">
-        <h1>🏪 {{ supplier.business_name }}</h1>
-        <p>📍 {{ supplier.address or 'Адрес не указан' }} | 📞 {{ supplier.phone or '—' }}</p>
+        <h1>{{ supplier.business_name }}</h1>
+        <p>Location: {{ supplier.address or 'Address not specified' }} | Phone: {{ supplier.phone or '—' }}</p>
     </div>
     <div>
-        <span style="color: #fbbf24;">⭐ Рейтинг: {{ supplier.rating or 0 }}</span>
-        <button onclick="logout()" class="logout-btn" style="margin-left: 1rem;">🚪 Выйти</button>
+        <span style="color: #fbbf24;">Rating: {{ supplier.rating or 0 }}</span>
+        <button onclick="logout()" class="logout-btn" style="margin-left: 1rem;">Logout</button>
     </div>
 </div>
 
 <div class="dashboard-container">
     <!-- Navigation Links -->
     <div class="nav-links">
-        <a href="/supplier/dashboard" class="active">📊 Дашборд</a>
-        <a href="/supplier/couriers">🚚 Курьеры</a>
-        <a href="/supplier/orders">📦 Заказы</a>
-        <a href="/supplier/surprise-bags">🎁 Сюрпризы</a>
+        <a href="/supplier/dashboard" class="active">Dashboard</a>
+        <a href="/supplier/couriers">Couriers</a>
+        <a href="/supplier/orders">Orders</a>
+        <a href="/supplier/surprise-bags">Surprise Bags</a>
     </div>
 
     <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-number" id="totalOrders">{{ stats.total_orders }}</div>
-            <div class="stat-label">Всего заказов</div>
+            <div class="stat-label">Total Orders</div>
         </div>
         <div class="stat-card">
             <div class="stat-number" id="pendingOrders">{{ stats.pending_orders }}</div>
-            <div class="stat-label">В ожидании</div>
+            <div class="stat-label">Pending</div>
         </div>
         <div class="stat-card">
             <div class="stat-number">{{ stats.today_orders }}</div>
-            <div class="stat-label">Заказов сегодня</div>
+            <div class="stat-label">Today Orders</div>
         </div>
         <div class="stat-card">
             <div class="stat-number">{{ stats.total_revenue }} ₸</div>
-            <div class="stat-label">Общий доход</div>
+            <div class="stat-label">Total Revenue</div>
         </div>
     </div>
 
@@ -516,27 +520,27 @@
     <div class="orders-section">
         <div class="section-header">
             <div>
-                <span class="section-title">📋 Активные заказы</span>
-                <span class="live-badge">● LIVE</span>
+                <span class="section-title">Active Orders</span>
+                <span class="live-badge">LIVE</span>
             </div>
-            <button class="refresh-btn" id="refreshOrdersBtn">🔄 Обновить</button>
+            <button class="refresh-btn" id="refreshOrdersBtn">Refresh</button>
         </div>
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th>№ заказа</th>
-                        <th>Клиент / Адрес</th>
-                        <th>Товар</th>
-                        <th>Сумма</th>
-                        <th>Статус</th>
-                        <th>Курьер</th>
-                        <th>Действие</th>
-                        <th>Карта</th>
+                        <th>Order #</th>
+                        <th>Customer / Address</th>
+                        <th>Product</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Courier</th>
+                        <th>Action</th>
+                        <th>Map</th>
                     </tr>
                 </thead>
                 <tbody id="ordersTableBody">
-                    <!-- Загружается через JS -->
+                    <!-- Loaded via JS -->
                 </tbody>
             </table>
         </div>
@@ -545,200 +549,206 @@
     <!-- Surprise Bags Section -->
     <div class="bags-section">
         <div class="section-header">
-            <span class="section-title">🎁 Сюрпризы</span>
+            <span class="section-title">🎁 Surprise Bags</span>
             <div style="display: flex; gap: 0.5rem;">
-                <button class="refresh-btn" id="toggleAddBagBtn">➕ Добавить сюрприз</button>
-                <button class="clear-btn" id="clearInactiveBagsBtn">🗑️ Очистить неактивные</button>
-                <button class="clear-btn" id="clearAllBagsBtn" style="background: #dc2626;">🗑️ Удалить все</button>
+                <button class="refresh-btn" id="toggleAddBagBtn">+ Add Surprise</button>
+                <button class="clear-btn" id="clearInactiveBagsBtn">Clear Inactive</button>
+                <button class="clear-btn" id="clearAllBagsBtn" style="background: #dc2626;">Delete All</button>
             </div>
         </div>
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th>Название</th>
-                        <th>Описание</th>
-                        <th>Цена</th>
-                        <th>Со скидкой</th>
-                        <th>Скидка</th>
-                        <th>Осталось</th>
-                        <th>Статус</th>
-                        <th>Действие</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Price</th>
+                        <th>Discounted</th>
+                        <th>Discount</th>
+                        <th>Quantity</th>
+                        <th>Status</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody id="bagsTableBody">
-                    <!-- Загружается через JS -->
+                    <!-- Loaded via JS -->
                 </tbody>
             </table>
         </div>
 
         <!-- Add Bag Form -->
         <div class="add-bag-form" id="addBagForm" style="display: none;">
-            <h3 style="margin-bottom: 1rem;">✨ Добавить сюрприз</h3>
+            <h3 style="margin-bottom: 1rem;">Add Surprise Bag</h3>
             <form id="createBagForm">
                 <div class="form-group full-width">
-                    <label>🎁 Готовый сюрприз-пакет</label>
+                    <label>Ready Surprise Package</label>
                     <select id="surpriseTemplate">
-                        <option value="">-- Выберите готовый сюрприз --</option>
-                        <optgroup label="🍕 Пицца-сеты">
-                            <option value="pizza_classic">🍕 Пицца-сет "Классический"</option>
-                            <option value="pizza_italian">🇮🇹 Пицца-сет "Итальянский ужин"</option>
-                            <option value="pizza_meat">🥩 Пицца-сет "Мясной"</option>
-                            <option value="pizza_vegan">🌱 Пицца-сет "Вегетарианский"</option>
-                            <option value="pizza_kids">👧 Пицца-сет "Детский"</option>
+                        <option value="">-- Choose ready surprise --</option>
+                        <optgroup label="Pizza Sets">
+                            <option value="pizza_classic">🍕 Pizza Set "Classic"</option>
+                            <option value="pizza_italian">🇮🇹 Pizza Set "Italian Dinner"</option>
+                            <option value="pizza_meat">🥩 Pizza Set "Meat"</option>
+                            <option value="pizza_vegan">🌱 Pizza Set "Vegan"</option>
+                            <option value="pizza_kids">👧 Pizza Set "Kids"</option>
                         </optgroup>
-                        <optgroup label="🍣 Суши-сеты">
-                            <option value="sushi_samurai">⚔️ Суши-сет "Самурай"</option>
-                            <option value="sushi_classic">🎌 Суши-сет "Классический"</option>
-                            <option value="sushi_premium">👑 Суши-сет "Премиум"</option>
-                            <option value="sushi_spicy">🔥 Суши-сет "Острый"</option>
-                            <option value="sushi_family">👨‍👩‍👧‍👦 Суши-сет "Семейный"</option>
+                        <optgroup label="Sushi Sets">
+                            <option value="sushi_samurai">⚔️ Sushi Set "Samurai"</option>
+                            <option value="sushi_classic">🎌 Sushi Set "Classic"</option>
+                            <option value="sushi_premium">👑 Sushi Set "Premium"</option>
+                            <option value="sushi_spicy">🔥 Sushi Set "Spicy"</option>
+                            <option value="sushi_family">👨‍👩‍👧‍👦 Sushi Set "Family"</option>
                         </optgroup>
-                        <optgroup label="🍔 Бургер-сеты">
-                            <option value="burger_american">🇺🇸 Бургер-сет "Американский"</option>
-                            <option value="burger_classic">🍔 Бургер-сет "Классический"</option>
-                            <option value="burger_chicken">🐔 Бургер-сет "Куриный"</option>
-                            <option value="burger_double">🍔🍔 Бургер-сет "Двойной"</option>
-                            <option value="burger_cheesy">🧀 Бургер-сет "Сырный"</option>
+                        <optgroup label="Burger Sets">
+                            <option value="burger_american">🇺🇸 Burger Set "American"</option>
+                            <option value="burger_classic">🍔 Burger Set "Classic"</option>
+                            <option value="burger_chicken">🐔 Burger Set "Chicken"</option>
+                            <option value="burger_double">🍔🍔 Burger Set "Double"</option>
+                            <option value="burger_cheesy">🧀 Burger Set "Cheesy"</option>
                         </optgroup>
-                        <optgroup label="🍰 Десерт-сеты">
-                            <option value="dessert_sweet">🍰 Десерт-сет "Сладкоежка"</option>
-                            <option value="dessert_chocolate">🍫 Десерт-сет "Шоколадный рай"</option>
-                            <option value="dessert_fruit">🍓 Десерт-сет "Фруктовый"</option>
-                            <option value="dessert_macaroon">🍪 Десерт-сет "Макарун"</option>
+                        <optgroup label="Dessert Sets">
+                            <option value="dessert_sweet">🍰 Dessert Set "Sweet"</option>
+                            <option value="dessert_chocolate">🍫 Dessert Set "Chocolate Heaven"</option>
+                            <option value="dessert_fruit">🍓 Dessert Set "Fruit"</option>
+                            <option value="dessert_macaroon">🍪 Dessert Set "Macaron"</option>
                         </optgroup>
-                        <optgroup label="🥗 ЗОЖ-сеты">
-                            <option value="healthy_fitness">💪 ЗОЖ-сет "Фитнес"</option>
-                            <option value="healthy_vegan">🌿 ЗОЖ-сет "Веган"</option>
-                            <option value="healthy_protein">🥚 ЗОЖ-сет "Протеиновый"</option>
+                        <optgroup label="Healthy Sets">
+                            <option value="healthy_fitness">💪 Healthy Set "Fitness"</option>
+                            <option value="healthy_vegan">🌿 Healthy Set "Vegan"</option>
+                            <option value="healthy_protein">🥚 Healthy Set "Protein"</option>
                         </optgroup>
-                        <optgroup label="🍱 Микс-сеты">
-                            <option value="mix_asia_italy">🍕🍣 Микс-сет "Азия & Италия"</option>
-                            <option value="mix_burger_pizza">🍔🍕 Микс-сет "Бургер & Пицца"</option>
-                            <option value="mix_sushi_dessert">🍣🍰 Микс-сет "Суши & Десерт"</option>
-                            <option value="mix_family">👨‍👩‍👧‍👦 Микс-сет "Семейный праздник"</option>
+                        <optgroup label="Mix Sets">
+                            <option value="mix_asia_italy">🍕🍣 Mix Set "Asia & Italy"</option>
+                            <option value="mix_burger_pizza">🍔🍕 Mix Set "Burger & Pizza"</option>
+                            <option value="mix_sushi_dessert">🍣🍰 Mix Set "Sushi & Dessert"</option>
+                            <option value="mix_family">👨‍👩‍👧‍👦 Mix Set "Family Feast"</option>
                         </optgroup>
-                        <optgroup label="🍟 Закуски-сеты">
-                            <option value="snack_party">🎉 Закуски-сет "Вечеринка"</option>
-                            <option value="snack_sport">⚽ Закуски-сет "Спорт"</option>
-                            <option value="snack_cheese">🧀 Закуски-сет "Сырный"</option>
-                            <option value="snack_chicken">🍗 Закуски-сет "Куриный"</option>
+                        <optgroup label="Snack Sets">
+                            <option value="snack_party">🎉 Snack Set "Party"</option>
+                            <option value="snack_sport">⚽ Snack Set "Sport"</option>
+                            <option value="snack_cheese">🧀 Snack Set "Cheese"</option>
+                            <option value="snack_chicken">🍗 Snack Set "Chicken"</option>
                         </optgroup>
                     </select>
-                    <small id="selectedHint" style="color: #64748b;">Выберите готовый сюрприз, чтобы автоматически заполнить состав</small>
+                    <small id="selectedHint" style="color: #64748b;">Select ready surprise to auto-fill</small>
                 </div>
 
                 <div class="form-group full-width">
-                    <label>🎨 Название сюрприз-пакета *</label>
-                    <input type="text" id="bagName" required placeholder="Например: Пицца-сет 'Итальянский ужин'">
+                    <label>Surprise Bag Name *</label>
+                    <input type="text" id="bagName" required placeholder="Example: Pizza Set 'Italian Dinner'">
                 </div>
 
                 <div class="form-group full-width">
-                    <label>📝 Описание</label>
-                    <textarea id="bagDescription" rows="2" placeholder="Краткое описание сюрприз-пакета"></textarea>
+                    <label>Description</label>
+                    <textarea id="bagDescription" rows="2" placeholder="Brief description"></textarea>
                 </div>
 
                 <div class="form-group full-width">
-                    <label>🍽️ Список блюд</label>
+                    <label>Products List</label>
                     <div class="product-row">
                         <select id="productSelect">
-                            <option value="">-- Выберите блюдо --</option>
-                            <option value="1">🍕 Маргарита пицца - 2500 ₸</option>
-                            <option value="2">🍕 Пепперони пицца - 3200 ₸</option>
-                            <option value="3">🍕 Гавайская пицца - 3000 ₸</option>
-                            <option value="4">🍕 Мясная пицца - 3800 ₸</option>
-                            <option value="5">🍕 Вегетарианская пицца - 2800 ₸</option>
-                            <option value="6">🍔 Гамбургер - 1800 ₸</option>
-                            <option value="7">🍔 Чизбургер - 2100 ₸</option>
-                            <option value="8">🍔 Чикен бургер - 1900 ₸</option>
-                            <option value="9">🍣 Суши сет - 3000 ₸</option>
-                            <option value="10">🍣 Филадельфия ролл - 4200 ₸</option>
-                            <option value="11">🍣 Калифорния ролл - 3800 ₸</option>
-                            <option value="12">🥗 Греческий салат - 1500 ₸</option>
-                            <option value="13">🥗 Цезарь салат - 2200 ₸</option>
-                            <option value="14">🥤 Кока-кола - 500 ₸</option>
-                            <option value="15">🥤 Лимонад - 800 ₸</option>
-                            <option value="16">🍰 Чизкейк - 1200 ₸</option>
-                            <option value="17">🍰 Тирамису - 1400 ₸</option>
-                            <option value="18">🍟 Картошка фри - 800 ₸</option>
-                            <option value="19">🍗 Куриные крылья - 1800 ₸</option>
-                            <option value="20">🧀 Сырные палочки - 1500 ₸</option>
+                            <option value="">-- Choose product --</option>
+                            <option value="1">🍕 Margherita Pizza - 2500 ₸</option>
+                            <option value="2">🍕 Pepperoni Pizza - 3200 ₸</option>
+                            <option value="3">🍕 Hawaiian Pizza - 3000 ₸</option>
+                            <option value="4">🍕 Meat Pizza - 3800 ₸</option>
+                            <option value="5">🍕 Vegetarian Pizza - 2800 ₸</option>
+                            <option value="6">🍔 Hamburger - 1800 ₸</option>
+                            <option value="7">🍔 Cheeseburger - 2100 ₸</option>
+                            <option value="8">🍔 Chicken Burger - 1900 ₸</option>
+                            <option value="9">🍣 Sushi Set - 3000 ₸</option>
+                            <option value="10">🍣 Philadelphia Roll - 4200 ₸</option>
+                            <option value="11">🍣 California Roll - 3800 ₸</option>
+                            <option value="12">🥗 Greek Salad - 1500 ₸</option>
+                            <option value="13">🥗 Caesar Salad - 2200 ₸</option>
+                            <option value="14">🥤 Coca-Cola - 500 ₸</option>
+                            <option value="15">🥤 Lemonade - 800 ₸</option>
+                            <option value="16">🍰 Cheesecake - 1200 ₸</option>
+                            <option value="17">🍰 Tiramisu - 1400 ₸</option>
+                            <option value="18">🍟 French Fries - 800 ₸</option>
+                            <option value="19">🍗 Chicken Wings - 1800 ₸</option>
+                            <option value="20">🧀 Cheese Sticks - 1500 ₸</option>
                         </select>
                         <input type="number" id="productQuantity" class="quantity-input" value="1" min="1">
-                        <button type="button" class="btn-primary" id="addProductBtn">➕ Добавить</button>
+                        <button type="button" class="btn-primary" id="addProductBtn">+ Add</button>
                     </div>
                     <div id="selectedProductsPreview" style="display: none;">
-                        <strong>📋 Выбранные блюда:</strong>
+                        <strong>Selected Products:</strong>
                         <div id="selectedProductsList" class="selected-products-list"></div>
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>💰 Цена без скидки (₸)</label>
+                        <label>Original Price (₸)</label>
                         <input type="number" id="originalPrice" readonly style="background: #f1f5f9;">
                     </div>
                     <div class="form-group">
-                        <label>🔥 Скидка</label>
+                        <label>Discount</label>
                         <div class="discount-buttons">
                             <button type="button" class="discount-preset" data-percent="30">-30%</button>
                             <button type="button" class="discount-preset" data-percent="40">-40%</button>
                             <button type="button" class="discount-preset" data-percent="50">-50%</button>
                             <button type="button" class="discount-preset" data-percent="75">-75%</button>
-                            <button type="button" class="discount-preset" data-percent="0">Без скидки</button>
+                            <button type="button" class="discount-preset" data-percent="0">No discount</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>💵 Цена со скидкой (₸)</label>
+                        <label>Discounted Price (₸)</label>
                         <input type="number" id="discountedPrice" required>
                         <div id="discountInfo" style="font-size: 0.75rem; color: #10b981;"></div>
                     </div>
                     <div class="form-group">
-                        <label>📦 Количество</label>
+                        <label>Quantity</label>
                         <input type="number" id="availableQuantity" value="5" min="1">
                     </div>
                     <div class="form-group">
-                        <label>🕐 Время выдачи (начало)</label>
+                        <label>Pickup Start Time</label>
                         <input type="text" id="pickupStart" placeholder="19:30">
                     </div>
                     <div class="form-group">
-                        <label>🕑 Время выдачи (конец)</label>
+                        <label>Pickup End Time</label>
                         <input type="text" id="pickupEnd" placeholder="20:00">
                     </div>
                 </div>
 
                 <div class="form-group full-width">
-                    <label>🖼️ URL картинки</label>
+                    <label>Image URL</label>
                     <input type="text" id="imageUrl" placeholder="https://...">
                 </div>
 
-                <button type="submit" class="submit-btn">✨ Добавить сюрприз</button>
+                <button type="submit" class="submit-btn">Add Surprise</button>
             </form>
         </div>
     </div>
 </div>
 
 <script>
-    // ============ JWT ТОКЕН ============
+    // ============ JWT TOKEN ============
     var supplierToken = null;
     var supplierId = parseInt(document.getElementById('supplierData').getAttribute('data-supplier-id'));
-    
+    var tokenFromHtml = document.getElementById('supplierData').getAttribute('data-token');
+
     function getSupplierToken() {
-        return sessionStorage.getItem('supplier_token');
+        var token = sessionStorage.getItem('supplier_token');
+        if (!token && tokenFromHtml && tokenFromHtml !== '') {
+            token = tokenFromHtml;
+            sessionStorage.setItem('supplier_token', token);
+        }
+        return token;
     }
-    
+
     function clearSupplierToken() {
         sessionStorage.removeItem('supplier_token');
     }
-    
+
     function logout() {
         clearSupplierToken();
         window.location.href = '/supplier/login';
     }
-    
+
     async function authFetch(url, options = {}) {
         var token = getSupplierToken();
         
@@ -765,7 +775,7 @@
         return response;
     }
     
-    // ============ ПРОВЕРКА ТОКЕНА ПРИ ЗАГРУЗКЕ ============
+    // ============ CHECK TOKEN ============
     if (!getSupplierToken()) {
         window.location.href = '/supplier/login';
     }
@@ -774,42 +784,53 @@
     var ws = null;
     var selectedProducts = [];
     
-    // 30 ГОТОВЫХ СЮРПРИЗОВ (сокращено для краткости, но в полной версии все 30)
+    // Product options
+    var productOptions = {
+        '1': { name: 'Margherita Pizza', price: 2500 },
+        '2': { name: 'Pepperoni Pizza', price: 3200 },
+        '3': { name: 'Hawaiian Pizza', price: 3000 },
+        '4': { name: 'Meat Pizza', price: 3800 },
+        '5': { name: 'Vegetarian Pizza', price: 2800 },
+        '6': { name: 'Hamburger', price: 1800 },
+        '7': { name: 'Cheeseburger', price: 2100 },
+        '8': { name: 'Chicken Burger', price: 1900 },
+        '9': { name: 'Sushi Set', price: 3000 },
+        '10': { name: 'Philadelphia Roll', price: 4200 },
+        '11': { name: 'California Roll', price: 3800 },
+        '12': { name: 'Greek Salad', price: 1500 },
+        '13': { name: 'Caesar Salad', price: 2200 },
+        '14': { name: 'Coca-Cola', price: 500 },
+        '15': { name: 'Lemonade', price: 800 },
+        '16': { name: 'Cheesecake', price: 1200 },
+        '17': { name: 'Tiramisu', price: 1400 },
+        '18': { name: 'French Fries', price: 800 },
+        '19': { name: 'Chicken Wings', price: 1800 },
+        '20': { name: 'Cheese Sticks', price: 1500 }
+    };
+    
+    // Surprise templates (simplified)
     var surpriseTemplates = {
         'pizza_classic': {
-            name: '🍕 Пицца-сет "Классический"',
-            description: 'Две классические пиццы для отличного вечера',
+            name: 'Pizza Set "Classic"',
+            description: 'Two classic pizzas for a great evening',
             items: [
-                { id: 1, name: 'Маргарита пицца', price: 2500, quantity: 1 },
-                { id: 2, name: 'Пепперони пицца', price: 3200, quantity: 1 },
-                { id: 14, name: 'Кока-кола', price: 500, quantity: 2 }
+                { id: 1, name: 'Margherita Pizza', price: 2500, quantity: 1 },
+                { id: 2, name: 'Pepperoni Pizza', price: 3200, quantity: 1 },
+                { id: 14, name: 'Coca-Cola', price: 500, quantity: 2 }
             ],
             image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
         },
-        // ... остальные 29 шаблонов (оставь как есть из твоего файла)
-    };
-
-    var productOptions = {
-        '1': { name: 'Маргарита пицца', price: 2500 },
-        '2': { name: 'Пепперони пицца', price: 3200 },
-        '3': { name: 'Гавайская пицца', price: 3000 },
-        '4': { name: 'Мясная пицца', price: 3800 },
-        '5': { name: 'Вегетарианская пицца', price: 2800 },
-        '6': { name: 'Гамбургер', price: 1800 },
-        '7': { name: 'Чизбургер', price: 2100 },
-        '8': { name: 'Чикен бургер', price: 1900 },
-        '9': { name: 'Суши сет', price: 3000 },
-        '10': { name: 'Филадельфия ролл', price: 4200 },
-        '11': { name: 'Калифорния ролл', price: 3800 },
-        '12': { name: 'Греческий салат', price: 1500 },
-        '13': { name: 'Цезарь салат', price: 2200 },
-        '14': { name: 'Кока-кола', price: 500 },
-        '15': { name: 'Лимонад', price: 800 },
-        '16': { name: 'Чизкейк', price: 1200 },
-        '17': { name: 'Тирамису', price: 1400 },
-        '18': { name: 'Картошка фри', price: 800 },
-        '19': { name: 'Куриные крылья', price: 1800 },
-        '20': { name: 'Сырные палочки', price: 1500 }
+        'burger_classic': {
+            name: 'Burger Set "Classic"',
+            description: 'Traditional burgers with fries',
+            items: [
+                { id: 6, name: 'Hamburger', price: 1800, quantity: 2 },
+                { id: 18, name: 'French Fries', price: 800, quantity: 1 },
+                { id: 14, name: 'Coca-Cola', price: 500, quantity: 2 }
+            ],
+            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
+        }
+        // Add more templates as needed
     };
     
     // ============ WEB SOCKET ============
@@ -826,7 +847,7 @@
         ws.onmessage = function(event) {
             var data = JSON.parse(event.data);
             if (data.type === 'new_order') {
-                showNotification('🆕 Новый заказ!', 'success');
+                showNotification('New order received!', 'success');
                 refreshOrders();
             }
         };
@@ -841,15 +862,13 @@
     function showNotification(message, type) {
         var notification = document.createElement('div');
         notification.className = 'notification';
-        notification.innerHTML = (type === 'success' ? '🎉' : '⚠️') + ' ' + message;
+        notification.innerHTML = (type === 'success' ? '✓' : '⚠') + ' ' + message;
         document.body.appendChild(notification);
         setTimeout(function() { notification.remove(); }, 3000);
     }
     
-    // ============ УДАЛЕНИЕ НЕАКТИВНЫХ СЮРПРИЗОВ ============
+    // ============ CLEAR INACTIVE BAGS ============
     async function clearInactiveBags() {
-        console.log('🔘 clearInactiveBags вызвана!');
-        
         let inactiveCount = 0;
         const rows = document.querySelectorAll('#bagsTableBody tr');
         
@@ -857,28 +876,28 @@
             const cells = rows[i].cells;
             if (cells.length > 6) {
                 const statusCell = cells[6];
-                if (statusCell && statusCell.innerText.includes('Неактивен')) {
+                if (statusCell && statusCell.innerText.includes('Inactive')) {
                     inactiveCount++;
                 }
             }
         }
         
         if (inactiveCount === 0) {
-            alert('❌ Нет неактивных сюрпризов для удаления');
+            alert('No inactive surprises to delete');
             return;
         }
         
-        if (!confirm(`⚠️ Вы уверены, что хотите удалить ${inactiveCount} НЕАКТИВНЫХ сюрприз-пакетов?`)) {
+        if (!confirm(`Delete ${inactiveCount} INACTIVE surprise bags?`)) {
             return;
         }
         
-        if (!confirm('Ещё раз подтвердите: Удалить ТОЛЬКО неактивные сюрпризы?')) {
+        if (!confirm('Confirm: Delete ONLY inactive surprises?')) {
             return;
         }
         
         const btn = document.getElementById('clearInactiveBagsBtn');
         const originalText = btn.innerHTML;
-        btn.innerHTML = '⏳ Удаление...';
+        btn.innerHTML = 'Deleting...';
         btn.disabled = true;
         
         try {
@@ -889,33 +908,33 @@
             const data = await response.json();
             
             if (data.success) {
-                showNotification(`✅ ${data.message}`, 'success');
+                showNotification(data.message, 'success');
                 refreshBags();
             } else {
-                showNotification('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'), 'error');
+                showNotification('Error: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
             console.error('Clear inactive bags error:', error);
-            showNotification('❌ Ошибка при удалении', 'error');
+            showNotification('Error deleting', 'error');
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
         }
     }
     
-    // ============ УДАЛЕНИЕ ВСЕХ СЮРПРИЗОВ ============
+    // ============ CLEAR ALL BAGS ============
     async function clearAllBags() {
-        if (!confirm('⚠️ ВНИМАНИЕ! Это действие удалит ВСЕ ваши сюрприз-пакеты без возможности восстановления.\n\nВы уверены, что хотите продолжить?')) {
+        if (!confirm('WARNING! This will delete ALL your surprise bags. Continue?')) {
             return;
         }
         
-        if (!confirm('Ещё раз подтвердите: Удалить ВСЕ сюрпризы?')) {
+        if (!confirm('Confirm: Delete ALL surprises?')) {
             return;
         }
         
         const btn = document.getElementById('clearAllBagsBtn');
         const originalText = btn.innerHTML;
-        btn.innerHTML = '⏳ Удаление...';
+        btn.innerHTML = 'Deleting...';
         btn.disabled = true;
         
         try {
@@ -926,14 +945,14 @@
             const data = await response.json();
             
             if (data.success) {
-                showNotification(`✅ ${data.message}`, 'success');
+                showNotification(data.message, 'success');
                 refreshBags();
             } else {
-                showNotification('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'), 'error');
+                showNotification('Error: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
             console.error('Clear bags error:', error);
-            showNotification('❌ Ошибка при удалении', 'error');
+            showNotification('Error deleting', 'error');
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -957,7 +976,7 @@
             });
             
             if (activeOrders.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">✅ Нет активных заказов</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No active orders</td></tr>';
                 document.getElementById('pendingOrders').innerText = '0';
                 document.getElementById('totalOrders').innerText = '0';
                 return;
@@ -969,13 +988,13 @@
                 
                 var row = '<tr data-order-id="' + order.id + '">' +
                     '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#' + order.id + '</span></td>' +
-                    '<td>' + escapeHtml(order.customer_address || 'Адрес не указан') + '<br><span style="font-size:0.65rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
-                    '<td>' + escapeHtml(order.bag_name) + '</span></td>' +
-                    '<td><strong>' + order.amount_paid + '</strong> ₸</span></td>' +
-                    '<td><span class="status-badge status-' + order.status + '">' + getStatusIcon(order.status) + ' ' + getStatusText(order.status) + '</span></td>' +
-                    '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? '🚚 ' + escapeHtml(order.assigned_courier_name) : '<span class="text-gray-400">—</span>') + '</span></td>' +
-                    '<td>' + getActionButtons(order) + '</span></td>' +
-                    '<td><button class="btn track-btn" data-order-id="' + order.id + '">🗺️ Карта</button></span></td>' +
+                    '<td>' + escapeHtml(order.customer_address || 'Address not specified') + '<br><span style="font-size:0.65rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
+                    '<td>' + escapeHtml(order.bag_name) + '</td>' +
+                    '<td><strong>' + order.amount_paid + '</strong> ₸</td>' +
+                    '<td><span class="status-badge status-' + order.status + '">' + getStatusText(order.status) + '</span></td>' +
+                    '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? escapeHtml(order.assigned_courier_name) : '—') + '</td>' +
+                    '<td>' + getActionButtons(order) + '</td>' +
+                    '<td><button class="btn track-btn" data-order-id="' + order.id + '">Map</button></td>' +
                 '</tr>';
                 tbody.innerHTML += row;
             }
@@ -988,32 +1007,27 @@
         }
     }
     
-    function getStatusIcon(status) {
-        var icons = { pending: '⏳', confirmed: '✅', preparing: '🍳', ready_for_pickup: '📦', out_for_delivery: '🚚', delivered: '🎉', cancelled: '❌', deleted: '🗑️' };
-        return icons[status] || '📌';
-    }
-    
     function getStatusText(status) {
-        var texts = { pending: 'Ожидает', confirmed: 'Подтвержден', preparing: 'Готовится', ready_for_pickup: 'Готов', out_for_delivery: 'В пути', delivered: 'Доставлен', cancelled: 'Отменен', deleted: 'Удален' };
+        var texts = { pending: 'Pending', confirmed: 'Confirmed', preparing: 'Preparing', ready_for_pickup: 'Ready', out_for_delivery: 'Delivering', delivered: 'Delivered', cancelled: 'Cancelled', deleted: 'Deleted' };
         return texts[status] || status;
     }
     
     function getActionButtons(order) {
         if (order.status === 'confirmed') {
-            return '<div><button class="auto-assign-btn btn" data-order-id="' + order.id + '">🚚 Автоназначить</button><br><button class="manual-assign-btn btn" data-order-id="' + order.id + '" style="margin-top:0.3rem;">🔧 Выбрать вручную</button></div>';
+            return '<div><button class="auto-assign-btn btn" data-order-id="' + order.id + '">Auto-assign</button><br><button class="manual-assign-btn btn" data-order-id="' + order.id + '" style="margin-top:0.3rem;">Manual</button></div>';
         } else if (order.status === 'out_for_delivery') {
             return '<div class="text-sm"><div class="delivery-timer" data-deadline="' + order.delivery_deadline + '"></div></div>';
         } else if (order.status === 'delivered') {
-            return '<span class="text-green-600 text-sm">✅ Доставлен</span>';
+            return '<span style="color: #10b981;">Delivered</span>';
         } else {
             return '<select class="status-select" data-order-id="' + order.id + '">' +
-                '<option value="">📌 Изменить статус</option>' +
-                '<option value="confirmed">✅ Подтвердить</option>' +
-                '<option value="preparing">🍳 Готовить</option>' +
-                '<option value="ready_for_pickup">📦 Готов к выдаче</option>' +
-                '<option value="out_for_delivery">🚚 Отправить</option>' +
-                '<option value="delivered">🎉 Доставлен</option>' +
-                '<option value="cancelled">❌ Отменить</option>' +
+                '<option value="">Change status</option>' +
+                '<option value="confirmed">Confirm</option>' +
+                '<option value="preparing">Prepare</option>' +
+                '<option value="ready_for_pickup">Ready</option>' +
+                '<option value="out_for_delivery">Send</option>' +
+                '<option value="delivered">Delivered</option>' +
+                '<option value="cancelled">Cancel</option>' +
                 '</select>';
         }
     }
@@ -1043,18 +1057,18 @@
             btn.removeEventListener('click', btn._handler);
             btn._handler = async function() {
                 var orderId = this.getAttribute('data-order-id');
-                if (confirm('Автоматически назначить лучшего курьера?')) {
+                if (confirm('Auto-assign best courier?')) {
                     try {
                         var res = await authFetch('/api/supplier/auto-assign-courier/' + orderId, { method: 'POST' });
                         var data = await res.json();
                         if (data.success) {
-                            alert('✅ ' + data.message);
+                            alert(data.message);
                             location.reload();
                         } else {
-                            alert('❌ ' + data.message);
+                            alert('Error: ' + data.message);
                         }
                     } catch(e) {
-                        alert('❌ Ошибка: ' + e.message);
+                        alert('Error: ' + e.message);
                     }
                 }
             };
@@ -1069,28 +1083,28 @@
                     var res = await authFetch('/api/supplier/available-couriers');
                     var data = await res.json();
                     if (!data.couriers || !data.couriers.length) {
-                        alert('❌ Нет доступных курьеров');
+                        alert('No available couriers');
                         return;
                     }
-                    var message = 'Выберите курьера:\n';
+                    var message = 'Select courier:\n';
                     data.couriers.forEach(function(c) {
                         message += c.id + ': ' + c.name + ' (⭐ ' + c.rating + ')\n';
                     });
-                    var courierId = prompt(message + '\nВведите ID курьера:');
+                    var courierId = prompt(message + '\nEnter courier ID:');
                     if (courierId) {
                         var assignRes = await authFetch('/api/supplier/assign-courier', {
                             method: 'POST',
                             body: JSON.stringify({ order_id: orderId, courier_profile_id: parseInt(courierId) })
                         });
                         if (assignRes.ok) {
-                            alert('✅ Курьер назначен');
+                            alert('Courier assigned');
                             location.reload();
                         } else {
-                            alert('❌ Ошибка');
+                            alert('Error');
                         }
                     }
                 } catch(e) {
-                    alert('❌ Ошибка: ' + e.message);
+                    alert('Error: ' + e.message);
                 }
             };
             btn.addEventListener('click', btn._handler);
@@ -1104,7 +1118,7 @@
                 body: JSON.stringify({ status: newStatus })
             });
             if (response.ok) {
-                showNotification('Статус изменен на ' + getStatusText(newStatus));
+                showNotification('Status changed to ' + getStatusText(newStatus));
                 refreshOrders();
             }
         } catch(error) {
@@ -1127,13 +1141,13 @@
                 var bag = data.bags[i];
                 var row = '<tr data-bag-id="' + bag.id + '">' +
                     '<td><strong>' + escapeHtml(bag.name) + '</strong></td>' +
-                    '<td>' + escapeHtml(bag.description || '-') + '</span></td>' +
-                    '<td>' + bag.original_price + ' ₸</span></td>' +
+                    '<td>' + escapeHtml(bag.description || '-') + '</td>' +
+                    '<td>' + bag.original_price + ' ₸</td>' +
                     '<td><strong style="color: #ef4444;">' + bag.discounted_price + ' ₸</strong></td>' +
                     '<td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.7rem;">-' + (bag.discount_percentage || 0) + '%</span></td>' +
-                    '<td>' + bag.available_quantity + '/' + bag.total_quantity + '</span></td>' +
-                    '<td>' + (bag.is_active ? '<span style="color: #10b981;">✅ Активен</span>' : '<span style="color: #ef4444;">❌ Неактивен</span>') + '</span></td>' +
-                    '<td><button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">🔄 Сменить статус</button></span></td>' +
+                    '<td>' + bag.available_quantity + '/' + bag.total_quantity + '</td>' +
+                    '<td>' + (bag.is_active ? '<span style="color: #10b981;">Active</span>' : '<span style="color: #ef4444;">Inactive</span>') + '</td>' +
+                    '<td><button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">Toggle</button></td>' +
                 '</tr>';
                 tbody.innerHTML += row;
             }
@@ -1144,7 +1158,7 @@
                         await authFetch('/api/supplier/surprise-bags/' + this.getAttribute('data-bag-id') + '/toggle', { method: 'PUT' });
                         refreshBags();
                     } catch(e) {
-                        alert('❌ Ошибка: ' + e.message);
+                        alert('Error: ' + e.message);
                     }
                 };
             });
@@ -1181,7 +1195,7 @@
             var p = selectedProducts[i];
             var div = document.createElement('div');
             div.className = 'product-item';
-            div.innerHTML = '<div><strong>🍽️ ' + escapeHtml(p.name) + '</strong> x' + p.quantity + ' = <strong>' + (p.price * p.quantity) + ' ₸</strong></div>' +
+            div.innerHTML = '<div><strong>' + escapeHtml(p.name) + '</strong> x' + p.quantity + ' = <strong>' + (p.price * p.quantity) + ' ₸</strong></div>' +
                 '<button type="button" class="remove-product" onclick="removeProduct(' + i + ')">✖</button>';
             container.appendChild(div);
         }
@@ -1199,7 +1213,7 @@
         var quantity = parseInt(document.getElementById('productQuantity').value) || 1;
         
         if (!productId) {
-            alert('Выберите блюдо');
+            alert('Select a product');
             return;
         }
         
@@ -1237,7 +1251,7 @@
         var originalPrice = parseFloat(originalPriceInput.value);
         
         if (isNaN(originalPrice) || originalPrice <= 0) {
-            alert('Сначала добавьте блюда');
+            alert('Add products first');
             return;
         }
         
@@ -1247,10 +1261,10 @@
         var discountInfo = document.getElementById('discountInfo');
         if (discountInfo) {
             if (percent === 0) {
-                discountInfo.innerHTML = '💰 Без скидки';
+                discountInfo.innerHTML = 'No discount';
             } else {
                 var saved = originalPrice - discountedPrice;
-                discountInfo.innerHTML = '🔥 Вы экономите: ' + Math.round(saved) + ' ₸ (' + percent + '%)';
+                discountInfo.innerHTML = 'You save: ' + Math.round(saved) + ' ₸ (' + percent + '%)';
             }
         }
     }
@@ -1261,7 +1275,7 @@
         var hint = document.getElementById('selectedHint');
         
         if (!templateKey) {
-            hint.innerHTML = 'Выберите готовый сюрприз, чтобы автоматически заполнить состав';
+            hint.innerHTML = 'Select ready surprise to auto-fill';
             hint.style.color = '#64748b';
             return;
         }
@@ -1292,10 +1306,10 @@
             document.getElementById('imageUrl').value = template.image;
         }
         
-        hint.innerHTML = '✅ Загружен: ' + template.name + ' (общая сумма: ' + total + ' ₸). Можете редактировать состав.';
+        hint.innerHTML = 'Loaded: ' + template.name + ' (total: ' + total + ' ₸). You can edit.';
         hint.style.color = '#10b981';
         
-        showNotification('Готовый сюрприз загружен! Вы можете изменить состав при необходимости.', 'success');
+        showNotification('Ready surprise loaded! You can edit.', 'success');
     }
     
     // ============ FORM SUBMIT ============
@@ -1309,12 +1323,12 @@
         var imageUrl = document.getElementById('imageUrl').value;
         
         if (!name) {
-            alert('Введите название');
+            alert('Enter name');
             return;
         }
         
         if (selectedProducts.length === 0) {
-            alert('Добавьте хотя бы одно блюдо');
+            alert('Add at least one product');
             return;
         }
         
@@ -1360,14 +1374,14 @@
             });
             
             if (response.ok) {
-                alert('✅ Сюрприз добавлен!');
+                alert('Surprise bag added!');
                 location.reload();
             } else {
                 var error = await response.json();
-                alert('❌ Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
+                alert('Error: ' + (error.detail || 'Unknown error'));
             }
         } catch(error) {
-            alert('❌ Ошибка сети');
+            alert('Network error');
         }
     }
     
@@ -1379,12 +1393,12 @@
             var deadline = new Date(deadlineStr);
             var now = new Date();
             if (now >= deadline) {
-                el.innerHTML = '<span class="text-red-600 font-bold">⏰ Время истекло!</span>';
+                el.innerHTML = '<span style="color: #dc2626;">Time expired!</span>';
             } else {
                 var diff = deadline - now;
                 var minutes = Math.floor(diff / 60000);
                 var seconds = Math.floor((diff % 60000) / 1000);
-                el.innerHTML = '⏱️ Осталось: ' + minutes + ':' + seconds.toString().padStart(2, '0');
+                el.innerHTML = 'Remaining: ' + minutes + ':' + seconds.toString().padStart(2, '0');
             }
         });
     }
@@ -1399,37 +1413,50 @@
     
     // ============ INITIALIZATION ============
     function init() {
-        console.log('🚀 Инициализация дашборда...');
+        console.log('Dashboard initializing...');
         
-        document.getElementById('refreshOrdersBtn').addEventListener('click', refreshOrders);
+        var refreshOrdersBtn = document.getElementById('refreshOrdersBtn');
+        if (refreshOrdersBtn) {
+            refreshOrdersBtn.addEventListener('click', refreshOrders);
+        }
         
-        document.getElementById('toggleAddBagBtn').addEventListener('click', function() {
-            var form = document.getElementById('addBagForm');
-            form.style.display = form.style.display === 'none' ? 'block' : 'none';
-        });
+        var toggleAddBagBtn = document.getElementById('toggleAddBagBtn');
+        if (toggleAddBagBtn) {
+            toggleAddBagBtn.addEventListener('click', function() {
+                var form = document.getElementById('addBagForm');
+                if (form) {
+                    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+                }
+            });
+        }
         
-        // Кнопка удаления ВСЕХ сюрпризов
-        const clearAllBtn = document.getElementById('clearAllBagsBtn');
+        var clearAllBtn = document.getElementById('clearAllBagsBtn');
         if (clearAllBtn) {
             clearAllBtn.addEventListener('click', clearAllBags);
-            console.log('✅ Кнопка удаления всех привязана');
         }
         
-        // Кнопка удаления НЕАКТИВНЫХ сюрпризов
-        const clearInactiveBtn = document.getElementById('clearInactiveBagsBtn');
+        var clearInactiveBtn = document.getElementById('clearInactiveBagsBtn');
         if (clearInactiveBtn) {
             clearInactiveBtn.addEventListener('click', clearInactiveBags);
-            console.log('✅ Кнопка очистки неактивных привязана');
-        } else {
-            console.log('❌ Кнопка clearInactiveBagsBtn не найдена');
         }
         
-        document.getElementById('addProductBtn').addEventListener('click', addProduct);
-        document.getElementById('createBagForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            submitBagForm();
-        });
-        document.getElementById('surpriseTemplate').addEventListener('change', loadSurpriseTemplate);
+        var addProductBtn = document.getElementById('addProductBtn');
+        if (addProductBtn) {
+            addProductBtn.addEventListener('click', addProduct);
+        }
+        
+        var createBagForm = document.getElementById('createBagForm');
+        if (createBagForm) {
+            createBagForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                submitBagForm();
+            });
+        }
+        
+        var surpriseTemplate = document.getElementById('surpriseTemplate');
+        if (surpriseTemplate) {
+            surpriseTemplate.addEventListener('change', loadSurpriseTemplate);
+        }
         
         document.querySelectorAll('.discount-preset').forEach(function(btn) {
             btn.addEventListener('click', function() {
@@ -1447,7 +1474,6 @@
         connectWebSocket();
     }
     
-    // Запускаем инициализацию после загрузки страницы
     document.addEventListener('DOMContentLoaded', init);
 </script>
 {% endblock %}

@@ -6991,10 +6991,9 @@ async def supplier_login_page(request: Request, lang: str = "kz"):
     return templates.TemplateResponse("supplier_login.html", {"request": request, "lang": lang})
 
 # backend/main.py - добавьте
-
 @app.post("/supplier/api/login")
 async def supplier_login_jwt(request: Request, db: Session = Depends(get_db)):
-    """Логин поставщика - возвращает JWT токен"""
+    """JWT логин для поставщика (для React/Next.js фронтенда)"""
     
     data = await request.json()
     email = data.get("email")
@@ -7006,13 +7005,19 @@ async def supplier_login_jwt(request: Request, db: Session = Depends(get_db)):
     ).first()
     
     if not user or not verify_password(password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        return JSONResponse(
+            status_code=401, 
+            content={"success": False, "message": "Invalid credentials"}
+        )
     
     supplier = db.query(Supplier).filter(Supplier.user_id == user.id).first()
     if not supplier:
-        raise HTTPException(status_code=404, detail="Supplier not found")
+        return JSONResponse(
+            status_code=404, 
+            content={"success": False, "message": "Supplier profile not found"}
+        )
     
-    # ✅ СОЗДАЕМ JWT ТОКЕН
+    # Создаем JWT токен
     access_token = create_access_token(data={
         "sub": str(user.id),
         "role": "supplier",
@@ -7029,82 +7034,140 @@ async def supplier_login_jwt(request: Request, db: Session = Depends(get_db)):
             "email": user.email
         }
     }
+@app.get("/api/supplier/check-auth")
+async def supplier_check_auth(request: Request, db: Session = Depends(get_db)):
+    """Проверка авторизации поставщика"""
     
-@app.get("/supplier/dashboard")
-async def supplier_dashboard(request: Request, db: Session = Depends(get_db)):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"authenticated": False})
+    
+    token = auth_header.split(" ")[1]
+    
     try:
-        supplier_id = request.cookies.get("supplier_id")
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
-        if not supplier_id:
-            return RedirectResponse(url="/supplier/login", status_code=303)
+        if payload.get("role") != "supplier":
+            return JSONResponse(status_code=403, content={"authenticated": False})
         
-        supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
+        supplier_id = payload.get("supplier_id")
+        supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
         
         if not supplier:
-            response = RedirectResponse(url="/supplier/login", status_code=303)
-            response.delete_cookie("supplier_id")
-            return response
+            return JSONResponse(status_code=404, content={"authenticated": False})
         
-        # Get all orders for this supplier
-        all_orders = db.query(Order).filter(Order.supplier_id == supplier.id).order_by(Order.created_at.desc()).all()
-        
-        print(f"📦 Supplier {supplier.business_name} has {len(all_orders)} orders")
-        
-        # Prepare orders list
-        recent_orders_list = []
-        for order in all_orders:
-            bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-            recent_orders_list.append({
-                "id": order.id,
-                "order_number": order.order_number or f"ORD-{order.id}",
-                "customer_address": order.customer_address or "Мекенжай көрсетілмеген",
-                "surprise_bag_name": bag.name if bag else "Тосын сый",
-                "amount_paid": order.amount_paid or 0,
-                "status": order.status.value if order.status else "pending",
-                "created_at": order.created_at
-            })
-        
-        # Statistics
-        total_orders = len(all_orders)
-        pending_orders = len([o for o in all_orders if o.status == OrderStatus.PENDING])
-        today_orders = len([o for o in all_orders if o.created_at and o.created_at.date() == datetime.utcnow().date()])
-        total_revenue = sum([o.amount_paid or 0 for o in all_orders])
-        
-        stats = {
-            "total_orders": total_orders,
-            "pending_orders": pending_orders,
-            "today_orders": today_orders,
-            "total_revenue": total_revenue
+        return {
+            "authenticated": True,
+            "supplier_id": supplier.id,
+            "business_name": supplier.business_name
         }
         
-        # Surprise bags
-        surprise_bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier.id).all()
-        
-        lang = request.query_params.get("lang", "ru")
-        
-        return templates.TemplateResponse("supplier_dashboard.html", {
-            "request": request,
-            "supplier": supplier,
-            "stats": stats,
-            "recent_orders": recent_orders_list,
-            "all_orders": recent_orders_list,
-            "surprise_bags": surprise_bags,
-            "monthly_revenue": total_revenue,
-            "lang": lang
+    except:
+        return JSONResponse(status_code=401, content={"authenticated": False})
+    
+@app.get("/supplier/dashboard")
+async def supplier_dashboard(
+    request: Request, 
+    db: Session = Depends(get_db)
+):
+    """Страница дашборда поставщика - поддерживает JWT и Cookie"""
+    
+    supplier_id = None
+    auth_token = None
+    
+    # 1. Сначала проверяем JWT токен из Authorization header или query param
+    auth_header = request.headers.get("Authorization")
+    
+    if auth_header and auth_header.startswith("Bearer "):
+        auth_token = auth_header.split(" ")[1]
+    
+    if not auth_token:
+        auth_token = request.query_params.get("token")
+    
+    if auth_token:
+        try:
+            from jose import jwt
+            payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
+            role = payload.get("role")
+            
+            if role == "supplier":
+                supplier_id = payload.get("supplier_id")
+                if not supplier_id:
+                    user_id = int(payload.get("sub"))
+                    supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
+                    if supplier:
+                        supplier_id = supplier.id
+        except Exception as e:
+            print(f"JWT decode error: {e}")
+            auth_token = None
+    
+    # 2. Если JWT не сработал, проверяем cookie
+    if not supplier_id:
+        cookie_supplier_id = request.cookies.get("supplier_id")
+        if cookie_supplier_id:
+            supplier_id = int(cookie_supplier_id)
+    
+    # 3. Если нет авторизации - редирект на логин
+    if not supplier_id:
+        return RedirectResponse(url="/supplier/login", status_code=303)
+    
+    # Получаем данные поставщика
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    
+    if not supplier:
+        response = RedirectResponse(url="/supplier/login", status_code=303)
+        response.delete_cookie("supplier_id")
+        return response
+    
+    # Получаем заказы
+    all_orders = db.query(Order).filter(Order.supplier_id == supplier.id).order_by(Order.created_at.desc()).all()
+    
+    print(f"📦 Supplier {supplier.business_name} has {len(all_orders)} orders")
+    
+    # Подготовка списка заказов для шаблона
+    recent_orders_list = []
+    for order in all_orders[:10]:
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        recent_orders_list.append({
+            "id": order.id,
+            "order_number": order.order_number or f"ORD-{order.id}",
+            "customer_address": order.customer_address or "Мекенжай көрсетілмеген",
+            "surprise_bag_name": bag.name if bag else "Тосын сый",
+            "amount_paid": order.amount_paid or 0,
+            "status": order.status.value if order.status else "pending",
+            "created_at": order.created_at
         })
-        
-    except Exception as e:
-        print(f"❌ Dashboard error: {e}")
-        return templates.TemplateResponse("supplier_dashboard.html", {
-            "request": request,
-            "supplier": None,
-            "stats": {},
-            "recent_orders": [],
-            "all_orders": [],
-            "surprise_bags": [],
-            "monthly_revenue": 0,
-            "lang": "ru"
-        })
+    
+    # Статистика
+    total_orders = len(all_orders)
+    pending_orders = len([o for o in all_orders if o.status == OrderStatus.PENDING])
+    today_orders = len([o for o in all_orders if o.created_at and o.created_at.date() == datetime.utcnow().date()])
+    total_revenue = sum([o.amount_paid or 0 for o in all_orders if o.status == OrderStatus.DELIVERED])
+    
+    stats = {
+        "total_orders": total_orders,
+        "pending_orders": pending_orders,
+        "today_orders": today_orders,
+        "total_revenue": total_revenue
+    }
+    
+    # Сюрпризы
+    surprise_bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier.id).all()
+    
+    lang = request.query_params.get("lang", "ru")
+    
+    return templates.TemplateResponse("supplier_dashboard.html", {
+        "request": request,
+        "supplier": supplier,
+        "stats": stats,
+        "recent_orders": recent_orders_list,
+        "all_orders": recent_orders_list,
+        "surprise_bags": surprise_bags,
+        "monthly_revenue": total_revenue,
+        "lang": lang,
+        "token": auth_token  # Передаем токен в шаблон
+    })
     
 @app.post("/supplier/logout")
 async def supplier_logout(request: Request):
@@ -7456,46 +7519,59 @@ async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/supplier/surprise-bags")
 async def get_supplier_surprise_bags(
-    supplier: Supplier = Depends(verify_supplier_token),  # ← JWT!
+    request: Request,
     db: Session = Depends(get_db)
 ):
-    """Получить сюрприз-пакеты поставщика с составом"""
+    """API для получения сюрпризов поставщика (для JS)"""
     
-    bags = db.query(SurpriseBag).filter(
-        SurpriseBag.supplier_id == supplier.id
-    ).order_by(SurpriseBag.created_at.desc()).all()
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
     
-    result = []
-    for bag in bags:
-        items = db.query(SurpriseBagItem).filter(
-            SurpriseBagItem.surprise_bag_id == bag.id
-        ).all()
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
-        result.append({
-            "id": bag.id,
-            "name": bag.name,
-            "description": bag.description,
-            "original_price": bag.original_price,
-            "discounted_price": bag.discounted_price,
-            "discount_percentage": bag.discount_percentage,
-            "image_url": bag.image_url,
-            "available_quantity": bag.available_quantity,
-            "total_quantity": bag.total_quantity,
-            "pickup_start_time": bag.pickup_start_time,
-            "pickup_end_time": bag.pickup_end_time,
-            "is_active": bag.is_active,
-            "items": [
-                {
-                    "product_id": item.product_id,
-                    "name": item.product_name,
-                    "price": item.product_price,
-                    "quantity": item.quantity
-                } for item in items
-            ]
-        })
-    
-    return {"success": True, "bags": result}
-
+        if payload.get("role") != "supplier":
+            return JSONResponse(status_code=403, content={"success": False, "message": "Forbidden"})
+        
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            user_id = int(payload.get("sub"))
+            supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
+            if supplier:
+                supplier_id = supplier.id
+        
+        if not supplier_id:
+            return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
+        
+        bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier_id).all()
+        
+        bags_list = []
+        for bag in bags:
+            bags_list.append({
+                "id": bag.id,
+                "name": bag.name,
+                "description": bag.description,
+                "original_price": bag.original_price,
+                "discounted_price": bag.discounted_price,
+                "discount_percentage": bag.discount_percentage,
+                "image_url": bag.image_url,
+                "available_quantity": bag.available_quantity,
+                "total_quantity": bag.total_quantity,
+                "is_active": bag.is_active,
+                "pickup_start_time": bag.pickup_start_time,
+                "pickup_end_time": bag.pickup_end_time,
+                "created_at": bag.created_at.isoformat() if bag.created_at else None
+            })
+        
+        return {"success": True, "bags": bags_list}
+        
+    except Exception as e:
+        print(f"Error getting supplier bags: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
 
 
 
@@ -7568,35 +7644,61 @@ async def create_surprise_bag(
     })
     
     return {"success": True, "bag_id": bag.id, "message": "Сюрприз создан"}
+
 @app.get("/api/supplier/orders")
 async def get_supplier_orders(
-    supplier: Supplier = Depends(verify_supplier_token),  # ← JWT!
+    request: Request,
     db: Session = Depends(get_db)
 ):
-    """Получить заказы для поставщика"""
+    """API для получения заказов поставщика (для JS)"""
     
-    orders = db.query(Order).filter(
-        Order.supplier_id == supplier.id
-    ).order_by(Order.created_at.desc()).all()
+    # Проверяем токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
     
-    result = []
-    for order in orders:
-        user = db.query(User).filter(User.id == order.user_id).first()
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
-        result.append({
-            "id": order.id,
-            "order_number": order.order_number,
-            "customer_name": user.full_name if user else "Неизвестно",
-            "customer_phone": user.phone if user else "Не указан",
-            "bag_name": bag.name if bag else "Сюрприз",
-            "amount_paid": order.amount_paid or 0,
-            "status": order.status.value if order.status else "pending",
-            "created_at": order.created_at.isoformat() if order.created_at else None,
-            "customer_address": order.customer_address or "Адрес не указан"
-        })
-    
-    return {"success": True, "orders": result}
+        if payload.get("role") != "supplier":
+            return JSONResponse(status_code=403, content={"success": False, "message": "Forbidden"})
+        
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            user_id = int(payload.get("sub"))
+            supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
+            if supplier:
+                supplier_id = supplier.id
+        
+        if not supplier_id:
+            return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
+        
+        # Получаем заказы
+        orders = db.query(Order).filter(Order.supplier_id == supplier_id).order_by(Order.created_at.desc()).all()
+        
+        orders_list = []
+        for order in orders:
+            bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+            orders_list.append({
+                "id": order.id,
+                "order_number": order.order_number or f"ORD-{order.id}",
+                "customer_address": order.customer_address or "Адрес не указан",
+                "bag_name": bag.name if bag else "Сюрприз",
+                "amount_paid": order.amount_paid or 0,
+                "status": order.status.value if order.status else "pending",
+                "created_at": order.created_at.isoformat() if order.created_at else None,
+                "assigned_courier_name": None,  # Добавь если есть связь с курьером
+                "delivery_deadline": order.delivery_deadline.isoformat() if hasattr(order, 'delivery_deadline') and order.delivery_deadline else None
+            })
+        
+        return {"success": True, "orders": orders_list}
+        
+    except Exception as e:
+        print(f"Error getting supplier orders: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
 
 @app.get("/api/supplier/stats")
 async def get_supplier_stats(request: Request, db: Session = Depends(get_db)):
