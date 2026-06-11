@@ -6496,6 +6496,19 @@ async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
     if not bag:
         raise HTTPException(status_code=404, detail="Surprise bag not found")
     supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    
+    # ✅ ПОЛУЧАЕМ СОСТАВ (items) ИЗ БАЗЫ ДАННЫХ
+    items = db.query(SurpriseBagItem).filter(SurpriseBagItem.surprise_bag_id == bag_id).all()
+    items_list = [
+        {
+            "product_id": item.product_id,
+            "name": item.product_name,
+            "price": item.product_price,
+            "quantity": item.quantity
+        }
+        for item in items
+    ]
+    
     return {
         "id": bag.id,
         "supplier_id": bag.supplier_id,
@@ -6506,7 +6519,8 @@ async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
         "discounted_price": bag.discounted_price,
         "discount_percentage": bag.discount_percentage,
         "image_url": bag.image_url,
-        "available_quantity": bag.available_quantity
+        "available_quantity": bag.available_quantity,
+        "items": items_list  # ← ДОБАВЛЯЕМ СОСТАВ
     }
 # ============ ОЦЕНКА МАГАЗИНОВ ============
 
