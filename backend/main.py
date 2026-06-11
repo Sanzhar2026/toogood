@@ -6640,7 +6640,45 @@ async def rate_supplier(
         "message": "Спасибо за оценку магазина!"
     }
 
-
+@app.get("/api/surprise-bags")
+async def get_all_surprise_bags(db: Session = Depends(get_db)):
+    bags = db.query(SurpriseBag).filter(
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0
+    ).all()
+    
+    result = []
+    for bag in bags:
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        
+        # Получаем состав для каждого сюрприза
+        items = db.query(SurpriseBagItem).filter(SurpriseBagItem.surprise_bag_id == bag.id).all()
+        items_list = [
+            {
+                "product_id": item.product_id,
+                "name": item.product_name,
+                "price": item.product_price,
+                "quantity": item.quantity
+            }
+            for item in items
+        ]
+        
+        result.append({
+            "id": bag.id,
+            "supplier_id": bag.supplier_id,
+            "supplier_name": supplier.business_name if supplier else "Unknown",
+            "name": bag.name,
+            "description": bag.description,
+            "original_price": bag.original_price,
+            "discounted_price": bag.discounted_price,
+            "discount_percentage": bag.discount_percentage,
+            "image_url": bag.image_url,
+            "available_quantity": bag.available_quantity,
+            "is_active": bag.is_active,
+            "items": items_list  # ← ДОБАВЛЯЕМ СОСТАВ
+        })
+    
+    return result
 # ============ ОЦЕНКА СЮРПРИЗОВ ============
 
 @app.get("/api/surprise-bags/{bag_id}/rating")
