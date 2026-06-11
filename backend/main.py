@@ -7974,7 +7974,13 @@ async def get_supplier_surprise_bags(
             return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
         
         bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier_id).all()
-        
+        data = await request.json()
+        products = data.get("products", [])
+    
+        print(f"📦 Получено products: {products}")  # ← ДОБАВЬТЕ ЭТУ СТРОКУ
+    
+        if not products:
+          print("⚠️ НЕТ ТОВАРОВ В ЗАПРОСЕ!")
         bags_list = []
         for bag in bags:
             bags_list.append({

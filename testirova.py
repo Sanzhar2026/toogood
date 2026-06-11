@@ -1,66 +1,89 @@
+# add_columns.py
 import psycopg2
+from psycopg2.extras import RealDictCursor
 
-DATABASE_URL = "postgresql://toogood_db_a3k0_user:2tWztMrzy1VCriWHefthkLBK1EOeeYnG@dpg-d8eo51rbc2fs73coebs0-a.frankfurt-postgres.render.com:5432/toogood_db_a3k0?sslmode=require"
+# Ваши данные для подключения
+DATABASE_URL = "postgresql://toogood_db_a3k0_user:2tWztMrzy1VCriWHefthkLBK1EOeeYnG@dpg-d8eo51rbc2fs73coebs0-a.frankfurt-postgres.render.com/toogood_db_a3k0"
 
-def fix_enum():
-    conn = None
-    cur = None
-    
+def add_columns():
     try:
-        print("🔌 Подключение...")
+        # Подключаемся к базе данных
+        print("🔌 Подключение к базе данных...")
         conn = psycopg2.connect(DATABASE_URL)
-        cur = conn.cursor()
-        print("✅ Подключено!")
+        cursor = conn.cursor()
+        print("✅ Подключено успешно!")
         
-        # Откатываем транзакцию
-        conn.rollback()
+        # Добавляем колонку rating
+        print("\n📝 Добавляем колонку rating...")
+        cursor.execute("""
+            ALTER TABLE surprise_bags 
+            ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION DEFAULT 0
+        """)
+        print("✅ Колонка rating добавлена")
         
-        # Проверяем текущие значения
-        print("\n📋 Текущие значения orderstatus:")
-        cur.execute("SELECT unnest(enum_range(NULL::orderstatus))")
-        values = cur.fetchall()
-        for v in values:
-            print(f"   - {v[0]}")
+        # Добавляем колонку total_reviews
+        print("\n📝 Добавляем колонку total_reviews...")
+        cursor.execute("""
+            ALTER TABLE surprise_bags 
+            ADD COLUMN IF NOT EXISTS total_reviews INTEGER DEFAULT 0
+        """)
+        print("✅ Колонка total_reviews добавлена")
         
-        # Добавляем 'picked_up'
-        print("\n📝 Добавляем 'picked_up'...")
-        cur.execute("ALTER TYPE orderstatus ADD VALUE IF NOT EXISTS 'picked_up'")
+        # Создаём таблицу отзывов для сюрпризов (если нет)
+        print("\n📝 Создаём таблицу surprise_bag_reviews...")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS surprise_bag_reviews (
+                id SERIAL PRIMARY KEY,
+                surprise_bag_id INTEGER NOT NULL REFERENCES surprise_bags(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+                comment TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        print("✅ Таблица surprise_bag_reviews создана")
+        
+        # Добавляем индексы
+        print("\n📝 Добавляем индексы...")
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_surprise_bag_reviews_bag_id 
+            ON surprise_bag_reviews(surprise_bag_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_surprise_bag_reviews_user_id 
+            ON surprise_bag_reviews(user_id)
+        """)
+        print("✅ Индексы добавлены")
+        
+        # Сохраняем изменения
         conn.commit()
-        print("✅ 'picked_up' добавлен!")
+        print("\n" + "="*50)
+        print("✅ ВСЕ ИЗМЕНЕНИЯ УСПЕШНО ПРИМЕНЕНЫ!")
+        print("="*50)
         
-        # Проверяем снова
-        print("\n📋 Обновленные значения orderstatus:")
-        cur.execute("SELECT unnest(enum_range(NULL::orderstatus))")
-        values = cur.fetchall()
-        for v in values:
-            print(f"   - {v[0]}")
-        
-        # Обновляем заказ 79
-        print("\n🔧 Обновляем заказ #79...")
-        cur.execute("UPDATE orders SET status = 'picked_up' WHERE id = 79")
-        conn.commit()
-        print("✅ Заказ #79 обновлен на 'picked_up'")
-        
-        # Проверяем
-        cur.execute("SELECT id, status FROM orders WHERE id = 79")
-        order = cur.fetchone()
-        print(f"   Заказ 79: статус = {order[1]}")
-        
-        print("\n✅ ВСЕ ГОТОВО!")
+        # Проверяем результат
+        print("\n🔍 Проверяем структуру таблицы...")
+        cursor.execute("""
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns
+            WHERE table_name = 'surprise_bags'
+            AND column_name IN ('rating', 'total_reviews')
+        """)
+        columns = cursor.fetchall()
+        for col in columns:
+            print(f"   - {col[0]}: {col[1]}, nullable={col[2]}")
         
     except Exception as e:
-        print(f"\n❌ Ошибка: {e}")
+        print(f"\n❌ ОШИБКА: {e}")
         if conn:
             conn.rollback()
     finally:
-        if cur:
-            cur.close()
+        if cursor:
+            cursor.close()
         if conn:
             conn.close()
             print("\n🔌 Соединение закрыто")
 
 if __name__ == "__main__":
-    print("=" * 50)
-    print("ДОБАВЛЕНИЕ 'picked_up' В ENUM")
-    print("=" * 50)
-    fix_enum()
+    add_columns()
