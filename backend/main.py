@@ -19,8 +19,8 @@ from backend.schemas import (
 )
 from datetime import datetime, timedelta
 from backend.models import (
-    CartItem,Food, User, UserRole, Supplier, SurpriseBag, SurpriseBagItem,
-    Order, OrderStatus, DeliveryStatus, OrderTracking, Review, CourierProfile, AssignedOrder ,TemporaryReservation
+    CartItem,Food, User, UserRole, Supplier, SurpriseBag, SurpriseBagItem,SupplierReview,
+    Order, OrderStatus, DeliveryStatus, OrderTracking, SurpriseBagReview, CourierProfile, AssignedOrder ,TemporaryReservation,
 )
 from backend.websocket_manager import ConnectionManager
 
@@ -6508,7 +6508,237 @@ async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
         "image_url": bag.image_url,
         "available_quantity": bag.available_quantity
     }
+# ============ ОЦЕНКА МАГАЗИНОВ ============
 
+@app.get("/api/suppliers/{supplier_id}/rating")
+async def get_supplier_rating(
+    supplier_id: int, 
+    request: Request, 
+    db: Session = Depends(get_db)
+):
+    """Получить рейтинг магазина и оценку текущего пользователя"""
+    
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    if not supplier:
+        return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
+    
+    # Получаем оценку текущего пользователя из Bearer token
+    user_rating = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            
+            review = db.query(SupplierReview).filter(
+                SupplierReview.supplier_id == supplier_id,
+                SupplierReview.user_id == int(user_id)
+            ).first()
+            if review:
+                user_rating = review.rating
+        except:
+            pass
+    
+    return {
+        "success": True,
+        "rating": supplier.rating or 0,
+        "total_reviews": supplier.total_reviews or 0,
+        "user_rating": user_rating
+    }
+
+
+@app.post("/api/suppliers/{supplier_id}/rate")
+async def rate_supplier(
+    supplier_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Оценить магазин (поставить звезды 1-5)"""
+    
+    # Проверяем Bearer token
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except:
+        return JSONResponse(status_code=401, content={"success": False, "message": "Invalid token"})
+    
+    data = await request.json()
+    rating = data.get("rating")
+    
+    if not rating or rating < 1 or rating > 5:
+        return JSONResponse(status_code=400, content={"success": False, "message": "Rating must be between 1 and 5"})
+    
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    if not supplier:
+        return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
+    
+    # Проверяем, оценивал ли пользователь уже этот магазин
+    existing_review = db.query(SupplierReview).filter(
+        SupplierReview.supplier_id == supplier_id,
+        SupplierReview.user_id == int(user_id)
+    ).first()
+    
+    if existing_review:
+        # Обновляем существующую оценку
+        existing_review.rating = rating
+        existing_review.updated_at = datetime.utcnow()
+        
+        # Пересчитываем средний рейтинг
+        all_reviews = db.query(SupplierReview).filter(
+            SupplierReview.supplier_id == supplier_id
+        ).all()
+        total_rating = sum(r.rating for r in all_reviews)
+        supplier.rating = total_rating / len(all_reviews)
+    else:
+        # Новая оценка
+        new_review = SupplierReview(
+            supplier_id=supplier_id,
+            user_id=int(user_id),
+            rating=rating,
+            created_at=datetime.utcnow()
+        )
+        db.add(new_review)
+        
+        # Пересчитываем средний рейтинг
+        all_reviews = db.query(SupplierReview).filter(
+            SupplierReview.supplier_id == supplier_id
+        ).all()
+        total_rating = sum(r.rating for r in all_reviews) + rating
+        supplier.total_reviews = len(all_reviews) + 1
+        supplier.rating = total_rating / supplier.total_reviews
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "rating": supplier.rating,
+        "total_reviews": supplier.total_reviews,
+        "user_rating": rating,
+        "message": "Спасибо за оценку магазина!"
+    }
+
+
+# ============ ОЦЕНКА СЮРПРИЗОВ ============
+
+@app.get("/api/surprise-bags/{bag_id}/rating")
+async def get_surprise_bag_rating(
+    bag_id: int, 
+    request: Request, 
+    db: Session = Depends(get_db)
+):
+    """Получить рейтинг сюрприза и оценку текущего пользователя"""
+    
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+    if not bag:
+        return JSONResponse(status_code=404, content={"success": False, "message": "Surprise bag not found"})
+    
+    # Получаем оценку текущего пользователя из Bearer token
+    user_rating = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+            
+            review = db.query(SurpriseBagReview).filter(
+                SurpriseBagReview.surprise_bag_id == bag_id,
+                SurpriseBagReview.user_id == int(user_id)
+            ).first()
+            if review:
+                user_rating = review.rating
+        except:
+            pass
+    
+    return {
+        "success": True,
+        "rating": bag.rating or 0,
+        "total_reviews": bag.total_reviews or 0,
+        "user_rating": user_rating
+    }
+
+
+@app.post("/api/surprise-bags/{bag_id}/rate")
+async def rate_surprise_bag(
+    bag_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Оценить сюрприз (поставить звезды 1-5)"""
+    
+    # Проверяем Bearer token
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except:
+        return JSONResponse(status_code=401, content={"success": False, "message": "Invalid token"})
+    
+    data = await request.json()
+    rating = data.get("rating")
+    
+    if not rating or rating < 1 or rating > 5:
+        return JSONResponse(status_code=400, content={"success": False, "message": "Rating must be between 1 and 5"})
+    
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+    if not bag:
+        return JSONResponse(status_code=404, content={"success": False, "message": "Surprise bag not found"})
+    
+    existing_review = db.query(SurpriseBagReview).filter(
+        SurpriseBagReview.surprise_bag_id == bag_id,
+        SurpriseBagReview.user_id == int(user_id)
+    ).first()
+    
+    if existing_review:
+        existing_review.rating = rating
+        existing_review.updated_at = datetime.utcnow()
+        
+        all_reviews = db.query(SurpriseBagReview).filter(
+            SurpriseBagReview.surprise_bag_id == bag_id
+        ).all()
+        total_rating = sum(r.rating for r in all_reviews)
+        bag.rating = total_rating / len(all_reviews)
+    else:
+        new_review = SurpriseBagReview(
+            surprise_bag_id=bag_id,
+            user_id=int(user_id),
+            rating=rating,
+            created_at=datetime.utcnow()
+        )
+        db.add(new_review)
+        
+        all_reviews = db.query(SurpriseBagReview).filter(
+            SurpriseBagReview.surprise_bag_id == bag_id
+        ).all()
+        total_rating = sum(r.rating for r in all_reviews) + rating
+        bag.total_reviews = len(all_reviews) + 1
+        bag.rating = total_rating / bag.total_reviews
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "rating": bag.rating,
+        "total_reviews": bag.total_reviews,
+        "user_rating": rating,
+        "message": "Спасибо за оценку сюрприза!"
+    }
 # backend/main.py - обновите nearby suppliers
 # backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
 

@@ -1,4 +1,4 @@
-# backend/models.py - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
+# backend/models.py - ПОЛНАЯ ВЕРСИЯ (оценка магазинов И сюрпризов)
 
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum
 from sqlalchemy.orm import relationship
@@ -49,7 +49,7 @@ class Food(Base):
     discount = Column(Integer, default=0)
 
 
-# CartItem model - ИСПРАВЛЕН (ondelete внутри ForeignKey)
+# CartItem model
 class CartItem(Base):
     __tablename__ = "cart_items"
     id = Column(Integer, primary_key=True)
@@ -84,6 +84,10 @@ class User(Base):
     supplier_profile = relationship("Supplier", back_populates="user", uselist=False)
     cart_items = relationship("CartItem", back_populates="user")
     courier_profile = relationship("CourierProfile", back_populates="user", uselist=False)
+    
+    # Оценки пользователя
+    supplier_reviews = relationship("SupplierReview", back_populates="user", cascade="all, delete-orphan")
+    surprise_bag_reviews = relationship("SurpriseBagReview", back_populates="user", cascade="all, delete-orphan")
 
 
 class Supplier(Base):
@@ -101,8 +105,11 @@ class Supplier(Base):
     lon = Column(Float)
     phone = Column(String(50))
     email = Column(String(255))
+    
+    # Рейтинг магазина
     rating = Column(Float, default=0)
     total_reviews = Column(Integer, default=0)
+    
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -112,6 +119,23 @@ class Supplier(Base):
     user = relationship("User", back_populates="supplier_profile")
     surprise_bags = relationship("SurpriseBag", back_populates="supplier")
     orders = relationship("Order", back_populates="supplier", foreign_keys="Order.supplier_id")
+    reviews = relationship("SupplierReview", back_populates="supplier", cascade="all, delete-orphan")
+
+
+class SupplierReview(Base):
+    """Оценки и отзывы на магазины"""
+    __tablename__ = "supplier_reviews"
+    
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    rating = Column(Integer, nullable=False)  # 1-5
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    supplier = relationship("Supplier", back_populates="reviews")
+    user = relationship("User", back_populates="supplier_reviews")
 
 
 class SurpriseBagItem(Base):
@@ -126,6 +150,22 @@ class SurpriseBagItem(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     surprise_bag = relationship("SurpriseBag", back_populates="items")
+
+
+class SurpriseBagReview(Base):
+    """Оценки и отзывы на сюрпризы"""
+    __tablename__ = "surprise_bag_reviews"
+    
+    id = Column(Integer, primary_key=True)
+    surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    rating = Column(Integer, nullable=False)  # 1-5
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    surprise_bag = relationship("SurpriseBag", back_populates="reviews")
+    user = relationship("User", back_populates="surprise_bag_reviews")
 
 
 class SurpriseBag(Base):
@@ -147,10 +187,15 @@ class SurpriseBag(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     possible_items = Column(Text)
     
+    # Рейтинг сюрприза
+    rating = Column(Float, default=0)
+    total_reviews = Column(Integer, default=0)
+    
     supplier = relationship("Supplier", back_populates="surprise_bags")
     orders = relationship("Order", back_populates="surprise_bag")
     cart_items = relationship("CartItem", back_populates="surprise_bag")
     items = relationship("SurpriseBagItem", back_populates="surprise_bag", cascade="all, delete-orphan")
+    reviews = relationship("SurpriseBagReview", back_populates="surprise_bag", cascade="all, delete-orphan")
 
 
 class Order(Base):
@@ -260,17 +305,6 @@ class CourierProfile(Base):
     user = relationship("User", back_populates="courier_profile")
     current_order = relationship("Order", foreign_keys=[current_order_id])
     proposed_order = relationship("Order", foreign_keys=[proposed_order_id])
-
-
-class Review(Base):
-    __tablename__ = "reviews"
-    id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
-    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"))
-    rating = Column(Integer)
-    comment = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class SupplierCourier(Base):
