@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from backend.database import SessionLocal, engine, get_db
 from backend import models
-from backend.models import Food, User, UserRole, Supplier, SurpriseBag, Order, OrderStatus, DeliveryStatus, OrderTracking, Review
+from backend.models import Food, User, UserRole, Supplier, SurpriseBag, Order, OrderStatus, DeliveryStatus, OrderTracking
 from datetime import datetime, timedelta
 import secrets
 import os
