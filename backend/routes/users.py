@@ -54,6 +54,24 @@ def get_current_user_from_token(
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+@router.get("/debug-avatars")
+async def debug_avatars():
+    """Отладка - посмотреть какие аватары есть на сервере"""
+    import os
+    avatars_dir = Path("uploads/avatars")
+    
+    files = []
+    if avatars_dir.exists():
+        files = [f.name for f in avatars_dir.glob("*.webp")]
+    
+    return {
+        "avatars_dir_exists": avatars_dir.exists(),
+        "avatars_dir_path": str(avatars_dir.absolute()),
+        "files": files,
+        "count": len(files)
+    }
+
+
 @router.post("/{user_id}/avatar")
 async def upload_avatar(
     user_id: int,
