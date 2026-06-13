@@ -119,35 +119,45 @@ AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 print(f"📁 AVATAR_DIR: {AVATAR_DIR.absolute()}")
 print(f"🔑 SECRET_KEY loaded: {SECRET_KEY[:10]}...")  # Проверка что ключ загружен
 
+# backend/routers/users.py - добавь этот эндпоинт в конец файла
+
 @router.get("/avatar-file/{user_id}")
 async def get_avatar_file(
     user_id: int,
 ):
     """Получить файл аватара напрямую (минуя статику)"""
     
+    from pathlib import Path
+    
+    # Директория с аватарами
+    AVATAR_DIR = Path("uploads/avatars")
+    
     print(f"🔍 Looking for avatar of user {user_id}")
+    print(f"📁 Path: {AVATAR_DIR.absolute()}")
     
     # Ищем файл аватара
     avatar_files = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
     
-    print(f"📁 AVATAR_DIR: {AVATAR_DIR.absolute()}")
     print(f"📄 Found files: {[f.name for f in avatar_files]}")
     
     if avatar_files:
         file_path = avatar_files[0]
-        print(f"✅ Serving file: {file_path.absolute()} ({file_path.stat().st_size} bytes)")
+        print(f"✅ Serving: {file_path.name} ({file_path.stat().st_size} bytes)")
         return FileResponse(
             file_path, 
             media_type="image/webp",
-            headers={"Content-Type": "image/webp"}
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "Content-Type": "image/webp"
+            }
         )
     
-    print(f"❌ No avatar found for user {user_id}")
-    raise HTTPException(status_code=404, detail="Avatar not found")
-
-
-
+    print(f"❌ No avatar for user {user_id}")
     
+    # Если нет аватара, возвращаем 204 No Content
+    raise HTTPException(status_code=204, detail="No avatar")
+
+
 def get_current_user_from_token(
     request: Request,
     db: Session = Depends(get_db)
