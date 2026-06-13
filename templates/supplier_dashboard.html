@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С ИКОНКАМИ -->
+<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -480,7 +480,7 @@
     }
     
     .product-icon {
-        font-size: 1.1rem;
+        font-size: 1rem;
         margin-right: 0.3rem;
         vertical-align: middle;
     }
@@ -533,6 +533,12 @@
      style="display: none;">
 </div>
 
+<!-- WebSocket Indicator -->
+<div class="ws-indicator" id="wsIndicator">
+    <div class="ws-dot" id="wsDot"></div>
+    <span id="wsStatus">Connecting...</span>
+</div>
+
 <!-- Header -->
 <div class="admin-header">
     <div class="business-info">
@@ -541,18 +547,17 @@
     </div>
     <div class="header-actions">
         <span class="rating-badge" id="ratingText">⭐ {{ supplier.rating or 0 }}</span>
-        
         <div class="lang-selector">
             <button class="lang-btn" data-lang="kz">Қаз</button>
             <button class="lang-btn" data-lang="ru">Рус</button>
             <button class="lang-btn active" data-lang="en">En</button>
         </div>
-        
         <button onclick="logout()" class="logout-btn">Logout</button>
     </div>
 </div>
 
 <div class="dashboard-container">
+    <!-- Navigation Links -->
     <div class="nav-links">
         <a href="/supplier/dashboard" class="active" id="navDashboard">Dashboard</a>
         <a href="/supplier/couriers" id="navCouriers">Couriers</a>
@@ -560,6 +565,7 @@
         <a href="/supplier/surprise-bags" id="navBags">Surprise Bags</a>
     </div>
 
+    <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-number" id="totalOrders">{{ stats.total_orders }}</div>
@@ -579,6 +585,7 @@
         </div>
     </div>
 
+    <!-- Orders Section -->
     <div class="orders-section">
         <div class="section-header">
             <div>
@@ -606,6 +613,7 @@
         </div>
     </div>
 
+    <!-- Surprise Bags Section -->
     <div class="bags-section">
         <div class="section-header">
             <span class="section-title" id="titleBags">Surprise Bags</span>
@@ -633,6 +641,7 @@
             </table>
         </div>
 
+        <!-- Add Bag Form -->
         <div class="add-bag-form" id="addBagForm" style="display: none;">
             <h3 id="formTitle" style="margin-bottom: 1rem; font-size: 1rem;">Add Surprise Bag</h3>
             <form id="createBagForm">
@@ -690,12 +699,12 @@
 
                 <div class="form-group full-width">
                     <label id="labelName">Surprise Bag Name *</label>
-                    <input type="text" id="bagName" required placeholder="Example: Pizza Set Italian Dinner">
+                    <input type="text" id="bagName" required>
                 </div>
 
                 <div class="form-group full-width">
                     <label id="labelDesc">Description</label>
-                    <textarea id="bagDescription" rows="2" placeholder="Brief description"></textarea>
+                    <textarea id="bagDescription" rows="2"></textarea>
                 </div>
 
                 <div class="form-group full-width">
@@ -752,7 +761,7 @@
 
                 <div class="form-group full-width">
                     <label id="labelImage">Image URL</label>
-                    <input type="text" id="imageUrl" placeholder="https://...">
+                    <input type="text" id="imageUrl" placeholder="Auto-filled from template or by name">
                 </div>
 
                 <button type="submit" class="submit-btn" id="submitBtn">Add Surprise</button>
@@ -765,164 +774,62 @@
     // ============ LANGUAGE TRANSLATIONS ============
     const translations = {
         kz: {
-            location: '{address} | {phone}',
-            rating: '⭐ {rating}',
-            navDashboard: 'Басты бет',
-            navCouriers: 'Курьерлер',
-            navOrders: 'Тапсырыстар',
-            navBags: 'Сюрприздер',
-            statTotalOrders: 'Барлық тапсырыс',
-            statPending: 'Күтілуде',
-            statToday: 'Бүгінгі',
-            statRevenue: 'Табыс',
-            titleActiveOrders: 'Белсенді тапсырыстар',
-            btnRefresh: 'Жаңарту',
-            thOrder: 'Тапсырыс #',
-            thCustomer: 'Клиент / Мекенжай',
-            thProduct: 'Өнім',
-            thAmount: 'Сома',
-            thStatus: 'Статус',
-            thCourier: 'Курьер',
-            thAction: 'Әрекет',
-            thMap: 'Карта',
-            titleBags: 'Сюрприздер',
-            btnAdd: 'Қосу',
-            btnClearInactive: 'Белсенді еместерді тазалау',
-            btnDeleteAll: 'Барлығын жою',
-            thBagName: 'Атауы',
-            thBagDesc: 'Сипаттама',
-            thBagPrice: 'Бағасы',
-            thBagDiscounted: 'Жеңілдікпен',
-            thBagDiscount: 'Жеңілдік',
-            thBagQty: 'Саны',
-            thBagStatus: 'Күйі',
-            thBagAction: 'Әрекет',
-            formTitle: 'Сюрприз қосу',
-            labelTemplate: 'Дайын сюрприз',
-            labelName: 'Сюрприз атауы *',
-            labelDesc: 'Сипаттама',
-            labelProducts: 'Өнімдер тізімі',
-            selectedTitle: 'Таңдалған өнімдер:',
-            labelOriginalPrice: 'Бастапқы баға (₸)',
-            labelDiscount: 'Жеңілдік',
-            labelDiscountedPrice: 'Жеңілдікпен баға (₸)',
-            labelQuantity: 'Саны',
-            labelPickupStart: 'Алу уақыты (басталуы)',
-            labelPickupEnd: 'Алу уақыты (аяқталуы)',
-            labelImage: 'Сурет URL',
-            submitBtn: 'Сюрприз қосу',
-            selectTemplate: 'Дайын сюрприз таңдаңыз',
-            chooseProduct: 'Өнім таңдаңыз',
-            templateLoaded: 'Жүктелді:',
-            youCanEdit: 'Сіз өңдей аласыз'
+            location: '{address} | {phone}', rating: '⭐ {rating}',
+            navDashboard: 'Басты бет', navCouriers: 'Курьерлер', navOrders: 'Тапсырыстар', navBags: 'Сюрприздер',
+            statTotalOrders: 'Барлық тапсырыс', statPending: 'Күтілуде', statToday: 'Бүгінгі', statRevenue: 'Табыс',
+            titleActiveOrders: 'Белсенді тапсырыстар', btnRefresh: 'Жаңарту',
+            thOrder: 'Тапсырыс #', thCustomer: 'Клиент / Мекенжай', thProduct: 'Өнім', thAmount: 'Сома',
+            thStatus: 'Статус', thCourier: 'Курьер', thAction: 'Әрекет', thMap: 'Карта',
+            titleBags: 'Сюрприздер', btnAdd: 'Қосу', btnClearInactive: 'Белсенді еместерді тазалау', btnDeleteAll: 'Барлығын жою',
+            thBagName: 'Атауы', thBagDesc: 'Сипаттама', thBagPrice: 'Бағасы', thBagDiscounted: 'Жеңілдікпен',
+            thBagDiscount: 'Жеңілдік', thBagQty: 'Саны', thBagStatus: 'Күйі', thBagAction: 'Әрекет',
+            formTitle: 'Сюрприз қосу', labelTemplate: 'Дайын сюрприз', labelName: 'Сюрприз атауы *',
+            labelDesc: 'Сипаттама', labelProducts: 'Өнімдер тізімі', selectedTitle: 'Таңдалған өнімдер:',
+            labelOriginalPrice: 'Бастапқы баға (₸)', labelDiscount: 'Жеңілдік', labelDiscountedPrice: 'Жеңілдікпен баға (₸)',
+            labelQuantity: 'Саны', labelPickupStart: 'Алу уақыты (басталуы)', labelPickupEnd: 'Алу уақыты (аяқталуы)',
+            labelImage: 'Сурет URL', submitBtn: 'Сюрприз қосу',
+            selectTemplate: 'Дайын сюрприз таңдаңыз', chooseProduct: 'Өнім таңдаңыз',
+            templateLoaded: 'Жүктелді:', youCanEdit: 'Сіз өңдей аласыз'
         },
         ru: {
-            location: '{address} | {phone}',
-            rating: '⭐ {rating}',
-            navDashboard: 'Главная',
-            navCouriers: 'Курьеры',
-            navOrders: 'Заказы',
-            navBags: 'Сюрпризы',
-            statTotalOrders: 'Всего заказов',
-            statPending: 'Ожидает',
-            statToday: 'Сегодня',
-            statRevenue: 'Доход',
-            titleActiveOrders: 'Активные заказы',
-            btnRefresh: 'Обновить',
-            thOrder: 'Заказ #',
-            thCustomer: 'Клиент / Адрес',
-            thProduct: 'Товар',
-            thAmount: 'Сумма',
-            thStatus: 'Статус',
-            thCourier: 'Курьер',
-            thAction: 'Действие',
-            thMap: 'Карта',
-            titleBags: 'Сюрпризы',
-            btnAdd: 'Добавить',
-            btnClearInactive: 'Удалить неактивные',
-            btnDeleteAll: 'Удалить все',
-            thBagName: 'Название',
-            thBagDesc: 'Описание',
-            thBagPrice: 'Цена',
-            thBagDiscounted: 'Со скидкой',
-            thBagDiscount: 'Скидка',
-            thBagQty: 'Кол-во',
-            thBagStatus: 'Статус',
-            thBagAction: 'Действие',
-            formTitle: 'Добавить сюрприз',
-            labelTemplate: 'Готовый сюрприз',
-            labelName: 'Название сюрприза *',
-            labelDesc: 'Описание',
-            labelProducts: 'Список товаров',
-            selectedTitle: 'Выбранные товары:',
-            labelOriginalPrice: 'Оригинальная цена (₸)',
-            labelDiscount: 'Скидка',
-            labelDiscountedPrice: 'Цена со скидкой (₸)',
-            labelQuantity: 'Количество',
-            labelPickupStart: 'Время выдачи (начало)',
-            labelPickupEnd: 'Время выдачи (конец)',
-            labelImage: 'URL изображения',
-            submitBtn: 'Добавить сюрприз',
-            selectTemplate: 'Выберите готовый сюрприз',
-            chooseProduct: 'Выберите товар',
-            templateLoaded: 'Загружено:',
-            youCanEdit: 'Вы можете редактировать'
+            location: '{address} | {phone}', rating: '⭐ {rating}',
+            navDashboard: 'Главная', navCouriers: 'Курьеры', navOrders: 'Заказы', navBags: 'Сюрпризы',
+            statTotalOrders: 'Всего заказов', statPending: 'Ожидает', statToday: 'Сегодня', statRevenue: 'Доход',
+            titleActiveOrders: 'Активные заказы', btnRefresh: 'Обновить',
+            thOrder: 'Заказ #', thCustomer: 'Клиент / Адрес', thProduct: 'Товар', thAmount: 'Сумма',
+            thStatus: 'Статус', thCourier: 'Курьер', thAction: 'Действие', thMap: 'Карта',
+            titleBags: 'Сюрпризы', btnAdd: 'Добавить', btnClearInactive: 'Удалить неактивные', btnDeleteAll: 'Удалить все',
+            thBagName: 'Название', thBagDesc: 'Описание', thBagPrice: 'Цена', thBagDiscounted: 'Со скидкой',
+            thBagDiscount: 'Скидка', thBagQty: 'Кол-во', thBagStatus: 'Статус', thBagAction: 'Действие',
+            formTitle: 'Добавить сюрприз', labelTemplate: 'Готовый сюрприз', labelName: 'Название сюрприза *',
+            labelDesc: 'Описание', labelProducts: 'Список товаров', selectedTitle: 'Выбранные товары:',
+            labelOriginalPrice: 'Оригинальная цена (₸)', labelDiscount: 'Скидка', labelDiscountedPrice: 'Цена со скидкой (₸)',
+            labelQuantity: 'Количество', labelPickupStart: 'Время выдачи (начало)', labelPickupEnd: 'Время выдачи (конец)',
+            labelImage: 'URL изображения', submitBtn: 'Добавить сюрприз',
+            selectTemplate: 'Выберите готовый сюрприз', chooseProduct: 'Выберите товар',
+            templateLoaded: 'Загружено:', youCanEdit: 'Вы можете редактировать'
         },
         en: {
-            location: '{address} | {phone}',
-            rating: '⭐ {rating}',
-            navDashboard: 'Dashboard',
-            navCouriers: 'Couriers',
-            navOrders: 'Orders',
-            navBags: 'Surprise Bags',
-            statTotalOrders: 'Total Orders',
-            statPending: 'Pending',
-            statToday: 'Today Orders',
-            statRevenue: 'Total Revenue',
-            titleActiveOrders: 'Active Orders',
-            btnRefresh: 'Refresh',
-            thOrder: 'Order #',
-            thCustomer: 'Customer / Address',
-            thProduct: 'Product',
-            thAmount: 'Amount',
-            thStatus: 'Status',
-            thCourier: 'Courier',
-            thAction: 'Action',
-            thMap: 'Map',
-            titleBags: 'Surprise Bags',
-            btnAdd: 'Add',
-            btnClearInactive: 'Clear Inactive',
-            btnDeleteAll: 'Delete All',
-            thBagName: 'Name',
-            thBagDesc: 'Description',
-            thBagPrice: 'Price',
-            thBagDiscounted: 'Discounted',
-            thBagDiscount: 'Discount',
-            thBagQty: 'Quantity',
-            thBagStatus: 'Status',
-            thBagAction: 'Action',
-            formTitle: 'Add Surprise Bag',
-            labelTemplate: 'Ready Surprise Package',
-            labelName: 'Surprise Bag Name *',
-            labelDesc: 'Description',
-            labelProducts: 'Products List',
-            selectedTitle: 'Selected Products:',
-            labelOriginalPrice: 'Original Price (₸)',
-            labelDiscount: 'Discount',
-            labelDiscountedPrice: 'Discounted Price (₸)',
-            labelQuantity: 'Quantity',
-            labelPickupStart: 'Pickup Start Time',
-            labelPickupEnd: 'Pickup End Time',
-            labelImage: 'Image URL',
-            submitBtn: 'Add Surprise',
-            selectTemplate: 'Select ready surprise to auto-fill',
-            chooseProduct: 'Choose product',
-            templateLoaded: 'Loaded:',
-            youCanEdit: 'You can edit'
+            location: '{address} | {phone}', rating: '⭐ {rating}',
+            navDashboard: 'Dashboard', navCouriers: 'Couriers', navOrders: 'Orders', navBags: 'Surprise Bags',
+            statTotalOrders: 'Total Orders', statPending: 'Pending', statToday: 'Today Orders', statRevenue: 'Total Revenue',
+            titleActiveOrders: 'Active Orders', btnRefresh: 'Refresh',
+            thOrder: 'Order #', thCustomer: 'Customer / Address', thProduct: 'Product', thAmount: 'Amount',
+            thStatus: 'Status', thCourier: 'Courier', thAction: 'Action', thMap: 'Map',
+            titleBags: 'Surprise Bags', btnAdd: 'Add', btnClearInactive: 'Clear Inactive', btnDeleteAll: 'Delete All',
+            thBagName: 'Name', thBagDesc: 'Description', thBagPrice: 'Price', thBagDiscounted: 'Discounted',
+            thBagDiscount: 'Discount', thBagQty: 'Quantity', thBagStatus: 'Status', thBagAction: 'Action',
+            formTitle: 'Add Surprise Bag', labelTemplate: 'Ready Surprise Package', labelName: 'Surprise Bag Name *',
+            labelDesc: 'Description', labelProducts: 'Products List', selectedTitle: 'Selected Products:',
+            labelOriginalPrice: 'Original Price (₸)', labelDiscount: 'Discount', labelDiscountedPrice: 'Discounted Price (₸)',
+            labelQuantity: 'Quantity', labelPickupStart: 'Pickup Start Time', labelPickupEnd: 'Pickup End Time',
+            labelImage: 'Image URL', submitBtn: 'Add Surprise',
+            selectTemplate: 'Select ready surprise to auto-fill', chooseProduct: 'Choose product',
+            templateLoaded: 'Loaded:', youCanEdit: 'You can edit'
         }
     };
 
-    // ============ PRODUCT OPTIONS С ИКОНКАМИ ============
+    // ============ PRODUCT OPTIONS ============
     const productOptions = {
         '1': { icon: '🍕', name: { en: 'Margherita Pizza', ru: 'Маргарита Пицца', kz: 'Маргарита Пицца' }, price: 2500 },
         '2': { icon: '🍕', name: { en: 'Pepperoni Pizza', ru: 'Пепперони Пицца', kz: 'Пепперони Пицца' }, price: 3200 },
@@ -946,29 +853,29 @@
         '20': { icon: '🧀', name: { en: 'Cheese Sticks', ru: 'Сырные Палочки', kz: 'Ірімшік Таяқшалары' }, price: 1500 }
     };
 
-    // ============ SURPRISE TEMPLATES С ИКОНКАМИ ============
+    // ============ SURPRISE TEMPLATES ============
     const surpriseTemplates = {
         'pizza_classic': {
             icon: '🍕',
-            name: { en: 'Pizza Set "Classic"', ru: 'Пицца Сет "Классический"', kz: 'Пицца Сет "Классикалық"' },
+            name: { en: 'Pizza Set Classic', ru: 'Пицца Сет Классический', kz: 'Пицца Сет Классикалық' },
             description: { en: 'Two classic pizzas for a great evening', ru: 'Две классические пиццы для отличного вечера', kz: 'Кешке арналған екі классикалық пицца' },
             items: [
                 { id: 1, icon: '🍕', name: { en: 'Margherita Pizza', ru: 'Маргарита Пицца', kz: 'Маргарита Пицца' }, price: 2500, quantity: 1 },
                 { id: 2, icon: '🍕', name: { en: 'Pepperoni Pizza', ru: 'Пепперони Пицца', kz: 'Пепперони Пицца' }, price: 3200, quantity: 1 },
                 { id: 14, icon: '🥤', name: { en: 'Coca-Cola', ru: 'Кока-Кола', kz: 'Кока-Кола' }, price: 500, quantity: 2 }
             ],
-            image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
+            image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&h=400&fit=crop'
         },
         'burger_classic': {
             icon: '🍔',
-            name: { en: 'Burger Set "Classic"', ru: 'Бургер Сет "Классический"', kz: 'Бургер Сет "Классикалық"' },
+            name: { en: 'Burger Set Classic', ru: 'Бургер Сет Классический', kz: 'Бургер Сет Классикалық' },
             description: { en: 'Traditional burgers with fries', ru: 'Традиционные бургеры с картошкой фри', kz: 'Дәстүрлі бургерлер фри картоппен' },
             items: [
                 { id: 6, icon: '🍔', name: { en: 'Hamburger', ru: 'Гамбургер', kz: 'Гамбургер' }, price: 1800, quantity: 2 },
                 { id: 18, icon: '🍟', name: { en: 'French Fries', ru: 'Картошка Фри', kz: 'Картоп Фри' }, price: 800, quantity: 1 },
                 { id: 14, icon: '🥤', name: { en: 'Coca-Cola', ru: 'Кока-Кола', kz: 'Кока-Кола' }, price: 500, quantity: 2 }
             ],
-            image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&h=300&fit=crop'
+            image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&h=400&fit=crop'
         }
     };
 
@@ -1001,34 +908,17 @@
         return token;
     }
 
-    function clearSupplierToken() {
-        sessionStorage.removeItem('supplier_token');
-    }
-
-    function logout() {
-        clearSupplierToken();
-        window.location.href = '/supplier/login';
-    }
+    function clearSupplierToken() { sessionStorage.removeItem('supplier_token'); }
+    function logout() { clearSupplierToken(); window.location.href = '/supplier/login'; }
 
     async function authFetch(url, options = {}) {
         const token = getSupplierToken();
-        if (!token) {
-            window.location.href = '/supplier/login';
-            throw new Error('No token');
-        }
+        if (!token) { window.location.href = '/supplier/login'; throw new Error('No token'); }
         const response = await fetch(url, {
             ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + token,
-                ...options.headers
-            }
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token, ...options.headers }
         });
-        if (response.status === 401) {
-            clearSupplierToken();
-            window.location.href = '/supplier/login';
-            throw new Error('Unauthorized');
-        }
+        if (response.status === 401) { clearSupplierToken(); window.location.href = '/supplier/login'; throw new Error('Unauthorized'); }
         return response;
     }
 
@@ -1040,21 +930,35 @@
         setTimeout(() => notification.remove(), 3000);
     }
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, function(m) {
-            return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;';
-        });
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); }
+
+    // ============ ФУНКЦИЯ ДЛЯ ФОТО ПО НАЗВАНИЮ ============
+    function getImageByTitle(title) {
+        const lowerTitle = title.toLowerCase();
+        if (lowerTitle.includes('пицц') || lowerTitle.includes('pizza')) {
+            return 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&h=400&fit=crop';
+        }
+        if (lowerTitle.includes('бургер') || lowerTitle.includes('burger')) {
+            return 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&h=400&fit=crop';
+        }
+        if (lowerTitle.includes('суши') || lowerTitle.includes('sushi') || lowerTitle.includes('ролл')) {
+            return 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&h=400&fit=crop';
+        }
+        if (lowerTitle.includes('салат') || lowerTitle.includes('salad')) {
+            return 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&h=400&fit=crop';
+        }
+        if (lowerTitle.includes('десерт') || lowerTitle.includes('dessert') || lowerTitle.includes('торт')) {
+            return 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&h=400&fit=crop';
+        }
+        return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=400&fit=crop';
     }
 
     // ============ LANGUAGE FUNCTIONS ============
     function updateProductSelectLanguage() {
         const select = document.getElementById('productSelect');
         if (!select) return;
-        
         const currentValue = select.value;
         select.innerHTML = `<option value="">-- ${translations[currentLang].chooseProduct} --</option>`;
-        
         for (const id in productOptions) {
             const product = productOptions[id];
             const option = document.createElement('option');
@@ -1062,7 +966,6 @@
             option.textContent = getProductDisplayName(product, currentLang) + ' - ' + product.price + ' ₸';
             select.appendChild(option);
         }
-        
         if (currentValue) select.value = currentValue;
     }
 
@@ -1070,15 +973,9 @@
         const container = document.getElementById('selectedProductsList');
         const preview = document.getElementById('selectedProductsPreview');
         if (!container || !preview) return;
-        
-        if (selectedProducts.length === 0) {
-            preview.style.display = 'none';
-            return;
-        }
-        
+        if (selectedProducts.length === 0) { preview.style.display = 'none'; return; }
         preview.style.display = 'block';
         container.innerHTML = '';
-        
         for (let i = 0; i < selectedProducts.length; i++) {
             const p = selectedProducts[i];
             const div = document.createElement('div');
@@ -1089,93 +986,33 @@
         }
     }
 
-    function loadSurpriseTemplate() {
-        const templateKey = document.getElementById('surpriseTemplate').value;
-        const hint = document.getElementById('selectedHint');
-        
-        if (!templateKey) {
-            hint.innerHTML = translations[currentLang].selectTemplate;
-            hint.style.color = '#64748b';
-            return;
-        }
-        
-        const template = surpriseTemplates[templateKey];
-        if (!template) return;
-        
-        document.getElementById('bagName').value = template.name[currentLang] || template.name.en;
-        document.getElementById('bagDescription').value = template.description[currentLang] || template.description.en;
-        
-        selectedProducts = [];
-        for (const item of template.items) {
-            selectedProducts.push({
-                id: item.id.toString(),
-                icon: item.icon,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity
-            });
-        }
-        
-        renderSelectedProducts();
-        const total = updateTotalPrice();
-        
-        if (template.image) {
-            document.getElementById('imageUrl').value = template.image;
-        }
-        
-        hint.innerHTML = `${translations[currentLang].templateLoaded} ${template.name[currentLang] || template.name.en} (${total} ₸). ${translations[currentLang].youCanEdit}`;
-        hint.style.color = '#10b981';
-        showNotification(`${translations[currentLang].templateLoaded} ${template.name[currentLang] || template.name.en}`, 'success');
-    }
-
     function updateTotalPrice() {
         let total = 0;
-        for (const p of selectedProducts) {
-            total += p.price * p.quantity;
-        }
+        for (const p of selectedProducts) total += p.price * p.quantity;
         document.getElementById('originalPrice').value = total;
         return total;
     }
 
-    function removeProduct(index) {
-        selectedProducts.splice(index, 1);
-        renderSelectedProducts();
-        updateTotalPrice();
-    }
+    function removeProduct(index) { selectedProducts.splice(index, 1); renderSelectedProducts(); updateTotalPrice(); }
 
     function addProduct() {
         const select = document.getElementById('productSelect');
         const productId = select.value;
         const quantity = parseInt(document.getElementById('productQuantity').value) || 1;
-        
-        if (!productId) {
-            alert('Select a product');
-            return;
-        }
-        
+        if (!productId) { alert('Select a product'); return; }
         const product = productOptions[productId];
         if (!product) return;
-        
         let existingIndex = -1;
         for (let i = 0; i < selectedProducts.length; i++) {
-            if (selectedProducts[i].id === productId) {
-                existingIndex = i;
-                break;
-            }
+            if (selectedProducts[i].id === productId) { existingIndex = i; break; }
         }
-        
         if (existingIndex !== -1) {
             selectedProducts[existingIndex].quantity += quantity;
         } else {
             selectedProducts.push({
-                id: productId,
-                icon: product.icon,
-                name: product.name,
-                price: product.price,
-                quantity: quantity
+                id: productId, icon: product.icon, name: product.name, price: product.price, quantity: quantity
             });
         }
-        
         renderSelectedProducts();
         updateTotalPrice();
         select.value = '';
@@ -1183,21 +1020,36 @@
 
     function applyDiscount(percent) {
         const originalPrice = parseFloat(document.getElementById('originalPrice').value);
-        if (isNaN(originalPrice) || originalPrice <= 0) {
-            alert('Add products first');
-            return;
-        }
+        if (isNaN(originalPrice) || originalPrice <= 0) { alert('Add products first'); return; }
         const discountedPrice = percent === 0 ? originalPrice : originalPrice * (1 - percent / 100);
         document.getElementById('discountedPrice').value = Math.round(discountedPrice);
         const discountInfo = document.getElementById('discountInfo');
         if (discountInfo) {
-            if (percent === 0) {
-                discountInfo.innerHTML = 'No discount';
-            } else {
-                const saved = originalPrice - discountedPrice;
-                discountInfo.innerHTML = `You save: ${Math.round(saved)} ₸ (${percent}%)`;
-            }
+            if (percent === 0) discountInfo.innerHTML = 'No discount';
+            else { const saved = originalPrice - discountedPrice; discountInfo.innerHTML = `You save: ${Math.round(saved)} ₸ (${percent}%)`; }
         }
+    }
+
+    function loadSurpriseTemplate() {
+        const templateKey = document.getElementById('surpriseTemplate').value;
+        const hint = document.getElementById('selectedHint');
+        if (!templateKey) { hint.innerHTML = translations[currentLang].selectTemplate; hint.style.color = '#64748b'; return; }
+        const template = surpriseTemplates[templateKey];
+        if (!template) return;
+        document.getElementById('bagName').value = template.name[currentLang] || template.name.en;
+        document.getElementById('bagDescription').value = template.description[currentLang] || template.description.en;
+        selectedProducts = [];
+        for (const item of template.items) {
+            selectedProducts.push({
+                id: item.id.toString(), icon: item.icon, name: item.name, price: item.price, quantity: item.quantity
+            });
+        }
+        renderSelectedProducts();
+        const total = updateTotalPrice();
+        if (template.image) document.getElementById('imageUrl').value = template.image;
+        hint.innerHTML = `${translations[currentLang].templateLoaded} ${template.name[currentLang] || template.name.en} (${total} ₸). ${translations[currentLang].youCanEdit}`;
+        hint.style.color = '#10b981';
+        showNotification(`${translations[currentLang].templateLoaded} ${template.name[currentLang] || template.name.en}`, 'success');
     }
 
     async function submitBagForm() {
@@ -1207,22 +1059,17 @@
         const availableQuantity = parseInt(document.getElementById('availableQuantity').value);
         const pickupStart = document.getElementById('pickupStart').value;
         const pickupEnd = document.getElementById('pickupEnd').value;
-        const imageUrl = document.getElementById('imageUrl').value;
+        let imageUrl = document.getElementById('imageUrl').value;
         
-        if (!name) {
-            alert('Enter name');
-            return;
-        }
+        if (!name) { alert('Enter name'); return; }
+        if (selectedProducts.length === 0) { alert('Add at least one product'); return; }
         
-        if (selectedProducts.length === 0) {
-            alert('Add at least one product');
-            return;
+        if (!imageUrl) {
+            imageUrl = getImageByTitle(name);
         }
         
         let originalPrice = 0;
-        for (const p of selectedProducts) {
-            originalPrice += p.price * p.quantity;
-        }
+        for (const p of selectedProducts) originalPrice += p.price * p.quantity;
         
         let discountPercentage = 0;
         if (originalPrice > 0 && discountedPrice < originalPrice) {
@@ -1237,7 +1084,7 @@
         }));
         
         const data = {
-            name, description, original_price: originalPrice,
+            name: name, description: description, original_price: originalPrice,
             discounted_price: discountedPrice, discount_percentage: discountPercentage,
             available_quantity: availableQuantity, total_quantity: availableQuantity,
             pickup_start_time: pickupStart, pickup_end_time: pickupEnd,
@@ -1261,7 +1108,6 @@
     function setLanguage(lang) {
         currentLang = lang;
         const t = translations[lang];
-        
         const address = document.getElementById('supplierData')?.getAttribute('data-address') || '';
         const phone = document.getElementById('supplierData')?.getAttribute('data-phone') || '';
         const rating = document.getElementById('supplierData')?.getAttribute('data-rating') || '0';
@@ -1321,22 +1167,13 @@
         if (templateKey && surpriseTemplates[templateKey]) {
             const template = surpriseTemplates[templateKey];
             document.getElementById('bagName').value = template.name[lang] || template.name.en;
-            if (template.description) {
-                document.getElementById('bagDescription').value = template.description[lang] || template.description.en;
-            }
-            if (hint) {
-                hint.innerHTML = `${t.templateLoaded} ${template.name[lang] || template.name.en} (${document.getElementById('originalPrice').value} ₸). ${t.youCanEdit}`;
-            }
-        } else if (hint) {
-            hint.innerHTML = t.selectTemplate;
-        }
+            if (template.description) document.getElementById('bagDescription').value = template.description[lang] || template.description.en;
+            if (hint) hint.innerHTML = `${t.templateLoaded} ${template.name[lang] || template.name.en} (${document.getElementById('originalPrice').value} ₸). ${t.youCanEdit}`;
+        } else if (hint) hint.innerHTML = t.selectTemplate;
         
         document.querySelectorAll('.lang-btn').forEach(btn => {
-            if (btn.getAttribute('data-lang') === lang) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
+            if (btn.getAttribute('data-lang') === lang) btn.classList.add('active');
+            else btn.classList.remove('active');
         });
         
         localStorage.setItem('supplier_lang', lang);
@@ -1348,24 +1185,19 @@
             const response = await authFetch('/api/supplier/orders');
             const data = await response.json();
             if (!data.success) return;
-            
             const orders = data.orders;
             const tbody = document.getElementById('ordersTableBody');
             tbody.innerHTML = '';
             let pendingCount = 0;
-            
             const activeOrders = orders.filter(order => order.status !== 'cancelled' && order.status !== 'deleted');
-            
             if (activeOrders.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No active orders</td></tr>';
                 document.getElementById('pendingOrders').innerText = '0';
                 document.getElementById('totalOrders').innerText = '0';
                 return;
             }
-            
             for (const order of activeOrders) {
                 if (order.status === 'pending') pendingCount++;
-                
                 const row = `<tr data-order-id="${order.id}">
                     <td><strong>${escapeHtml(order.order_number)}</strong><br><span style="font-size:0.65rem;color:#94a3b8;">#${order.id}</span></td>
                     <td>${escapeHtml(order.customer_address || 'Address not specified')}<br><span style="font-size:0.6rem;color:#94a3b8;">${new Date(order.created_at).toLocaleString()}</span></td>
@@ -1378,13 +1210,10 @@
                 </tr>`;
                 tbody.innerHTML += row;
             }
-            
             document.getElementById('pendingOrders').innerText = pendingCount;
             document.getElementById('totalOrders').innerText = activeOrders.length;
             attachOrderHandlers();
-        } catch(error) {
-            console.error('Refresh error:', error);
-        }
+        } catch(error) { console.error('Refresh error:', error); }
     }
 
     function getStatusText(status) {
@@ -1415,24 +1244,14 @@
     function attachOrderHandlers() {
         document.querySelectorAll('.status-select').forEach(select => {
             select.removeEventListener('change', select._handler);
-            select._handler = function() {
-                const orderId = this.getAttribute('data-order-id');
-                const newStatus = this.value;
-                if (newStatus) updateOrderStatus(orderId, newStatus);
-                this.value = '';
-            };
+            select._handler = function() { const orderId = this.getAttribute('data-order-id'); const newStatus = this.value; if (newStatus) updateOrderStatus(orderId, newStatus); this.value = ''; };
             select.addEventListener('change', select._handler);
         });
-        
         document.querySelectorAll('.track-btn').forEach(btn => {
             btn.removeEventListener('click', btn._handler);
-            btn._handler = function() {
-                const orderId = this.getAttribute('data-order-id');
-                window.location.href = '/track-order/' + orderId;
-            };
+            btn._handler = function() { window.location.href = '/track-order/' + this.getAttribute('data-order-id'); };
             btn.addEventListener('click', btn._handler);
         });
-        
         document.querySelectorAll('.auto-assign-btn').forEach(btn => {
             btn.removeEventListener('click', btn._handler);
             btn._handler = async function() {
@@ -1441,20 +1260,13 @@
                     try {
                         const res = await authFetch('/api/supplier/auto-assign-courier/' + orderId, { method: 'POST' });
                         const data = await res.json();
-                        if (data.success) {
-                            alert(data.message);
-                            location.reload();
-                        } else {
-                            alert('Error: ' + data.message);
-                        }
-                    } catch(e) {
-                        alert('Error: ' + e.message);
-                    }
+                        if (data.success) { alert(data.message); location.reload(); }
+                        else alert('Error: ' + data.message);
+                    } catch(e) { alert('Error: ' + e.message); }
                 }
             };
             btn.addEventListener('click', btn._handler);
         });
-        
         document.querySelectorAll('.manual-assign-btn').forEach(btn => {
             btn.removeEventListener('click', btn._handler);
             btn._handler = async function() {
@@ -1462,30 +1274,19 @@
                 try {
                     const res = await authFetch('/api/supplier/available-couriers');
                     const data = await res.json();
-                    if (!data.couriers || !data.couriers.length) {
-                        alert('No available couriers');
-                        return;
-                    }
+                    if (!data.couriers || !data.couriers.length) { alert('No available couriers'); return; }
                     let message = 'Select courier:\n';
-                    data.couriers.forEach(c => {
-                        message += c.id + ': ' + c.name + ' (⭐ ' + c.rating + ')\n';
-                    });
+                    data.couriers.forEach(c => { message += c.id + ': ' + c.name + ' (⭐ ' + c.rating + ')\n'; });
                     const courierId = prompt(message + '\nEnter courier ID:');
                     if (courierId) {
                         const assignRes = await authFetch('/api/supplier/assign-courier', {
                             method: 'POST',
                             body: JSON.stringify({ order_id: orderId, courier_profile_id: parseInt(courierId) })
                         });
-                        if (assignRes.ok) {
-                            alert('Courier assigned');
-                            location.reload();
-                        } else {
-                            alert('Error');
-                        }
+                        if (assignRes.ok) { alert('Courier assigned'); location.reload(); }
+                        else alert('Error');
                     }
-                } catch(e) {
-                    alert('Error: ' + e.message);
-                }
+                } catch(e) { alert('Error: ' + e.message); }
             };
             btn.addEventListener('click', btn._handler);
         });
@@ -1493,17 +1294,9 @@
 
     async function updateOrderStatus(orderId, newStatus) {
         try {
-            const response = await authFetch('/api/supplier/orders/' + orderId + '/status', {
-                method: 'PUT',
-                body: JSON.stringify({ status: newStatus })
-            });
-            if (response.ok) {
-                showNotification('Status changed to ' + getStatusText(newStatus));
-                refreshOrders();
-            }
-        } catch(error) {
-            console.error(error);
-        }
+            const response = await authFetch('/api/supplier/orders/' + orderId + '/status', { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
+            if (response.ok) { showNotification('Status changed to ' + getStatusText(newStatus)); refreshOrders(); }
+        } catch(error) { console.error(error); }
     }
 
     async function refreshBags() {
@@ -1511,10 +1304,8 @@
             const response = await authFetch('/api/supplier/surprise-bags');
             const data = await response.json();
             if (!data.bags) return;
-            
             const tbody = document.getElementById('bagsTableBody');
             if (!tbody) return;
-            
             tbody.innerHTML = '';
             for (const bag of data.bags) {
                 const row = `<tr data-bag-id="${bag.id}">
@@ -1529,56 +1320,31 @@
                 </tr>`;
                 tbody.innerHTML += row;
             }
-            
             document.querySelectorAll('.toggle-bag-btn').forEach(btn => {
                 btn.onclick = async function() {
-                    try {
-                        await authFetch('/api/supplier/surprise-bags/' + this.getAttribute('data-bag-id') + '/toggle', { method: 'PUT' });
-                        refreshBags();
-                    } catch(e) {
-                        alert('Error: ' + e.message);
-                    }
+                    try { await authFetch('/api/supplier/surprise-bags/' + this.getAttribute('data-bag-id') + '/toggle', { method: 'PUT' }); refreshBags(); }
+                    catch(e) { alert('Error: ' + e.message); }
                 };
             });
-        } catch(error) {
-            console.error('Refresh bags error:', error);
-        }
+        } catch(error) { console.error('Refresh bags error:', error); }
     }
 
     async function clearInactiveBags() {
         if (!confirm('Delete inactive surprise bags?')) return;
         const btn = document.getElementById('clearInactiveBagsBtn');
         btn.disabled = true;
-        try {
-            const response = await authFetch('/api/supplier/clear-inactive-bags', { method: 'DELETE' });
-            const data = await response.json();
-            if (data.success) {
-                showNotification(data.message, 'success');
-                refreshBags();
-            }
-        } catch(error) {
-            showNotification('Error deleting', 'error');
-        } finally {
-            btn.disabled = false;
-        }
+        try { const response = await authFetch('/api/supplier/clear-inactive-bags', { method: 'DELETE' }); const data = await response.json(); if (data.success) { showNotification(data.message, 'success'); refreshBags(); } }
+        catch(error) { showNotification('Error deleting', 'error'); }
+        finally { btn.disabled = false; }
     }
 
     async function clearAllBags() {
         if (!confirm('Delete ALL surprise bags?')) return;
         const btn = document.getElementById('clearAllBagsBtn');
         btn.disabled = true;
-        try {
-            const response = await authFetch('/api/supplier/clear-all-bags', { method: 'DELETE' });
-            const data = await response.json();
-            if (data.success) {
-                showNotification(data.message, 'success');
-                refreshBags();
-            }
-        } catch(error) {
-            showNotification('Error deleting', 'error');
-        } finally {
-            btn.disabled = false;
-        }
+        try { const response = await authFetch('/api/supplier/clear-all-bags', { method: 'DELETE' }); const data = await response.json(); if (data.success) { showNotification(data.message, 'success'); refreshBags(); } }
+        catch(error) { showNotification('Error deleting', 'error'); }
+        finally { btn.disabled = false; }
     }
 
     function updateDeliveryTimers() {
@@ -1587,9 +1353,8 @@
             if (!deadlineStr) return;
             const deadline = new Date(deadlineStr);
             const now = new Date();
-            if (now >= deadline) {
-                el.innerHTML = '<span style="color: #dc2626;">Time expired!</span>';
-            } else {
+            if (now >= deadline) el.innerHTML = '<span style="color: #dc2626;">Time expired!</span>';
+            else {
                 const diff = deadline - now;
                 const minutes = Math.floor(diff / 60000);
                 const seconds = Math.floor((diff % 60000) / 1000);
@@ -1602,73 +1367,31 @@
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws/supplier?supplier_id=${supplierId}`;
         ws = new WebSocket(wsUrl);
-        
-        ws.onopen = () => {
-            document.getElementById('wsDot').className = 'ws-dot connected';
-            document.getElementById('wsStatus').innerText = 'Connected';
-        };
-        
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.type === 'new_order') {
-                showNotification('New order received!', 'success');
-                refreshOrders();
-            }
-        };
-        
-        ws.onclose = () => {
-            document.getElementById('wsDot').className = 'ws-dot disconnected';
-            document.getElementById('wsStatus').innerText = 'Offline';
-            setTimeout(connectWebSocket, 3000);
-        };
+        ws.onopen = () => { document.getElementById('wsDot').className = 'ws-dot connected'; document.getElementById('wsStatus').innerText = 'Connected'; };
+        ws.onmessage = (event) => { const data = JSON.parse(event.data); if (data.type === 'new_order') { showNotification('New order received!', 'success'); refreshOrders(); } };
+        ws.onclose = () => { document.getElementById('wsDot').className = 'ws-dot disconnected'; document.getElementById('wsStatus').innerText = 'Offline'; setTimeout(connectWebSocket, 3000); };
     }
 
     function init() {
         const token = getSupplierToken();
-        if (!token) {
-            window.location.href = '/supplier/login';
-            return;
-        }
-        
+        if (!token) { window.location.href = '/supplier/login'; return; }
         document.getElementById('refreshOrdersBtn')?.addEventListener('click', refreshOrders);
-        document.getElementById('toggleAddBagBtn')?.addEventListener('click', () => {
-            const form = document.getElementById('addBagForm');
-            if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
-        });
+        document.getElementById('toggleAddBagBtn')?.addEventListener('click', () => { const form = document.getElementById('addBagForm'); if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none'; });
         document.getElementById('clearAllBagsBtn')?.addEventListener('click', clearAllBags);
         document.getElementById('clearInactiveBagsBtn')?.addEventListener('click', clearInactiveBags);
         document.getElementById('addProductBtn')?.addEventListener('click', addProduct);
-        document.getElementById('createBagForm')?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            submitBagForm();
-        });
+        document.getElementById('createBagForm')?.addEventListener('submit', (e) => { e.preventDefault(); submitBagForm(); });
         document.getElementById('surpriseTemplate')?.addEventListener('change', loadSurpriseTemplate);
-        
-        document.querySelectorAll('.discount-preset').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const percent = parseInt(btn.getAttribute('data-percent'));
-                applyDiscount(percent);
-            });
-        });
-        
+        document.querySelectorAll('.discount-preset').forEach(btn => { btn.addEventListener('click', () => { const percent = parseInt(btn.getAttribute('data-percent')); applyDiscount(percent); }); });
         setInterval(updateDeliveryTimers, 1000);
         setInterval(refreshOrders, 30000);
         setInterval(refreshBags, 60000);
-        
-        refreshOrders();
-        refreshBags();
-        connectWebSocket();
+        refreshOrders(); refreshBags(); connectWebSocket();
     }
-    
+
     const savedLang = localStorage.getItem('supplier_lang') || 'en';
     setLanguage(savedLang);
-    
-    document.querySelectorAll('.lang-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            setLanguage(btn.getAttribute('data-lang'));
-        });
-    });
-    
+    document.querySelectorAll('.lang-btn').forEach(btn => { btn.addEventListener('click', () => { setLanguage(btn.getAttribute('data-lang')); }); });
     document.addEventListener('DOMContentLoaded', init);
 </script>
 {% endblock %}
