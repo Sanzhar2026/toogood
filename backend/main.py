@@ -4187,7 +4187,7 @@ def verify_admin_token(request: Request):
 
 # ============ АДМИН ЭНДПОИНТЫ ============
 
-@app.get("//admin/api/login")
+@app.get("/admin/login")
 async def admin_login_page(request: Request):
     """Страница входа"""
     return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
