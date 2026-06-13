@@ -110,9 +110,9 @@ except ImportError:
     from backend.main import SECRET_KEY, ALGORITHM
 
 router = APIRouter(prefix="/users", tags=["users"])
-
+app.include_router(users_router)
 # Директория для хранения аватаров
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).reso/avatar-file/{user_id}"lve().parent.parent
 AVATAR_DIR = BASE_DIR / "uploads" / "avatars"
 AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -120,7 +120,7 @@ print(f"📁 AVATAR_DIR: {AVATAR_DIR.absolute()}")
 print(f"🔑 SECRET_KEY loaded: {SECRET_KEY[:10]}...")  # Проверка что ключ загружен
 
 # backend/routers/users.py - добавь этот эндпоинт в конец файла
-app.include_router(users.router)
+
 @router.get("/avatar-file/{user_id}")
 async def get_avatar_file(
     user_id: int,
@@ -199,13 +199,159 @@ def get_current_user_from_token(
         print(f"❌ Token error: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
 
-app.include_router(users_router)  # 👈 ВАЖНО!
+app.include_router(users.router)  # 👈 ВАЖНО!
 
 # Монтируем статику для аватаров
 uploads_dir = Path("uploads")
 uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# backend/routers/users.py
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+from pathlib import Path
+import shutil
+import uuid
+from jose import jwt
 
+from backend.database import get_db
+from backend.models import User, UserRole
+from backend.config import SECRET_KEY, ALGORITHM  # 👈 Импорт ключей
+
+router = APIRouter(prefix="/users", tags=["users"])
+
+# Директория для аватаров
+AVATAR_DIR = Path("uploads/avatars")
+AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ========== ФУНКЦИЯ ПОЛУЧЕНИЯ ПОЛЬЗОВАТЕЛЯ ИЗ ТОКЕНА ==========
+def get_current_user_from_token(
+    request: Request,
+    db: Session = Depends(get_db)
+) -> User:
+    """Получить текущего пользователя из JWT токена"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        return user
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except Exception as e:
+        print(f"❌ Token error: {e}")
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+# ========== ЭНДПОИНТЫ ==========
+
+@router.post("/{user_id}/avatar")
+async def upload_avatar(
+    user_id: int,
+    avatar: UploadFile = File(...),
+    current_user: User = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
+    """Загрузка аватара пользователя"""
+    
+    if current_user.id != user_id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    
+    if not avatar.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Файл должен быть изображением")
+    
+    # Читаем размер файла
+    avatar.file.seek(0, 2)
+    size = avatar.file.tell()
+    avatar.file.seek(0)
+    if size > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Файл не должен превышать 2 MB")
+    
+    # Генерируем имя файла
+    filename = f"avatar_{user_id}_{uuid.uuid4().hex[:8]}.webp"
+    file_path = AVATAR_DIR / filename
+    
+    # Сохраняем файл
+    contents = await avatar.read()
+    with open(file_path, "wb") as buffer:
+        buffer.write(contents)
+    
+    # Удаляем старые аватары
+    for old_file in AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"):
+        if old_file != file_path:
+            try:
+                old_file.unlink()
+            except:
+                pass
+    
+    avatar_url = f"/uploads/avatars/{filename}"
+    print(f"✅ Avatar saved: {file_path.name} ({len(contents)} bytes)")
+    
+    return {"success": True, "avatar_url": avatar_url}
+
+
+@router.delete("/{user_id}/avatar")
+async def delete_avatar(
+    user_id: int,
+    current_user: User = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
+    """Удаление аватара пользователя"""
+    
+    if current_user.id != user_id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    
+    deleted_count = 0
+    for old_file in AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"):
+        old_file.unlink()
+        deleted_count += 1
+    
+    if deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Аватар не найден")
+    
+    return {"success": True, "message": "Аватар удален"}
+
+
+# 👇 ЭТОТ ЭНДПОИНТ ВАЖЕН ДЛЯ ПОЛУЧЕНИЯ АВАТАРА
+@router.get("/avatar-file/{user_id}")
+async def get_avatar_file(user_id: int):
+    """Получить файл аватара напрямую (минуя статику)"""
+    
+    print(f"🔍 GET /users/avatar-file/{user_id}")
+    
+    avatar_files = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
+    
+    print(f"📄 Found: {[f.name for f in avatar_files]}")
+    
+    if avatar_files:
+        file_path = avatar_files[0]
+        print(f"✅ Serving: {file_path.name}")
+        return FileResponse(
+            file_path, 
+            media_type="image/webp",
+            headers={"Cache-Control": "public, max-age=86400"}
+        )
+    
+    print(f"❌ No avatar for user {user_id}")
+    raise HTTPException(status_code=404, detail="Avatar not found")
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -356,7 +502,20 @@ async def courier_pickup_order(order_id: int, request: Request, db: Session = De
         "message": "Заказ забран из ресторана! Едем к клиенту.",
         "delivery_deadline": order.delivery_deadline.isoformat()
     }
+# backend/main.py - в самом конце файла
 
+@app.get("/avatar/{user_id}")
+async def get_avatar(user_id: int):
+    """Получить аватар пользователя напрямую"""
+    from pathlib import Path
+    
+    avatar_dir = Path("uploads/avatars")
+    avatar_files = list(avatar_dir.glob(f"avatar_{user_id}_*.webp"))
+    
+    if avatar_files:
+        return FileResponse(avatar_files[0], media_type="image/webp")
+    
+    raise HTTPException(status_code=404, detail="Avatar not found")
 
 @app.post("/api/courier/pickup-order/{order_id}")
 async def courier_pickup_order(order_id: int, request: Request, db: Session = Depends(get_db)):

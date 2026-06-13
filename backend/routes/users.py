@@ -6,7 +6,7 @@ from pathlib import Path
 import shutil
 import uuid
 from datetime import datetime, timedelta
-
+from backend.routes.users import router as users_router
 from backend.database import get_db
 from backend.models import User, UserRole
 from jose import jwt
