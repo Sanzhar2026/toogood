@@ -120,7 +120,7 @@ print(f"📁 AVATAR_DIR: {AVATAR_DIR.absolute()}")
 print(f"🔑 SECRET_KEY loaded: {SECRET_KEY[:10]}...")  # Проверка что ключ загружен
 
 # backend/routers/users.py - добавь этот эндпоинт в конец файла
-
+app.include_router(users.router)
 @router.get("/avatar-file/{user_id}")
 async def get_avatar_file(
     user_id: int,
