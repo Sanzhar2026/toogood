@@ -10,8 +10,8 @@ from datetime import datetime, timedelta
 from backend.database import get_db
 from backend.models import User, UserRole
 from jose import jwt
-
-SECRET_KEY = "your-secret-key-here"  # 👈 Должен совпадать с main.py
+import os
+SECRET_KEY = os.getenv("SECRET_KEY", "sarqyn-super-secret-key-2024") # 👈 Должен совпадать с main.py
 ALGORITHM = "HS256"
 
 router = APIRouter(prefix="/users", tags=["users"])
