@@ -88,17 +88,47 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 30  # 30 дней
 
 
 # backend/main.py - в самое начало файла
-import faulthandler
-faulthandler.enable()
+# backend/routers/users.py
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+from pathlib import Path
+import shutil
+import uuid
+from typing import Optional
+from jose import jwt
 
-# После импортов
-print(f"✅ faulthandler enabled. PID: {os.getpid()}")
+from backend.database import get_db
+from backend.models import User, UserRole
 
-# Добавьте в начало файла backend/main.py
-def get_current_user_from_token(request: Request) -> int:
-    """Получить user_id из Bearer токена"""
+# 👇 ВАЖНО: импортируй SECRET_KEY и ALGORITHM из config или main
+# Вариант 1: если есть config.py
+try:
+    from backend.config import SECRET_KEY, ALGORITHM
+except ImportError:
+    # Вариант 2: если SECRET_KEY в main.py
+    from backend.main import SECRET_KEY, ALGORITHM
+
+router = APIRouter(prefix="/users", tags=["users"])
+
+# Директория для хранения аватаров
+BASE_DIR = Path(__file__).resolve().parent.parent
+AVATAR_DIR = BASE_DIR / "uploads" / "avatars"
+AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+
+print(f"📁 AVATAR_DIR: {AVATAR_DIR.absolute()}")
+print(f"🔑 SECRET_KEY loaded: {SECRET_KEY[:10]}...")  # Проверка что ключ загружен
+
+
+def get_current_user_from_token(
+    request: Request,
+    db: Session = Depends(get_db)
+) -> User:
+    """Получить текущего пользователя из JWT токена"""
     
     auth_header = request.headers.get("Authorization")
+    print(f"🔑 Auth header: {auth_header[:50] if auth_header else 'None'}...")  # Отладка
+    
     if not auth_header:
         raise HTTPException(status_code=401, detail="Authorization header missing")
     
@@ -106,21 +136,30 @@ def get_current_user_from_token(request: Request) -> int:
         raise HTTPException(status_code=401, detail="Invalid authorization format")
     
     token = auth_header.split(" ")[1]
+    print(f"🔑 Token: {token[:50]}...")  # Отладка
     
     try:
-        from jose import jwt
+        # 👇 Используем импортированные SECRET_KEY и ALGORITHM
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
+        print(f"✅ User ID from token: {user_id}")  # Отладка
         
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
         
-        return int(user_id)
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        print(f"✅ User found: {user.id} - {user.phone}")  # Отладка
+        return user
+        
+    except jwt.ExpiredSignatureError:
+        print(f"❌ Token expired")
+        raise HTTPException(status_code=401, detail="Token expired")
     except Exception as e:
         print(f"❌ Token error: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
-
-
 
 app.include_router(users_router)  # 👈 ВАЖНО!
 
