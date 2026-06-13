@@ -12,6 +12,7 @@ import os
 import math
 import hashlib
 from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel
 from backend.schemas import (
@@ -120,7 +121,116 @@ def get_current_user_from_token(request: Request) -> int:
 
 
 
+# backend/routers/users.py
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+from pathlib import Path
+import shutil
+import uuid
+from typing import Optional
 
+from backend.database import get_db
+from backend.models import User, UserRole
+ 
+
+router = APIRouter(prefix="/users", tags=["users"])
+
+# Директория для хранения аватаров
+AVATAR_DIR = Path("uploads/avatars")
+AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@router.post("/{user_id}/avatar")
+async def upload_avatar(
+    user_id: int,
+    avatar: UploadFile = File(...),
+    current_user: User = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
+    """Загрузка аватара пользователя"""
+    
+    # Проверка прав
+    if current_user.id != user_id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    
+    # Проверка типа файла
+    if not avatar.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Файл должен быть изображением")
+    
+    # Проверка размера (максимум 2 MB)
+    avatar.file.seek(0, 2)
+    size = avatar.file.tell()
+    avatar.file.seek(0)
+    if size > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Файл не должен превышать 2 MB")
+    
+    # Генерируем уникальное имя файла
+    file_extension = ".webp"
+    filename = f"avatar_{user_id}_{uuid.uuid4().hex[:8]}{file_extension}"
+    file_path = AVATAR_DIR / filename
+    
+    # Сохраняем файл
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(avatar.file, buffer)
+    
+    # Удаляем старые аватары пользователя
+    for old_file in AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"):
+        if old_file != file_path:
+            try:
+                old_file.unlink()
+            except:
+                pass
+    
+    # Формируем URL
+    avatar_url = f"/uploads/avatars/{filename}"
+    
+    return {"success": True, "avatar_url": avatar_url}
+
+
+@router.delete("/{user_id}/avatar")
+async def delete_avatar(
+    user_id: int,
+    current_user: User = Depends(get_current_user_from_token),
+    db: Session = Depends(get_db)
+):
+    """Удаление аватара пользователя"""
+    
+    if current_user.id != user_id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    
+    # Удаляем все аватары пользователя
+    deleted_count = 0
+    for old_file in AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"):
+        old_file.unlink()
+        deleted_count += 1
+    
+    if deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Аватар не найден")
+    
+    return {"success": True, "message": "Аватар удален"}
+
+
+@router.get("/{user_id}/avatar")
+async def get_avatar(
+    user_id: int,
+    # Убираем зависимость от авторизации для GET запроса
+    # current_user: User = Depends(get_current_user)  # ❌ Убрать!
+):
+    """Получить файл аватара (публичный доступ)"""
+    
+    # Ищем файл аватара
+    avatar_files = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
+    
+    if avatar_files:
+        return FileResponse(avatar_files[0])
+    
+    # Возвращаем default аватар вместо 404
+    default_avatar = Path("uploads/avatars/default.png")
+    if default_avatar.exists():
+        return FileResponse(default_avatar)
+    
+    raise HTTPException(status_code=404, detail="Аватар не найден")
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -6109,26 +6219,7 @@ async def verify_and_register(request: Request, db: Session = Depends(get_db)):
 
 
 
-async def get_current_user(request: Request, db: Session = Depends(get_db)):
-    """Получить текущего авторизованного пользователя"""
-    user_id = request.cookies.get("user_id")
-    
-    if not user_id:
-        return {"authenticated": False}
-    
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        return {"authenticated": False}
-    
-    return {
-        "authenticated": True,
-        "user": {
-            "id": user.id,
-            "phone": user.phone,
-            "full_name": user.full_name,
-            "is_active": user.is_active
-        }
-    }
+
 @app.get("/login")
 async def phone_login_page(request: Request, lang: str = "kz"):
     return templates.TemplateResponse("phone_login.html", {
@@ -8478,9 +8569,20 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
         if not user:
             return {"authenticated": False}
         
+        # 👇 ДОБАВЬ ЭТО: ищем аватар пользователя
+        avatar_url = None
+        from pathlib import Path
+        AVATAR_DIR = Path("uploads/avatars")
+        avatar_files = list(AVATAR_DIR.glob(f"avatar_{user.id}_*.webp"))
+        if avatar_files:
+            avatar_url = f"/uploads/avatars/{avatar_files[0].name}"
+        
         return {
             "authenticated": True,
             "user_id": user.id,
+            "user_name": user.full_name or user.phone,  # 👈 Добавь для фронта
+            "user_phone": user.phone,                   # 👈 Добавь для фронта
+            "avatar_url": avatar_url,                    # 👈 НОВОЕ: URL аватара
             "user": {
                 "id": user.id,
                 "phone": user.phone,
@@ -8493,9 +8595,9 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
     except jwt.JWTError as e:
         print(f"❌ JWT Error: {e}")
         return {"authenticated": False, "error": "Invalid token"}
-    
 
 
+        
 @app.get("/api/debug-cookies")
 async def debug_cookies(request: Request):
     cookies = request.cookies
@@ -8505,6 +8607,12 @@ async def debug_cookies(request: Request):
         "all_cookies": dict(cookies)
     }
 # backend/main.py - добавьте этот эндпоинт
+
+
+uploads_dir = Path("uploads")
+uploads_dir.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 
 @app.get("/supplier/couriers")
 async def supplier_couriers_page(request: Request, db: Session = Depends(get_db)):
