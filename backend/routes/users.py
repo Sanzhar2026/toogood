@@ -149,3 +149,39 @@ async def get_avatar(
         return FileResponse(default_avatar)
     
     raise HTTPException(status_code=404, detail="Аватар не найден")
+
+@router.get("/avatar-file/{user_id}")
+async def get_avatar_file(
+    user_id: int,
+):
+    """Получить файл аватара напрямую (минуя статику)"""
+    
+    from pathlib import Path
+    
+    # Директория с аватарами
+    AVATAR_DIR = Path("uploads/avatars")
+    
+    print(f"🔍 Looking for avatar of user {user_id}")
+    print(f"📁 Path: {AVATAR_DIR.absolute()}")
+    
+    # Ищем файл аватара
+    avatar_files = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
+    
+    print(f"📄 Found files: {[f.name for f in avatar_files]}")
+    
+    if avatar_files:
+        file_path = avatar_files[0]
+        print(f"✅ Serving: {file_path.name} ({file_path.stat().st_size} bytes)")
+        return FileResponse(
+            file_path, 
+            media_type="image/webp",
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "Content-Type": "image/webp"
+            }
+        )
+    
+    print(f"❌ No avatar for user {user_id}")
+    
+    # Если нет аватара, возвращаем 204 No Content
+    raise HTTPException(status_code=204, detail="No avatar")
