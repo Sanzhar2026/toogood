@@ -144,6 +144,10 @@ async def get_avatar_file(
     
     print(f"❌ No avatar found for user {user_id}")
     raise HTTPException(status_code=404, detail="Avatar not found")
+
+
+
+    
 def get_current_user_from_token(
     request: Request,
     db: Session = Depends(get_db)
