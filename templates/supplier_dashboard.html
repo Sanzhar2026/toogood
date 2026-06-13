@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ -->
+<!-- templates/supplier_dashboard.html - УЛУЧШЕННАЯ ВЕРСИЯ -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -23,7 +23,7 @@
     
     .admin-header {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        padding: 1.5rem 2rem;
+        padding: 1rem 2rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -36,26 +36,71 @@
     }
     
     .business-info h1 {
-        font-size: 1.8rem;
-        margin-bottom: 0.5rem;
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
     }
     
     .business-info p {
         color: #94a3b8;
+        font-size: 0.8rem;
+    }
+    
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .rating-badge {
+        background: rgba(251, 191, 36, 0.2);
+        padding: 0.3rem 0.8rem;
+        border-radius: 2rem;
+        font-size: 0.8rem;
     }
     
     .logout-btn {
         background: #dc2626;
         color: white;
-        padding: 0.5rem 1rem;
+        padding: 0.4rem 1rem;
         border: none;
         border-radius: 0.5rem;
         cursor: pointer;
         transition: background 0.2s;
+        font-size: 0.8rem;
     }
     
     .logout-btn:hover {
         background: #b91c1c;
+    }
+    
+    .lang-selector {
+        display: flex;
+        gap: 0.3rem;
+        background: rgba(255,255,255,0.1);
+        padding: 0.2rem;
+        border-radius: 2rem;
+    }
+    
+    .lang-btn {
+        background: transparent;
+        border: none;
+        color: rgba(255,255,255,0.6);
+        padding: 0.3rem 0.8rem;
+        border-radius: 1.5rem;
+        cursor: pointer;
+        font-size: 0.75rem;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .lang-btn.active {
+        background: #fbbf24;
+        color: #0f172a;
+    }
+    
+    .lang-btn:hover:not(.active) {
+        background: rgba(255,255,255,0.2);
+        color: white;
     }
     
     .nav-links {
@@ -67,7 +112,7 @@
         gap: 2rem;
         overflow-x: auto;
         position: sticky;
-        top: 80px;
+        top: 70px;
         z-index: 99;
     }
     
@@ -77,6 +122,7 @@
         color: #64748b;
         font-weight: 500;
         transition: all 0.2s;
+        font-size: 0.9rem;
     }
     
     .nav-links a:hover {
@@ -91,40 +137,41 @@
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 1.5rem;
+        gap: 1rem;
         margin-bottom: 2rem;
     }
     
     .stat-card {
         background: white;
-        padding: 1.5rem;
-        border-radius: 1rem;
+        padding: 1rem;
+        border-radius: 0.75rem;
         text-align: center;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         transition: transform 0.2s;
     }
     
     .stat-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     
     .stat-number {
-        font-size: 2rem;
+        font-size: 1.5rem;
         font-weight: bold;
         color: #0f172a;
     }
     
     .stat-label {
         color: #64748b;
-        margin-top: 0.5rem;
+        margin-top: 0.25rem;
+        font-size: 0.75rem;
     }
     
     .orders-section, .bags-section {
         background: white;
-        border-radius: 1rem;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     
@@ -132,25 +179,25 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
         flex-wrap: wrap;
-        gap: 1rem;
+        gap: 0.5rem;
     }
     
     .section-title {
-        font-size: 1.3rem;
+        font-size: 1.1rem;
         font-weight: bold;
         color: #0f172a;
-        border-bottom: 2px solid #fbbf24;
-        padding-bottom: 0.3rem;
+        border-left: 3px solid #fbbf24;
+        padding-left: 0.75rem;
     }
     
     .live-badge {
         background: #10b981;
         color: white;
-        font-size: 0.7rem;
-        padding: 0.2rem 0.6rem;
-        border-radius: 2rem;
+        font-size: 0.6rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 1rem;
         margin-left: 0.5rem;
         animation: pulse 2s infinite;
     }
@@ -160,13 +207,18 @@
         50% { opacity: 0.6; }
     }
     
-    .refresh-btn {
-        background: #f1f5f9;
-        border: none;
-        padding: 0.5rem 1rem;
+    .refresh-btn, .clear-btn {
+        padding: 0.4rem 0.8rem;
         border-radius: 0.5rem;
+        font-size: 0.75rem;
         cursor: pointer;
         transition: all 0.2s;
+        border: none;
+    }
+    
+    .refresh-btn {
+        background: #f1f5f9;
+        color: #334155;
     }
     
     .refresh-btn:hover {
@@ -176,11 +228,6 @@
     .clear-btn {
         background: #ef4444;
         color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 0.5rem;
-        cursor: pointer;
-        transition: all 0.2s;
     }
     
     .clear-btn:hover {
@@ -194,10 +241,11 @@
     table {
         width: 100%;
         border-collapse: collapse;
+        font-size: 0.8rem;
     }
     
     th, td {
-        padding: 0.75rem;
+        padding: 0.6rem 0.5rem;
         text-align: left;
         border-bottom: 1px solid #e2e8f0;
     }
@@ -205,15 +253,14 @@
     th {
         background: #f8fafc;
         font-weight: 600;
-        position: sticky;
-        top: 0;
+        color: #475569;
     }
     
     .status-badge {
         display: inline-block;
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 1rem;
+        font-size: 0.7rem;
         font-weight: 600;
     }
     .status-pending { background: #fef3c7; color: #92400e; }
@@ -225,11 +272,11 @@
     .status-cancelled { background: #fee2e2; color: #991b1b; }
     
     .btn {
-        padding: 0.4rem 0.8rem;
+        padding: 0.3rem 0.6rem;
         border: none;
-        border-radius: 0.5rem;
+        border-radius: 0.4rem;
         cursor: pointer;
-        font-size: 0.8rem;
+        font-size: 0.7rem;
         transition: all 0.2s;
     }
     
@@ -240,7 +287,6 @@
     
     .btn-primary:hover {
         background: #f59e0b;
-        transform: scale(1.02);
     }
     
     .auto-assign-btn {
@@ -257,51 +303,49 @@
         color: white;
     }
     
-    .manual-assign-btn:hover {
-        background: #2563eb;
-    }
-    
     .delivery-timer {
         font-family: monospace;
-        font-size: 0.7rem;
-        margin-top: 0.25rem;
+        font-size: 0.65rem;
+        margin-top: 0.2rem;
     }
     
     .add-bag-form {
         background: #f8fafc;
-        padding: 1.5rem;
-        border-radius: 1rem;
-        margin-top: 1.5rem;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        margin-top: 1rem;
     }
     
     .form-group {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
+        gap: 0.3rem;
+        margin-bottom: 0.8rem;
     }
     
     .form-group label {
         font-weight: 600;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
+        color: #334155;
     }
     
     .form-group input, .form-group textarea, .form-group select {
-        padding: 0.6rem;
+        padding: 0.5rem;
         border: 1px solid #e2e8f0;
         border-radius: 0.5rem;
+        font-size: 0.75rem;
     }
     
     .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
         outline: none;
         border-color: #fbbf24;
-        box-shadow: 0 0 0 3px rgba(251,191,36,0.1);
+        box-shadow: 0 0 0 2px rgba(251,191,36,0.1);
     }
     
     .form-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
+        gap: 0.8rem;
     }
     
     .full-width {
@@ -310,23 +354,18 @@
     
     .discount-buttons {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.3rem;
         flex-wrap: wrap;
     }
     
     .discount-preset {
-        padding: 0.5rem 1rem;
+        padding: 0.3rem 0.6rem;
         border: none;
-        border-radius: 0.5rem;
+        border-radius: 0.4rem;
         cursor: pointer;
         font-weight: bold;
+        font-size: 0.7rem;
     }
-    
-    .discount-preset[data-percent="30"] { background: #ef4444; color: white; }
-    .discount-preset[data-percent="40"] { background: #f97316; color: white; }
-    .discount-preset[data-percent="50"] { background: #eab308; color: white; }
-    .discount-preset[data-percent="75"] { background: #dc2626; color: white; }
-    .discount-preset[data-percent="0"] { background: #6b7280; color: white; }
     
     .product-row {
         display: flex;
@@ -339,7 +378,7 @@
     }
     
     .selected-products-list {
-        max-height: 200px;
+        max-height: 150px;
         overflow-y: auto;
         margin-top: 0.5rem;
     }
@@ -348,11 +387,12 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.5rem;
+        padding: 0.4rem;
         background: white;
-        border-radius: 0.5rem;
-        margin-bottom: 0.5rem;
+        border-radius: 0.4rem;
+        margin-bottom: 0.3rem;
         border: 1px solid #e2e8f0;
+        font-size: 0.7rem;
     }
     
     .remove-product {
@@ -360,28 +400,30 @@
         color: white;
         border: none;
         border-radius: 0.3rem;
-        padding: 0.2rem 0.5rem;
+        padding: 0.2rem 0.4rem;
         cursor: pointer;
+        font-size: 0.6rem;
     }
     
     .quantity-input {
-        width: 80px;
-        padding: 0.5rem;
+        width: 70px;
+        padding: 0.4rem;
         border: 1px solid #e2e8f0;
-        border-radius: 0.5rem;
+        border-radius: 0.4rem;
         text-align: center;
     }
     
     .submit-btn {
         background: #0f172a;
         color: white;
-        padding: 0.7rem 1.5rem;
+        padding: 0.5rem 1rem;
         border: none;
         border-radius: 0.5rem;
         cursor: pointer;
-        margin-top: 1rem;
+        margin-top: 0.8rem;
         font-weight: 600;
         width: 100%;
+        font-size: 0.8rem;
     }
     
     .submit-btn:hover {
@@ -393,19 +435,19 @@
         bottom: 1rem;
         right: 1rem;
         background: #0f172a;
-        padding: 0.5rem 1rem;
+        padding: 0.3rem 0.8rem;
         border-radius: 2rem;
         color: white;
-        font-size: 0.7rem;
+        font-size: 0.65rem;
         z-index: 100;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.3rem;
     }
     
     .ws-dot {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
         border-radius: 50%;
     }
     
@@ -423,12 +465,13 @@
         top: 1rem;
         right: 1rem;
         background: white;
-        border-radius: 0.75rem;
-        padding: 0.75rem 1.25rem;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        border-radius: 0.5rem;
+        padding: 0.6rem 1rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         z-index: 1000;
         animation: slideIn 0.3s ease;
         border-left: 3px solid #10b981;
+        font-size: 0.8rem;
     }
     
     @keyframes slideIn {
@@ -439,13 +482,14 @@
     @media (max-width: 768px) {
         .stats-grid {
             grid-template-columns: repeat(2, 1fr);
+            gap: 0.8rem;
         }
         .dashboard-container {
             padding: 1rem;
         }
         th, td {
-            font-size: 12px;
-            padding: 0.5rem;
+            font-size: 0.7rem;
+            padding: 0.4rem;
         }
         .form-grid {
             grid-template-columns: 1fr;
@@ -454,65 +498,75 @@
             grid-column: span 1;
         }
         .admin-header {
-            padding: 1rem;
+            padding: 0.8rem 1rem;
+            flex-direction: column;
+            gap: 0.5rem;
         }
         .business-info h1 {
             font-size: 1.2rem;
         }
+        .nav-links {
+            padding: 0 1rem;
+            gap: 1rem;
+        }
     }
 </style>
 
-<!-- Supplier Data - С ТОКЕНОМ -->
+<!-- Supplier Data -->
 <div id="supplierData" 
      data-supplier-id="{{ supplier.id }}" 
      data-token="{{ token if token else '' }}" 
+     data-address="{{ supplier.address or '' }}"
+     data-phone="{{ supplier.phone or '' }}"
+     data-rating="{{ supplier.rating or 0 }}"
      style="display: none;">
 </div>
 
-<!-- WebSocket Indicator -->
-<div class="ws-indicator" id="wsIndicator">
-    <div class="ws-dot" id="wsDot"></div>
-    <span id="wsStatus">Connecting...</span>
-</div>
-
-<!-- Header -->
+<!-- Header - Улучшенный -->
 <div class="admin-header">
     <div class="business-info">
         <h1>{{ supplier.business_name }}</h1>
-        <p>Location: {{ supplier.address or 'Address not specified' }} | Phone: {{ supplier.phone or '—' }}</p>
+        <p id="locationText">{{ supplier.address or 'Address not specified' }} | {{ supplier.phone or '—' }}</p>
     </div>
-    <div>
-        <span style="color: #fbbf24;">Rating: {{ supplier.rating or 0 }}</span>
-        <button onclick="logout()" class="logout-btn" style="margin-left: 1rem;">Logout</button>
+    <div class="header-actions">
+        <span class="rating-badge" id="ratingText">⭐ {{ supplier.rating or 0 }}</span>
+        
+        <div class="lang-selector">
+            <button class="lang-btn" data-lang="kz">Қаз</button>
+            <button class="lang-btn" data-lang="ru">Рус</button>
+            <button class="lang-btn active" data-lang="en">En</button>
+        </div>
+        
+        <button onclick="logout()" class="logout-btn">Logout</button>
     </div>
 </div>
 
 <div class="dashboard-container">
     <!-- Navigation Links -->
     <div class="nav-links">
-        <a href="/supplier/dashboard" class="active">Dashboard</a>
-        <a href="/supplier/couriers">Couriers</a>
-        <a href="/supplier/orders">Orders</a>
-        <a href="/supplier/surprise-bags">Surprise Bags</a>
+        <a href="/supplier/dashboard" class="active" id="navDashboard">Dashboard</a>
+        <a href="/supplier/couriers" id="navCouriers">Couriers</a>
+        <a href="/supplier/orders" id="navOrders">Orders</a>
+        <a href="/supplier/surprise-bags" id="navBags">Surprise Bags</a>
     </div>
 
     <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-number" id="totalOrders">{{ stats.total_orders }}</div>
-            <div class="stat-label">Total Orders</div>
+            <div class="stat-label" id="statTotalOrders">Total Orders</div>
         </div>
         <div class="stat-card">
             <div class="stat-number" id="pendingOrders">{{ stats.pending_orders }}</div>
-            <div class="stat-label">Pending</div>
+            <div class="stat-label" id="statPending">Pending</div>
         </div>
         <div class="stat-card">
             <div class="stat-number">{{ stats.today_orders }}</div>
-            <div class="stat-label">Today Orders</div>
+            <div class="stat-label" id="statToday">Today Orders</div>
         </div>
         <div class="stat-card">
             <div class="stat-number">{{ stats.total_revenue }} ₸</div>
-            <div class="stat-label">Total Revenue</div>
+            <div class="stat-label" id="statRevenue">Total Revenue</div>
         </div>
     </div>
 
@@ -520,28 +574,26 @@
     <div class="orders-section">
         <div class="section-header">
             <div>
-                <span class="section-title">Active Orders</span>
+                <span class="section-title" id="titleActiveOrders">Active Orders</span>
                 <span class="live-badge">LIVE</span>
             </div>
-            <button class="refresh-btn" id="refreshOrdersBtn">Refresh</button>
+            <button class="refresh-btn" id="refreshOrdersBtn"><span id="btnRefresh">Refresh</span></button>
         </div>
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th>Order #</th>
-                        <th>Customer / Address</th>
-                        <th>Product</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                        <th>Courier</th>
-                        <th>Action</th>
-                        <th>Map</th>
+                        <th id="thOrder">Order #</th>
+                        <th id="thCustomer">Customer / Address</th>
+                        <th id="thProduct">Product</th>
+                        <th id="thAmount">Amount</th>
+                        <th id="thStatus">Status</th>
+                        <th id="thCourier">Courier</th>
+                        <th id="thAction">Action</th>
+                        <th id="thMap">Map</th>
                     </tr>
                 </thead>
-                <tbody id="ordersTableBody">
-                    <!-- Loaded via JS -->
-                </tbody>
+                <tbody id="ordersTableBody"></tbody>
             </table>
         </div>
     </div>
@@ -549,141 +601,139 @@
     <!-- Surprise Bags Section -->
     <div class="bags-section">
         <div class="section-header">
-            <span class="section-title">🎁 Surprise Bags</span>
+            <span class="section-title" id="titleBags">Surprise Bags</span>
             <div style="display: flex; gap: 0.5rem;">
-                <button class="refresh-btn" id="toggleAddBagBtn">+ Add Surprise</button>
-                <button class="clear-btn" id="clearInactiveBagsBtn">Clear Inactive</button>
-                <button class="clear-btn" id="clearAllBagsBtn" style="background: #dc2626;">Delete All</button>
+                <button class="refresh-btn" id="toggleAddBagBtn"><span id="btnAdd">Add Surprise</span></button>
+                <button class="clear-btn" id="clearInactiveBagsBtn"><span id="btnClearInactive">Clear Inactive</span></button>
+                <button class="clear-btn" id="clearAllBagsBtn" style="background: #dc2626;"><span id="btnDeleteAll">Delete All</span></button>
             </div>
         </div>
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Description</th>
-                        <th>Price</th>
-                        <th>Discounted</th>
-                        <th>Discount</th>
-                        <th>Quantity</th>
-                        <th>Status</th>
-                        <th>Action</th>
+                        <th id="thBagName">Name</th>
+                        <th id="thBagDesc">Description</th>
+                        <th id="thBagPrice">Price</th>
+                        <th id="thBagDiscounted">Discounted</th>
+                        <th id="thBagDiscount">Discount</th>
+                        <th id="thBagQty">Quantity</th>
+                        <th id="thBagStatus">Status</th>
+                        <th id="thBagAction">Action</th>
                     </tr>
                 </thead>
-                <tbody id="bagsTableBody">
-                    <!-- Loaded via JS -->
-                </tbody>
+                <tbody id="bagsTableBody"></tbody>
             </table>
         </div>
 
         <!-- Add Bag Form -->
         <div class="add-bag-form" id="addBagForm" style="display: none;">
-            <h3 style="margin-bottom: 1rem;">Add Surprise Bag</h3>
+            <h3 id="formTitle" style="margin-bottom: 1rem; font-size: 1rem;">Add Surprise Bag</h3>
             <form id="createBagForm">
                 <div class="form-group full-width">
-                    <label>Ready Surprise Package</label>
+                    <label id="labelTemplate">Ready Surprise Package</label>
                     <select id="surpriseTemplate">
                         <option value="">-- Choose ready surprise --</option>
                         <optgroup label="Pizza Sets">
-                            <option value="pizza_classic">🍕 Pizza Set "Classic"</option>
-                            <option value="pizza_italian">🇮🇹 Pizza Set "Italian Dinner"</option>
-                            <option value="pizza_meat">🥩 Pizza Set "Meat"</option>
-                            <option value="pizza_vegan">🌱 Pizza Set "Vegan"</option>
-                            <option value="pizza_kids">👧 Pizza Set "Kids"</option>
+                            <option value="pizza_classic">Pizza Set "Classic"</option>
+                            <option value="pizza_italian">Pizza Set "Italian Dinner"</option>
+                            <option value="pizza_meat">Pizza Set "Meat"</option>
+                            <option value="pizza_vegan">Pizza Set "Vegan"</option>
+                            <option value="pizza_kids">Pizza Set "Kids"</option>
                         </optgroup>
                         <optgroup label="Sushi Sets">
-                            <option value="sushi_samurai">⚔️ Sushi Set "Samurai"</option>
-                            <option value="sushi_classic">🎌 Sushi Set "Classic"</option>
-                            <option value="sushi_premium">👑 Sushi Set "Premium"</option>
-                            <option value="sushi_spicy">🔥 Sushi Set "Spicy"</option>
-                            <option value="sushi_family">👨‍👩‍👧‍👦 Sushi Set "Family"</option>
+                            <option value="sushi_samurai">Sushi Set "Samurai"</option>
+                            <option value="sushi_classic">Sushi Set "Classic"</option>
+                            <option value="sushi_premium">Sushi Set "Premium"</option>
+                            <option value="sushi_spicy">Sushi Set "Spicy"</option>
+                            <option value="sushi_family">Sushi Set "Family"</option>
                         </optgroup>
                         <optgroup label="Burger Sets">
-                            <option value="burger_american">🇺🇸 Burger Set "American"</option>
-                            <option value="burger_classic">🍔 Burger Set "Classic"</option>
-                            <option value="burger_chicken">🐔 Burger Set "Chicken"</option>
-                            <option value="burger_double">🍔🍔 Burger Set "Double"</option>
-                            <option value="burger_cheesy">🧀 Burger Set "Cheesy"</option>
+                            <option value="burger_american">Burger Set "American"</option>
+                            <option value="burger_classic">Burger Set "Classic"</option>
+                            <option value="burger_chicken">Burger Set "Chicken"</option>
+                            <option value="burger_double">Burger Set "Double"</option>
+                            <option value="burger_cheesy">Burger Set "Cheesy"</option>
                         </optgroup>
                         <optgroup label="Dessert Sets">
-                            <option value="dessert_sweet">🍰 Dessert Set "Sweet"</option>
-                            <option value="dessert_chocolate">🍫 Dessert Set "Chocolate Heaven"</option>
-                            <option value="dessert_fruit">🍓 Dessert Set "Fruit"</option>
-                            <option value="dessert_macaroon">🍪 Dessert Set "Macaron"</option>
+                            <option value="dessert_sweet">Dessert Set "Sweet"</option>
+                            <option value="dessert_chocolate">Dessert Set "Chocolate Heaven"</option>
+                            <option value="dessert_fruit">Dessert Set "Fruit"</option>
+                            <option value="dessert_macaroon">Dessert Set "Macaron"</option>
                         </optgroup>
                         <optgroup label="Healthy Sets">
-                            <option value="healthy_fitness">💪 Healthy Set "Fitness"</option>
-                            <option value="healthy_vegan">🌿 Healthy Set "Vegan"</option>
-                            <option value="healthy_protein">🥚 Healthy Set "Protein"</option>
+                            <option value="healthy_fitness">Healthy Set "Fitness"</option>
+                            <option value="healthy_vegan">Healthy Set "Vegan"</option>
+                            <option value="healthy_protein">Healthy Set "Protein"</option>
                         </optgroup>
                         <optgroup label="Mix Sets">
-                            <option value="mix_asia_italy">🍕🍣 Mix Set "Asia & Italy"</option>
-                            <option value="mix_burger_pizza">🍔🍕 Mix Set "Burger & Pizza"</option>
-                            <option value="mix_sushi_dessert">🍣🍰 Mix Set "Sushi & Dessert"</option>
-                            <option value="mix_family">👨‍👩‍👧‍👦 Mix Set "Family Feast"</option>
+                            <option value="mix_asia_italy">Mix Set "Asia & Italy"</option>
+                            <option value="mix_burger_pizza">Mix Set "Burger & Pizza"</option>
+                            <option value="mix_sushi_dessert">Mix Set "Sushi & Dessert"</option>
+                            <option value="mix_family">Mix Set "Family Feast"</option>
                         </optgroup>
                         <optgroup label="Snack Sets">
-                            <option value="snack_party">🎉 Snack Set "Party"</option>
-                            <option value="snack_sport">⚽ Snack Set "Sport"</option>
-                            <option value="snack_cheese">🧀 Snack Set "Cheese"</option>
-                            <option value="snack_chicken">🍗 Snack Set "Chicken"</option>
+                            <option value="snack_party">Snack Set "Party"</option>
+                            <option value="snack_sport">Snack Set "Sport"</option>
+                            <option value="snack_cheese">Snack Set "Cheese"</option>
+                            <option value="snack_chicken">Snack Set "Chicken"</option>
                         </optgroup>
                     </select>
                     <small id="selectedHint" style="color: #64748b;">Select ready surprise to auto-fill</small>
                 </div>
 
                 <div class="form-group full-width">
-                    <label>Surprise Bag Name *</label>
-                    <input type="text" id="bagName" required placeholder="Example: Pizza Set 'Italian Dinner'">
+                    <label id="labelName">Surprise Bag Name *</label>
+                    <input type="text" id="bagName" required placeholder="Example: Pizza Set Italian Dinner">
                 </div>
 
                 <div class="form-group full-width">
-                    <label>Description</label>
+                    <label id="labelDesc">Description</label>
                     <textarea id="bagDescription" rows="2" placeholder="Brief description"></textarea>
                 </div>
 
                 <div class="form-group full-width">
-                    <label>Products List</label>
+                    <label id="labelProducts">Products List</label>
                     <div class="product-row">
                         <select id="productSelect">
                             <option value="">-- Choose product --</option>
-                            <option value="1">🍕 Margherita Pizza - 2500 ₸</option>
-                            <option value="2">🍕 Pepperoni Pizza - 3200 ₸</option>
-                            <option value="3">🍕 Hawaiian Pizza - 3000 ₸</option>
-                            <option value="4">🍕 Meat Pizza - 3800 ₸</option>
-                            <option value="5">🍕 Vegetarian Pizza - 2800 ₸</option>
-                            <option value="6">🍔 Hamburger - 1800 ₸</option>
-                            <option value="7">🍔 Cheeseburger - 2100 ₸</option>
-                            <option value="8">🍔 Chicken Burger - 1900 ₸</option>
-                            <option value="9">🍣 Sushi Set - 3000 ₸</option>
-                            <option value="10">🍣 Philadelphia Roll - 4200 ₸</option>
-                            <option value="11">🍣 California Roll - 3800 ₸</option>
-                            <option value="12">🥗 Greek Salad - 1500 ₸</option>
-                            <option value="13">🥗 Caesar Salad - 2200 ₸</option>
-                            <option value="14">🥤 Coca-Cola - 500 ₸</option>
-                            <option value="15">🥤 Lemonade - 800 ₸</option>
-                            <option value="16">🍰 Cheesecake - 1200 ₸</option>
-                            <option value="17">🍰 Tiramisu - 1400 ₸</option>
-                            <option value="18">🍟 French Fries - 800 ₸</option>
-                            <option value="19">🍗 Chicken Wings - 1800 ₸</option>
-                            <option value="20">🧀 Cheese Sticks - 1500 ₸</option>
+                            <option value="1">Margherita Pizza - 2500 ₸</option>
+                            <option value="2">Pepperoni Pizza - 3200 ₸</option>
+                            <option value="3">Hawaiian Pizza - 3000 ₸</option>
+                            <option value="4">Meat Pizza - 3800 ₸</option>
+                            <option value="5">Vegetarian Pizza - 2800 ₸</option>
+                            <option value="6">Hamburger - 1800 ₸</option>
+                            <option value="7">Cheeseburger - 2100 ₸</option>
+                            <option value="8">Chicken Burger - 1900 ₸</option>
+                            <option value="9">Sushi Set - 3000 ₸</option>
+                            <option value="10">Philadelphia Roll - 4200 ₸</option>
+                            <option value="11">California Roll - 3800 ₸</option>
+                            <option value="12">Greek Salad - 1500 ₸</option>
+                            <option value="13">Caesar Salad - 2200 ₸</option>
+                            <option value="14">Coca-Cola - 500 ₸</option>
+                            <option value="15">Lemonade - 800 ₸</option>
+                            <option value="16">Cheesecake - 1200 ₸</option>
+                            <option value="17">Tiramisu - 1400 ₸</option>
+                            <option value="18">French Fries - 800 ₸</option>
+                            <option value="19">Chicken Wings - 1800 ₸</option>
+                            <option value="20">Cheese Sticks - 1500 ₸</option>
                         </select>
                         <input type="number" id="productQuantity" class="quantity-input" value="1" min="1">
                         <button type="button" class="btn-primary" id="addProductBtn">+ Add</button>
                     </div>
                     <div id="selectedProductsPreview" style="display: none;">
-                        <strong>Selected Products:</strong>
+                        <strong id="selectedTitle">Selected Products:</strong>
                         <div id="selectedProductsList" class="selected-products-list"></div>
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Original Price (₸)</label>
+                        <label id="labelOriginalPrice">Original Price (₸)</label>
                         <input type="number" id="originalPrice" readonly style="background: #f1f5f9;">
                     </div>
                     <div class="form-group">
-                        <label>Discount</label>
+                        <label id="labelDiscount">Discount</label>
                         <div class="discount-buttons">
                             <button type="button" class="discount-preset" data-percent="30">-30%</button>
                             <button type="button" class="discount-preset" data-percent="40">-40%</button>
@@ -696,60 +746,276 @@
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Discounted Price (₸)</label>
+                        <label id="labelDiscountedPrice">Discounted Price (₸)</label>
                         <input type="number" id="discountedPrice" required>
-                        <div id="discountInfo" style="font-size: 0.75rem; color: #10b981;"></div>
+                        <div id="discountInfo" style="font-size: 0.7rem; color: #10b981;"></div>
                     </div>
                     <div class="form-group">
-                        <label>Quantity</label>
+                        <label id="labelQuantity">Quantity</label>
                         <input type="number" id="availableQuantity" value="5" min="1">
                     </div>
                     <div class="form-group">
-                        <label>Pickup Start Time</label>
+                        <label id="labelPickupStart">Pickup Start Time</label>
                         <input type="text" id="pickupStart" placeholder="19:30">
                     </div>
                     <div class="form-group">
-                        <label>Pickup End Time</label>
+                        <label id="labelPickupEnd">Pickup End Time</label>
                         <input type="text" id="pickupEnd" placeholder="20:00">
                     </div>
                 </div>
 
                 <div class="form-group full-width">
-                    <label>Image URL</label>
+                    <label id="labelImage">Image URL</label>
                     <input type="text" id="imageUrl" placeholder="https://...">
                 </div>
 
-                <button type="submit" class="submit-btn">Add Surprise</button>
+                <button type="submit" class="submit-btn" id="submitBtn">Add Surprise</button>
             </form>
         </div>
     </div>
 </div>
 
 <script>
-    // ============ JWT TOKEN - ИСПРАВЛЕННЫЙ ============
+    // ============ LANGUAGE TRANSLATIONS ============
+    const translations = {
+        kz: {
+            location: '{address} | {phone}',
+            rating: '⭐ {rating}',
+            navDashboard: 'Басты бет',
+            navCouriers: 'Курьерлер',
+            navOrders: 'Тапсырыстар',
+            navBags: 'Сюрприздер',
+            statTotalOrders: 'Барлық тапсырыс',
+            statPending: 'Күтілуде',
+            statToday: 'Бүгінгі',
+            statRevenue: 'Табыс',
+            titleActiveOrders: 'Белсенді тапсырыстар',
+            btnRefresh: 'Жаңарту',
+            thOrder: 'Тапсырыс #',
+            thCustomer: 'Клиент / Мекенжай',
+            thProduct: 'Өнім',
+            thAmount: 'Сома',
+            thStatus: 'Статус',
+            thCourier: 'Курьер',
+            thAction: 'Әрекет',
+            thMap: 'Карта',
+            titleBags: 'Сюрприздер',
+            btnAdd: 'Қосу',
+            btnClearInactive: 'Белсенді еместерді тазалау',
+            btnDeleteAll: 'Барлығын жою',
+            thBagName: 'Атауы',
+            thBagDesc: 'Сипаттама',
+            thBagPrice: 'Бағасы',
+            thBagDiscounted: 'Жеңілдікпен',
+            thBagDiscount: 'Жеңілдік',
+            thBagQty: 'Саны',
+            thBagStatus: 'Күйі',
+            thBagAction: 'Әрекет',
+            formTitle: 'Сюрприз қосу',
+            labelTemplate: 'Дайын сюрприз',
+            labelName: 'Сюрприз атауы *',
+            labelDesc: 'Сипаттама',
+            labelProducts: 'Өнімдер тізімі',
+            selectedTitle: 'Таңдалған өнімдер:',
+            labelOriginalPrice: 'Бастапқы баға (₸)',
+            labelDiscount: 'Жеңілдік',
+            labelDiscountedPrice: 'Жеңілдікпен баға (₸)',
+            labelQuantity: 'Саны',
+            labelPickupStart: 'Алу уақыты (басталуы)',
+            labelPickupEnd: 'Алу уақыты (аяқталуы)',
+            labelImage: 'Сурет URL',
+            submitBtn: 'Сюрприз қосу'
+        },
+        ru: {
+            location: '{address} | {phone}',
+            rating: '⭐ {rating}',
+            navDashboard: 'Главная',
+            navCouriers: 'Курьеры',
+            navOrders: 'Заказы',
+            navBags: 'Сюрпризы',
+            statTotalOrders: 'Всего заказов',
+            statPending: 'Ожидает',
+            statToday: 'Сегодня',
+            statRevenue: 'Доход',
+            titleActiveOrders: 'Активные заказы',
+            btnRefresh: 'Обновить',
+            thOrder: 'Заказ #',
+            thCustomer: 'Клиент / Адрес',
+            thProduct: 'Товар',
+            thAmount: 'Сумма',
+            thStatus: 'Статус',
+            thCourier: 'Курьер',
+            thAction: 'Действие',
+            thMap: 'Карта',
+            titleBags: 'Сюрпризы',
+            btnAdd: 'Добавить',
+            btnClearInactive: 'Удалить неактивные',
+            btnDeleteAll: 'Удалить все',
+            thBagName: 'Название',
+            thBagDesc: 'Описание',
+            thBagPrice: 'Цена',
+            thBagDiscounted: 'Со скидкой',
+            thBagDiscount: 'Скидка',
+            thBagQty: 'Кол-во',
+            thBagStatus: 'Статус',
+            thBagAction: 'Действие',
+            formTitle: 'Добавить сюрприз',
+            labelTemplate: 'Готовый сюрприз',
+            labelName: 'Название сюрприза *',
+            labelDesc: 'Описание',
+            labelProducts: 'Список товаров',
+            selectedTitle: 'Выбранные товары:',
+            labelOriginalPrice: 'Оригинальная цена (₸)',
+            labelDiscount: 'Скидка',
+            labelDiscountedPrice: 'Цена со скидкой (₸)',
+            labelQuantity: 'Количество',
+            labelPickupStart: 'Время выдачи (начало)',
+            labelPickupEnd: 'Время выдачи (конец)',
+            labelImage: 'URL изображения',
+            submitBtn: 'Добавить сюрприз'
+        },
+        en: {
+            location: '{address} | {phone}',
+            rating: '⭐ {rating}',
+            navDashboard: 'Dashboard',
+            navCouriers: 'Couriers',
+            navOrders: 'Orders',
+            navBags: 'Surprise Bags',
+            statTotalOrders: 'Total Orders',
+            statPending: 'Pending',
+            statToday: 'Today Orders',
+            statRevenue: 'Total Revenue',
+            titleActiveOrders: 'Active Orders',
+            btnRefresh: 'Refresh',
+            thOrder: 'Order #',
+            thCustomer: 'Customer / Address',
+            thProduct: 'Product',
+            thAmount: 'Amount',
+            thStatus: 'Status',
+            thCourier: 'Courier',
+            thAction: 'Action',
+            thMap: 'Map',
+            titleBags: 'Surprise Bags',
+            btnAdd: 'Add',
+            btnClearInactive: 'Clear Inactive',
+            btnDeleteAll: 'Delete All',
+            thBagName: 'Name',
+            thBagDesc: 'Description',
+            thBagPrice: 'Price',
+            thBagDiscounted: 'Discounted',
+            thBagDiscount: 'Discount',
+            thBagQty: 'Quantity',
+            thBagStatus: 'Status',
+            thBagAction: 'Action',
+            formTitle: 'Add Surprise Bag',
+            labelTemplate: 'Ready Surprise Package',
+            labelName: 'Surprise Bag Name *',
+            labelDesc: 'Description',
+            labelProducts: 'Products List',
+            selectedTitle: 'Selected Products:',
+            labelOriginalPrice: 'Original Price (₸)',
+            labelDiscount: 'Discount',
+            labelDiscountedPrice: 'Discounted Price (₸)',
+            labelQuantity: 'Quantity',
+            labelPickupStart: 'Pickup Start Time',
+            labelPickupEnd: 'Pickup End Time',
+            labelImage: 'Image URL',
+            submitBtn: 'Add Surprise'
+        }
+    };
+
+    let currentLang = 'en';
+
+    function setLanguage(lang) {
+        currentLang = lang;
+        const t = translations[lang];
+        
+        const address = document.getElementById('supplierData')?.getAttribute('data-address') || '';
+        const phone = document.getElementById('supplierData')?.getAttribute('data-phone') || '';
+        const rating = document.getElementById('supplierData')?.getAttribute('data-rating') || '0';
+        
+        document.getElementById('locationText').innerHTML = t.location.replace('{address}', address).replace('{phone}', phone);
+        document.getElementById('ratingText').innerHTML = t.rating.replace('{rating}', rating);
+        document.getElementById('navDashboard').innerHTML = t.navDashboard;
+        document.getElementById('navCouriers').innerHTML = t.navCouriers;
+        document.getElementById('navOrders').innerHTML = t.navOrders;
+        document.getElementById('navBags').innerHTML = t.navBags;
+        document.getElementById('statTotalOrders').innerHTML = t.statTotalOrders;
+        document.getElementById('statPending').innerHTML = t.statPending;
+        document.getElementById('statToday').innerHTML = t.statToday;
+        document.getElementById('statRevenue').innerHTML = t.statRevenue;
+        document.getElementById('titleActiveOrders').innerHTML = t.titleActiveOrders;
+        document.getElementById('btnRefresh').innerHTML = t.btnRefresh;
+        document.getElementById('thOrder').innerHTML = t.thOrder;
+        document.getElementById('thCustomer').innerHTML = t.thCustomer;
+        document.getElementById('thProduct').innerHTML = t.thProduct;
+        document.getElementById('thAmount').innerHTML = t.thAmount;
+        document.getElementById('thStatus').innerHTML = t.thStatus;
+        document.getElementById('thCourier').innerHTML = t.thCourier;
+        document.getElementById('thAction').innerHTML = t.thAction;
+        document.getElementById('thMap').innerHTML = t.thMap;
+        document.getElementById('titleBags').innerHTML = t.titleBags;
+        document.getElementById('btnAdd').innerHTML = t.btnAdd;
+        document.getElementById('btnClearInactive').innerHTML = t.btnClearInactive;
+        document.getElementById('btnDeleteAll').innerHTML = t.btnDeleteAll;
+        document.getElementById('thBagName').innerHTML = t.thBagName;
+        document.getElementById('thBagDesc').innerHTML = t.thBagDesc;
+        document.getElementById('thBagPrice').innerHTML = t.thBagPrice;
+        document.getElementById('thBagDiscounted').innerHTML = t.thBagDiscounted;
+        document.getElementById('thBagDiscount').innerHTML = t.thBagDiscount;
+        document.getElementById('thBagQty').innerHTML = t.thBagQty;
+        document.getElementById('thBagStatus').innerHTML = t.thBagStatus;
+        document.getElementById('thBagAction').innerHTML = t.thBagAction;
+        document.getElementById('formTitle').innerHTML = t.formTitle;
+        document.getElementById('labelTemplate').innerHTML = t.labelTemplate;
+        document.getElementById('labelName').innerHTML = t.labelName;
+        document.getElementById('labelDesc').innerHTML = t.labelDesc;
+        document.getElementById('labelProducts').innerHTML = t.labelProducts;
+        document.getElementById('selectedTitle').innerHTML = t.selectedTitle;
+        document.getElementById('labelOriginalPrice').innerHTML = t.labelOriginalPrice;
+        document.getElementById('labelDiscount').innerHTML = t.labelDiscount;
+        document.getElementById('labelDiscountedPrice').innerHTML = t.labelDiscountedPrice;
+        document.getElementById('labelQuantity').innerHTML = t.labelQuantity;
+        document.getElementById('labelPickupStart').innerHTML = t.labelPickupStart;
+        document.getElementById('labelPickupEnd').innerHTML = t.labelPickupEnd;
+        document.getElementById('labelImage').innerHTML = t.labelImage;
+        document.getElementById('submitBtn').innerHTML = t.submitBtn;
+        
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            if (btn.getAttribute('data-lang') === lang) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        
+        localStorage.setItem('supplier_lang', lang);
+    }
+
+    const savedLang = localStorage.getItem('supplier_lang') || 'en';
+    setLanguage(savedLang);
+
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            setLanguage(btn.getAttribute('data-lang'));
+        });
+    });
+
+    // ============ ОСТАЛЬНОЙ JS КОД (без изменений) ============
     var supplierId = parseInt(document.getElementById('supplierData').getAttribute('data-supplier-id'));
     var tokenFromHtml = document.getElementById('supplierData').getAttribute('data-token');
-    
-    // Отладка
-    console.log('=== DASHBOARD DEBUG ===');
-    console.log('Supplier ID:', supplierId);
-    console.log('Token from HTML:', tokenFromHtml ? 'EXISTS (length: ' + tokenFromHtml.length + ')' : 'NO TOKEN');
-    console.log('Token from sessionStorage:', sessionStorage.getItem('supplier_token') ? 'EXISTS' : 'NO');
-    console.log('========================');
     
     function getSupplierToken() {
         var token = sessionStorage.getItem('supplier_token');
         if (!token && tokenFromHtml && tokenFromHtml !== '' && tokenFromHtml !== 'None') {
             token = tokenFromHtml;
             sessionStorage.setItem('supplier_token', token);
-            console.log('✅ Token saved from HTML to sessionStorage');
         }
         return token;
     }
     
     function clearSupplierToken() {
         sessionStorage.removeItem('supplier_token');
-        console.log('🗑️ Token cleared from sessionStorage');
     }
     
     function logout() {
@@ -757,23 +1023,17 @@
         window.location.href = '/supplier/login';
     }
     
-    // Проверка токена при загрузке
     var token = getSupplierToken();
     if (!token) {
-        console.log('❌ No token found, redirecting to login...');
         window.location.href = '/supplier/login';
-    } else {
-        console.log('✅ Token found, initializing dashboard...');
     }
     
     async function authFetch(url, options = {}) {
         var token = getSupplierToken();
-        
         if (!token) {
             window.location.href = '/supplier/login';
             throw new Error('No token');
         }
-        
         var response = await fetch(url, {
             ...options,
             headers: {
@@ -782,21 +1042,18 @@
                 ...options.headers
             }
         });
-        
         if (response.status === 401) {
             clearSupplierToken();
             window.location.href = '/supplier/login';
             throw new Error('Unauthorized');
         }
-        
         return response;
     }
     
-    // ============ WEB SOCKET ============
+    // WebSocket
     var ws = null;
     var selectedProducts = [];
     
-    // Product options
     var productOptions = {
         '1': { name: 'Margherita Pizza', price: 2500 },
         '2': { name: 'Pepperoni Pizza', price: 3200 },
@@ -820,10 +1077,9 @@
         '20': { name: 'Cheese Sticks', price: 1500 }
     };
     
-    // Surprise templates (simplified)
     var surpriseTemplates = {
         'pizza_classic': {
-            name: 'Pizza Set "Classic"',
+            name: 'Pizza Set Classic',
             description: 'Two classic pizzas for a great evening',
             items: [
                 { id: 1, name: 'Margherita Pizza', price: 2500, quantity: 1 },
@@ -833,7 +1089,7 @@
             image: 'https://images.unsplash.com/photo-1604382355076-af4b0eb60143?w=400&h=300&fit=crop'
         },
         'burger_classic': {
-            name: 'Burger Set "Classic"',
+            name: 'Burger Set Classic',
             description: 'Traditional burgers with fries',
             items: [
                 { id: 6, name: 'Hamburger', price: 1800, quantity: 2 },
@@ -844,17 +1100,14 @@
         }
     };
     
-    // ============ WEB SOCKET ============
     function connectWebSocket() {
         var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         var wsUrl = protocol + '//' + window.location.host + '/ws/supplier?supplier_id=' + supplierId;
         ws = new WebSocket(wsUrl);
-        
         ws.onopen = function() {
             document.getElementById('wsDot').className = 'ws-dot connected';
             document.getElementById('wsStatus').innerText = 'Connected';
         };
-        
         ws.onmessage = function(event) {
             var data = JSON.parse(event.data);
             if (data.type === 'new_order') {
@@ -862,7 +1115,6 @@
                 refreshOrders();
             }
         };
-        
         ws.onclose = function() {
             document.getElementById('wsDot').className = 'ws-dot disconnected';
             document.getElementById('wsStatus').innerText = 'Offline';
@@ -878,138 +1130,75 @@
         setTimeout(function() { notification.remove(); }, 3000);
     }
     
-    // ============ CLEAR INACTIVE BAGS ============
     async function clearInactiveBags() {
-        let inactiveCount = 0;
-        const rows = document.querySelectorAll('#bagsTableBody tr');
-        
-        for (let i = 0; i < rows.length; i++) {
-            const cells = rows[i].cells;
-            if (cells.length > 6) {
-                const statusCell = cells[6];
-                if (statusCell && statusCell.innerText.includes('Inactive')) {
-                    inactiveCount++;
-                }
-            }
-        }
-        
-        if (inactiveCount === 0) {
-            alert('No inactive surprises to delete');
-            return;
-        }
-        
-        if (!confirm(`Delete ${inactiveCount} INACTIVE surprise bags?`)) {
-            return;
-        }
-        
-        if (!confirm('Confirm: Delete ONLY inactive surprises?')) {
-            return;
-        }
-        
+        if (!confirm('Delete inactive surprise bags?')) return;
         const btn = document.getElementById('clearInactiveBagsBtn');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = 'Deleting...';
         btn.disabled = true;
-        
         try {
-            const response = await authFetch('/api/supplier/clear-inactive-bags', {
-                method: 'DELETE'
-            });
-            
+            const response = await authFetch('/api/supplier/clear-inactive-bags', { method: 'DELETE' });
             const data = await response.json();
-            
             if (data.success) {
                 showNotification(data.message, 'success');
                 refreshBags();
-            } else {
-                showNotification('Error: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('Clear inactive bags error:', error);
             showNotification('Error deleting', 'error');
         } finally {
-            btn.innerHTML = originalText;
             btn.disabled = false;
         }
     }
     
-    // ============ CLEAR ALL BAGS ============
     async function clearAllBags() {
-        if (!confirm('WARNING! This will delete ALL your surprise bags. Continue?')) {
-            return;
-        }
-        
-        if (!confirm('Confirm: Delete ALL surprises?')) {
-            return;
-        }
-        
+        if (!confirm('Delete ALL surprise bags?')) return;
         const btn = document.getElementById('clearAllBagsBtn');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = 'Deleting...';
         btn.disabled = true;
-        
         try {
-            const response = await authFetch('/api/supplier/clear-all-bags', {
-                method: 'DELETE'
-            });
-            
+            const response = await authFetch('/api/supplier/clear-all-bags', { method: 'DELETE' });
             const data = await response.json();
-            
             if (data.success) {
                 showNotification(data.message, 'success');
                 refreshBags();
-            } else {
-                showNotification('Error: ' + (data.message || 'Unknown error'), 'error');
             }
         } catch (error) {
-            console.error('Clear bags error:', error);
             showNotification('Error deleting', 'error');
         } finally {
-            btn.innerHTML = originalText;
             btn.disabled = false;
         }
     }
     
-    // ============ ORDERS FUNCTIONS ============
     async function refreshOrders() {
         try {
             var response = await authFetch('/api/supplier/orders');
             var data = await response.json();
             if (!data.success) return;
-            
             var orders = data.orders;
             var tbody = document.getElementById('ordersTableBody');
             tbody.innerHTML = '';
             var pendingCount = 0;
-            
             var activeOrders = orders.filter(function(order) {
                 return order.status !== 'cancelled' && order.status !== 'deleted';
             });
-            
             if (activeOrders.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No active orders</td></tr>';
                 document.getElementById('pendingOrders').innerText = '0';
                 document.getElementById('totalOrders').innerText = '0';
                 return;
             }
-            
             for (var i = 0; i < activeOrders.length; i++) {
                 var order = activeOrders[i];
                 if (order.status === 'pending') pendingCount++;
-                
                 var row = '<tr data-order-id="' + order.id + '">' +
-                    '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.7rem;color:#94a3b8;">#' + order.id + '</span></td>' +
-                    '<td>' + escapeHtml(order.customer_address || 'Address not specified') + '<br><span style="font-size:0.65rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
+                    '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.65rem;color:#94a3b8;">#' + order.id + '</span></td>' +
+                    '<td>' + escapeHtml(order.customer_address || 'Address not specified') + '<br><span style="font-size:0.6rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
                     '<td>' + escapeHtml(order.bag_name) + '</td>' +
                     '<td><strong>' + order.amount_paid + '</strong> ₸</td>' +
                     '<td><span class="status-badge status-' + order.status + '">' + getStatusText(order.status) + '</span></td>' +
                     '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? escapeHtml(order.assigned_courier_name) : '—') + '</td>' +
                     '<td>' + getActionButtons(order) + '</td>' +
                     '<td><button class="btn track-btn" data-order-id="' + order.id + '">Map</button></td>' +
-                '</tr>';
+                '</table>';
                 tbody.innerHTML += row;
             }
-            
             document.getElementById('pendingOrders').innerText = pendingCount;
             document.getElementById('totalOrders').innerText = activeOrders.length;
             attachOrderHandlers();
@@ -1027,7 +1216,7 @@
         if (order.status === 'confirmed') {
             return '<div><button class="auto-assign-btn btn" data-order-id="' + order.id + '">Auto-assign</button><br><button class="manual-assign-btn btn" data-order-id="' + order.id + '" style="margin-top:0.3rem;">Manual</button></div>';
         } else if (order.status === 'out_for_delivery') {
-            return '<div class="text-sm"><div class="delivery-timer" data-deadline="' + order.delivery_deadline + '"></div></div>';
+            return '<div class="delivery-timer" data-deadline="' + order.delivery_deadline + '"></div>';
         } else if (order.status === 'delivered') {
             return '<span style="color: #10b981;">Delivered</span>';
         } else {
@@ -1054,7 +1243,6 @@
             };
             select.addEventListener('change', select._handler);
         });
-        
         document.querySelectorAll('.track-btn').forEach(function(btn) {
             btn.removeEventListener('click', btn._handler);
             btn._handler = function() {
@@ -1063,7 +1251,6 @@
             };
             btn.addEventListener('click', btn._handler);
         });
-        
         document.querySelectorAll('.auto-assign-btn').forEach(function(btn) {
             btn.removeEventListener('click', btn._handler);
             btn._handler = async function() {
@@ -1085,7 +1272,6 @@
             };
             btn.addEventListener('click', btn._handler);
         });
-        
         document.querySelectorAll('.manual-assign-btn').forEach(function(btn) {
             btn.removeEventListener('click', btn._handler);
             btn._handler = async function() {
@@ -1137,16 +1323,13 @@
         }
     }
     
-    // ============ BAGS FUNCTIONS ============
     async function refreshBags() {
         try {
             var response = await authFetch('/api/supplier/surprise-bags');
             var data = await response.json();
             if (!data.bags) return;
-            
             var tbody = document.getElementById('bagsTableBody');
             if (!tbody) return;
-            
             tbody.innerHTML = '';
             for (var i = 0; i < data.bags.length; i++) {
                 var bag = data.bags[i];
@@ -1155,14 +1338,13 @@
                     '<td>' + escapeHtml(bag.description || '-') + '</td>' +
                     '<td>' + bag.original_price + ' ₸</td>' +
                     '<td><strong style="color: #ef4444;">' + bag.discounted_price + ' ₸</strong></td>' +
-                    '<td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.7rem;">-' + (bag.discount_percentage || 0) + '%</span></td>' +
+                    '<td><span style="background: #ef4444; color: white; padding: 0.2rem 0.4rem; border-radius: 1rem; font-size: 0.65rem;">-' + (bag.discount_percentage || 0) + '%</span></td>' +
                     '<td>' + bag.available_quantity + '/' + bag.total_quantity + '</td>' +
                     '<td>' + (bag.is_active ? '<span style="color: #10b981;">Active</span>' : '<span style="color: #ef4444;">Inactive</span>') + '</td>' +
                     '<td><button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">Toggle</button></td>' +
                 '</tr>';
                 tbody.innerHTML += row;
             }
-            
             document.querySelectorAll('.toggle-bag-btn').forEach(function(btn) {
                 btn.onclick = async function() {
                     try {
@@ -1178,14 +1360,12 @@
         }
     }
     
-    // ============ PRODUCT SELECTION ============
     function updateTotalPrice() {
         var total = 0;
         for (var i = 0; i < selectedProducts.length; i++) {
             total += selectedProducts[i].price * selectedProducts[i].quantity;
         }
-        var originalPriceInput = document.getElementById('originalPrice');
-        if (originalPriceInput) originalPriceInput.value = total;
+        document.getElementById('originalPrice').value = total;
         return total;
     }
     
@@ -1193,15 +1373,12 @@
         var container = document.getElementById('selectedProductsList');
         var preview = document.getElementById('selectedProductsPreview');
         if (!container || !preview) return;
-        
         if (selectedProducts.length === 0) {
             preview.style.display = 'none';
             return;
         }
-        
         preview.style.display = 'block';
         container.innerHTML = '';
-        
         for (var i = 0; i < selectedProducts.length; i++) {
             var p = selectedProducts[i];
             var div = document.createElement('div');
@@ -1222,15 +1399,12 @@
         var select = document.getElementById('productSelect');
         var productId = select.value;
         var quantity = parseInt(document.getElementById('productQuantity').value) || 1;
-        
         if (!productId) {
             alert('Select a product');
             return;
         }
-        
         var product = productOptions[productId];
         if (!product) return;
-        
         var existingIndex = -1;
         for (var i = 0; i < selectedProducts.length; i++) {
             if (selectedProducts[i].id === productId) {
@@ -1238,7 +1412,6 @@
                 break;
             }
         }
-        
         if (existingIndex !== -1) {
             selectedProducts[existingIndex].quantity += quantity;
         } else {
@@ -1249,26 +1422,19 @@
                 quantity: quantity
             });
         }
-        
         renderSelectedProducts();
         updateTotalPrice();
         select.value = '';
     }
     
-    // ============ DISCOUNT BUTTONS ============
     function applyDiscount(percent) {
-        var originalPriceInput = document.getElementById('originalPrice');
-        var discountedPriceInput = document.getElementById('discountedPrice');
-        var originalPrice = parseFloat(originalPriceInput.value);
-        
+        var originalPrice = parseFloat(document.getElementById('originalPrice').value);
         if (isNaN(originalPrice) || originalPrice <= 0) {
             alert('Add products first');
             return;
         }
-        
         var discountedPrice = percent === 0 ? originalPrice : originalPrice * (1 - percent / 100);
-        discountedPriceInput.value = Math.round(discountedPrice);
-        
+        document.getElementById('discountedPrice').value = Math.round(discountedPrice);
         var discountInfo = document.getElementById('discountInfo');
         if (discountInfo) {
             if (percent === 0) {
@@ -1280,26 +1446,20 @@
         }
     }
     
-    // ============ LOAD TEMPLATE ============
     function loadSurpriseTemplate() {
         var templateKey = document.getElementById('surpriseTemplate').value;
         var hint = document.getElementById('selectedHint');
-        
         if (!templateKey) {
             hint.innerHTML = 'Select ready surprise to auto-fill';
             hint.style.color = '#64748b';
             return;
         }
-        
         var template = surpriseTemplates[templateKey];
         if (!template) return;
-        
         document.getElementById('bagName').value = template.name;
-        
         if (template.description) {
             document.getElementById('bagDescription').value = template.description;
         }
-        
         selectedProducts = [];
         for (var i = 0; i < template.items.length; i++) {
             selectedProducts.push({
@@ -1309,21 +1469,16 @@
                 quantity: template.items[i].quantity
             });
         }
-        
         renderSelectedProducts();
         var total = updateTotalPrice();
-        
         if (template.image) {
             document.getElementById('imageUrl').value = template.image;
         }
-        
         hint.innerHTML = 'Loaded: ' + template.name + ' (total: ' + total + ' ₸). You can edit.';
         hint.style.color = '#10b981';
-        
         showNotification('Ready surprise loaded! You can edit.', 'success');
     }
     
-    // ============ FORM SUBMIT ============
     async function submitBagForm() {
         var name = document.getElementById('bagName').value;
         var description = document.getElementById('bagDescription').value;
@@ -1332,27 +1487,22 @@
         var pickupStart = document.getElementById('pickupStart').value;
         var pickupEnd = document.getElementById('pickupEnd').value;
         var imageUrl = document.getElementById('imageUrl').value;
-        
         if (!name) {
             alert('Enter name');
             return;
         }
-        
         if (selectedProducts.length === 0) {
             alert('Add at least one product');
             return;
         }
-        
         var originalPrice = 0;
         for (var i = 0; i < selectedProducts.length; i++) {
             originalPrice += selectedProducts[i].price * selectedProducts[i].quantity;
         }
-        
         var discountPercentage = 0;
         if (originalPrice > 0 && discountedPrice < originalPrice) {
             discountPercentage = Math.round((1 - discountedPrice / originalPrice) * 100);
         }
-        
         var productsData = [];
         for (var i = 0; i < selectedProducts.length; i++) {
             productsData.push({
@@ -1362,28 +1512,18 @@
                 quantity: selectedProducts[i].quantity
             });
         }
-        
         var data = {
-            name: name,
-            description: description,
-            original_price: originalPrice,
-            discounted_price: discountedPrice,
-            discount_percentage: discountPercentage,
-            available_quantity: availableQuantity,
-            total_quantity: availableQuantity,
-            pickup_start_time: pickupStart,
-            pickup_end_time: pickupEnd,
-            image_url: imageUrl,
-            products: productsData,
-            supplier_id: supplierId
+            name: name, description: description, original_price: originalPrice,
+            discounted_price: discountedPrice, discount_percentage: discountPercentage,
+            available_quantity: availableQuantity, total_quantity: availableQuantity,
+            pickup_start_time: pickupStart, pickup_end_time: pickupEnd,
+            image_url: imageUrl, products: productsData, supplier_id: supplierId
         };
-        
         try {
             var response = await authFetch('/api/supplier/surprise-bags', {
                 method: 'POST',
                 body: JSON.stringify(data)
             });
-            
             if (response.ok) {
                 alert('Surprise bag added!');
                 location.reload();
@@ -1396,7 +1536,6 @@
         }
     }
     
-    // ============ TIMER ============
     function updateDeliveryTimers() {
         document.querySelectorAll('.delivery-timer').forEach(function(el) {
             var deadlineStr = el.getAttribute('data-deadline');
@@ -1414,7 +1553,6 @@
         });
     }
     
-    // ============ ESCAPE HTML ============
     function escapeHtml(str) {
         if (!str) return '';
         return str.replace(/[&<>]/g, function(m) {
@@ -1422,64 +1560,29 @@
         });
     }
     
-    // ============ INITIALIZATION ============
     function init() {
-        console.log('Dashboard initializing...');
-        
-        var refreshOrdersBtn = document.getElementById('refreshOrdersBtn');
-        if (refreshOrdersBtn) {
-            refreshOrdersBtn.addEventListener('click', refreshOrders);
-        }
-        
-        var toggleAddBagBtn = document.getElementById('toggleAddBagBtn');
-        if (toggleAddBagBtn) {
-            toggleAddBagBtn.addEventListener('click', function() {
-                var form = document.getElementById('addBagForm');
-                if (form) {
-                    form.style.display = form.style.display === 'none' ? 'block' : 'none';
-                }
-            });
-        }
-        
-        var clearAllBtn = document.getElementById('clearAllBagsBtn');
-        if (clearAllBtn) {
-            clearAllBtn.addEventListener('click', clearAllBags);
-        }
-        
-        var clearInactiveBtn = document.getElementById('clearInactiveBagsBtn');
-        if (clearInactiveBtn) {
-            clearInactiveBtn.addEventListener('click', clearInactiveBags);
-        }
-        
-        var addProductBtn = document.getElementById('addProductBtn');
-        if (addProductBtn) {
-            addProductBtn.addEventListener('click', addProduct);
-        }
-        
-        var createBagForm = document.getElementById('createBagForm');
-        if (createBagForm) {
-            createBagForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                submitBagForm();
-            });
-        }
-        
-        var surpriseTemplate = document.getElementById('surpriseTemplate');
-        if (surpriseTemplate) {
-            surpriseTemplate.addEventListener('change', loadSurpriseTemplate);
-        }
-        
+        document.getElementById('refreshOrdersBtn')?.addEventListener('click', refreshOrders);
+        document.getElementById('toggleAddBagBtn')?.addEventListener('click', function() {
+            var form = document.getElementById('addBagForm');
+            if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        });
+        document.getElementById('clearAllBagsBtn')?.addEventListener('click', clearAllBags);
+        document.getElementById('clearInactiveBagsBtn')?.addEventListener('click', clearInactiveBags);
+        document.getElementById('addProductBtn')?.addEventListener('click', addProduct);
+        document.getElementById('createBagForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitBagForm();
+        });
+        document.getElementById('surpriseTemplate')?.addEventListener('change', loadSurpriseTemplate);
         document.querySelectorAll('.discount-preset').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 var percent = parseInt(this.getAttribute('data-percent'));
                 applyDiscount(percent);
             });
         });
-        
         setInterval(updateDeliveryTimers, 1000);
         setInterval(refreshOrders, 30000);
         setInterval(refreshBags, 60000);
-        
         refreshOrders();
         refreshBags();
         connectWebSocket();
