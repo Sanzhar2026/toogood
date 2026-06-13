@@ -4187,7 +4187,7 @@ def verify_admin_token(request: Request):
 
 # ============ АДМИН ЭНДПОИНТЫ ============
 
-@app.get("//admin/api/logingin")
+@app.get("//admin/api/login")
 async def admin_login_page(request: Request):
     """Страница входа"""
     return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
@@ -6662,6 +6662,8 @@ async def get_all_surprise_bags(db: Session = Depends(get_db)):
             }
             for item in items
         ]
+        
+
         
         result.append({
             "id": bag.id,
