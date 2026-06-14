@@ -7419,7 +7419,145 @@ async def delete_food(food_id: int, db: Session = Depends(get_db)):
         db.commit()
     return RedirectResponse(url="/admin", status_code=303)
 
-
+@app.post("/supplier/register", response_class=HTMLResponse)
+async def supplier_register_form_handler(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Обработка POST запроса с HTML формы регистрации поставщика"""
+    
+    try:
+        # Получаем данные из формы
+        form_data = await request.form()
+        
+        print(f"📥 Form data received: {dict(form_data)}")  # Отладка
+        
+        # Извлекаем данные
+        business_name = form_data.get("business_name")
+        business_type = form_data.get("business_type", "restaurant")
+        email = form_data.get("email")
+        phone = form_data.get("phone")
+        password = form_data.get("password")
+        confirm_password = form_data.get("confirm_password")
+        city = form_data.get("city")
+        address = form_data.get("address")
+        
+        # Координаты
+        lat_str = form_data.get("lat")
+        lon_str = form_data.get("lon")
+        
+        pickup_start = form_data.get("pickup_start")
+        pickup_end = form_data.get("pickup_end")
+        description = form_data.get("description", "")
+        
+        # Валидация пароля
+        if password != confirm_password:
+            return templates.TemplateResponse("supplier_register.html", {
+                "request": request,
+                "error": "Пароли не совпадают",
+                "lang": "ru"
+            })
+        
+        # Конвертируем координаты
+        try:
+            lat = float(lat_str) if lat_str else 0
+            lon = float(lon_str) if lon_str else 0
+        except ValueError:
+            lat, lon = 0, 0
+        
+        # Валидация обязательных полей
+        if not all([business_name, email, phone, password, city, address, lat, lon, pickup_start, pickup_end]):
+            missing = []
+            if not business_name: missing.append("business_name")
+            if not email: missing.append("email")
+            if not phone: missing.append("phone")
+            if not password: missing.append("password")
+            if not city: missing.append("city")
+            if not address: missing.append("address")
+            if not lat: missing.append("lat")
+            if not lon: missing.append("lon")
+            if not pickup_start: missing.append("pickup_start")
+            if not pickup_end: missing.append("pickup_end")
+            
+            print(f"❌ Missing fields: {missing}")
+            
+            return templates.TemplateResponse("supplier_register.html", {
+                "request": request,
+                "error": f"Все обязательные поля должны быть заполнены. Отсутствуют: {', '.join(missing)}",
+                "lang": "ru"
+            })
+        
+        # Проверка существующего пользователя
+        existing = db.query(User).filter(
+            (User.email == email) | (User.phone == phone)
+        ).first()
+        
+        if existing:
+            return templates.TemplateResponse("supplier_register.html", {
+                "request": request,
+                "error": "Пользователь с таким email или телефоном уже существует",
+                "lang": "ru"
+            })
+        
+        # Создаем пользователя
+        user = User(
+            email=email,
+            phone=phone,
+            password=hash_password(password),
+            full_name=business_name,
+            role=UserRole.SUPPLIER,
+            is_active=True,
+            created_at=datetime.utcnow()
+        )
+        db.add(user)
+        db.flush()
+        
+        # Создаем профиль поставщика
+        supplier = Supplier(
+            user_id=user.id,
+            business_name=business_name,
+            business_type=business_type,
+            description=description,
+            city=city,
+            address=address,
+            lat=lat,
+            lon=lon,
+            phone=phone,
+            email=email,
+            pickup_start_time=pickup_start,
+            pickup_end_time=pickup_end,
+            created_at=datetime.utcnow()
+        )
+        db.add(supplier)
+        db.commit()
+        
+        print(f"✅ Supplier registered: {email}")
+        
+        # Создаем JWT токен
+        token = create_access_token(data={
+            "sub": str(user.id),
+            "role": "supplier",
+            "supplier_id": supplier.id,
+            "email": user.email
+        })
+        
+        # Редирект на дашборд с токеном
+        response = RedirectResponse(url=f"/supplier/dashboard?token={token}", status_code=303)
+        
+        # Опционально: установить токен в cookie (если нужно)
+        # response.set_cookie(key="supplier_token", value=token, httponly=True, max_age=60*60*24*30)
+        
+        return response
+        
+    except Exception as e:
+        print(f"❌ Registration error: {e}")
+        import traceback
+        traceback.print_exc()
+        return templates.TemplateResponse("supplier_register.html", {
+            "request": request,
+            "error": f"Ошибка регистрации: {str(e)}",
+            "lang": "ru"
+        })
 @app.get("/supplier/register")
 async def supplier_register_page(request: Request, lang: str = "ru"):
     """Страница регистрации поставщика"""
