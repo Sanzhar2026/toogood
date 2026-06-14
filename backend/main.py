@@ -7419,6 +7419,14 @@ async def delete_food(food_id: int, db: Session = Depends(get_db)):
         db.commit()
     return RedirectResponse(url="/admin", status_code=303)
 
+
+@app.get("/supplier/register")
+async def supplier_register_page(request: Request, lang: str = "ru"):
+    """Страница регистрации поставщика"""
+    return templates.TemplateResponse("supplier_register.html", {
+        "request": request,
+        "lang": lang
+    })
 # ============ SUPPLIER ROUTES ============
 @app.post("/supplier/api/register")
 async def supplier_api_register(request: Request, db: Session = Depends(get_db)):
