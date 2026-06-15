@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ -->
+<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С ТИПАМИ СЮРПРИЗОВ -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -289,6 +289,16 @@
         background: #f59e0b;
     }
     
+    .toggle-type-btn {
+        background: #8b5cf6;
+        color: white;
+        margin-top: 0.3rem;
+    }
+    
+    .toggle-type-btn:hover {
+        background: #7c3aed;
+    }
+    
     .auto-assign-btn {
         background: #10b981;
         color: white;
@@ -479,15 +489,22 @@
         to { transform: translateX(0); opacity: 1; }
     }
     
-    .product-icon {
-        font-size: 1rem;
-        margin-right: 0.3rem;
-        vertical-align: middle;
+    .type-badge-hidden {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 0.2rem 0.5rem;
+        border-radius: 1rem;
+        font-size: 0.65rem;
+        font-weight: bold;
     }
     
-    .template-icon {
-        font-size: 1rem;
-        margin-right: 0.3rem;
+    .type-badge-visible {
+        background: #d1fae5;
+        color: #065f46;
+        padding: 0.2rem 0.5rem;
+        border-radius: 1rem;
+        font-size: 0.65rem;
+        font-weight: bold;
     }
     
     @media (max-width: 768px) {
@@ -633,6 +650,7 @@
                         <th id="thBagDiscounted">Discounted</th>
                         <th id="thBagDiscount">Discount</th>
                         <th id="thBagQty">Quantity</th>
+                        <th id="thBagType">Type</th>
                         <th id="thBagStatus">Status</th>
                         <th id="thBagAction">Action</th>
                     </tr>
@@ -759,6 +777,26 @@
                     </div>
                 </div>
 
+                <!-- ✅ НОВОЕ ПОЛЕ - ВЫБОР ТИПА СЮРПРИЗА (СКРЫТЫЙ/ОТКРЫТЫЙ) -->
+                <div class="form-group full-width">
+                    <label id="labelBagType">📦 Тип сюрприза</label>
+                    <div style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 1rem; background: #f1f5f9; border-radius: 0.5rem;">
+                            <input type="radio" name="bag_type" value="visible" checked onchange="toggleBagTypeFields()">
+                            <span>🔓 Открытый</span>
+                            <small style="color: #64748b;">Клиент видит состав</small>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 1rem; background: #f1f5f9; border-radius: 0.5rem;">
+                            <input type="radio" name="bag_type" value="hidden" onchange="toggleBagTypeFields()">
+                            <span>🔒 Скрытый</span>
+                            <small style="color: #64748b;">Клиент НЕ видит состав</small>
+                        </label>
+                    </div>
+                    <div id="hiddenHint" style="display: none; margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border-radius: 0.5rem; font-size: 0.7rem; color: #92400e;">
+                        🎁 Скрытый режим: клиент увидит только название и цену. Состав будет секретом до получения заказа.
+                    </div>
+                </div>
+
                 <div class="form-group full-width">
                     <label id="labelImage">Image URL</label>
                     <input type="text" id="imageUrl" placeholder="Auto-filled from template or by name">
@@ -782,12 +820,12 @@
             thStatus: 'Статус', thCourier: 'Курьер', thAction: 'Әрекет', thMap: 'Карта',
             titleBags: 'Сюрприздер', btnAdd: 'Қосу', btnClearInactive: 'Белсенді еместерді тазалау', btnDeleteAll: 'Барлығын жою',
             thBagName: 'Атауы', thBagDesc: 'Сипаттама', thBagPrice: 'Бағасы', thBagDiscounted: 'Жеңілдікпен',
-            thBagDiscount: 'Жеңілдік', thBagQty: 'Саны', thBagStatus: 'Күйі', thBagAction: 'Әрекет',
+            thBagDiscount: 'Жеңілдік', thBagQty: 'Саны', thBagType: 'Түрі', thBagStatus: 'Күйі', thBagAction: 'Әрекет',
             formTitle: 'Сюрприз қосу', labelTemplate: 'Дайын сюрприз', labelName: 'Сюрприз атауы *',
             labelDesc: 'Сипаттама', labelProducts: 'Өнімдер тізімі', selectedTitle: 'Таңдалған өнімдер:',
             labelOriginalPrice: 'Бастапқы баға (₸)', labelDiscount: 'Жеңілдік', labelDiscountedPrice: 'Жеңілдікпен баға (₸)',
             labelQuantity: 'Саны', labelPickupStart: 'Алу уақыты (басталуы)', labelPickupEnd: 'Алу уақыты (аяқталуы)',
-            labelImage: 'Сурет URL', submitBtn: 'Сюрприз қосу',
+            labelImage: 'Сурет URL', labelBagType: '📦 Сюрприз түрі', submitBtn: 'Сюрприз қосу',
             selectTemplate: 'Дайын сюрприз таңдаңыз', chooseProduct: 'Өнім таңдаңыз',
             templateLoaded: 'Жүктелді:', youCanEdit: 'Сіз өңдей аласыз'
         },
@@ -800,12 +838,12 @@
             thStatus: 'Статус', thCourier: 'Курьер', thAction: 'Действие', thMap: 'Карта',
             titleBags: 'Сюрпризы', btnAdd: 'Добавить', btnClearInactive: 'Удалить неактивные', btnDeleteAll: 'Удалить все',
             thBagName: 'Название', thBagDesc: 'Описание', thBagPrice: 'Цена', thBagDiscounted: 'Со скидкой',
-            thBagDiscount: 'Скидка', thBagQty: 'Кол-во', thBagStatus: 'Статус', thBagAction: 'Действие',
+            thBagDiscount: 'Скидка', thBagQty: 'Кол-во', thBagType: 'Тип', thBagStatus: 'Статус', thBagAction: 'Действие',
             formTitle: 'Добавить сюрприз', labelTemplate: 'Готовый сюрприз', labelName: 'Название сюрприза *',
             labelDesc: 'Описание', labelProducts: 'Список товаров', selectedTitle: 'Выбранные товары:',
             labelOriginalPrice: 'Оригинальная цена (₸)', labelDiscount: 'Скидка', labelDiscountedPrice: 'Цена со скидкой (₸)',
             labelQuantity: 'Количество', labelPickupStart: 'Время выдачи (начало)', labelPickupEnd: 'Время выдачи (конец)',
-            labelImage: 'URL изображения', submitBtn: 'Добавить сюрприз',
+            labelImage: 'URL изображения', labelBagType: '📦 Тип сюрприза', submitBtn: 'Добавить сюрприз',
             selectTemplate: 'Выберите готовый сюрприз', chooseProduct: 'Выберите товар',
             templateLoaded: 'Загружено:', youCanEdit: 'Вы можете редактировать'
         },
@@ -818,12 +856,12 @@
             thStatus: 'Status', thCourier: 'Courier', thAction: 'Action', thMap: 'Map',
             titleBags: 'Surprise Bags', btnAdd: 'Add', btnClearInactive: 'Clear Inactive', btnDeleteAll: 'Delete All',
             thBagName: 'Name', thBagDesc: 'Description', thBagPrice: 'Price', thBagDiscounted: 'Discounted',
-            thBagDiscount: 'Discount', thBagQty: 'Quantity', thBagStatus: 'Status', thBagAction: 'Action',
+            thBagDiscount: 'Discount', thBagQty: 'Quantity', thBagType: 'Type', thBagStatus: 'Status', thBagAction: 'Action',
             formTitle: 'Add Surprise Bag', labelTemplate: 'Ready Surprise Package', labelName: 'Surprise Bag Name *',
             labelDesc: 'Description', labelProducts: 'Products List', selectedTitle: 'Selected Products:',
             labelOriginalPrice: 'Original Price (₸)', labelDiscount: 'Discount', labelDiscountedPrice: 'Discounted Price (₸)',
             labelQuantity: 'Quantity', labelPickupStart: 'Pickup Start Time', labelPickupEnd: 'Pickup End Time',
-            labelImage: 'Image URL', submitBtn: 'Add Surprise',
+            labelImage: 'Image URL', labelBagType: '📦 Surprise Type', submitBtn: 'Add Surprise',
             selectTemplate: 'Select ready surprise to auto-fill', chooseProduct: 'Choose product',
             templateLoaded: 'Loaded:', youCanEdit: 'You can edit'
         }
@@ -953,6 +991,32 @@
         return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=400&fit=crop';
     }
 
+    // ============ ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ ТИПА (СКРЫТЫЙ/ОТКРЫТЫЙ) ============
+    function toggleBagTypeFields() {
+        const isHidden = document.querySelector('input[name="bag_type"]:checked').value === 'hidden';
+        const hint = document.getElementById('hiddenHint');
+        const productsPreview = document.getElementById('selectedProductsPreview');
+        const productsLabel = document.getElementById('labelProducts');
+        
+        if (isHidden) {
+            if (hint) hint.style.display = 'block';
+            if (productsPreview) {
+                productsPreview.style.border = '2px dashed #f59e0b';
+                productsPreview.style.background = '#fffbeb';
+            }
+            if (productsLabel) productsLabel.innerHTML = currentLang === 'ru' ? '📦 Состав (скрыт от клиента)' : 
+                                                           (currentLang === 'kz' ? '📦 Құрамы (клиенттен жасырылған)' : 
+                                                           '📦 Contents (hidden from customer)');
+        } else {
+            if (hint) hint.style.display = 'none';
+            if (productsPreview) {
+                productsPreview.style.border = '';
+                productsPreview.style.background = '';
+            }
+            if (productsLabel) productsLabel.innerHTML = translations[currentLang].labelProducts;
+        }
+    }
+
     // ============ LANGUAGE FUNCTIONS ============
     function updateProductSelectLanguage() {
         const select = document.getElementById('productSelect');
@@ -1061,6 +1125,10 @@
         const pickupEnd = document.getElementById('pickupEnd').value;
         let imageUrl = document.getElementById('imageUrl').value;
         
+        // ✅ ПОЛУЧАЕМ ТИП (скрытый или открытый)
+        const bagType = document.querySelector('input[name="bag_type"]:checked').value;
+        const hideContents = (bagType === 'hidden'); // true - скрытый, false - открытый
+        
         if (!name) { alert('Enter name'); return; }
         if (selectedProducts.length === 0) { alert('Add at least one product'); return; }
         
@@ -1084,24 +1152,37 @@
         }));
         
         const data = {
-            name: name, description: description, original_price: originalPrice,
-            discounted_price: discountedPrice, discount_percentage: discountPercentage,
-            available_quantity: availableQuantity, total_quantity: availableQuantity,
-            pickup_start_time: pickupStart, pickup_end_time: pickupEnd,
-            image_url: imageUrl, products: productsData, supplier_id: supplierId
+            name: name,
+            description: description,
+            original_price: originalPrice,
+            discounted_price: discountedPrice,
+            discount_percentage: discountPercentage,
+            available_quantity: availableQuantity,
+            total_quantity: availableQuantity,
+            pickup_start_time: pickupStart,
+            pickup_end_time: pickupEnd,
+            image_url: imageUrl,
+            products: productsData,
+            supplier_id: supplierId,
+            hide_contents: hideContents  // ✅ ДОБАВЛЯЕМ ТИП
         };
         
         try {
-            const response = await authFetch('/api/supplier/surprise-bags', { method: 'POST', body: JSON.stringify(data) });
+            const response = await authFetch('/api/supplier/surprise-bags', { 
+                method: 'POST', 
+                body: JSON.stringify(data) 
+            });
             if (response.ok) {
-                alert('Surprise bag added!');
+                const result = await response.json();
+                const typeText = hideContents ? 'Скрытый' : 'Открытый';
+                showNotification(`Сюрприз добавлен! Тип: ${typeText}`, 'success');
                 location.reload();
             } else {
                 const error = await response.json();
-                alert('Error: ' + (error.detail || 'Unknown error'));
+                alert('Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
             }
         } catch(error) {
-            alert('Network error');
+            alert('Ошибка сети');
         }
     }
 
@@ -1142,6 +1223,7 @@
         document.getElementById('thBagDiscounted').innerHTML = t.thBagDiscounted;
         document.getElementById('thBagDiscount').innerHTML = t.thBagDiscount;
         document.getElementById('thBagQty').innerHTML = t.thBagQty;
+        document.getElementById('thBagType').innerHTML = t.thBagType;
         document.getElementById('thBagStatus').innerHTML = t.thBagStatus;
         document.getElementById('thBagAction').innerHTML = t.thBagAction;
         document.getElementById('formTitle').innerHTML = t.formTitle;
@@ -1157,6 +1239,7 @@
         document.getElementById('labelPickupStart').innerHTML = t.labelPickupStart;
         document.getElementById('labelPickupEnd').innerHTML = t.labelPickupEnd;
         document.getElementById('labelImage').innerHTML = t.labelImage;
+        if (document.getElementById('labelBagType')) document.getElementById('labelBagType').innerHTML = t.labelBagType;
         document.getElementById('submitBtn').innerHTML = t.submitBtn;
         
         updateProductSelectLanguage();
@@ -1207,7 +1290,7 @@
                     <td id="courier-cell-${order.id}">${order.assigned_courier_name ? escapeHtml(order.assigned_courier_name) : '—'}</td>
                     <td>${getActionButtons(order)}</td>
                     <td><button class="btn track-btn" data-order-id="${order.id}">Map</button></td>
-                </tr>`;
+                 </tr>`;
                 tbody.innerHTML += row;
             }
             document.getElementById('pendingOrders').innerText = pendingCount;
@@ -1308,6 +1391,11 @@
             if (!tbody) return;
             tbody.innerHTML = '';
             for (const bag of data.bags) {
+                const isHidden = bag.hide_contents === true;
+                const typeIcon = isHidden ? '🔒' : '🔓';
+                const typeText = isHidden ? 'Скрытый' : 'Открытый';
+                const typeColor = isHidden ? '#f59e0b' : '#10b981';
+                
                 const row = `<tr data-bag-id="${bag.id}">
                     <td><strong>${escapeHtml(bag.name)}</strong></td>
                     <td>${escapeHtml(bag.description || '-')}</td>
@@ -1315,18 +1403,48 @@
                     <td><strong style="color: #ef4444;">${bag.discounted_price} ₸</strong></td>
                     <td><span style="background: #ef4444; color: white; padding: 0.2rem 0.4rem; border-radius: 1rem; font-size: 0.65rem;">-${bag.discount_percentage || 0}%</span></td>
                     <td>${bag.available_quantity}/${bag.total_quantity}</td>
-                    <td>${bag.is_active ? '<span style="color: #10b981;">Active</span>' : '<span style="color: #ef4444;">Inactive</span>'}</td>
-                    <td><button class="btn btn-primary toggle-bag-btn" data-bag-id="${bag.id}">Toggle</button></td>
-                </tr>`;
+                    <td><span style="color: ${typeColor}; font-weight: bold;">${typeIcon} ${typeText}</span></td>
+                    <td>${bag.is_active ? '<span style="color: #10b981;">Активен</span>' : '<span style="color: #ef4444;">Неактивен</span>'}</td>
+                    <td>
+                        <button class="btn btn-primary toggle-bag-btn" data-bag-id="${bag.id}">Вкл/Выкл</button>
+                        <button class="btn toggle-type-btn" data-bag-id="${bag.id}" data-hide="${bag.hide_contents}" style="margin-top: 0.3rem;">${isHidden ? '🔓 Сделать открытым' : '🔒 Сделать скрытым'}</button>
+                    </td>
+                </td>`;
                 tbody.innerHTML += row;
             }
-            document.querySelectorAll('.toggle-bag-btn').forEach(btn => {
+            
+            // Обработчики для переключения видимости (скрытый/открытый)
+            document.querySelectorAll('.toggle-type-btn').forEach(btn => {
                 btn.onclick = async function() {
-                    try { await authFetch('/api/supplier/surprise-bags/' + this.getAttribute('data-bag-id') + '/toggle', { method: 'PUT' }); refreshBags(); }
-                    catch(e) { alert('Error: ' + e.message); }
+                    const bagId = this.getAttribute('data-bag-id');
+                    if (confirm('Изменить тип сюрприза?')) {
+                        try {
+                            const response = await authFetch(`/api/supplier/surprise-bags/${bagId}/toggle-type`, { method: 'PUT' });
+                            const result = await response.json();
+                            if (result.success) {
+                                showNotification(result.message, 'success');
+                                refreshBags();
+                            }
+                        } catch(e) {
+                            alert('Ошибка: ' + e.message);
+                        }
+                    }
                 };
             });
-        } catch(error) { console.error('Refresh bags error:', error); }
+            
+            document.querySelectorAll('.toggle-bag-btn').forEach(btn => {
+                btn.onclick = async function() {
+                    try { 
+                        await authFetch('/api/supplier/surprise-bags/' + this.getAttribute('data-bag-id') + '/toggle', { method: 'PUT' }); 
+                        refreshBags(); 
+                    } catch(e) { 
+                        alert('Ошибка: ' + e.message); 
+                    }
+                };
+            });
+        } catch(error) { 
+            console.error('Refresh bags error:', error); 
+        }
     }
 
     async function clearInactiveBags() {
