@@ -8399,6 +8399,125 @@ async def get_supplier_surprise_bags(
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
 
+# backend/main.py - ИСПРАВЛЕННЫЕ ЭНДПОИНТЫ
+
+@app.post("/users/{user_id}/avatar")
+async def upload_avatar(
+    user_id: int,
+    request: Request,
+    avatar: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """Загрузка аватара пользователя"""
+    
+    # Проверяем авторизацию
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        token_user_id = payload.get("sub")
+        
+        if int(token_user_id) != user_id:
+            raise HTTPException(status_code=403, detail="Cannot change another user's avatar")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    
+    # Проверяем пользователя
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Проверяем тип файла
+    if not avatar.content_type or not avatar.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    # Удаляем старые аватары
+    old_avatars = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
+    for old in old_avatars:
+        try:
+            old.unlink()
+        except:
+            pass
+    
+    # Сохраняем новый аватар
+    filename = f"avatar_{user_id}_{uuid.uuid4().hex[:8]}.webp"
+    file_path = AVATAR_DIR / filename
+    
+    content = await avatar.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+    
+    return {
+        "success": True, 
+        "avatar_url": f"/uploads/avatars/{filename}", 
+        "filename": filename
+    }
+
+@app.get("/users/avatar-file/{user_id}")
+async def get_avatar_file(user_id: int):
+    """Получить файл аватара напрямую"""
+    
+    avatar_files = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
+    
+    if avatar_files:
+        file_path = avatar_files[0]
+        return FileResponse(
+            file_path, 
+            media_type="image/webp",
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "Content-Type": "image/webp"
+            }
+        )
+    
+    # Возвращаем 404 если аватара нет
+    raise HTTPException(status_code=404, detail="Avatar not found")
+
+
+
+@app.delete("/users/{user_id}/avatar")
+async def delete_avatar(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Удалить аватар пользователя"""
+    
+    # Проверяем авторизацию
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        token_user_id = payload.get("sub")
+        
+        if int(token_user_id) != user_id:
+            raise HTTPException(status_code=403, detail="Cannot delete another user's avatar")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    
+    # Удаляем аватар
+    avatar_files = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
+    
+    deleted = 0
+    for file_path in avatar_files:
+        try:
+            file_path.unlink()
+            deleted += 1
+        except:
+            pass
+    
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail="No avatar found")
+    
+    return {"success": True, "deleted": deleted}
 
 @app.post("/api/supplier/surprise-bags")
 async def create_surprise_bag(
