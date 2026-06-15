@@ -8359,14 +8359,18 @@ async def get_supplier_surprise_bags(
         if not supplier_id:
             return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
         
-        bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier_id).all()
-        data = await request.json()
-        products = data.get("products", [])
-    
-        print(f"📦 Получено products: {products}")  # ← ДОБАВЬТЕ ЭТУ СТРОКУ
-    
-        if not products:
-          print("⚠️ НЕТ ТОВАРОВ В ЗАПРОСЕ!")
+        # ✅ УБИРАЕМ ЭТИ СТРОКИ - они не нужны для GET запроса!
+        # data = await request.json()
+        # products = data.get("products", [])
+        # print(f"📦 Получено products: {products}")
+        # if not products:
+        #   print("⚠️ НЕТ ТОВАРОВ В ЗАПРОСЕ!")
+        
+        # Получаем ВСЕ сюрпризы поставщика
+        bags = db.query(SurpriseBag).filter(
+            SurpriseBag.supplier_id == supplier_id
+        ).order_by(SurpriseBag.created_at.desc()).all()
+        
         bags_list = []
         for bag in bags:
             bags_list.append({
@@ -8380,17 +8384,20 @@ async def get_supplier_surprise_bags(
                 "available_quantity": bag.available_quantity,
                 "total_quantity": bag.total_quantity,
                 "is_active": bag.is_active,
+                "hide_contents": bag.hide_contents,  # ✅ ДОБАВЬТЕ ЭТО ПОЛЕ!
                 "pickup_start_time": bag.pickup_start_time,
                 "pickup_end_time": bag.pickup_end_time,
                 "created_at": bag.created_at.isoformat() if bag.created_at else None
             })
         
+        print(f"📦 Найдено сюрпризов: {len(bags_list)}")
         return {"success": True, "bags": bags_list}
         
     except Exception as e:
         print(f"Error getting supplier bags: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
-
 
 
 @app.post("/api/supplier/surprise-bags")
