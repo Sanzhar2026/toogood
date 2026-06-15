@@ -1,4 +1,4 @@
-# backend/models.py - ПОЛНАЯ ВЕРСИЯ (оценка магазинов И сюрпризов)
+# backend/models.py - ПОЛНАЯ ВЕРСИЯ С ДОБАВЛЕННЫМ hide_contents
 
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum
 from sqlalchemy.orm import relationship
@@ -188,9 +188,30 @@ class SurpriseBag(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     possible_items = Column(Text)
     
+    # ✅ НОВОЕ ПОЛЕ - для разделения на Surprise и Search страницы
+    # True = скрыть состав (для страницы Surprise)
+    # False = показать состав (для страницы Search)
+    hide_contents = Column(Boolean, default=False)
+    
     # Рейтинг сюрприза
     rating = Column(Float, default=0)
     total_reviews = Column(Integer, default=0)
+    
+    # Вспомогательные свойства для удобства
+    @property
+    def is_surprise_type(self) -> bool:
+        """True - для страницы Surprise (состав скрыт)"""
+        return self.hide_contents == True
+    
+    @property
+    def is_search_type(self) -> bool:
+        """True - для страницы поиска (состав виден)"""
+        return self.hide_contents == False
+    
+    @property
+    def type_display(self) -> str:
+        """Отображаемое название типа"""
+        return "🎁 Surprise" if self.hide_contents else "📋 Search"
     
     supplier = relationship("Supplier", back_populates="surprise_bags")
     orders = relationship("Order", back_populates="surprise_bag")

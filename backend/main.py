@@ -4570,12 +4570,64 @@ async def release_booking(
 # Обновите эндпоинт получения сюрприз-пакетов, чтобы исключить забронированные
 # backend/main.py - обновите эндпоинт получения сюрпризов
 
-@app.get("/api/surprise-bags")
-async def get_all_surprise_bags(db: Session = Depends(get_db)):
-    """Получить только доступные сюрпризы (is_active=True И available_quantity > 0)"""
+@app.put("/api/supplier/surprise-bags/{bag_id}/toggle-type")
+async def toggle_surprise_type(
+    bag_id: int,
+    request: Request,
+    supplier: Supplier = Depends(verify_supplier_token),
+    db: Session = Depends(get_db)
+):
+    """Поставщик меняет тип сюрприза: Surprise <-> Search"""
+    
+    bag = db.query(SurpriseBag).filter(
+        SurpriseBag.id == bag_id,
+        SurpriseBag.supplier_id == supplier.id
+    ).first()
+    
+    if not bag:
+        raise HTTPException(status_code=404, detail="Bag not found")
+    
+    # Меняем тип
+    old_type = bag.hide_contents
+    bag.hide_contents = not bag.hide_contents
+    db.commit()
+    
+    new_type_display = "Surprise (скрытый состав)" if bag.hide_contents else "Search (видимый состав)"
+    old_type_display = "Surprise (скрытый состав)" if old_type else "Search (видимый состав)"
+    
+    # Отправляем WebSocket уведомление об изменении
+    try:
+        await manager.broadcast({
+            "type": "bag_type_changed",
+            "data": {
+                "bag_id": bag.id,
+                "hide_contents": bag.hide_contents,
+                "name": bag.name,
+                "old_type": old_type_display,
+                "new_type": new_type_display
+            }
+        }, channel="surprise_bags")
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    
+    return {
+        "success": True,
+        "bag_id": bag.id,
+        "hide_contents": bag.hide_contents,
+        "old_type": old_type_display,
+        "new_type": new_type_display,
+        "message": f"Тип изменен с '{old_type_display}' на '{new_type_display}'"
+    }
+
+
+@app.get("/api/surprise-bags/surprise")
+async def get_surprise_bags_hidden(db: Session = Depends(get_db)):
+    """Получить сюрпризы для СТРАНИЦЫ SURPRISE - состав СКРЫТ"""
+    
     bags = db.query(SurpriseBag).filter(
         SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0  # ← ТОЛЬКО ЕСЛИ ЕСТЬ В НАЛИЧИИ
+        SurpriseBag.available_quantity > 0,
+        SurpriseBag.hide_contents == True  # ← ТОЛЬКО surprise type
     ).all()
     
     result = []
@@ -4593,10 +4645,57 @@ async def get_all_surprise_bags(db: Session = Depends(get_db)):
                 "discount_percentage": bag.discount_percentage,
                 "image_url": bag.image_url,
                 "available_quantity": bag.available_quantity,
-                "is_active": bag.is_active
+                "hide_contents": bag.hide_contents,
+                "items": [],  # Пустой массив - состав скрыт
+                "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
             })
     
     return result
+
+@app.get("/api/surprise-bags")
+async def get_all_surprise_bags(db: Session = Depends(get_db)):
+    """Получить сюрпризы для ОБЫЧНОЙ страницы поиска - состав ВИДЕН"""
+    
+    bags = db.query(SurpriseBag).filter(
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0,
+        SurpriseBag.hide_contents == False  # ← ТОЛЬКО search type
+    ).all()
+    
+    result = []
+    for bag in bags:
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        if supplier and supplier.is_active:
+            # Показываем состав
+            items = db.query(SurpriseBagItem).filter(SurpriseBagItem.surprise_bag_id == bag.id).all()
+            items_list = [
+                {
+                    "product_id": item.product_id,
+                    "name": item.product_name,
+                    "price": item.product_price,
+                    "quantity": item.quantity
+                }
+                for item in items
+            ]
+            
+            result.append({
+                "id": bag.id,
+                "supplier_id": bag.supplier_id,
+                "supplier_name": supplier.business_name,
+                "name": bag.name,
+                "description": bag.description,
+                "original_price": bag.original_price,
+                "discounted_price": bag.discounted_price,
+                "discount_percentage": bag.discount_percentage,
+                "image_url": bag.image_url,
+                "available_quantity": bag.available_quantity,
+                "hide_contents": bag.hide_contents,
+                "items": items_list
+            })
+    
+    return result
+
+
 
 
 # ============ PAYMENT IMITATION SYSTEM ============
@@ -6568,44 +6667,31 @@ async def get_all_suppliers(db: Session = Depends(get_db)):
         })
     return result
 
-@app.get("/api/surprise-bags")
-async def get_all_surprise_bags(db: Session = Depends(get_db)):
-    bags = db.query(SurpriseBag).filter(SurpriseBag.is_active == True).all()
-    result = []
-    for bag in bags:
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        result.append({
-            "id": bag.id,
-            "supplier_id": bag.supplier_id,
-            "supplier_name": supplier.business_name if supplier else "Unknown",
-            "name": bag.name,
-            "description": bag.description,
-            "original_price": bag.original_price,
-            "discounted_price": bag.discounted_price,
-            "discount_percentage": bag.discount_percentage,
-            "available_quantity": bag.available_quantity,
-            "is_active": bag.is_active
-        })
-    return result
+
 
 @app.get("/api/surprise-bags/{bag_id}")
 async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
+    """Получить конкретный сюрприз с учетом типа"""
+    
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
     if not bag:
         raise HTTPException(status_code=404, detail="Surprise bag not found")
+    
     supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
     
-    # ✅ ПОЛУЧАЕМ СОСТАВ (items) ИЗ БАЗЫ ДАННЫХ
-    items = db.query(SurpriseBagItem).filter(SurpriseBagItem.surprise_bag_id == bag_id).all()
-    items_list = [
-        {
-            "product_id": item.product_id,
-            "name": item.product_name,
-            "price": item.product_price,
-            "quantity": item.quantity
-        }
-        for item in items
-    ]
+    # ✅ Получаем состав ТОЛЬКО если hide_contents == False (search type)
+    items_list = []
+    if not bag.hide_contents:
+        items = db.query(SurpriseBagItem).filter(SurpriseBagItem.surprise_bag_id == bag_id).all()
+        items_list = [
+            {
+                "product_id": item.product_id,
+                "name": item.product_name,
+                "price": item.product_price,
+                "quantity": item.quantity
+            }
+            for item in items
+        ]
     
     return {
         "id": bag.id,
@@ -6618,7 +6704,9 @@ async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
         "discount_percentage": bag.discount_percentage,
         "image_url": bag.image_url,
         "available_quantity": bag.available_quantity,
-        "items": items_list  # ← ДОБАВЛЯЕМ СОСТАВ
+        "hide_contents": bag.hide_contents,
+        "items": items_list,
+        "surprise_badge": "🎁 Surprise" if bag.hide_contents else "📦 Standard"
     }
 # ============ ОЦЕНКА МАГАЗИНОВ ============
 
@@ -8305,15 +8393,13 @@ async def get_supplier_surprise_bags(
 
 
 
-
-
 @app.post("/api/supplier/surprise-bags")
 async def create_surprise_bag(
     request: Request,
     supplier: Supplier = Depends(verify_supplier_token),  # ← JWT!
     db: Session = Depends(get_db)
 ):
-    """Создание сюрприз-пакета с выбором блюд"""
+    """Создание сюрприз-пакета с выбором блюд и типа (Surprise/Search)"""
     
     data = await request.json()
     
@@ -8330,6 +8416,11 @@ async def create_surprise_bag(
     image_url = data.get("image_url")
     products = data.get("products", [])
     
+    # ✅ НОВОЕ ПОЛЕ - тип сюрприза
+    # False (default) = Search type - состав виден на странице поиска
+    # True = Surprise type - состав скрыт на странице сюрпризов
+    hide_contents = data.get("hide_contents", False)
+    
     # Создаем сюрприз-пакет
     bag = SurpriseBag(
         supplier_id=supplier.id,  # ← берем из JWT, а не из cookies!
@@ -8344,12 +8435,13 @@ async def create_surprise_bag(
         pickup_start_time=pickup_start_time,
         pickup_end_time=pickup_end_time,
         is_active=True,
-        created_at=datetime.utcnow()
+        created_at=datetime.utcnow(),
+        hide_contents=hide_contents  # ← ДОБАВЛЯЕМ ТИП
     )
     db.add(bag)
     db.flush()
     
-    # Сохраняем выбранные блюда
+    # Сохраняем выбранные блюда (всегда сохраняем, даже если скрыто)
     for product in products:
         bag_item = SurpriseBagItem(
             surprise_bag_id=bag.id,
@@ -8362,6 +8454,9 @@ async def create_surprise_bag(
     
     db.commit()
     
+    # Определяем тип для сообщения
+    bag_type_display = "Surprise (скрытый состав)" if hide_contents else "Search (видимый состав)"
+    
     # Отправляем WebSocket уведомление
     await notify_new_surprise({
         "id": bag.id,
@@ -8370,11 +8465,17 @@ async def create_surprise_bag(
         "discounted_price": bag.discounted_price,
         "original_price": bag.original_price,
         "discount_percentage": bag.discount_percentage,
-        "image_url": bag.image_url
+        "image_url": bag.image_url,
+        "hide_contents": bag.hide_contents  # ← ДОБАВЛЯЕМ В УВЕДОМЛЕНИЕ
     })
     
-    return {"success": True, "bag_id": bag.id, "message": "Сюрприз создан"}
-
+    return {
+        "success": True, 
+        "bag_id": bag.id, 
+        "hide_contents": bag.hide_contents,
+        "type": bag_type_display,
+        "message": f"Сюрприз создан. Тип: {bag_type_display}"
+    }
 
 
 @app.delete("/api/admin/force-delete-all")
