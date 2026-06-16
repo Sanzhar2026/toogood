@@ -38,7 +38,34 @@ except ImportError:
 
 
 
+# backend/main.py - добавьте в самое начало, после импортов
 
+import sys
+from sqlalchemy.orm import clear_mappers
+from sqlalchemy import MetaData
+
+print("=" * 50)
+print("CLEARING SQLALCHEMY CACHE")
+print("=" * 50)
+
+# Очищаем все кэши
+clear_mappers()
+print("✅ Mappers cleared")
+
+# Проверяем enum через сырое подключение
+with engine.connect() as conn:
+    result = conn.execute("SELECT enum_range(NULL::orderstatus)")
+    enum_values = result.scalar()
+    print(f"✅ Enum in database: {enum_values}")
+    
+# Принудительно обновляем метаданные
+metadata = MetaData()
+metadata.reflect(bind=engine, only=['orders'])
+if 'orders' in metadata.tables:
+    del metadata.tables['orders']
+    print("✅ Orders table metadata cleared")
+
+print("=" * 50)
 
 models.Base.metadata.create_all(bind=engine)
 

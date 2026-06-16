@@ -1,73 +1,81 @@
-# fix_existing_orders.py
+# fix_lowercase_final.py
 import psycopg2
 
 DATABASE_URL = "postgresql://toogood_db_a3k0_user:2tWztMrzy1VCriWHefthkLBK1EOeeYnG@dpg-d8eo51rbc2fs73coebs0-a.frankfurt-postgres.render.com/toogood_db_a3k0?sslmode=require"
 
-def fix_existing_orders():
-    """Исправляет статусы существующих заказов на нижний регистр"""
-    
+def fix_to_lowercase():
     try:
         conn = psycopg2.connect(DATABASE_URL)
-        conn.autocommit = False
+        conn.autocommit = True
         cur = conn.cursor()
         
-        print("=" * 50)
-        print("🔄 ИСПРАВЛЕНИЕ СТАТУСОВ ЗАКАЗОВ")
-        print("=" * 50)
+        print("=" * 60)
+        print("🔄 ПЕРЕВОД СТАТУСОВ В LOWERcase")
+        print("=" * 60)
         
-        # Обновляем статусы с верхнего регистра на нижний
-        updates = [
-            ('PENDING', 'pending'),
-            ('CONFIRMED', 'confirmed'),
-            ('PREPARING', 'preparing'),
-            ('READY_FOR_PICKUP', 'ready_for_pickup'),
-            ('OUT_FOR_DELIVERY', 'out_for_delivery'),
-            ('DELIVERED', 'delivered'),
-            ('CANCELLED', 'cancelled'),
-        ]
+        # 1. Сначала меняем тип колонки на VARCHAR
+        print("\n1️⃣ Меняем тип колонки на VARCHAR...")
+        cur.execute("ALTER TABLE orders ALTER COLUMN status TYPE VARCHAR(50)")
+        print("   ✅ Теперь VARCHAR")
         
-        for old_status, new_status in updates:
-            cur.execute("""
-                UPDATE orders 
-                SET status = %s::orderstatus 
-                WHERE status::text = %s
-            """, (new_status, old_status))
-            count = cur.rowcount
-            if count > 0:
-                print(f"   ✅ {old_status} → {new_status}: {count} заказов")
+        # 2. Обновляем статусы на lowercase
+        print("\n2️⃣ Обновляем статусы на lowercase...")
+        cur.execute("UPDATE orders SET status = LOWER(status)")
+        print(f"   ✅ Обновлено {cur.rowcount} записей")
         
-        # Специально для picked_up
-        cur.execute("""
-            UPDATE orders 
-            SET status = 'picked_up'::orderstatus 
-            WHERE status::text = 'PICKED_UP' OR status::text = 'picked_up'
-        """)
-        print(f"   ✅ PICKED_UP/picked_up: {cur.rowcount} заказов")
-        
-        conn.commit()
-        
-        # Проверяем результат
-        print("\n📊 ТЕКУЩИЕ СТАТУСЫ ЗАКАЗОВ:")
-        cur.execute("""
-            SELECT status::text, COUNT(*) 
-            FROM orders 
-            GROUP BY status::text 
-            ORDER BY status::text
-        """)
+        # 3. Проверяем текущие статусы
+        print("\n3️⃣ Текущие статусы:")
+        cur.execute("SELECT DISTINCT status FROM orders")
         for row in cur.fetchall():
-            print(f"   • {row[0]}: {row[1]} заказов")
+            print(f"   • {row[0]}")
+        
+        # 4. Удаляем старый enum
+        print("\n4️⃣ Удаление старого enum...")
+        cur.execute("DROP TYPE IF EXISTS orderstatus CASCADE")
+        print("   ✅ Старый enum удален")
+        
+        # 5. Создаем новый enum с lowercase
+        print("\n5️⃣ Создание нового enum...")
+        cur.execute("""
+            CREATE TYPE orderstatus AS ENUM (
+                'pending', 'confirmed', 'preparing', 
+                'ready_for_pickup', 'picked_up', 
+                'out_for_delivery', 'nearby', 'delivered', 'cancelled'
+            )
+        """)
+        print("   ✅ Новый enum создан")
+        
+        # 6. Конвертируем обратно в enum
+        print("\n6️⃣ Конвертация в enum...")
+        cur.execute("ALTER TABLE orders ALTER COLUMN status TYPE orderstatus USING status::orderstatus")
+        print("   ✅ Колонка конвертирована в enum")
+        
+        # 7. Устанавливаем DEFAULT
+        print("\n7️⃣ Установка DEFAULT...")
+        cur.execute("ALTER TABLE orders ALTER COLUMN status SET DEFAULT 'pending'")
+        print("   ✅ DEFAULT установлен")
+        
+        # 8. Проверяем финальный результат
+        print("\n8️⃣ Финальная проверка:")
+        cur.execute("SELECT enum_range(NULL::orderstatus)")
+        print(f"   Enum values: {cur.fetchone()[0]}")
+        
+        cur.execute("SELECT status, COUNT(*) FROM orders GROUP BY status")
+        print("\n   Статусы заказов:")
+        for row in cur.fetchall():
+            print(f"      • {row[0]}: {row[1]} заказов")
         
         cur.close()
         conn.close()
         
-        print("\n" + "=" * 50)
-        print("✅ Готово!")
-        print("=" * 50)
+        print("\n" + "=" * 60)
+        print("✅ ГОТОВО! Теперь все статусы в lowercase!")
+        print("=" * 60)
         
     except Exception as e:
         print(f"\n❌ Ошибка: {e}")
-        if conn:
-            conn.rollback()
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    fix_existing_orders()
+    fix_to_lowercase()
