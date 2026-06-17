@@ -3058,43 +3058,6 @@ async def find_nearest_courier(request: Request, db: Session = Depends(get_db)):
             "message": "Нет доступных курьеров поблизости"
         }
 
-@app.get("/api/surprise-bags/surprise")
-async def get_surprise_bags_hidden(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """ВРЕМЕННО - убираем все фильтры для теста"""
-    
-    # ✅ ВРЕМЕННО: возвращаем все активные сюрпризы без фильтров
-    bags = db.query(SurpriseBag).filter(
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
-    ).all()
-    
-    result = []
-    for bag in bags:
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        if supplier and supplier.is_active:
-            result.append({
-                "id": bag.id,
-                "supplier_id": bag.supplier_id,
-                "supplier_name": supplier.business_name or "",
-                "name": bag.name or "",
-                "description": bag.description or "",
-                "original_price": float(bag.original_price) if bag.original_price else 0,
-                "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
-                "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
-                "image_url": bag.image_url or "",
-                "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
-                "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
-                "city": bag.city or "",
-                "items": [],
-                "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
-            })
-    
-    return JSONResponse(content=result)
-
-# main.py - обновление геолокации курьера
 
 
 # ============ АДМИН: УПРАВЛЕНИЕ ЗАЯВКАМИ КУРЬЕРОВ ============
@@ -4586,6 +4549,174 @@ async def create_booking(
     }
 
 
+# backend/main.py - ДОБАВЛЯЕМ ФИЛЬТРАЦИЮ ПО ГОРОДУ
+
+@app.get("/api/surprise-bags")
+async def get_all_surprise_bags(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Получить сюрпризы ТОЛЬКО из города пользователя"""
+    
+    lat = request.query_params.get("lat")
+    lon = request.query_params.get("lon")
+    
+    # Определяем город пользователя по координатам
+    user_city = None
+    if lat and lon:
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            user_city = get_city_from_coords(lat, lon)
+        except:
+            pass
+    
+    # Если город не определился - показываем все (или Актобе по умолчанию)
+    if not user_city:
+        user_city = "Ақтөбе"  # или ваш город
+    
+    print(f"📍 Пользователь из города: {user_city}")
+    
+    # ✅ ТОЛЬКО СЮРПРИЗЫ ИЗ ГОРОДА ПОЛЬЗОВАТЕЛЯ
+    bags = db.query(SurpriseBag).filter(
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0,
+        SurpriseBag.hide_contents == False,
+        SurpriseBag.city == user_city  # ← ФИЛЬТР ПО ГОРОДУ
+    ).all()
+    
+    result = []
+    for bag in bags:
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        if supplier and supplier.is_active:
+            items = db.query(SurpriseBagItem).filter(
+                SurpriseBagItem.surprise_bag_id == bag.id
+            ).all()
+            
+            items_list = []
+            for item in items:
+                items_list.append({
+                    "product_id": item.product_id,
+                    "name": item.product_name,
+                    "price": item.product_price,
+                    "quantity": item.quantity
+                })
+            
+            result.append({
+                "id": bag.id,
+                "supplier_id": bag.supplier_id,
+                "supplier_name": supplier.business_name,
+                "name": bag.name,
+                "description": bag.description,
+                "original_price": bag.original_price,
+                "discounted_price": bag.discounted_price,
+                "discount_percentage": bag.discount_percentage,
+                "image_url": bag.image_url,
+                "available_quantity": bag.available_quantity,
+                "hide_contents": bag.hide_contents,
+                "city": bag.city,
+                "items": items_list
+            })
+    
+    return JSONResponse(content=result)
+
+
+@app.get("/api/surprise-bags/surprise")
+async def get_surprise_bags_hidden(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Получить скрытые сюрпризы ТОЛЬКО из города пользователя"""
+    
+    lat = request.query_params.get("lat")
+    lon = request.query_params.get("lon")
+    
+    user_city = None
+    if lat and lon:
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            user_city = get_city_from_coords(lat, lon)
+        except:
+            pass
+    
+    if not user_city:
+        user_city = "Ақтөбе"
+    
+    print(f"📍 Surprise страница, пользователь из: {user_city}")
+    
+    # ✅ ТОЛЬКО СЮРПРИЗЫ ИЗ ГОРОДА ПОЛЬЗОВАТЕЛЯ
+    bags = db.query(SurpriseBag).filter(
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0,
+        SurpriseBag.hide_contents == True,
+        SurpriseBag.city == user_city  # ← ФИЛЬТР ПО ГОРОДУ
+    ).all()
+    
+    result = []
+    for bag in bags:
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        if supplier and supplier.is_active:
+            result.append({
+                "id": bag.id,
+                "supplier_id": bag.supplier_id,
+                "supplier_name": supplier.business_name,
+                "name": bag.name,
+                "description": bag.description,
+                "original_price": bag.original_price,
+                "discounted_price": bag.discounted_price,
+                "discount_percentage": bag.discount_percentage,
+                "image_url": bag.image_url,
+                "available_quantity": bag.available_quantity,
+                "hide_contents": bag.hide_contents,
+                "city": bag.city,
+                "items": [],
+                "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
+            })
+    
+    return JSONResponse(content=result)
+
+
+# ============ ФУНКЦИЯ ОПРЕДЕЛЕНИЯ ГОРОДА ============
+def get_city_from_coords(lat: float, lon: float):
+    """Определяет город по координатам"""
+    
+    CITIES = {
+        'Алматы': {'lat': 43.238, 'lon': 76.945, 'radius': 30},
+        'Астана': {'lat': 51.169, 'lon': 71.449, 'radius': 30},
+        'Шымкент': {'lat': 42.341, 'lon': 69.590, 'radius': 30},
+        'Ақтөбе': {'lat': 50.283, 'lon': 57.167, 'radius': 30},
+        'Қарағанды': {'lat': 49.801, 'lon': 73.102, 'radius': 30},
+        'Атырау': {'lat': 47.115, 'lon': 51.917, 'radius': 30},
+        'Өскемен': {'lat': 49.950, 'lon': 82.618, 'radius': 30},
+        'Павлодар': {'lat': 52.287, 'lon': 76.973, 'radius': 30},
+        'Тараз': {'lat': 42.899, 'lon': 71.365, 'radius': 30},
+        'Қызылорда': {'lat': 44.848, 'lon': 65.482, 'radius': 30},
+    }
+    
+    closest_city = None
+    min_distance = float('inf')
+    
+    for city, coords in CITIES.items():
+        distance = haversine_distance(lat, lon, coords['lat'], coords['lon'])
+        if distance < coords['radius'] and distance < min_distance:
+            min_distance = distance
+            closest_city = city
+    
+    return closest_city
+
+
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    from math import radians, sin, cos, sqrt, atan2
+    R = 6371
+    lat1_rad = radians(lat1)
+    lat2_rad = radians(lat2)
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat/2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    return R * c
+
 @app.get("/api/bookings/check/{bag_id}")
 async def check_booking(
     bag_id: int,
@@ -4771,66 +4902,6 @@ async def get_supplier_surprise_bags(
         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
 
 
-
-@app.get("/api/surprise-bags")
-async def get_all_surprise_bags(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Получить сюрпризы ТОЛЬКО из города пользователя"""
-    
-    # Получаем город пользователя из координат
-    lat = request.query_params.get("lat")
-    lon = request.query_params.get("lon")
-    
-    user_city = None
-    if lat and lon:
-        try:
-            lat = float(lat)
-            lon = float(lon)
-            user_city = get_city_from_coords(lat, lon)
-        except:
-            pass
-    
-    # Если город не определен - показываем все
-    if not user_city:
-        user_city = "Алматы"  # Город по умолчанию
-    
-    print(f"📍 Пользователь из города: {user_city}")
-    
-    # Фильтруем сюрпризы по городу
-    bags = db.query(SurpriseBag).filter(
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0,
-        SurpriseBag.hide_contents == False,
-        SurpriseBag.city == user_city  # ← ТОЛЬКО СВОЙ ГОРОД!
-    ).all()
-    
-    result = []
-    for bag in bags:
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        if supplier and supplier.is_active:
-            items = db.query(SurpriseBagItem).filter(
-                SurpriseBagItem.surprise_bag_id == bag.id
-            ).all()
-            
-            result.append({
-                "id": bag.id,
-                "supplier_id": bag.supplier_id,
-                "supplier_name": supplier.business_name,
-                "name": bag.name,
-                "description": bag.description,
-                "original_price": bag.original_price,
-                "discounted_price": bag.discounted_price,
-                "discount_percentage": bag.discount_percentage,
-                "image_url": bag.image_url,
-                "available_quantity": bag.available_quantity,
-                "hide_contents": bag.hide_contents,
-                "city": bag.city,
-                "items": [...]
-            })
-    
-    return result
 
 
 
@@ -6977,33 +7048,6 @@ async def create_surprise_bag(
         "message": f"Сюрприз создан в городе {city}"
     }
 
-def get_city_from_coords(lat: float, lon: float):
-    """Определяет город по координатам. Возвращает None если город не найден."""
-    
-    CITIES = {
-        'Алматы': {'lat': 43.238, 'lon': 76.945, 'radius': 30},
-        'Астана': {'lat': 51.169, 'lon': 71.449, 'radius': 30},
-        'Шымкент': {'lat': 42.341, 'lon': 69.590, 'radius': 30},
-        'Ақтөбе': {'lat': 50.283, 'lon': 57.167, 'radius': 30},
-        'Қарағанды': {'lat': 49.801, 'lon': 73.102, 'radius': 30},
-        'Атырау': {'lat': 47.115, 'lon': 51.917, 'radius': 30},
-        'Өскемен': {'lat': 49.950, 'lon': 82.618, 'radius': 30},
-        'Павлодар': {'lat': 52.287, 'lon': 76.973, 'radius': 30},
-        'Тараз': {'lat': 42.899, 'lon': 71.365, 'radius': 30},
-        'Қызылорда': {'lat': 44.848, 'lon': 65.482, 'radius': 30},
-    }
-    
-    closest_city = None
-    min_distance = float('inf')
-    
-    for city, coords in CITIES.items():
-        distance = haversine_distance(lat, lon, coords['lat'], coords['lon'])
-        if distance < coords['radius'] and distance < min_distance:
-            min_distance = distance
-            closest_city = city
-    
-    return closest_city  # Возвращаем None если город не найден
-
 
 @app.post("/api/suppliers/{supplier_id}/rate")
 async def rate_supplier(
@@ -7203,25 +7247,6 @@ async def rate_surprise_bag(
     }
 # backend/main.py - обновите nearby suppliers
 # backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
-
-# Добавьте эту функцию в начало файла (если её нет)
-def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Расчет расстояния между двумя точками в километрах"""
-    from math import radians, sin, cos, sqrt, atan2
-    
-    R = 6371
-    
-    lat1_rad = radians(lat1)
-    lat2_rad = radians(lat2)
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    
-    a = sin(dlat/2)**2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlon/2)**2
-    c = 2 * atan2(sqrt(a), sqrt(1-a))
-    
-    return R * c
-    return {"count": len(nearby), "suppliers": nearby}
-
 
 
 # ============ HOME PAGE ============
