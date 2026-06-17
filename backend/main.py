@@ -7053,46 +7053,46 @@ async def rate_supplier(
 
 # ============ ОЦЕНКА СЮРПРИЗОВ ============
 
-@app.get("/api/surprise-bags/{bag_id}/rating")
-async def get_surprise_bag_rating(
-    bag_id: int,
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Получить рейтинг сюрприза"""
+# @app.get("/api/surprise-bags/{bag_id}/rating")
+# async def get_surprise_bag_rating(
+#     bag_id: int,
+#     request: Request,
+#     db: Session = Depends(get_db)
+# ):
+#     """Получить рейтинг сюрприза"""
     
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
-    if not bag:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Surprise bag not found"}
-        )
+#     bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+#     if not bag:
+#         return JSONResponse(
+#             status_code=404,
+#             content={"success": False, "message": "Surprise bag not found"}
+#         )
     
-    # Получаем оценку текущего пользователя
-    user_rating = None
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
+#     # Получаем оценку текущего пользователя
+#     user_rating = None
+#     auth_header = request.headers.get("Authorization")
+#     if auth_header and auth_header.startswith("Bearer "):
+#         token = auth_header.split(" ")[1]
+#         try:
+#             from jose import jwt
+#             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#             user_id = payload.get("sub")
             
-            review = db.query(SurpriseBagReview).filter(
-                SurpriseBagReview.surprise_bag_id == bag_id,
-                SurpriseBagReview.user_id == int(user_id)
-            ).first()
-            if review:
-                user_rating = review.rating
-        except:
-            pass
+#             review = db.query(SurpriseBagReview).filter(
+#                 SurpriseBagReview.surprise_bag_id == bag_id,
+#                 SurpriseBagReview.user_id == int(user_id)
+#             ).first()
+#             if review:
+#                 user_rating = review.rating
+#         except:
+#             pass
     
-    return {
-        "success": True,
-        "rating": bag.rating or 0,
-        "total_reviews": bag.total_reviews or 0,
-        "user_rating": user_rating
-    }
+#     return {
+#         "success": True,
+#         "rating": bag.rating or 0,
+#         "total_reviews": bag.total_reviews or 0,
+#         "user_rating": user_rating
+#     }
 
 
 @app.post("/api/surprise-bags/{bag_id}/rate")
