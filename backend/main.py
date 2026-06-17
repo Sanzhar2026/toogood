@@ -8573,32 +8573,12 @@ async def get_all_surprise_bags(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Получить открытые сюрпризы для страницы поиска"""
+    """ВРЕМЕННО - убираем все фильтры для теста"""
     
-    lat = request.query_params.get("lat")
-    lon = request.query_params.get("lon")
-    
-    user_city = None
-    if lat and lon:
-        try:
-            lat = float(lat)
-            lon = float(lon)
-            user_city = get_city_from_coords(lat, lon)
-        except:
-            pass
-    
-    print(f"📍 Пользователь из города: {user_city or 'не определен'}")
-    
-    query = db.query(SurpriseBag).filter(
+    bags = db.query(SurpriseBag).filter(
         SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0,
-        SurpriseBag.hide_contents == False
-    )
-    
-    if user_city:
-        query = query.filter(SurpriseBag.city == user_city)
-    
-    bags = query.all()
+        SurpriseBag.available_quantity > 0
+    ).all()
     
     result = []
     for bag in bags:
@@ -8633,10 +8613,7 @@ async def get_all_surprise_bags(
                 "items": items_list
             })
     
-    # ✅ Используем jsonable_encoder для безопасной сериализации
-    return JSONResponse(content=jsonable_encoder(result))
-
-
+    return JSONResponse(content=result)
 @app.get("/api/supplier/surprise-bags")
 async def get_supplier_surprise_bags(
     request: Request,
