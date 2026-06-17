@@ -6774,66 +6774,11 @@ async def get_all_suppliers(db: Session = Depends(get_db)):
 
 # backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
-@app.get("/api/surprise-bags/surprise")
-async def get_surprise_bags_hidden(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Получить скрытые сюрпризы для страницы Surprise"""
-    
-    lat = request.query_params.get("lat")
-    lon = request.query_params.get("lon")
-    
-    user_city = None
-    if lat and lon:
-        try:
-            lat = float(lat)
-            lon = float(lon)
-            user_city = get_city_from_coords(lat, lon)
-        except:
-            pass
-    
-    # ✅ Если город не определен - показываем все сюрпризы (временно)
-    # if not user_city:
-    #     user_city = "Ақтөбе"
-    
-    print(f"📍 Surprise страница, пользователь из: {user_city or 'не определен'}")
-    
-    # ✅ Временно убираем фильтрацию по городу если нет города
-    query = db.query(SurpriseBag).filter(
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0,
-        SurpriseBag.hide_contents == True
-    )
-    
-    # Если город определен - фильтруем
-    if user_city:
-        query = query.filter(SurpriseBag.city == user_city)
-    
-    bags = query.all()
-    
-    result = []
-    for bag in bags:
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        if supplier and supplier.is_active:
-            result.append({
-                "id": bag.id,
-                "supplier_id": bag.supplier_id,
-                "supplier_name": supplier.business_name,
-                "name": bag.name,
-                "description": bag.description or "",
-                "original_price": bag.original_price,
-                "discounted_price": bag.discounted_price,
-                "discount_percentage": bag.discount_percentage,
-                "image_url": bag.image_url,
-                "available_quantity": bag.available_quantity,
-                "hide_contents": bag.hide_contents,
-                "city": bag.city or "",
-                "items": [],
-                "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
-            })
-    
-    return JSONResponse(content=result)
+
+
+
+
+
 
 @app.get("/api/surprise-bags/{bag_id}")
 async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
@@ -6991,72 +6936,11 @@ async def rate_supplier(
         "user_rating": rating,
         "message": "Спасибо за оценку магазина!"
     }
-@app.get("/api/surprise-bags")
-async def get_all_surprise_bags(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Получить открытые сюрпризы для страницы поиска"""
-    
-    lat = request.query_params.get("lat")
-    lon = request.query_params.get("lon")
-    
-    user_city = None
-    if lat and lon:
-        try:
-            lat = float(lat)
-            lon = float(lon)
-            user_city = get_city_from_coords(lat, lon)
-        except:
-            pass
-    
-    print(f"📍 Пользователь из города: {user_city or 'не определен'}")
-    
-    query = db.query(SurpriseBag).filter(
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0,
-        SurpriseBag.hide_contents == False
-    )
-    
-    if user_city:
-        query = query.filter(SurpriseBag.city == user_city)
-    
-    bags = query.all()
-    
-    result = []
-    for bag in bags:
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        if supplier and supplier.is_active:
-            items = db.query(SurpriseBagItem).filter(
-                SurpriseBagItem.surprise_bag_id == bag.id
-            ).all()
-            
-            items_list = []
-            for item in items:
-                items_list.append({
-                    "product_id": item.product_id,
-                    "name": item.product_name,
-                    "price": item.product_price,
-                    "quantity": item.quantity
-                })
-            
-            result.append({
-                "id": bag.id,
-                "supplier_id": bag.supplier_id,
-                "supplier_name": supplier.business_name,
-                "name": bag.name,
-                "description": bag.description or "",
-                "original_price": bag.original_price,
-                "discounted_price": bag.discounted_price,
-                "discount_percentage": bag.discount_percentage,
-                "image_url": bag.image_url,
-                "available_quantity": bag.available_quantity,
-                "hide_contents": bag.hide_contents,
-                "city": bag.city or "",
-                "items": items_list
-            })
-    
-    return JSONResponse(content=result)
+
+
+
+
+
 # ============ ОЦЕНКА СЮРПРИЗОВ ============
 
 @app.get("/api/surprise-bags/{bag_id}/rating")
@@ -8518,6 +8402,135 @@ async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
     return result
 
 
+# backend/main.py - ИСПРАВЛЕННЫЕ ЭНДПОИНТЫ С jsonable_encoder
+
+from fastapi.encoders import jsonable_encoder
+
+@app.get("/api/surprise-bags/surprise")
+async def get_surprise_bags_hidden(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Получить скрытые сюрпризы для страницы Surprise"""
+    
+    lat = request.query_params.get("lat")
+    lon = request.query_params.get("lon")
+    
+    user_city = None
+    if lat and lon:
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            user_city = get_city_from_coords(lat, lon)
+        except:
+            pass
+    
+    print(f"📍 Surprise страница, пользователь из: {user_city or 'не определен'}")
+    
+    query = db.query(SurpriseBag).filter(
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0,
+        SurpriseBag.hide_contents == True
+    )
+    
+    if user_city:
+        query = query.filter(SurpriseBag.city == user_city)
+    
+    bags = query.all()
+    
+    result = []
+    for bag in bags:
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        if supplier and supplier.is_active:
+            result.append({
+                "id": bag.id,
+                "supplier_id": bag.supplier_id,
+                "supplier_name": supplier.business_name or "",
+                "name": bag.name or "",
+                "description": bag.description or "",
+                "original_price": float(bag.original_price) if bag.original_price else 0,
+                "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
+                "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
+                "image_url": bag.image_url or "",
+                "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
+                "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
+                "city": bag.city or "",
+                "items": [],
+                "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
+            })
+    
+    # ✅ Используем jsonable_encoder для безопасной сериализации
+    return JSONResponse(content=jsonable_encoder(result))
+
+
+@app.get("/api/surprise-bags")
+async def get_all_surprise_bags(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Получить открытые сюрпризы для страницы поиска"""
+    
+    lat = request.query_params.get("lat")
+    lon = request.query_params.get("lon")
+    
+    user_city = None
+    if lat and lon:
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            user_city = get_city_from_coords(lat, lon)
+        except:
+            pass
+    
+    print(f"📍 Пользователь из города: {user_city or 'не определен'}")
+    
+    query = db.query(SurpriseBag).filter(
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0,
+        SurpriseBag.hide_contents == False
+    )
+    
+    if user_city:
+        query = query.filter(SurpriseBag.city == user_city)
+    
+    bags = query.all()
+    
+    result = []
+    for bag in bags:
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        if supplier and supplier.is_active:
+            items = db.query(SurpriseBagItem).filter(
+                SurpriseBagItem.surprise_bag_id == bag.id
+            ).all()
+            
+            items_list = []
+            for item in items:
+                items_list.append({
+                    "product_id": item.product_id or 0,
+                    "name": item.product_name or "",
+                    "price": float(item.product_price) if item.product_price else 0,
+                    "quantity": int(item.quantity) if item.quantity else 1
+                })
+            
+            result.append({
+                "id": bag.id,
+                "supplier_id": bag.supplier_id,
+                "supplier_name": supplier.business_name or "",
+                "name": bag.name or "",
+                "description": bag.description or "",
+                "original_price": float(bag.original_price) if bag.original_price else 0,
+                "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
+                "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
+                "image_url": bag.image_url or "",
+                "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
+                "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
+                "city": bag.city or "",
+                "items": items_list
+            })
+    
+    # ✅ Используем jsonable_encoder для безопасной сериализации
+    return JSONResponse(content=jsonable_encoder(result))
+
 
 @app.get("/api/supplier/surprise-bags")
 async def get_supplier_surprise_bags(
@@ -8549,14 +8562,6 @@ async def get_supplier_surprise_bags(
         if not supplier_id:
             return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
         
-        # ✅ УБИРАЕМ ЭТИ СТРОКИ - они не нужны для GET запроса!
-        # data = await request.json()
-        # products = data.get("products", [])
-        # print(f"📦 Получено products: {products}")
-        # if not products:
-        #   print("⚠️ НЕТ ТОВАРОВ В ЗАПРОСЕ!")
-        
-        # Получаем ВСЕ сюрпризы поставщика
         bags = db.query(SurpriseBag).filter(
             SurpriseBag.supplier_id == supplier_id
         ).order_by(SurpriseBag.created_at.desc()).all()
@@ -8565,30 +8570,30 @@ async def get_supplier_surprise_bags(
         for bag in bags:
             bags_list.append({
                 "id": bag.id,
-                "name": bag.name,
-                "description": bag.description,
-                "original_price": bag.original_price,
-                "discounted_price": bag.discounted_price,
-                "discount_percentage": bag.discount_percentage,
-                "image_url": bag.image_url,
-                "available_quantity": bag.available_quantity,
-                "total_quantity": bag.total_quantity,
-                "is_active": bag.is_active,
-                "hide_contents": bag.hide_contents,  # ✅ ДОБАВЬТЕ ЭТО ПОЛЕ!
-                "pickup_start_time": bag.pickup_start_time,
-                "pickup_end_time": bag.pickup_end_time,
+                "name": bag.name or "",
+                "description": bag.description or "",
+                "original_price": float(bag.original_price) if bag.original_price else 0,
+                "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
+                "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
+                "image_url": bag.image_url or "",
+                "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
+                "total_quantity": int(bag.total_quantity) if bag.total_quantity else 0,
+                "is_active": bool(bag.is_active) if bag.is_active is not None else False,
+                "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
+                "city": bag.city or "",
+                "pickup_start_time": bag.pickup_start_time or "",
+                "pickup_end_time": bag.pickup_end_time or "",
                 "created_at": bag.created_at.isoformat() if bag.created_at else None
             })
         
         print(f"📦 Найдено сюрпризов: {len(bags_list)}")
-        return {"success": True, "bags": bags_list}
+        return JSONResponse(content={"success": True, "bags": jsonable_encoder(bags_list)})
         
     except Exception as e:
-        print(f"Error getting supplier bags: {e}")
+        print(f"❌ Error getting supplier bags: {e}")
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
-
 # backend/main.py - ИСПРАВЛЕННЫЕ ЭНДПОИНТЫ
 
 @app.post("/users/{user_id}/avatar")
