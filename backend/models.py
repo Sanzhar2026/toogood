@@ -191,6 +191,9 @@ class SurpriseBag(Base):
     # ✅ НОВОЕ ПОЛЕ - для разделения на Surprise и Search страницы
     # True = скрыть состав (для страницы Surprise)
     # False = показать состав (для страницы Search)
+    city = Column(String(100), nullable=True)  # Город поставщика
+    
+    # ✅ НОВОЕ ПОЛЕ - для разделения на Surprise и Search страницы
     hide_contents = Column(Boolean, default=False)
     
     # Рейтинг сюрприза
