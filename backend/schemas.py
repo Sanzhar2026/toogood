@@ -1,4 +1,4 @@
-# backend/schemas.py
+# backend/schemas.py - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
 
 from pydantic import BaseModel
 from datetime import datetime
@@ -106,6 +106,8 @@ class SurpriseBagCreate(BaseModel):
     pickup_start_time: Optional[str] = None
     pickup_end_time: Optional[str] = None
     possible_items: Optional[str] = None
+    hide_contents: bool = False  # ✅ ДОБАВЛЕНО!
+    city: Optional[str] = None   # ✅ ДОБАВЛЕНО!
 
 class SurpriseBagResponse(BaseModel):
     id: int
@@ -123,16 +125,18 @@ class SurpriseBagResponse(BaseModel):
     pickup_end_time: Optional[str]
     is_active: bool
     created_at: Optional[datetime]
+    hide_contents: bool = False  # ✅ ДОБАВЛЕНО!
+    city: Optional[str] = None   # ✅ ДОБАВЛЕНО!
 
 # ============ ORDER SCHEMAS ============
 class OrderCreate(BaseModel):
     bag_id: int
-    lat: float = 0  # ← сделаем необязательным
-    lon: float = 0  # ← сделаем необязательным
+    lat: float = 0
+    lon: float = 0
     address: str
     pickup_time: Optional[str] = None
     user_id: Optional[int] = 1
-    delivery_type: str = "delivery"  # ← ДОБАВЛЕНО! "delivery" или "pickup"
+    delivery_type: str = "delivery"
 
 class OrderResponse(BaseModel):
     id: int
@@ -144,8 +148,7 @@ class OrderResponse(BaseModel):
     created_at: datetime
     supplier: Optional[SupplierResponse]
     surprise_bag: Optional[SurpriseBagResponse]
-    # Добавляем поля
-    delivery_type: Optional[str] = None  # ← ДОБАВЛЕНО!
+    delivery_type: Optional[str] = None
     payment_status: Optional[str] = None
     payment_method: Optional[str] = None
     paid_at: Optional[datetime] = None
