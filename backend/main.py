@@ -4669,45 +4669,47 @@ async def toggle_surprise_type(
     }
 
 
-@app.get("/api/surprise-bags/surprise")
-async def get_surprise_bags_hidden(
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
+@app.get("/api/supplier/surprise-bags")
+async def get_supplier_surprise_bags(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Получить скрытые сюрпризы ТОЛЬКО из города пользователя"""
+    """API для получения сюрпризов поставщика (для JS)"""
     
-    lat = request.query_params.get("lat")
-    lon = request.query_params.get("lon")
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
     
-    user_city = None
-    if lat and lon:
-        try:
-            lat = float(lat)
-            lon = float(lon)
-            user_city = get_city_from_coords(lat, lon)
-        except:
-            pass
+    token = auth_header.split(" ")[1]
     
-    if not user_city:
-        user_city = "Алматы"
-    
-    print(f"📍 Surprise страница, пользователь из: {user_city}")
-    
-    bags = db.query(SurpriseBag).filter(
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0,
-        SurpriseBag.hide_contents == True,
-        SurpriseBag.city == user_city  # ← ТОЛЬКО СВОЙ ГОРОД!
-    ).all()
-    
-    result = []
-    for bag in bags:
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        if supplier and supplier.is_active:
-            result.append({
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        if payload.get("role") != "supplier":
+            return JSONResponse(status_code=403, content={"success": False, "message": "Forbidden"})
+        
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            user_id = int(payload.get("sub"))
+            supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
+            if supplier:
+                supplier_id = supplier.id
+        
+        if not supplier_id:
+            return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
+        
+        # ✅ Получаем ВСЕ сюрпризы поставщика
+        bags = db.query(SurpriseBag).filter(
+            SurpriseBag.supplier_id == supplier_id
+        ).order_by(SurpriseBag.created_at.desc()).all()
+        
+        bags_list = []
+        for bag in bags:
+            bags_list.append({
                 "id": bag.id,
-                "supplier_id": bag.supplier_id,
-                "supplier_name": supplier.business_name,
                 "name": bag.name,
                 "description": bag.description,
                 "original_price": bag.original_price,
@@ -4715,13 +4717,23 @@ async def get_surprise_bags_hidden(
                 "discount_percentage": bag.discount_percentage,
                 "image_url": bag.image_url,
                 "available_quantity": bag.available_quantity,
+                "total_quantity": bag.total_quantity,
+                "is_active": bag.is_active,
                 "hide_contents": bag.hide_contents,
-                "city": bag.city,
-                "items": [],
-                "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
+                "city": bag.city or "",  # ← ДОБАВЛЯЕМ ГОРОД
+                "pickup_start_time": bag.pickup_start_time,
+                "pickup_end_time": bag.pickup_end_time,
+                "created_at": bag.created_at.isoformat() if bag.created_at else None
             })
-    
-    return result
+        
+        print(f"📦 Найдено сюрпризов: {len(bags_list)}")
+        return {"success": True, "bags": bags_list}
+        
+    except Exception as e:
+        print(f"❌ Error getting supplier bags: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
 
 
 
@@ -4787,48 +4799,6 @@ async def get_all_surprise_bags(
 
 
 
-@app.get("/api/surprise-bags")
-async def get_all_surprise_bags(db: Session = Depends(get_db)):
-    """Получить сюрпризы для ОБЫЧНОЙ страницы поиска - состав ВИДЕН"""
-    
-    bags = db.query(SurpriseBag).filter(
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0,
-        SurpriseBag.hide_contents == False  # ← ТОЛЬКО search type
-    ).all()
-    
-    result = []
-    for bag in bags:
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        if supplier and supplier.is_active:
-            # Показываем состав
-            items = db.query(SurpriseBagItem).filter(SurpriseBagItem.surprise_bag_id == bag.id).all()
-            items_list = [
-                {
-                    "product_id": item.product_id,
-                    "name": item.product_name,
-                    "price": item.product_price,
-                    "quantity": item.quantity
-                }
-                for item in items
-            ]
-            
-            result.append({
-                "id": bag.id,
-                "supplier_id": bag.supplier_id,
-                "supplier_name": supplier.business_name,
-                "name": bag.name,
-                "description": bag.description,
-                "original_price": bag.original_price,
-                "discounted_price": bag.discounted_price,
-                "discount_percentage": bag.discount_percentage,
-                "image_url": bag.image_url,
-                "available_quantity": bag.available_quantity,
-                "hide_contents": bag.hide_contents,
-                "items": items_list
-            })
-    
-    return result
 
 
 
@@ -6802,7 +6772,68 @@ async def get_all_suppliers(db: Session = Depends(get_db)):
         })
     return result
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
+@app.get("/api/surprise-bags/surprise")
+async def get_surprise_bags_hidden(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Получить скрытые сюрпризы для страницы Surprise"""
+    
+    lat = request.query_params.get("lat")
+    lon = request.query_params.get("lon")
+    
+    user_city = None
+    if lat and lon:
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            user_city = get_city_from_coords(lat, lon)
+        except:
+            pass
+    
+    # ✅ Если город не определен - показываем все сюрпризы (временно)
+    # if not user_city:
+    #     user_city = "Ақтөбе"
+    
+    print(f"📍 Surprise страница, пользователь из: {user_city or 'не определен'}")
+    
+    # ✅ Временно убираем фильтрацию по городу если нет города
+    query = db.query(SurpriseBag).filter(
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0,
+        SurpriseBag.hide_contents == True
+    )
+    
+    # Если город определен - фильтруем
+    if user_city:
+        query = query.filter(SurpriseBag.city == user_city)
+    
+    bags = query.all()
+    
+    result = []
+    for bag in bags:
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        if supplier and supplier.is_active:
+            result.append({
+                "id": bag.id,
+                "supplier_id": bag.supplier_id,
+                "supplier_name": supplier.business_name,
+                "name": bag.name,
+                "description": bag.description or "",
+                "original_price": bag.original_price,
+                "discounted_price": bag.discounted_price,
+                "discount_percentage": bag.discount_percentage,
+                "image_url": bag.image_url,
+                "available_quantity": bag.available_quantity,
+                "hide_contents": bag.hide_contents,
+                "city": bag.city or "",
+                "items": [],
+                "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
+            })
+    
+    return JSONResponse(content=result)
 
 @app.get("/api/surprise-bags/{bag_id}")
 async def get_surprise_bag(bag_id: int, db: Session = Depends(get_db)):
@@ -6960,48 +6991,72 @@ async def rate_supplier(
         "user_rating": rating,
         "message": "Спасибо за оценку магазина!"
     }
-
 @app.get("/api/surprise-bags")
-async def get_all_surprise_bags(db: Session = Depends(get_db)):
-    bags = db.query(SurpriseBag).filter(
+async def get_all_surprise_bags(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Получить открытые сюрпризы для страницы поиска"""
+    
+    lat = request.query_params.get("lat")
+    lon = request.query_params.get("lon")
+    
+    user_city = None
+    if lat and lon:
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            user_city = get_city_from_coords(lat, lon)
+        except:
+            pass
+    
+    print(f"📍 Пользователь из города: {user_city or 'не определен'}")
+    
+    query = db.query(SurpriseBag).filter(
         SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
-    ).all()
+        SurpriseBag.available_quantity > 0,
+        SurpriseBag.hide_contents == False
+    )
+    
+    if user_city:
+        query = query.filter(SurpriseBag.city == user_city)
+    
+    bags = query.all()
     
     result = []
     for bag in bags:
         supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        
-        # Получаем состав для каждого сюрприза
-        items = db.query(SurpriseBagItem).filter(SurpriseBagItem.surprise_bag_id == bag.id).all()
-        items_list = [
-            {
-                "product_id": item.product_id,
-                "name": item.product_name,
-                "price": item.product_price,
-                "quantity": item.quantity
-            }
-            for item in items
-        ]
-        
-
-        
-        result.append({
-            "id": bag.id,
-            "supplier_id": bag.supplier_id,
-            "supplier_name": supplier.business_name if supplier else "Unknown",
-            "name": bag.name,
-            "description": bag.description,
-            "original_price": bag.original_price,
-            "discounted_price": bag.discounted_price,
-            "discount_percentage": bag.discount_percentage,
-            "image_url": bag.image_url,
-            "available_quantity": bag.available_quantity,
-            "is_active": bag.is_active,
-            "items": items_list  # ← ДОБАВЛЯЕМ СОСТАВ
-        })
+        if supplier and supplier.is_active:
+            items = db.query(SurpriseBagItem).filter(
+                SurpriseBagItem.surprise_bag_id == bag.id
+            ).all()
+            
+            items_list = []
+            for item in items:
+                items_list.append({
+                    "product_id": item.product_id,
+                    "name": item.product_name,
+                    "price": item.product_price,
+                    "quantity": item.quantity
+                })
+            
+            result.append({
+                "id": bag.id,
+                "supplier_id": bag.supplier_id,
+                "supplier_name": supplier.business_name,
+                "name": bag.name,
+                "description": bag.description or "",
+                "original_price": bag.original_price,
+                "discounted_price": bag.discounted_price,
+                "discount_percentage": bag.discount_percentage,
+                "image_url": bag.image_url,
+                "available_quantity": bag.available_quantity,
+                "hide_contents": bag.hide_contents,
+                "city": bag.city or "",
+                "items": items_list
+            })
     
-    return result
+    return JSONResponse(content=result)
 # ============ ОЦЕНКА СЮРПРИЗОВ ============
 
 @app.get("/api/surprise-bags/{bag_id}/rating")
