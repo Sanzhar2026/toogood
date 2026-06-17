@@ -1,81 +1,50 @@
-# fix_lowercase_final.py
+# fix_to_uppercase.py
 import psycopg2
 
 DATABASE_URL = "postgresql://toogood_db_a3k0_user:2tWztMrzy1VCriWHefthkLBK1EOeeYnG@dpg-d8eo51rbc2fs73coebs0-a.frankfurt-postgres.render.com/toogood_db_a3k0?sslmode=require"
 
-def fix_to_lowercase():
+def fix_uppercase():
     try:
         conn = psycopg2.connect(DATABASE_URL)
         conn.autocommit = True
         cur = conn.cursor()
         
-        print("=" * 60)
-        print("🔄 ПЕРЕВОД СТАТУСОВ В LOWERcase")
-        print("=" * 60)
+        print("=" * 50)
+        print("CONVERT STATUSES TO UPPERCASE")
+        print("=" * 50)
         
-        # 1. Сначала меняем тип колонки на VARCHAR
-        print("\n1️⃣ Меняем тип колонки на VARCHAR...")
-        cur.execute("ALTER TABLE orders ALTER COLUMN status TYPE VARCHAR(50)")
-        print("   ✅ Теперь VARCHAR")
+        # Обновляем статусы
+        updates = [
+            ('pending', 'PENDING'),
+            ('confirmed', 'CONFIRMED'),
+            ('preparing', 'PREPARING'),
+            ('ready_for_pickup', 'READY_FOR_PICKUP'),
+            ('picked_up', 'PICKED_UP'),
+            ('out_for_delivery', 'OUT_FOR_DELIVERY'),
+            ('nearby', 'NEARBY'),
+            ('delivered', 'DELIVERED'),
+            ('cancelled', 'CANCELLED'),
+        ]
         
-        # 2. Обновляем статусы на lowercase
-        print("\n2️⃣ Обновляем статусы на lowercase...")
-        cur.execute("UPDATE orders SET status = LOWER(status)")
-        print(f"   ✅ Обновлено {cur.rowcount} записей")
+        for old, new in updates:
+            cur.execute(f"UPDATE orders SET status = '{new}' WHERE status = '{old}'")
+            print(f"   {old} -> {new}: {cur.rowcount} rows")
         
-        # 3. Проверяем текущие статусы
-        print("\n3️⃣ Текущие статусы:")
-        cur.execute("SELECT DISTINCT status FROM orders")
-        for row in cur.fetchall():
-            print(f"   • {row[0]}")
-        
-        # 4. Удаляем старый enum
-        print("\n4️⃣ Удаление старого enum...")
-        cur.execute("DROP TYPE IF EXISTS orderstatus CASCADE")
-        print("   ✅ Старый enum удален")
-        
-        # 5. Создаем новый enum с lowercase
-        print("\n5️⃣ Создание нового enum...")
-        cur.execute("""
-            CREATE TYPE orderstatus AS ENUM (
-                'pending', 'confirmed', 'preparing', 
-                'ready_for_pickup', 'picked_up', 
-                'out_for_delivery', 'nearby', 'delivered', 'cancelled'
-            )
-        """)
-        print("   ✅ Новый enum создан")
-        
-        # 6. Конвертируем обратно в enum
-        print("\n6️⃣ Конвертация в enum...")
-        cur.execute("ALTER TABLE orders ALTER COLUMN status TYPE orderstatus USING status::orderstatus")
-        print("   ✅ Колонка конвертирована в enum")
-        
-        # 7. Устанавливаем DEFAULT
-        print("\n7️⃣ Установка DEFAULT...")
-        cur.execute("ALTER TABLE orders ALTER COLUMN status SET DEFAULT 'pending'")
-        print("   ✅ DEFAULT установлен")
-        
-        # 8. Проверяем финальный результат
-        print("\n8️⃣ Финальная проверка:")
-        cur.execute("SELECT enum_range(NULL::orderstatus)")
-        print(f"   Enum values: {cur.fetchone()[0]}")
-        
+        # Проверяем
         cur.execute("SELECT status, COUNT(*) FROM orders GROUP BY status")
-        print("\n   Статусы заказов:")
+        print("\nOrders by status:")
         for row in cur.fetchall():
-            print(f"      • {row[0]}: {row[1]} заказов")
+            print(f"   {row[0]}: {row[1]}")
         
         cur.close()
         conn.close()
         
-        print("\n" + "=" * 60)
-        print("✅ ГОТОВО! Теперь все статусы в lowercase!")
-        print("=" * 60)
+        print("\n" + "=" * 50)
+        print("DONE! All statuses are now UPPERCASE!")
+        print("=" * 50)
         
     except Exception as e:
-        print(f"\n❌ Ошибка: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
-    fix_to_lowercase()
+    fix_uppercase()
