@@ -8653,7 +8653,6 @@ async def delete_avatar(
         raise HTTPException(status_code=404, detail="No avatar found")
     
     return {"success": True, "deleted": deleted}
-# backend/main.py - ПОЛНЫЙ ЭНДПОИНТ create_surprise_bag
 
 @app.post("/api/supplier/surprise-bags")
 async def create_surprise_bag(
@@ -8661,138 +8660,84 @@ async def create_surprise_bag(
     supplier: Supplier = Depends(verify_supplier_token),  # ← JWT!
     db: Session = Depends(get_db)
 ):
-    """Создание сюрприз-пакета с выбором блюд и автоматическим городом"""
+    """Создание сюрприз-пакета с выбором блюд и типа (Surprise/Search)"""
     
-    try:
-        data = await request.json()
-        
-        # Получаем данные из формы
-        name = data.get("name")
-        description = data.get("description")
-        original_price = data.get("original_price")
-        discounted_price = data.get("discounted_price")
-        discount_percentage = data.get("discount_percentage")
-        available_quantity = data.get("available_quantity", 1)
-        total_quantity = data.get("total_quantity", available_quantity)
-        pickup_start_time = data.get("pickup_start_time")
-        pickup_end_time = data.get("pickup_end_time")
-        image_url = data.get("image_url")
-        products = data.get("products", [])
-        
-        # ✅ НОВОЕ ПОЛЕ - тип сюрприза (скрытый/открытый)
-        hide_contents = data.get("hide_contents", False)
-        
-        # ✅ Город берется из профиля поставщика
-        city = supplier.city
-        
-        if not city:
-            # Если у поставщика нет города, пробуем определить по координатам
-            if supplier.lat and supplier.lon:
-                city = get_city_from_coords(supplier.lat, supplier.lon)
-            if not city:
-                city = "Алматы"  # Город по умолчанию
-        
-        print(f"📦 Создание сюрприза для города: {city}")
-        
-        # Валидация
-        if not name:
-            return JSONResponse(
-                status_code=400,
-                content={"success": False, "message": "Название обязательно"}
-            )
-        
-        if original_price <= 0 or discounted_price <= 0:
-            return JSONResponse(
-                status_code=400,
-                content={"success": False, "message": "Цена должна быть больше 0"}
-            )
-        
-        if discounted_price > original_price:
-            return JSONResponse(
-                status_code=400,
-                content={"success": False, "message": "Цена со скидкой не может быть больше оригинальной"}
-            )
-        
-        if len(products) == 0:
-            return JSONResponse(
-                status_code=400,
-                content={"success": False, "message": "Добавьте хотя бы один товар"}
-            )
-        
-        # Создаем сюрприз-пакет
-        bag = SurpriseBag(
-            supplier_id=supplier.id,
-            name=name,
-            description=description,
-            original_price=original_price,
-            discounted_price=discounted_price,
-            discount_percentage=discount_percentage,
-            image_url=image_url,
-            available_quantity=available_quantity,
-            total_quantity=total_quantity,
-            pickup_start_time=pickup_start_time,
-            pickup_end_time=pickup_end_time,
-            is_active=True,
-            created_at=datetime.utcnow(),
-            city=city,  # ← ГОРОД ИЗ ПРОФИЛЯ ПОСТАВЩИКА
-            hide_contents=hide_contents
+    data = await request.json()
+    
+    # Получаем данные из формы
+    name = data.get("name")
+    description = data.get("description")
+    original_price = data.get("original_price")
+    discounted_price = data.get("discounted_price")
+    discount_percentage = data.get("discount_percentage")
+    available_quantity = data.get("available_quantity", 1)
+    total_quantity = data.get("total_quantity", available_quantity)
+    pickup_start_time = data.get("pickup_start_time")
+    pickup_end_time = data.get("pickup_end_time")
+    image_url = data.get("image_url")
+    products = data.get("products", [])
+    
+    # ✅ НОВОЕ ПОЛЕ - тип сюрприза
+    # False (default) = Search type - состав виден на странице поиска
+    # True = Surprise type - состав скрыт на странице сюрпризов
+    hide_contents = data.get("hide_contents", False)
+    
+    # Создаем сюрприз-пакет
+    bag = SurpriseBag(
+        supplier_id=supplier.id,  # ← берем из JWT, а не из cookies!
+        name=name,
+        description=description,
+        original_price=original_price,
+        discounted_price=discounted_price,
+        discount_percentage=discount_percentage,
+        image_url=image_url,
+        available_quantity=available_quantity,
+        total_quantity=total_quantity,
+        pickup_start_time=pickup_start_time,
+        pickup_end_time=pickup_end_time,
+        is_active=True,
+        created_at=datetime.utcnow(),
+        hide_contents=hide_contents  # ← ДОБАВЛЯЕМ ТИП
+    )
+    db.add(bag)
+    db.flush()
+    
+    # Сохраняем выбранные блюда (всегда сохраняем, даже если скрыто)
+    for product in products:
+        bag_item = SurpriseBagItem(
+            surprise_bag_id=bag.id,
+            product_id=product.get("id"),
+            product_name=product.get("name"),
+            product_price=product.get("price"),
+            quantity=product.get("quantity", 1)
         )
-        db.add(bag)
-        db.flush()
-        
-        # Сохраняем выбранные блюда
-        for product in products:
-            bag_item = SurpriseBagItem(
-                surprise_bag_id=bag.id,
-                product_id=product.get("id"),
-                product_name=product.get("name"),
-                product_price=product.get("price"),
-                quantity=product.get("quantity", 1)
-            )
-            db.add(bag_item)
-        
-        db.commit()
-        
-        # Определяем тип для сообщения
-        bag_type_display = "Скрытый (Surprise)" if hide_contents else "Открытый (Search)"
-        
-        # Отправляем WebSocket уведомление
-        try:
-            await manager.broadcast({
-                "type": "new_bag",
-                "data": {
-                    "id": bag.id,
-                    "name": bag.name,
-                    "supplier_name": supplier.business_name,
-                    "discounted_price": bag.discounted_price,
-                    "original_price": bag.original_price,
-                    "discount_percentage": bag.discount_percentage,
-                    "image_url": bag.image_url,
-                    "hide_contents": bag.hide_contents,
-                    "city": bag.city
-                }
-            }, channel="surprise_bags")
-        except Exception as e:
-            print(f"⚠️ WebSocket error: {e}")
-        
-        return {
-            "success": True,
-            "bag_id": bag.id,
-            "hide_contents": bag.hide_contents,
-            "city": bag.city,
-            "type": bag_type_display,
-            "message": f"Сюрприз создан! Город: {city}, Тип: {bag_type_display}"
-        }
-        
-    except Exception as e:
-        print(f"❌ Ошибка создания сюрприза: {e}")
-        import traceback
-        traceback.print_exc()
-        db.rollback()
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "message": str(e)}
-        )
+        db.add(bag_item)
+    
+    db.commit()
+    
+    # Определяем тип для сообщения
+    bag_type_display = "Surprise (скрытый состав)" if hide_contents else "Search (видимый состав)"
+    
+    # Отправляем WebSocket уведомление
+    await notify_new_surprise({
+        "id": bag.id,
+        "name": bag.name,
+        "supplier_name": supplier.business_name,
+        "discounted_price": bag.discounted_price,
+        "original_price": bag.original_price,
+        "discount_percentage": bag.discount_percentage,
+        "image_url": bag.image_url,
+        "hide_contents": bag.hide_contents  # ← ДОБАВЛЯЕМ В УВЕДОМЛЕНИЕ
+    })
+    
+    return {
+        "success": True, 
+        "bag_id": bag.id, 
+        "hide_contents": bag.hide_contents,
+        "type": bag_type_display,
+        "message": f"Сюрприз создан. Тип: {bag_type_display}"
+    }
+
 
 @app.delete("/api/admin/force-delete-all")
 async def admin_force_delete_all(db: Session = Depends(get_db)):
