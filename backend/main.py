@@ -8518,31 +8518,19 @@ async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
 # backend/main.py - ИСПРАВЛЕННЫЕ ЭНДПОИНТЫ С jsonable_encoder
 
 from fastapi.encoders import jsonable_encoder
+
+
 @app.get("/api/surprise-bags/surprise")
 async def get_surprise_bags_hidden(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """ВРЕМЕННО - возвращаем все активные сюрпризы без фильтрации"""
+    """ВРЕМЕННО - убираем все фильтры для теста"""
     
-    # ❌ ВРЕМЕННО УБИРАЕМ ВСЕ ФИЛЬТРЫ
-    # lat = request.query_params.get("lat")
-    # lon = request.query_params.get("lon")
-    # user_city = None
-    # if lat and lon:
-    #     try:
-    #         lat = float(lat)
-    #         lon = float(lon)
-    #         user_city = get_city_from_coords(lat, lon)
-    #     except:
-    #         pass
-    
-    # ✅ Просто все активные сюрпризы
+    # ✅ ВРЕМЕННО: возвращаем все активные сюрпризы без фильтров
     bags = db.query(SurpriseBag).filter(
         SurpriseBag.is_active == True,
         SurpriseBag.available_quantity > 0
-        # SurpriseBag.hide_contents == True,  # ← ЗАКОММЕНТИРОВАНО
-        # SurpriseBag.city == user_city      # ← ЗАКОММЕНТИРОВАНО
     ).all()
     
     result = []
