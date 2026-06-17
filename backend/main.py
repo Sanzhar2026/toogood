@@ -6859,6 +6859,116 @@ async def get_supplier_rating(
         "user_rating": user_rating
     }
 
+@app.post("/api/supplier/surprise-bags")
+async def create_surprise_bag(
+    request: Request,
+    supplier: Supplier = Depends(verify_supplier_token),
+    db: Session = Depends(get_db)
+):
+    """Создание сюрприз-пакета с городом из профиля поставщика"""
+    
+    data = await request.json()
+    
+    # Получаем данные
+    name = data.get("name")
+    description = data.get("description")
+    original_price = data.get("original_price")
+    discounted_price = data.get("discounted_price")
+    discount_percentage = data.get("discount_percentage")
+    available_quantity = data.get("available_quantity", 1)
+    total_quantity = data.get("total_quantity", available_quantity)
+    pickup_start_time = data.get("pickup_start_time")
+    pickup_end_time = data.get("pickup_end_time")
+    image_url = data.get("image_url")
+    products = data.get("products", [])
+    hide_contents = data.get("hide_contents", False)
+    
+    # ✅ БЕРЕМ ГОРОД ИЗ ПРОФИЛЯ ПОСТАВЩИКА
+    city = supplier.city
+    
+    # Если у поставщика нет города, пробуем определить по координатам
+    if not city and supplier.lat and supplier.lon:
+        city = get_city_from_coords(supplier.lat, supplier.lon)
+        # Сохраняем город в профиль поставщика
+        if city:
+            supplier.city = city
+            db.commit()
+    
+    # Если всё еще нет - ставим город по умолчанию
+    if not city:
+        city = "Алматы"
+    
+    print(f"📦 Создание сюрприза для города: {city}")
+    
+    # Создаем сюрприз-пакет
+    bag = SurpriseBag(
+        supplier_id=supplier.id,
+        name=name,
+        description=description,
+        original_price=original_price,
+        discounted_price=discounted_price,
+        discount_percentage=discount_percentage,
+        image_url=image_url,
+        available_quantity=available_quantity,
+        total_quantity=total_quantity,
+        pickup_start_time=pickup_start_time,
+        pickup_end_time=pickup_end_time,
+        is_active=True,
+        created_at=datetime.utcnow(),
+        city=city,  # ← ИЗ ПРОФИЛЯ ПОСТАВЩИКА
+        hide_contents=hide_contents
+    )
+    db.add(bag)
+    db.flush()
+    
+    # Сохраняем выбранные блюда
+    for product in products:
+        bag_item = SurpriseBagItem(
+            surprise_bag_id=bag.id,
+            product_id=product.get("id"),
+            product_name=product.get("name"),
+            product_price=product.get("price"),
+            quantity=product.get("quantity", 1)
+        )
+        db.add(bag_item)
+    
+    db.commit()
+    
+    return {
+        "success": True, 
+        "bag_id": bag.id, 
+        "city": city,
+        "hide_contents": bag.hide_contents,
+        "message": f"Сюрприз создан в городе {city}"
+    }
+
+def get_city_from_coords(lat: float, lon: float):
+    """Определяет город по координатам. Возвращает None если город не найден."""
+    
+    CITIES = {
+        'Алматы': {'lat': 43.238, 'lon': 76.945, 'radius': 30},
+        'Астана': {'lat': 51.169, 'lon': 71.449, 'radius': 30},
+        'Шымкент': {'lat': 42.341, 'lon': 69.590, 'radius': 30},
+        'Ақтөбе': {'lat': 50.283, 'lon': 57.167, 'radius': 30},
+        'Қарағанды': {'lat': 49.801, 'lon': 73.102, 'radius': 30},
+        'Атырау': {'lat': 47.115, 'lon': 51.917, 'radius': 30},
+        'Өскемен': {'lat': 49.950, 'lon': 82.618, 'radius': 30},
+        'Павлодар': {'lat': 52.287, 'lon': 76.973, 'radius': 30},
+        'Тараз': {'lat': 42.899, 'lon': 71.365, 'radius': 30},
+        'Қызылорда': {'lat': 44.848, 'lon': 65.482, 'radius': 30},
+    }
+    
+    closest_city = None
+    min_distance = float('inf')
+    
+    for city, coords in CITIES.items():
+        distance = haversine_distance(lat, lon, coords['lat'], coords['lon'])
+        if distance < coords['radius'] and distance < min_distance:
+            min_distance = distance
+            closest_city = city
+    
+    return closest_city  # Возвращаем None если город не найден
+
 
 @app.post("/api/suppliers/{supplier_id}/rate")
 async def rate_supplier(
