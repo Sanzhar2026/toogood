@@ -6945,17 +6945,20 @@ async def rate_supplier(
 
 @app.get("/api/surprise-bags/{bag_id}/rating")
 async def get_surprise_bag_rating(
-    bag_id: int, 
-    request: Request, 
+    bag_id: int,
+    request: Request,
     db: Session = Depends(get_db)
 ):
-    """Получить рейтинг сюрприза и оценку текущего пользователя"""
+    """Получить рейтинг сюрприза"""
     
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
     if not bag:
-        return JSONResponse(status_code=404, content={"success": False, "message": "Surprise bag not found"})
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Surprise bag not found"}
+        )
     
-    # Получаем оценку текущего пользователя из Bearer token
+    # Получаем оценку текущего пользователя
     user_rating = None
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
