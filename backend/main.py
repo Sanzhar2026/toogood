@@ -3057,7 +3057,42 @@ async def find_nearest_courier(request: Request, db: Session = Depends(get_db)):
             "success": False,
             "message": "Нет доступных курьеров поблизости"
         }
+
+@app.get("/api/surprise-bags/surprise")
+async def get_surprise_bags_hidden(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """ВРЕМЕННО - убираем все фильтры для теста"""
     
+    # ✅ ВРЕМЕННО: возвращаем все активные сюрпризы без фильтров
+    bags = db.query(SurpriseBag).filter(
+        SurpriseBag.is_active == True,
+        SurpriseBag.available_quantity > 0
+    ).all()
+    
+    result = []
+    for bag in bags:
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        if supplier and supplier.is_active:
+            result.append({
+                "id": bag.id,
+                "supplier_id": bag.supplier_id,
+                "supplier_name": supplier.business_name or "",
+                "name": bag.name or "",
+                "description": bag.description or "",
+                "original_price": float(bag.original_price) if bag.original_price else 0,
+                "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
+                "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
+                "image_url": bag.image_url or "",
+                "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
+                "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
+                "city": bag.city or "",
+                "items": [],
+                "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
+            })
+    
+    return JSONResponse(content=result)
 
 # main.py - обновление геолокации курьера
 
@@ -8520,41 +8555,6 @@ async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
 from fastapi.encoders import jsonable_encoder
 
 
-@app.get("/api/surprise-bags/surprise")
-async def get_surprise_bags_hidden(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """ВРЕМЕННО - убираем все фильтры для теста"""
-    
-    # ✅ ВРЕМЕННО: возвращаем все активные сюрпризы без фильтров
-    bags = db.query(SurpriseBag).filter(
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
-    ).all()
-    
-    result = []
-    for bag in bags:
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        if supplier and supplier.is_active:
-            result.append({
-                "id": bag.id,
-                "supplier_id": bag.supplier_id,
-                "supplier_name": supplier.business_name or "",
-                "name": bag.name or "",
-                "description": bag.description or "",
-                "original_price": float(bag.original_price) if bag.original_price else 0,
-                "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
-                "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
-                "image_url": bag.image_url or "",
-                "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
-                "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
-                "city": bag.city or "",
-                "items": [],
-                "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
-            })
-    
-    return JSONResponse(content=result)
 
 @app.get("/api/surprise-bags")
 async def get_all_surprise_bags(
