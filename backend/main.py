@@ -8405,38 +8405,32 @@ async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
 # backend/main.py - ИСПРАВЛЕННЫЕ ЭНДПОИНТЫ С jsonable_encoder
 
 from fastapi.encoders import jsonable_encoder
-
 @app.get("/api/surprise-bags/surprise")
 async def get_surprise_bags_hidden(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Получить скрытые сюрпризы для страницы Surprise"""
+    """ВРЕМЕННО - возвращаем все активные сюрпризы без фильтрации"""
     
-    lat = request.query_params.get("lat")
-    lon = request.query_params.get("lon")
+    # ❌ ВРЕМЕННО УБИРАЕМ ВСЕ ФИЛЬТРЫ
+    # lat = request.query_params.get("lat")
+    # lon = request.query_params.get("lon")
+    # user_city = None
+    # if lat and lon:
+    #     try:
+    #         lat = float(lat)
+    #         lon = float(lon)
+    #         user_city = get_city_from_coords(lat, lon)
+    #     except:
+    #         pass
     
-    user_city = None
-    if lat and lon:
-        try:
-            lat = float(lat)
-            lon = float(lon)
-            user_city = get_city_from_coords(lat, lon)
-        except:
-            pass
-    
-    print(f"📍 Surprise страница, пользователь из: {user_city or 'не определен'}")
-    
-    query = db.query(SurpriseBag).filter(
+    # ✅ Просто все активные сюрпризы
+    bags = db.query(SurpriseBag).filter(
         SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0,
-        SurpriseBag.hide_contents == True
-    )
-    
-    if user_city:
-        query = query.filter(SurpriseBag.city == user_city)
-    
-    bags = query.all()
+        SurpriseBag.available_quantity > 0
+        # SurpriseBag.hide_contents == True,  # ← ЗАКОММЕНТИРОВАНО
+        # SurpriseBag.city == user_city      # ← ЗАКОММЕНТИРОВАНО
+    ).all()
     
     result = []
     for bag in bags:
@@ -8459,9 +8453,7 @@ async def get_surprise_bags_hidden(
                 "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
             })
     
-    # ✅ Используем jsonable_encoder для безопасной сериализации
-    return JSONResponse(content=jsonable_encoder(result))
-
+    return JSONResponse(content=result)
 
 @app.get("/api/surprise-bags")
 async def get_all_surprise_bags(
