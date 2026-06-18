@@ -1734,9 +1734,13 @@ async def admin_mark_reservation_paid(
         )
 
 manager = ConnectionManager()
+
 @app.post("/api/courier/arrived/{order_id}")
 async def courier_arrived(order_id: int, request: Request):
-    """Курьер прибыл к клиенту - БЕЗ delivery_status"""
+    """Курьер прибыл к клиенту - МЕНЯЕМ СТАТУС ЗАКАЗА НА 'nearby'"""
+    
+    print("=" * 50)
+    print(f"📍 КУРЬЕР ПРИБЫЛ К КЛИЕНТУ - ЗАКАЗ #{order_id}")
     
     # Проверка токена
     auth_header = request.headers.get("Authorization")
@@ -1748,7 +1752,9 @@ async def courier_arrived(order_id: int, request: Request):
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-    except:
+        print(f"🔑 Курьер: {user_id}")
+    except Exception as e:
+        print(f"❌ Ошибка токена: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
     
     conn = get_db_connection()
@@ -1757,7 +1763,7 @@ async def courier_arrived(order_id: int, request: Request):
     try:
         # 1. Проверяем заказ
         cur.execute("""
-            SELECT id, assigned_courier_id, user_id, order_number
+            SELECT id, assigned_courier_id, user_id, order_number, status
             FROM orders 
             WHERE id = %s
         """, (order_id,))
@@ -1771,20 +1777,32 @@ async def courier_arrived(order_id: int, request: Request):
         assigned_courier = order[1]
         customer_user_id = order[2]
         order_number = order[3]
+        current_status = order[4]
+        
+        print(f"📋 Текущий статус заказа: {current_status}")
         
         if assigned_courier != int(user_id):
             cur.close()
             conn.close()
             raise HTTPException(status_code=403, detail="Order not assigned to you")
         
-        # 2. Обновляем курьера
+        # 2. ✅ МЕНЯЕМ СТАТУС ЗАКАЗА НА 'nearby'
+        cur.execute("""
+            UPDATE orders 
+            SET status = 'nearby'
+            WHERE id = %s
+        """, (order_id,))
+        
+        print(f"✅ Статус заказа изменен с '{current_status}' на 'nearby'")
+        
+        # 3. Обновляем курьера
         cur.execute("""
             UPDATE courier_profiles 
             SET current_order_status = 'nearby'
             WHERE user_id = %s
         """, (int(user_id),))
         
-        # 3. Добавляем в трекинг - БЕЗ delivery_status!
+        # 4. Добавляем в трекинг
         cur.execute("""
             INSERT INTO order_tracking 
             (order_id, status, message, created_at)
@@ -1795,27 +1813,48 @@ async def courier_arrived(order_id: int, request: Request):
         cur.close()
         conn.close()
         
-        # 4. Отправляем уведомление клиенту
+        print(f"✅ Заказ #{order_id} помечен как 'nearby'")
+        
+        # 5. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КЛИЕНТУ
         try:
             if customer_user_id:
+                # Получаем имя курьера для уведомления
+                conn2 = get_db_connection()
+                cur2 = conn2.cursor()
+                cur2.execute("""
+                    SELECT first_name, last_name, phone
+                    FROM courier_profiles 
+                    WHERE user_id = %s
+                """, (int(user_id),))
+                courier_info = cur2.fetchone()
+                cur2.close()
+                conn2.close()
+                
+                courier_name = f"{courier_info[0]} {courier_info[1]}" if courier_info else "Курьер"
+                courier_phone = courier_info[2] if courier_info else ""
+                
                 await manager.broadcast({
                     "type": "courier_arrived",
                     "data": {
                         "order_id": order_id,
                         "order_number": order_number,
+                        "courier_name": courier_name,
+                        "courier_phone": courier_phone,
                         "status": "nearby",
-                        "message": f"📍 Курьер прибыл к вам!",
+                        "message": f"🚪 Курьер {courier_name} прибыл к вам! Выходите за заказом.",
                         "timestamp": datetime.utcnow().isoformat()
                     }
                 }, channel=f"user_{customer_user_id}")
-                print(f"📢 Уведомление отправлено клиенту {customer_user_id}")
+                print(f"📢 Уведомление о прибытии отправлено КЛИЕНТУ {customer_user_id}")
         except Exception as e:
             print(f"⚠️ Не удалось отправить уведомление: {e}")
         
         return {
             "success": True,
             "message": "Уведомление о прибытии отправлено клиенту",
-            "order_id": order_id
+            "order_id": order_id,
+            "order_number": order_number,
+            "status": "nearby"  # ← ВОЗВРАЩАЕМ 'nearby'
         }
         
     except Exception as e:
@@ -1823,8 +1862,9 @@ async def courier_arrived(order_id: int, request: Request):
         cur.close()
         conn.close()
         print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-    
 
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
