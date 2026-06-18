@@ -8893,13 +8893,9 @@ async def cleanup_cancelled_orders(request: Request):
 
 
 
-
 @app.get("/api/supplier/debug-bags")
-async def debug_bags(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Диагностика - проверка полей сюрпризов"""
+async def debug_bags(request: Request):
+    """Диагностика - проверка полей сюрпризов - ЧИСТЫЙ SQL"""
     
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -8912,34 +8908,35 @@ async def debug_bags(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
         
-        supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT id FROM suppliers WHERE user_id = %s
+        """, (int(user_id),))
+        supplier = cur.fetchone()
+        
         if not supplier:
+            cur.close()
+            conn.close()
             return JSONResponse(status_code=404, content={"success": False})
         
-        # Получаем все сюрпризы
-        bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier.id).all()
+        cur.execute("""
+            SELECT 
+                id, name, is_active, available_quantity,
+                created_at, hide_contents, city
+            FROM surprise_bags 
+            WHERE supplier_id = %s
+        """, (supplier['id'],))
         
-        result = []
-        for bag in bags:
-            result.append({
-                "id": bag.id,
-                "name": bag.name,
-                "is_active": bag.is_active,
-                "has_is_active": hasattr(bag, 'is_active'),
-                "status": getattr(bag, 'status', None),
-                "all_attributes": [attr for attr in dir(bag) if not attr.startswith('_')]
-            })
+        bags = cur.fetchall()
+        cur.close()
+        conn.close()
         
-        return {
-            "bags": result,
-            "columns": [c.name for c in SurpriseBag.__table__.columns]
-        }
+        return {"bags": bags}
         
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-
 
 
 
@@ -9464,15 +9461,17 @@ async def force_delete_all_bags(db: Session = Depends(get_db)):
 
 @app.get("/api/supplier/orders")
 async def get_supplier_orders(
-    request: Request,
-    db: Session = Depends(get_db)
+    request: Request
 ):
-    """API для получения заказов поставщика (для JS)"""
+    """API для получения заказов поставщика - ЧИСТЫЙ SQL"""
     
     # Проверяем токен
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": "Unauthorized"}
+        )
     
     token = auth_header.split(" ")[1]
     
@@ -9481,41 +9480,102 @@ async def get_supplier_orders(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
         if payload.get("role") != "supplier":
-            return JSONResponse(status_code=403, content={"success": False, "message": "Forbidden"})
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "message": "Forbidden"}
+            )
         
         supplier_id = payload.get("supplier_id")
         if not supplier_id:
             user_id = int(payload.get("sub"))
-            supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
-            if supplier:
-                supplier_id = supplier.id
+            # Получаем supplier_id по user_id
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM suppliers WHERE user_id = %s", (user_id,))
+            result = cur.fetchone()
+            cur.close()
+            conn.close()
+            if result:
+                supplier_id = result[0]
         
         if not supplier_id:
-            return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Supplier not found"}
+            )
         
-        # Получаем заказы
-        orders = db.query(Order).filter(Order.supplier_id == supplier_id).order_by(Order.created_at.desc()).all()
+        # ✅ ЧИСТЫЙ SQL - без SQLAlchemy!
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
+        cur.execute("""
+            SELECT 
+                o.id,
+                o.order_number,
+                o.status::text as status,
+                o.amount_paid,
+                o.customer_address,
+                o.created_at,
+                o.delivery_deadline,
+                o.assigned_courier_id,
+                sb.name as bag_name,
+                u.full_name as customer_name,
+                u.phone as customer_phone
+            FROM orders o
+            LEFT JOIN surprise_bags sb ON sb.id = o.surprise_bag_id
+            LEFT JOIN users u ON u.id = o.user_id
+            WHERE o.supplier_id = %s
+            ORDER BY o.created_at DESC
+        """, (supplier_id,))
+        
+        orders = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        # Форматируем результат
         orders_list = []
         for order in orders:
-            bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+            # Получаем имя курьера если назначен
+            courier_name = None
+            if order['assigned_courier_id']:
+                conn2 = get_db_connection()
+                cur2 = conn2.cursor()
+                cur2.execute("""
+                    SELECT first_name, last_name 
+                    FROM courier_profiles 
+                    WHERE user_id = %s
+                """, (order['assigned_courier_id'],))
+                courier = cur2.fetchone()
+                cur2.close()
+                conn2.close()
+                if courier:
+                    courier_name = f"{courier[0]} {courier[1]}"
+            
             orders_list.append({
-                "id": order.id,
-                "order_number": order.order_number or f"ORD-{order.id}",
-                "customer_address": order.customer_address or "Адрес не указан",
-                "bag_name": bag.name if bag else "Сюрприз",
-                "amount_paid": order.amount_paid or 0,
-                "status": order.status.value if order.status else "pending",
-                "created_at": order.created_at.isoformat() if order.created_at else None,
-                "assigned_courier_name": None,  # Добавь если есть связь с курьером
-                "delivery_deadline": order.delivery_deadline.isoformat() if hasattr(order, 'delivery_deadline') and order.delivery_deadline else None
+                "id": order['id'],
+                "order_number": order['order_number'] or f"ORD-{order['id']}",
+                "customer_address": order['customer_address'] or "Адрес не указан",
+                "bag_name": order['bag_name'] or "Сюрприз",
+                "amount_paid": float(order['amount_paid']) if order['amount_paid'] else 0,
+                "status": order['status'] or "pending",
+                "created_at": order['created_at'].isoformat() if order['created_at'] else None,
+                "assigned_courier_name": courier_name,
+                "delivery_deadline": order['delivery_deadline'].isoformat() if order['delivery_deadline'] else None
             })
         
         return {"success": True, "orders": orders_list}
         
     except Exception as e:
         print(f"Error getting supplier orders: {e}")
-        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
+    
+
+
 
 @app.get("/api/supplier/stats")
 async def get_supplier_stats(request: Request, db: Session = Depends(get_db)):
