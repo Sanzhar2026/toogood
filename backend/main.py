@@ -1865,33 +1865,40 @@ async def courier_arrived(order_id: int, request: Request):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
     order_id: int,
     request: Request
 ):
-    """Клиент подтверждает получение заказа"""
+    """Клиент подтверждает получение заказа - ТОЛЬКО Bearer Token"""
     
-    # Проверка токена или cookie
+    # ✅ ТОЛЬКО Bearer токен
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        user_id = request.cookies.get("user_id")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Not authenticated")
-    else:
-        token = auth_header.split(" ")[1]
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-        except:
-            raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        print(f"🔑 user_id из Bearer токена: {user_id}")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token")
     
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        # 1. Проверяем заказ
+        # Проверяем заказ
         cur.execute("""
             SELECT id, user_id, status, assigned_courier_id, order_number, amount_paid
             FROM orders 
@@ -1910,11 +1917,15 @@ async def customer_confirm_delivery(
         order_number = order[4]
         amount_paid = order[5]
         
+        print(f"📋 Заказ #{order_id}: статус={order_status}, клиент={order_user_id}, user_id={user_id}")
+        
+        # Проверяем, что заказ принадлежит клиенту
         if int(order_user_id) != int(user_id):
             cur.close()
             conn.close()
             raise HTTPException(status_code=403, detail="Not your order")
         
+        # Проверяем, что заказ в статусе 'nearby'
         if order_status != 'nearby':
             cur.close()
             conn.close()
@@ -1923,7 +1934,7 @@ async def customer_confirm_delivery(
                 content={"success": False, "message": f"Заказ не готов к получению. Статус: {order_status}"}
             )
         
-        # 2. Меняем статус на 'delivered'
+        # Меняем статус на 'delivered'
         cur.execute("""
             UPDATE orders 
             SET status = 'delivered',
@@ -1931,7 +1942,7 @@ async def customer_confirm_delivery(
             WHERE id = %s
         """, (order_id,))
         
-        # 3. ✅ ОСВОБОЖДАЕМ КУРЬЕРА (БЕЗ last_order_completed_at)
+        # Освобождаем курьера
         if assigned_courier:
             cur.execute("""
                 UPDATE courier_profiles 
@@ -1944,7 +1955,7 @@ async def customer_confirm_delivery(
             """, (assigned_courier,))
             print(f"✅ Курьер {assigned_courier} освобожден")
         
-        # 4. Добавляем в трекинг
+        # Добавляем в трекинг
         cur.execute("""
             INSERT INTO order_tracking 
             (order_id, status, message, created_at)
@@ -1955,23 +1966,9 @@ async def customer_confirm_delivery(
         cur.close()
         conn.close()
         
-        # 5. ✅ УВЕДОМЛЯЕМ КУРЬЕРА
+        # Отправляем уведомление курьеру
         try:
             if assigned_courier:
-                # Получаем имя курьера
-                conn2 = get_db_connection()
-                cur2 = conn2.cursor()
-                cur2.execute("""
-                    SELECT first_name, last_name 
-                    FROM courier_profiles 
-                    WHERE user_id = %s
-                """, (assigned_courier,))
-                courier = cur2.fetchone()
-                cur2.close()
-                conn2.close()
-                
-                courier_name = f"{courier[0]} {courier[1]}" if courier else "Курьер"
-                
                 await manager.broadcast({
                     "type": "delivery_confirmed",
                     "data": {
@@ -1992,8 +1989,7 @@ async def customer_confirm_delivery(
             "message": "Спасибо! Заказ получен.",
             "order_id": order_id,
             "order_number": order_number,
-            "status": "delivered",
-            "courier_freed": True
+            "status": "delivered"
         }
         
     except Exception as e:
@@ -2004,7 +2000,6 @@ async def customer_confirm_delivery(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
 # backend/main.py - ЕДИНСТВЕННЫЙ эндпоинт для take-order
 
 @app.post("/api/courier/take-order/{order_id}")
