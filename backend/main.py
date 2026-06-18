@@ -342,7 +342,7 @@ def get_user_id_from_request(request: Request) -> int | None:
 # backend/main.py
 @app.post("/api/courier/pickup-order/{order_id}")
 async def courier_pickup_order(order_id: int, request: Request):
-    """Курьер забрал заказ - ЧИСТЫЙ SQL"""
+    """Курьер забрал заказ из ресторана - БЕЗ delivery_status"""
     
     # Проверка токена
     auth_header = request.headers.get("Authorization")
@@ -361,24 +361,54 @@ async def courier_pickup_order(order_id: int, request: Request):
     cur = conn.cursor()
     
     try:
-        # 1. Проверяем заказ
+        # 1. Получаем курьера
         cur.execute("""
-            SELECT id, status, assigned_courier_id
+            SELECT first_name, last_name
+            FROM courier_profiles 
+            WHERE user_id = %s
+        """, (int(user_id),))
+        
+        courier = cur.fetchone()
+        if not courier:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Courier not found")
+        
+        courier_name = f"{courier[0]} {courier[1]}"
+        
+        # 2. Проверяем заказ
+        cur.execute("""
+            SELECT id, status, assigned_courier_id, user_id, order_number
             FROM orders 
             WHERE id = %s
         """, (order_id,))
         
         order = cur.fetchone()
         if not order:
+            cur.close()
+            conn.close()
             raise HTTPException(status_code=404, detail="Order not found")
         
-        if order[1] != 'ready_for_pickup':
-            raise HTTPException(status_code=400, detail=f"Заказ не готов к выдаче. Статус: {order[1]}")
+        order_status = order[1]
+        assigned_courier = order[2]
+        customer_user_id = order[3]
+        order_number = order[4]
         
-        if order[2] != int(user_id):
-            raise HTTPException(status_code=403, detail="Заказ назначен другому курьеру")
+        # 3. Проверки
+        if assigned_courier != int(user_id):
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=403, detail="Order not assigned to you")
         
-        # 2. Обновляем статус заказа
+        if order_status != 'ready_for_pickup':
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": f"Заказ не готов к выдаче. Статус: {order_status}"}
+            )
+        
+        # 4. Обновляем заказ - БЕЗ delivery_status!
         cur.execute("""
             UPDATE orders 
             SET status = 'picked_up',
@@ -387,38 +417,62 @@ async def courier_pickup_order(order_id: int, request: Request):
             WHERE id = %s
         """, (order_id,))
         
-        # 3. Обновляем статус курьера
+        # 5. Обновляем курьера
         cur.execute("""
             UPDATE courier_profiles 
             SET current_order_status = 'picked_up'
             WHERE user_id = %s
         """, (int(user_id),))
         
-        # 4. Добавляем в трекинг
+        # 6. Добавляем в трекинг - БЕЗ delivery_status!
         cur.execute("""
             INSERT INTO order_tracking 
-            (order_id, status, delivery_status, message, created_at)
-            VALUES (%s, 'picked_up', 'en_route', 'Курьер забрал заказ из ресторана', NOW())
+            (order_id, status, message, created_at)
+            VALUES (%s, 'picked_up', 'Курьер забрал заказ из ресторана', NOW())
         """, (order_id,))
         
         conn.commit()
         cur.close()
         conn.close()
         
+        print(f"✅ Курьер {courier_name} забрал заказ #{order_id}")
+        
+        # 7. Отправляем уведомление клиенту
+        try:
+            if customer_user_id:
+                await manager.broadcast({
+                    "type": "order_picked_up",
+                    "data": {
+                        "order_id": order_id,
+                        "order_number": order_number,
+                        "courier_name": courier_name,
+                        "status": "picked_up",
+                        "message": f"📦 Курьер {courier_name} забрал ваш заказ и едет к вам!",
+                        "delivery_deadline": (datetime.utcnow() + timedelta(minutes=30)).isoformat(),
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                }, channel=f"user_{customer_user_id}")
+                print(f"📢 Уведомление отправлено клиенту {customer_user_id}")
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление: {e}")
+        
         return {
             "success": True,
-            "message": "Заказ забран! Едем к клиенту.",
+            "message": "Заказ забран из ресторана! Едем к клиенту.",
             "order_id": order_id,
-            "status": "picked_up",
-            "delivery_deadline": "через 30 минут"
+            "delivery_deadline": (datetime.utcnow() + timedelta(minutes=30)).isoformat()
         }
         
     except Exception as e:
         conn.rollback()
         cur.close()
         conn.close()
+        print(f"❌ Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+        
 @app.get("/avatar/{user_id}")
 async def get_avatar(user_id: int):
     """Получить аватар пользователя напрямую"""
@@ -1078,9 +1132,9 @@ async def admin_update_order_status(
     order_id: int,
     request: Request
 ):
-    """Админ обновляет статус заказа - ЧИСТЫЙ SQL"""
+    """Админ обновляет статус заказа - БЕЗ delivery_status"""
     
-    # Проверка токена...
+    # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -1102,7 +1156,7 @@ async def admin_update_order_status(
     cur = conn.cursor()
     
     try:
-        # Проверяем существование заказа
+        # Проверяем заказ
         cur.execute("SELECT id, status FROM orders WHERE id = %s", (order_id,))
         order = cur.fetchone()
         if not order:
@@ -1120,7 +1174,6 @@ async def admin_update_order_status(
             """, (value, order_id))
             
             if value == "paid":
-                # ✅ ВАЖНО: при оплате ставим статус 'confirmed' (доступен для курьеров)
                 cur.execute("""
                     UPDATE orders 
                     SET status = 'confirmed', 
@@ -1128,39 +1181,57 @@ async def admin_update_order_status(
                         confirmed_at = NOW()
                     WHERE id = %s
                 """, (order_id,))
-                print(f"✅ Заказ #{order_id} оплачен, статус изменен на CONFIRMED")
                 
-                # ✅ Отправляем уведомление курьерам
+                # Добавляем в трекинг - БЕЗ delivery_status!
+                cur.execute("""
+                    INSERT INTO order_tracking 
+                    (order_id, status, message, created_at)
+                    VALUES (%s, 'confirmed', 'Заказ подтвержден администратором после оплаты', NOW())
+                """, (order_id,))
+                
+                # Отправляем уведомление курьерам
                 try:
-                    # Получаем данные заказа для уведомления
-                    cur.execute("""
-                        SELECT order_number, supplier_id, amount_paid
-                        FROM orders WHERE id = %s
-                    """, (order_id,))
-                    order_data = cur.fetchone()
-                    
                     await manager.broadcast({
                         "type": "new_order",
                         "data": {
                             "order_id": order_id,
-                            "order_number": order_data[0] if order_data else None,
-                            "supplier_id": order_data[1] if order_data else None,
-                            "amount": order_data[2] if order_data else 0,
                             "timestamp": datetime.utcnow().isoformat()
                         }
                     }, channel="couriers")
-                    print(f"📢 Уведомление о заказе #{order_id} отправлено курьерам")
                 except Exception as e:
                     print(f"⚠️ Не удалось отправить уведомление: {e}")
                 
         elif field == "order_status":
-            # ✅ Статус в нижнем регистре!
+            new_status = value.lower()
             cur.execute("""
                 UPDATE orders 
                 SET status = %s
                 WHERE id = %s
-            """, (value.lower(), order_id))
-            print(f"📦 Заказ #{order_id}: статус изменен с {old_status} на {value}")
+            """, (new_status, order_id))
+            
+            # Добавляем в трекинг - БЕЗ delivery_status!
+            cur.execute("""
+                INSERT INTO order_tracking 
+                (order_id, status, message, created_at)
+                VALUES (%s, %s, 'Статус изменен администратором', NOW())
+            """, (order_id, new_status))
+            
+            # Уведомление клиенту
+            try:
+                cur.execute("SELECT user_id FROM orders WHERE id = %s", (order_id,))
+                user = cur.fetchone()
+                if user:
+                    await manager.broadcast({
+                        "type": "order_status_updated",
+                        "data": {
+                            "order_id": order_id,
+                            "old_status": old_status,
+                            "new_status": new_status,
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+                    }, channel=f"user_{user[0]}")
+            except Exception as e:
+                print(f"⚠️ Не удалось отправить уведомление: {e}")
         
         conn.commit()
         cur.close()
@@ -1179,7 +1250,6 @@ async def admin_update_order_status(
         conn.close()
         print(f"❌ Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 # Вспомогательная функция для отправки уведомлений пользователю
 async def notify_user(user_id: int, message: dict):
     """Отправить уведомление конкретному пользователю"""
@@ -1232,9 +1302,9 @@ async def admin_bulk_update_status(
 # backend/main.py - добавить
 @app.post("/api/orders")
 async def create_order(request: Request):
-    """Создание заказа после оплаты - ЧИСТЫЙ SQL (БЕЗ delivery_status)"""
+    """Создание заказа - БЕЗ delivery_status"""
     
-    # ✅ Получаем user_id из Bearer токена
+    # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -1244,14 +1314,9 @@ async def create_order(request: Request):
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token")
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.JWTError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
     
-    # Получаем данные
     data = await request.json()
     bag_id = data.get("bag_id")
     delivery_type = data.get("delivery_type", "pickup")
@@ -1263,7 +1328,7 @@ async def create_order(request: Request):
     cur = conn.cursor()
     
     try:
-        # 1. Проверяем, есть ли активная резервация
+        # Проверяем резервацию
         cur.execute("""
             SELECT id, bag_id, user_id, quantity, is_paid
             FROM temporary_reservations 
@@ -1277,7 +1342,7 @@ async def create_order(request: Request):
         
         reservation = cur.fetchone()
         
-        # 2. Получаем информацию о сюрпризе
+        # Получаем сюрприз
         cur.execute("""
             SELECT id, supplier_id, discounted_price, name
             FROM surprise_bags 
@@ -1294,14 +1359,12 @@ async def create_order(request: Request):
         bag_price = bag[2]
         bag_name = bag[3]
         
-        # 3. Генерируем номер заказа
         import secrets
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         now = datetime.utcnow()
         
-        # 4. Создаем заказ (БЕЗ delivery_status!)
         if reservation:
-            # Есть активная резервация - используем её
+            # Создаем заказ из резервации - БЕЗ delivery_status!
             cur.execute("""
                 INSERT INTO orders (
                     user_id, supplier_id, surprise_bag_id, 
@@ -1331,7 +1394,6 @@ async def create_order(request: Request):
             
             order_id = cur.fetchone()[0]
             
-            # Помечаем резервацию как оплаченную
             cur.execute("""
                 UPDATE temporary_reservations 
                 SET is_paid = true 
@@ -1339,7 +1401,7 @@ async def create_order(request: Request):
             """, (reservation[0],))
             
         else:
-            # Нет резервации - проверяем наличие товара
+            # Проверяем наличие
             cur.execute("""
                 SELECT available_quantity, is_active 
                 FROM surprise_bags 
@@ -1358,9 +1420,8 @@ async def create_order(request: Request):
             if available < 1 or not is_active:
                 cur.close()
                 conn.close()
-                raise HTTPException(status_code=400, detail=f"Товар недоступен, осталось: {available}")
+                raise HTTPException(status_code=400, detail=f"Товар недоступен")
             
-            # Уменьшаем количество
             cur.execute("""
                 UPDATE surprise_bags 
                 SET available_quantity = available_quantity - 1,
@@ -1368,7 +1429,6 @@ async def create_order(request: Request):
                 WHERE id = %s
             """, (bag_id,))
             
-            # Создаем резервацию
             cur.execute("""
                 INSERT INTO temporary_reservations (
                     bag_id, user_id, quantity, 
@@ -1384,7 +1444,7 @@ async def create_order(request: Request):
                 now + timedelta(minutes=15)
             ))
             
-            # Создаем заказ (БЕЗ delivery_status!)
+            # Создаем заказ - БЕЗ delivery_status!
             cur.execute("""
                 INSERT INTO orders (
                     user_id, supplier_id, surprise_bag_id, 
@@ -1430,11 +1490,8 @@ async def create_order(request: Request):
         conn.rollback()
         cur.close()
         conn.close()
-        print(f"❌ Ошибка создания заказа: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
         
@@ -1514,9 +1571,9 @@ async def admin_mark_reservation_paid(
     reservation_id: int,
     request: Request
 ):
-    """Админ отмечает бронирование как оплаченное и создает заказ - ЧИСТЫЙ SQL"""
+    """Админ отмечает бронирование как оплаченное - БЕЗ delivery_status"""
     
-    # ✅ ПРОВЕРКА BEARER TOKEN
+    # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
@@ -1543,7 +1600,7 @@ async def admin_mark_reservation_paid(
     cur = conn.cursor()
     
     try:
-        # 1. Проверяем резервацию
+        # Проверяем резервацию
         cur.execute("""
             SELECT id, bag_id, user_id, quantity, is_paid
             FROM temporary_reservations 
@@ -1563,9 +1620,9 @@ async def admin_mark_reservation_paid(
         reservation_user_id = reservation[2]
         reservation_quantity = reservation[3]
         
-        # 2. Получаем сюрприз
+        # Получаем сюрприз
         cur.execute("""
-            SELECT id, supplier_id, discounted_price, name, delivery_type
+            SELECT id, supplier_id, discounted_price, name
             FROM surprise_bags 
             WHERE id = %s
         """, (reservation_bag_id,))
@@ -1583,19 +1640,18 @@ async def admin_mark_reservation_paid(
         bag_price = bag[2]
         bag_name = bag[3]
         
-        # 3. Помечаем резервацию как оплаченную
+        # Помечаем резервацию как оплаченную
         cur.execute("""
             UPDATE temporary_reservations 
             SET is_paid = true 
             WHERE id = %s
         """, (reservation_id,))
         
-        # 4. Генерируем номер заказа
         import secrets
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         now = datetime.utcnow()
         
-        # 5. Создаем заказ со статусом CONFIRMED (доступен для курьеров!)
+        # Создаем заказ - БЕЗ delivery_status!
         cur.execute("""
             INSERT INTO orders (
                 user_id, supplier_id, surprise_bag_id, 
@@ -1623,20 +1679,18 @@ async def admin_mark_reservation_paid(
         
         order_id = cur.fetchone()[0]
         
-        # 6. Удаляем из корзины
+        # Удаляем из корзины
         cur.execute("""
             DELETE FROM cart_items 
             WHERE user_id = %s AND surprise_bag_id = %s
         """, (reservation_user_id, reservation_bag_id))
         
-        # 7. Добавляем запись в трекинг
+        # Добавляем в трекинг - БЕЗ delivery_status!
         cur.execute("""
             INSERT INTO order_tracking (
-                order_id, status, delivery_status, 
-                message, created_at
+                order_id, status, message, created_at
             ) VALUES (
-                %s, 'confirmed', 'at_supplier',
-                'Заказ создан из резервации и подтвержден админом', %s
+                %s, 'confirmed', 'Заказ создан из резервации и подтвержден админом', %s
             )
         """, (order_id, now))
         
@@ -1644,9 +1698,8 @@ async def admin_mark_reservation_paid(
         cur.close()
         conn.close()
         
-        # ✅ 8. ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРАМ
+        # Отправляем уведомление курьерам
         try:
-            # Отправляем через WebSocket
             await manager.broadcast({
                 "type": "new_order",
                 "data": {
@@ -1662,15 +1715,11 @@ async def admin_mark_reservation_paid(
         except Exception as e:
             print(f"⚠️ Не удалось отправить уведомление: {e}")
         
-        print(f"✅ Заказ #{order_id} создан из резервации #{reservation_id}, статус: confirmed")
-        
         return {
             "success": True,
             "message": "Оплата подтверждена, заказ создан",
             "order_id": order_id,
-            "order_number": order_number,
-            "status": "confirmed",
-            "available_for_couriers": True
+            "order_number": order_number
         }
         
     except Exception as e:
@@ -1678,20 +1727,17 @@ async def admin_mark_reservation_paid(
         cur.close()
         conn.close()
         print(f"❌ Ошибка: {e}")
-        import traceback
-        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": f"Ошибка: {str(e)}"}
         )
 
 manager = ConnectionManager()
-
-# backend/main.py - добавьте эндпоинты для подтверждения доставки
 @app.post("/api/courier/arrived/{order_id}")
 async def courier_arrived(order_id: int, request: Request):
-    """Курьер прибыл к клиенту - ЧИСТЫЙ SQL"""
+    """Курьер прибыл к клиенту - БЕЗ delivery_status"""
     
+    # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -1710,35 +1756,60 @@ async def courier_arrived(order_id: int, request: Request):
     try:
         # 1. Проверяем заказ
         cur.execute("""
-            SELECT id, status, assigned_courier_id, user_id
+            SELECT id, assigned_courier_id, user_id, order_number
             FROM orders 
             WHERE id = %s
         """, (order_id,))
         
         order = cur.fetchone()
         if not order:
+            cur.close()
+            conn.close()
             raise HTTPException(status_code=404, detail="Order not found")
         
-        if order[2] != int(user_id):
+        assigned_courier = order[1]
+        customer_user_id = order[2]
+        order_number = order[3]
+        
+        if assigned_courier != int(user_id):
+            cur.close()
+            conn.close()
             raise HTTPException(status_code=403, detail="Order not assigned to you")
         
-        # 2. Обновляем статус курьера
+        # 2. Обновляем курьера
         cur.execute("""
             UPDATE courier_profiles 
             SET current_order_status = 'nearby'
             WHERE user_id = %s
         """, (int(user_id),))
         
-        # 3. Добавляем в трекинг
+        # 3. Добавляем в трекинг - БЕЗ delivery_status!
         cur.execute("""
             INSERT INTO order_tracking 
-            (order_id, status, delivery_status, message, created_at)
-            VALUES (%s, 'nearby', 'nearby', 'Курьер прибыл к клиенту', NOW())
+            (order_id, status, message, created_at)
+            VALUES (%s, 'nearby', 'Курьер прибыл к клиенту', NOW())
         """, (order_id,))
         
         conn.commit()
         cur.close()
         conn.close()
+        
+        # 4. Отправляем уведомление клиенту
+        try:
+            if customer_user_id:
+                await manager.broadcast({
+                    "type": "courier_arrived",
+                    "data": {
+                        "order_id": order_id,
+                        "order_number": order_number,
+                        "status": "nearby",
+                        "message": f"📍 Курьер прибыл к вам!",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                }, channel=f"user_{customer_user_id}")
+                print(f"📢 Уведомление отправлено клиенту {customer_user_id}")
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление: {e}")
         
         return {
             "success": True,
@@ -1750,7 +1821,10 @@ async def courier_arrived(order_id: int, request: Request):
         conn.rollback()
         cur.close()
         conn.close()
-        raise HTTPException(status_code=500, detail=str(e))     
+        print(f"❌ Ошибка: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
 
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
@@ -1809,7 +1883,7 @@ async def customer_confirm_delivery(
 
 @app.post("/api/courier/take-order/{order_id}")
 async def courier_take_order(order_id: int, request: Request):
-    """Курьер берет заказ в работу - ЧИСТЫЙ SQL"""
+    """Курьер берет заказ в работу - БЕЗ delivery_status"""
     
     print("=" * 50)
     print(f"📦 ПОПЫТКА ВЗЯТЬ ЗАКАЗ #{order_id}")
@@ -1838,7 +1912,8 @@ async def courier_take_order(order_id: int, request: Request):
     try:
         # 1. Получаем курьера
         cur.execute("""
-            SELECT id, is_online, is_available, current_order_id, is_verified
+            SELECT id, is_online, is_available, current_order_id, is_verified,
+                   first_name, last_name, phone
             FROM courier_profiles 
             WHERE user_id = %s
         """, (int(user_id),))
@@ -1854,6 +1929,9 @@ async def courier_take_order(order_id: int, request: Request):
         is_available = courier[2]
         current_order_id = courier[3]
         is_verified = courier[4]
+        courier_first_name = courier[5]
+        courier_last_name = courier[6]
+        courier_phone = courier[7]
         
         print(f"👤 Курьер: id={courier_id}, онлайн={is_online}, верифицирован={is_verified}")
         
@@ -1882,9 +1960,10 @@ async def courier_take_order(order_id: int, request: Request):
                 content={"success": False, "message": f"У вас уже есть активный заказ #{current_order_id}"}
             )
         
-        # 2. Проверяем заказ (с блокировкой FOR UPDATE)
+        # 2. Проверяем заказ
         cur.execute("""
-            SELECT id, status, assigned_courier_id, delivery_type, order_number
+            SELECT id, status, assigned_courier_id, delivery_type, order_number,
+                   user_id, amount_paid
             FROM orders 
             WHERE id = %s 
             FOR UPDATE
@@ -1900,6 +1979,8 @@ async def courier_take_order(order_id: int, request: Request):
         assigned_courier = order[2]
         delivery_type = order[3]
         order_number = order[4]
+        customer_user_id = order[5]
+        amount_paid = order[6]
         
         print(f"📋 Заказ #{order_id}: статус={order_status}, назначен курьеру={assigned_courier}, тип={delivery_type}")
         
@@ -1945,12 +2026,11 @@ async def courier_take_order(order_id: int, request: Request):
             WHERE user_id = %s
         """, (order_id, int(user_id)))
         
-        # 5. Добавляем запись в трекинг
+        # 5. Добавляем запись в трекинг - БЕЗ delivery_status!
         cur.execute("""
             INSERT INTO order_tracking 
-            (order_id, status, delivery_status, message, created_at)
-            VALUES (%s, 'ready_for_pickup', 'at_supplier', 
-                    'Курьер назначен на заказ', NOW())
+            (order_id, status, message, created_at)
+            VALUES (%s, 'ready_for_pickup', 'Курьер назначен на заказ', NOW())
         """, (order_id,))
         
         conn.commit()
@@ -1961,24 +2041,34 @@ async def courier_take_order(order_id: int, request: Request):
         
         # 6. Отправляем уведомления
         try:
-            # Клиенту
-            cur = conn.cursor()
-            cur.execute("SELECT user_id FROM orders WHERE id = %s", (order_id,))
-            order_owner = cur.fetchone()
-            cur.close()
-            
-            if order_owner:
+            if customer_user_id:
                 await manager.broadcast({
                     "type": "order_assigned",
                     "data": {
                         "order_id": order_id,
                         "order_number": order_number,
                         "courier_id": user_id,
+                        "courier_name": f"{courier_first_name} {courier_last_name}",
+                        "courier_phone": courier_phone,
                         "status": "assigned",
+                        "message": f"🚚 Курьер {courier_first_name} назначен на ваш заказ #{order_number}!",
+                        "amount": float(amount_paid) if amount_paid else 0,
                         "timestamp": datetime.utcnow().isoformat()
                     }
-                }, channel=f"user_{order_owner[0]}")
-                print(f"📢 Уведомление отправлено клиенту {order_owner[0]}")
+                }, channel=f"user_{customer_user_id}")
+                print(f"📢 Уведомление отправлено КЛИЕНТУ {customer_user_id}")
+            
+            await manager.broadcast({
+                "type": "order_taken",
+                "data": {
+                    "order_id": order_id,
+                    "order_number": order_number,
+                    "status": "assigned",
+                    "message": f"✅ Вы взяли заказ #{order_number}! Едьте в ресторан.",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            }, channel=f"courier_{user_id}")
+            
         except Exception as e:
             print(f"⚠️ Не удалось отправить уведомление: {e}")
         
@@ -1986,6 +2076,7 @@ async def courier_take_order(order_id: int, request: Request):
             "success": True,
             "message": "Заказ взят в работу! Едьте в ресторан.",
             "order_id": order_id,
+            "order_number": order_number,
             "status": "ready_for_pickup"
         }
         
@@ -1997,6 +2088,11 @@ async def courier_take_order(order_id: int, request: Request):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+
 
 @app.post("/api/admin/process-refund/{order_id}")
 async def admin_process_refund(order_id: int, request: Request, db: Session = Depends(get_db)):
@@ -2371,12 +2467,11 @@ async def check_memory():
         "percent_used": (memory_mb / 512) * 100
     }
         
-# backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
 @app.get("/api/courier/available-orders")
 async def get_available_orders_for_courier(request: Request):
-    """Умное получение доступных заказов для курьера - ЧИСТЫЙ SQL"""
+    """Доступные заказы для курьера - ЧИСТЫЙ SQL БЕЗ delivery_status"""
     
-    # ✅ 1. ТОЛЬКО Bearer TOKEN
+    # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -2386,19 +2481,14 @@ async def get_available_orders_for_courier(request: Request):
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        print(f"🔑 Курьер из Bearer токена: {user_id}")
-    except Exception as e:
-        print(f"❌ Ошибка декодирования токена: {e}")
+    except:
         raise HTTPException(status_code=401, detail="Invalid token")
-    
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
     
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
-        # Проверяем, что пользователь - курьер
+        # Получаем курьера
         cur.execute("""
             SELECT id, is_online, is_available, current_order_id, 
                    current_lat, current_lon, courier_type, is_verified
@@ -2407,28 +2497,21 @@ async def get_available_orders_for_courier(request: Request):
         """, (int(user_id),))
         
         courier = cur.fetchone()
-        
         if not courier:
             cur.close()
             conn.close()
             raise HTTPException(status_code=403, detail="Not a courier")
-        
-        if not courier['is_verified']:
-            cur.close()
-            conn.close()
-            return {
-                "success": True, 
-                "orders": [], 
-                "message": "Курьер не верифицирован",
-                "pending_verification": True
-            }
         
         if not courier['is_online']:
             cur.close()
             conn.close()
             return {"success": True, "orders": [], "message": "Вы не на линии"}
         
-        # Получаем текущую позицию курьера
+        if not courier['is_verified']:
+            cur.close()
+            conn.close()
+            return {"success": True, "orders": [], "message": "Курьер не верифицирован"}
+        
         courier_lat = courier['current_lat']
         courier_lon = courier['current_lon']
         
@@ -2439,8 +2522,7 @@ async def get_available_orders_for_courier(request: Request):
         
         current_order_id = courier['current_order_id']
         
-        # ============ ПОЛУЧАЕМ ЗАКАЗЫ ============
-        # ✅ Используем безопасную формулу через GREATEST/LEAST
+        # Получаем доступные заказы - БЕЗ delivery_status!
         cur.execute("""
             SELECT 
                 o.id as order_id,
@@ -2457,7 +2539,6 @@ async def get_available_orders_for_courier(request: Request):
                 s.lat as supplier_lat,
                 s.lon as supplier_lon,
                 sb.name as bag_name,
-                -- БЕЗОПАСНОЕ расстояние через GREATEST/LEAST
                 (6371 * acos(
                     LEAST(1, GREATEST(-1, 
                         sin(radians(%s)) * sin(radians(s.lat)) + 
@@ -2478,65 +2559,20 @@ async def get_available_orders_for_courier(request: Request):
             LIMIT 50
         """, (courier_lat, courier_lat, courier_lon, current_order_id or 0))
         
-        available_orders_raw = cur.fetchall()
-        print(f"📋 Найдено доступных заказов: {len(available_orders_raw)}")
-        
-        available_orders_list = []
-        
-        for order in available_orders_raw:
-            distance_km = order['distance_km'] or float('inf')
-            
-            # ЛОГИКА ПОКАЗА ЗАКАЗОВ
-            if not current_order_id:
-                should_show = distance_km <= 50.0
-            else:
-                should_show = distance_km <= 10.0
-            
-            if should_show and distance_km < float('inf'):
-                # Расчет времени
-                if courier['courier_type'] == "pedestrian":
-                    estimated_time = int((distance_km / 5) * 60)
-                else:
-                    estimated_time = int((distance_km / 40) * 60)
-                
-                available_orders_list.append({
-                    "order_id": order['order_id'],
-                    "order_number": order['order_number'],
-                    "supplier_name": order['supplier_name'],
-                    "supplier_address": order['supplier_address'],
-                    "supplier_lat": float(order['supplier_lat']) if order['supplier_lat'] else None,
-                    "supplier_lon": float(order['supplier_lon']) if order['supplier_lon'] else None,
-                    "customer_address": order['customer_address'] or "Адрес не указан",
-                    "customer_lat": float(order['customer_lat']) if order['customer_lat'] else None,
-                    "customer_lon": float(order['customer_lon']) if order['customer_lon'] else None,
-                    "distance_km": round(distance_km, 2),
-                    "estimated_time_minutes": estimated_time,
-                    "amount": float(order['amount'] or 0),
-                    "bag_name": order['bag_name'] or "Surprise Bag",
-                    "delivery_type": order['delivery_type']
-                })
-                print(f"✅ Заказ #{order['order_id']} добавлен, расстояние: {distance_km:.2f} км")
-        
-        # Сортируем по расстоянию
-        available_orders_list.sort(key=lambda x: x["distance_km"])
-        
+        orders = cur.fetchall()
         cur.close()
         conn.close()
         
         return {
             "success": True,
-            "orders": available_orders_list,
-            "count": len(available_orders_list),
-            "has_current_order": current_order_id is not None,
-            "courier_location": {"lat": courier_lat, "lon": courier_lon}
+            "orders": orders,
+            "count": len(orders)
         }
         
     except Exception as e:
         cur.close()
         conn.close()
         print(f"❌ Ошибка: {e}")
-        import traceback
-        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e), "orders": []}
@@ -3166,13 +3202,10 @@ async def get_online_couriers(db: Session = Depends(get_db)):
     return {"success": True, "couriers": result}
 
 @app.post("/api/courier/complete-order/{order_id}")
-async def complete_order(
-    order_id: int,
-    request: Request
-):
-    """Завершить доставку - ЧИСТЫЙ SQL"""
+async def complete_order(order_id: int, request: Request):
+    """Завершить доставку - БЕЗ delivery_status"""
     
-    # ✅ ТОЛЬКО Bearer токен
+    # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -3182,21 +3215,16 @@ async def complete_order(
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token")
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.JWTError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
     
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        # 1. Проверяем, что курьер существует
+        # 1. Проверяем курьера
         cur.execute("""
-            SELECT id, user_id, current_order_id, is_available
+            SELECT id, first_name, last_name
             FROM courier_profiles 
             WHERE user_id = %s
         """, (int(user_id),))
@@ -3207,25 +3235,32 @@ async def complete_order(
             conn.close()
             raise HTTPException(status_code=404, detail="Courier not found")
         
-        courier_id = courier[0]
-        current_order_id = courier[2]
+        courier_name = f"{courier[1]} {courier[2]}"
         
-        # 2. Проверяем, что заказ существует и принадлежит курьеру
+        # 2. Проверяем заказ
         cur.execute("""
-            SELECT id, status, order_number
+            SELECT id, assigned_courier_id, user_id, order_number, amount_paid
             FROM orders 
-            WHERE id = %s AND assigned_courier_id = %s
-        """, (order_id, int(user_id)))
+            WHERE id = %s
+        """, (order_id,))
         
         order = cur.fetchone()
         if not order:
             cur.close()
             conn.close()
-            raise HTTPException(status_code=404, detail="Order not found or not assigned to you")
+            raise HTTPException(status_code=404, detail="Order not found")
         
-        order_status = order[1] if len(order) > 1 else None
+        assigned_courier = order[1]
+        customer_user_id = order[2]
+        order_number = order[3]
+        amount_paid = order[4]
         
-        # 3. Обновляем статус заказа на DELIVERED
+        if assigned_courier != int(user_id):
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=403, detail="Order not assigned to you")
+        
+        # 3. Обновляем заказ - БЕЗ delivery_status!
         cur.execute("""
             UPDATE orders 
             SET status = 'delivered',
@@ -3233,14 +3268,7 @@ async def complete_order(
             WHERE id = %s
         """, (order_id,))
         
-        # 4. Добавляем запись в трекинг
-        cur.execute("""
-            INSERT INTO order_tracking 
-            (order_id, status, delivery_status, message, created_at)
-            VALUES (%s, 'delivered', 'arrived', 'Доставка завершена', NOW())
-        """, (order_id,))
-        
-        # 5. Освобождаем курьера
+        # 4. Освобождаем курьера
         cur.execute("""
             UPDATE courier_profiles 
             SET current_order_id = NULL,
@@ -3252,14 +3280,40 @@ async def complete_order(
             WHERE user_id = %s
         """, (int(user_id),))
         
+        # 5. Добавляем в трекинг - БЕЗ delivery_status!
+        cur.execute("""
+            INSERT INTO order_tracking 
+            (order_id, status, message, created_at)
+            VALUES (%s, 'delivered', 'Доставка завершена', NOW())
+        """, (order_id,))
+        
         conn.commit()
         cur.close()
         conn.close()
         
+        # 6. Отправляем уведомление клиенту
+        try:
+            if customer_user_id:
+                await manager.broadcast({
+                    "type": "delivery_confirmed",
+                    "data": {
+                        "order_id": order_id,
+                        "order_number": order_number,
+                        "status": "delivered",
+                        "message": "✅ Ваш заказ доставлен! Спасибо, что выбрали нас!",
+                        "amount": float(amount_paid) if amount_paid else 0,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                }, channel=f"user_{customer_user_id}")
+                print(f"📢 Уведомление отправлено клиенту {customer_user_id}")
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление: {e}")
+        
         return {
-            "success": True, 
+            "success": True,
             "message": "Заказ доставлен",
             "order_id": order_id,
+            "order_number": order_number,
             "status": "delivered"
         }
         
@@ -3267,10 +3321,8 @@ async def complete_order(
         conn.rollback()
         cur.close()
         conn.close()
-        print(f"❌ Ошибка завершения доставки: {e}")
+        print(f"❌ Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
 
 # backend/main.py - добавьте логин для курьера
 # backend/main.py - убедитесь что эндпоинт возвращает success
@@ -7987,72 +8039,79 @@ async def geocode(lat: float, lon: float):
         return {"city": city}
 
 
-# backend/main.py - исправленный эндпоинт получения заказа
 @app.get("/api/orders/{order_id}")
-async def get_order_by_id(order_id: int, request: Request, db: Session = Depends(get_db)):
-    """Получить заказ по ID с полной информацией"""
+async def get_order_by_id(order_id: int, request: Request):
+    """Получить заказ по ID - ЧИСТЫЙ SQL БЕЗ delivery_status"""
+    
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
-        order = db.query(Order).filter(Order.id == order_id).first()
+        cur.execute("""
+            SELECT 
+                o.id,
+                o.order_number,
+                o.status::text as status,
+                o.amount_paid,
+                o.payment_status,
+                o.customer_address,
+                o.customer_lat,
+                o.customer_lon,
+                o.created_at,
+                o.delivery_deadline,
+                o.delivery_type,
+                o.supplier_id,
+                o.user_id,
+                s.business_name as supplier_name,
+                s.address as supplier_address,
+                s.lat as supplier_lat,
+                s.lon as supplier_lon,
+                sb.name as bag_name
+            FROM orders o
+            LEFT JOIN suppliers s ON s.id = o.supplier_id
+            LEFT JOIN surprise_bags sb ON sb.id = o.surprise_bag_id
+            WHERE o.id = %s
+        """, (order_id,))
+        
+        order = cur.fetchone()
         
         if not order:
+            cur.close()
+            conn.close()
             return JSONResponse(
                 status_code=404,
                 content={"error": "Order not found", "order_id": order_id}
             )
         
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
-        
-        # Безопасное получение статуса
-        status_str = "pending"
-        if order.status:
-            if hasattr(order.status, 'value'):
-                status_str = order.status.value
-            else:
-                status_str = str(order.status)
-        status_str = status_str.lower()
-        
-        # Безопасное получение delivery_status
-        delivery_status_str = "at_supplier"
-        if order.delivery_status:
-            if hasattr(order.delivery_status, 'value'):
-                delivery_status_str = order.delivery_status.value
-            else:
-                delivery_status_str = str(order.delivery_status)
-        delivery_status_str = delivery_status_str.lower()
-        
-        # Формируем адрес
-        customer_address = order.customer_address
-        if not customer_address or customer_address == "Address not specified":
-            if order.customer_lat and order.customer_lon:
-                customer_address = f"📍 {order.customer_lat:.4f}, {order.customer_lon:.4f}"
-            else:
-                customer_address = "Адрес не указан"
+        cur.close()
+        conn.close()
         
         return {
-            "id": order.id,
-            "order_id": order.id,
-            "order_number": order.order_number,
-            "status": status_str,
-            "delivery_status": delivery_status_str,
-            "bag_name": bag.name if bag else "Surprise Bag",
-            "supplier_name": supplier.business_name if supplier else "Restaurant",
-            "supplier_address": supplier.address if supplier else "",
-            "supplier_lat": supplier.lat if supplier else None,
-            "supplier_lon": supplier.lon if supplier else None,
-            "customer_address": customer_address,
-            "customer_lat": order.customer_lat,
-            "customer_lon": order.customer_lon,
-            "amount_paid": order.amount_paid or 0,
-            "pickup_time": order.pickup_time or "",
-            "created_at": order.created_at.isoformat() if order.created_at else None,
-            "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None,
-            "payment_status": order.payment_status or "pending",
-            "delivery_type": getattr(order, 'delivery_type', "delivery")
+            "id": order['id'],
+            "order_id": order['id'],
+            "order_number": order['order_number'],
+            "status": order['status'] or "pending",
+            "amount_paid": float(order['amount_paid']) if order['amount_paid'] else 0,
+            "payment_status": order['payment_status'] or "pending",
+            "customer_address": order['customer_address'] or "Адрес не указан",
+            "customer_lat": float(order['customer_lat']) if order['customer_lat'] else None,
+            "customer_lon": float(order['customer_lon']) if order['customer_lon'] else None,
+            "created_at": order['created_at'].isoformat() if order['created_at'] else None,
+            "delivery_deadline": order['delivery_deadline'].isoformat() if order['delivery_deadline'] else None,
+            "delivery_type": order['delivery_type'] or "pickup",
+            "supplier": {
+                "id": order['supplier_id'],
+                "business_name": order['supplier_name'],
+                "address": order['supplier_address'],
+                "lat": float(order['supplier_lat']) if order['supplier_lat'] else None,
+                "lon": float(order['supplier_lon']) if order['supplier_lon'] else None
+            },
+            "bag_name": order['bag_name'] or "Surprise Bag"
         }
         
     except Exception as e:
+        cur.close()
+        conn.close()
         print(f"❌ Error in get_order_by_id: {e}")
         import traceback
         traceback.print_exc()
@@ -8060,6 +8119,8 @@ async def get_order_by_id(order_id: int, request: Request, db: Session = Depends
             status_code=500,
             content={"error": str(e), "order_id": order_id}
         )
+
+        
 @app.get("/test-ors")
 async def test_ors():
     import httpx

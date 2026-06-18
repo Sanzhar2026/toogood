@@ -1,4 +1,4 @@
-# backend/models.py - ПОЛНАЯ ВЕРСИЯ С ДОБАВЛЕННЫМ hide_contents
+# backend/models.py - ПОЛНАЯ ВЕРСИЯ БЕЗ DELIVERY_STATUS
 
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum
 from sqlalchemy.orm import relationship
@@ -18,7 +18,6 @@ class OrderStatus(str, enum.Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
     PREPARING = "preparing"
-    
     READY_FOR_PICKUP = "ready_for_pickup"
     PICKED_UP = "picked_up"
     OUT_FOR_DELIVERY = "out_for_delivery"
@@ -27,11 +26,12 @@ class OrderStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
-class DeliveryStatus(str, enum.Enum):
-    AT_SUPPLIER = "at_supplier"
-    EN_ROUTE = "en_route"
-    NEARBY = "nearby"
-    ARRIVED = "arrived"
+# ❌ УДАЛЕН DeliveryStatus - он больше не нужен
+# class DeliveryStatus(str, enum.Enum):
+#     AT_SUPPLIER = "at_supplier"
+#     EN_ROUTE = "en_route"
+#     NEARBY = "nearby"
+#     ARRIVED = "arrived"
 
 
 class CourierType(str, enum.Enum):
@@ -188,12 +188,10 @@ class SurpriseBag(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     possible_items = Column(Text)
     
-    # ✅ НОВОЕ ПОЛЕ - для разделения на Surprise и Search страницы
-    # True = скрыть состав (для страницы Surprise)
-    # False = показать состав (для страницы Search)
-    city = Column(String(100), nullable=True)  # Город поставщика
+    # Город поставщика
+    city = Column(String(100), nullable=True)
     
-    # ✅ НОВОЕ ПОЛЕ - для разделения на Surprise и Search страницы
+    # Тип сюрприза: True = скрыть состав (Surprise), False = показать состав (Search)
     hide_contents = Column(Boolean, default=False)
     
     # Рейтинг сюрприза
@@ -233,8 +231,9 @@ class Order(Base):
     items = Column(Text, nullable=True)
     total_amount = Column(Float, nullable=True)
     order_number = Column(String(50), unique=True, nullable=True)
+    
+    # ✅ ТОЛЬКО status, БЕЗ delivery_status
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING)
-    delivery_status = Column(SQLEnum(DeliveryStatus), default=DeliveryStatus.AT_SUPPLIER)
     
     payment_id = Column(String(100), nullable=True)
     payment_status = Column(String(50), default="pending")
@@ -281,12 +280,15 @@ class OrderTracking(Base):
     __tablename__ = "order_tracking"
     id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
+    
+    # ✅ ТОЛЬКО status, БЕЗ delivery_status
     status = Column(SQLEnum(OrderStatus), nullable=True)
-    delivery_status = Column(SQLEnum(DeliveryStatus), nullable=True)
+    
     lat = Column(Float, nullable=True)
     lon = Column(Float, nullable=True)
     message = Column(String(500))
     created_at = Column(DateTime, default=datetime.utcnow)
+    
     order = relationship("Order", back_populates="tracking_updates")
 
 
