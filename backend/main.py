@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from backend.database import SessionLocal, engine, get_db
 from backend import models
-from backend.models import Food, User, UserRole, Supplier, SurpriseBag, Order, OrderStatus, DeliveryStatus, OrderTracking
+from backend.models import Food, User, UserRole, Supplier, SurpriseBag, Order, OrderStatus, OrderTracking
 from datetime import datetime, timedelta
 import secrets
 import os
@@ -21,7 +21,7 @@ from backend.schemas import (
 from datetime import datetime, timedelta
 from backend.models import (
     CartItem,Food, User, UserRole, Supplier, SurpriseBag, SurpriseBagItem,SupplierReview,
-    Order, OrderStatus, DeliveryStatus, OrderTracking, CourierProfile, AssignedOrder ,TemporaryReservation,SurpriseBagReview, Admin
+    Order, OrderStatus, OrderTracking, CourierProfile, AssignedOrder ,TemporaryReservation,SurpriseBagReview, Admin
 )
 from backend.websocket_manager import ConnectionManager
 from backend.routes.users import router as users_router
@@ -4032,7 +4032,7 @@ async def customer_receive_order(
     
     # Автоматически завершаем заказ
     order.status = OrderStatus.DELIVERED
-    order.delivery_status = DeliveryStatus.ARRIVED
+    
     order.delivered_at = datetime.utcnow()
     db.commit()
     
@@ -4866,12 +4866,12 @@ async def admin_update_order_status(
         now = datetime.utcnow()
         order.delivery_started_at = now
         order.delivery_deadline = now + timedelta(minutes=30)
-        order.delivery_status = DeliveryStatus.EN_ROUTE
+        
         
     elif new_status == "delivered":
         # Админ вручную отмечает доставку (если клиент не нажал кнопку)
         order.delivered_at = datetime.utcnow()
-        order.delivery_status = DeliveryStatus.ARRIVED
+        
         
     elif new_status == "cancelled":
         # Админ отменяет заказ (если есть основания)
@@ -7119,7 +7119,7 @@ async def start_real_delivery(order_id: int, db: Session = Depends(get_db)):
     }
     
     order.status = OrderStatus.OUT_FOR_DELIVERY
-    order.delivery_status = DeliveryStatus.EN_ROUTE
+
     order.driver_lat = supplier.lat
     order.driver_lon = supplier.lon
     db.commit()
@@ -7130,11 +7130,13 @@ async def start_real_delivery(order_id: int, db: Session = Depends(get_db)):
         "distance_km": round(distance, 2),
         "eta_minutes": eta_minutes
     }
-
 @app.get("/api/delivery/{order_id}/position")
-async def get_delivery_position(order_id: int, db: Session = Depends(get_db)):
+async def get_delivery_position(order_id: int, request: Request):
+    """Получить текущую позицию доставки - ЧИСТЫЙ SQL"""
+    
     cache_key = str(order_id)
     
+    # Проверяем кэш
     if cache_key in delivery_cache and delivery_cache[cache_key]["is_active"]:
         waypoints = delivery_cache[cache_key]["waypoints"]
         current_index = delivery_cache[cache_key]["current_index"]
@@ -7143,12 +7145,23 @@ async def get_delivery_position(order_id: int, db: Session = Depends(get_db)):
             current_pos = waypoints[current_index]
             delivery_cache[cache_key]["current_index"] = current_index + 1
             
-            # Update database
-            order = db.query(Order).filter(Order.id == order_id).first()
-            if order:
-                order.driver_lat = current_pos["lat"]
-                order.driver_lon = current_pos["lon"]
-                db.commit()
+            # ✅ Обновляем позицию в БД через чистый SQL
+            conn = get_db_connection()
+            cur = conn.cursor()
+            try:
+                cur.execute("""
+                    UPDATE orders 
+                    SET driver_lat = %s,
+                        driver_lon = %s,
+                        last_location_update = NOW()
+                    WHERE id = %s
+                """, (current_pos["lat"], current_pos["lon"], order_id))
+                conn.commit()
+            except Exception as e:
+                print(f"❌ Ошибка обновления позиции: {e}")
+            finally:
+                cur.close()
+                conn.close()
             
             return {
                 "success": True,
@@ -7160,19 +7173,53 @@ async def get_delivery_position(order_id: int, db: Session = Depends(get_db)):
             }
         else:
             delivery_cache[cache_key]["is_active"] = False
-            order = db.query(Order).filter(Order.id == order_id).first()
-            if order:
-                order.status = OrderStatus.DELIVERED
-                order.delivery_status = DeliveryStatus.ARRIVED
-                db.commit()
+            
+            # ✅ Завершаем доставку - БЕЗ delivery_status!
+            conn = get_db_connection()
+            cur = conn.cursor()
+            try:
+                cur.execute("""
+                    UPDATE orders 
+                    SET status = 'delivered',
+                        delivered_at = NOW()
+                    WHERE id = %s AND status != 'delivered'
+                """, (order_id,))
+                
+                # Добавляем запись в трекинг
+                cur.execute("""
+                    INSERT INTO order_tracking 
+                    (order_id, status, message, created_at)
+                    VALUES (%s, 'delivered', 'Доставка завершена (автоматически)', NOW())
+                """, (order_id,))
+                
+                conn.commit()
+            except Exception as e:
+                print(f"❌ Ошибка завершения доставки: {e}")
+            finally:
+                cur.close()
+                conn.close()
+            
             return {"success": True, "is_complete": True}
     
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if order and order.status == OrderStatus.DELIVERED:
+    # ✅ Проверяем статус через чистый SQL
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT status FROM orders WHERE id = %s
+        """, (order_id,))
+        order = cur.fetchone()
+    except Exception as e:
+        print(f"❌ Ошибка проверки статуса: {e}")
+        return {"success": False, "is_complete": False}
+    finally:
+        cur.close()
+        conn.close()
+    
+    if order and order[0] == 'delivered':
         return {"success": True, "is_complete": True}
     
     return {"success": False, "is_complete": False}
-
 @app.get("/delivery/track/{order_id}")
 async def delivery_tracking(request: Request, order_id: int, db: Session = Depends(get_db)):
     order = db.query(Order).filter(Order.id == order_id).first()
