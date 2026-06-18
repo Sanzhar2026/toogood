@@ -3482,23 +3482,64 @@ async def complete_order(order_id: int, request: Request):
             conn.close()
             raise HTTPException(status_code=403, detail="Order not assigned to you")
         
-        # 5. Проверяем, что заказ в статусе 'nearby'
+        # 5. ✅ ПРОВЕРЯЕМ СТАТУС - если уже доставлен или отменен, возвращаем ошибку
+        if current_status == 'delivered':
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False, 
+                    "message": "Заказ уже доставлен",
+                    "status": "delivered"
+                }
+            )
+        
+        if current_status == 'cancelled':
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False, 
+                    "message": "Заказ отменен",
+                    "status": "cancelled"
+                }
+            )
+        
+        if current_status == 'waiting_confirmation':
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False, 
+                    "message": "Заказ уже ожидает подтверждения от клиента",
+                    "status": "waiting_confirmation"
+                }
+            )
+        
+        # 6. ✅ Проверяем, что заказ в статусе 'nearby'
         if current_status != 'nearby':
             cur.close()
             conn.close()
             return JSONResponse(
                 status_code=400,
-                content={"success": False, "message": f"Заказ не в статусе 'nearby'. Текущий статус: {current_status}"}
+                content={
+                    "success": False, 
+                    "message": f"Заказ не в статусе 'nearby'. Текущий статус: {current_status}",
+                    "status": current_status
+                }
             )
         
-        # 6. ✅ МЕНЯЕМ СТАТУС НА 'waiting_confirmation'
+        # 7. ✅ МЕНЯЕМ СТАТУС НА 'waiting_confirmation'
         cur.execute("""
             UPDATE orders 
             SET status = 'waiting_confirmation'
             WHERE id = %s
         """, (order_id,))
         
-        # 7. Добавляем в трекинг
+        # 8. Добавляем в трекинг
         cur.execute("""
             INSERT INTO order_tracking 
             (order_id, status, message, created_at)
@@ -3511,7 +3552,7 @@ async def complete_order(order_id: int, request: Request):
         
         print(f"✅ Заказ #{order_id} передан клиенту, статус: waiting_confirmation")
         
-        # 8. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КЛИЕНТУ
+        # 9. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КЛИЕНТУ
         try:
             if customer_user_id:
                 await manager.send_to_user(customer_user_id, {
@@ -3546,6 +3587,12 @@ async def complete_order(order_id: int, request: Request):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+
+
+
+    
 @app.post("/api/courier/login")
 async def courier_login(request: Request, db: Session = Depends(get_db)):
     """Логин для курьеров с JWT токеном"""
