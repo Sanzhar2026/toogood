@@ -236,6 +236,14 @@ uploads_dir = Path("uploads")
 uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
+import psycopg2
+from psycopg2.extras import RealDictCursor
+def get_db_connection():
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL",
+        "postgresql://toogood_db_a3k0_user:2tWztMrzy1VCriWHefthkLBK1EOeeYnG@dpg-d8eo51rbc2fs73coebs0-a.frankfurt-postgres.render.com/toogood_db_a3k0?sslmode=require"
+    )
+    return psycopg2.connect(DATABASE_URL)
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -761,42 +769,52 @@ async def admin_cancel_order(
         "order_number": order.order_number,
         "cancelled_at": order.cancelled_at.isoformat()
     }
-
 @app.get("/api/admin/orders")
 async def get_admin_orders(
-    request: Request,
-    db: Session = Depends(get_db)
+    request: Request
 ):
-    """Получить все заказы (временная версия без проверки админа)"""
+    """Получить все заказы - ЧИСТЫЙ SQL (без SQLAlchemy)"""
     
     try:
-        # Временно отключаем проверку для отладки
-        # admin = Depends(get_current_admin_from_token)
+        # Подключаемся к БД через psycopg2
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        orders = db.query(Order).order_by(Order.created_at.desc()).all()
+        # ✅ ЧИСТЫЙ SQL - никакого SQLAlchemy!
+        cur.execute("""
+            SELECT 
+                o.id,
+                o.order_number,
+                o.status::text as status,
+                o.amount_paid,
+                o.payment_status,
+                o.created_at,
+                u.full_name as customer_name,
+                u.phone as customer_phone,
+                sb.name as bag_name
+            FROM orders o
+            LEFT JOIN users u ON u.id = o.user_id
+            LEFT JOIN surprise_bags sb ON sb.id = o.surprise_bag_id
+            ORDER BY o.created_at DESC
+        """)
         
+        orders = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        # Форматируем результат
         result = []
         for order in orders:
-            user = db.query(User).filter(User.id == order.user_id).first()
-            bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-            
-            status_value = "pending"
-            if order.status:
-                if hasattr(order.status, 'value'):
-                    status_value = order.status.value
-                else:
-                    status_value = str(order.status)
-            
             result.append({
-                "id": order.id,
-                "order_number": order.order_number,
-                "customer_name": user.full_name or user.phone if user else "Неизвестно",
-                "customer_phone": user.phone if user else "Неизвестно",
-                "bag_name": bag.name if bag else "Сюрприз",
-                "amount": order.amount_paid or 0,
-                "payment_status": order.payment_status or "pending",
-                "status": status_value,
-                "created_at": order.created_at.isoformat() if order.created_at else None
+                "id": order['id'],
+                "order_number": order['order_number'],
+                "customer_name": order['customer_name'] or order['customer_phone'] or "Неизвестно",
+                "customer_phone": order['customer_phone'] or "Неизвестно",
+                "bag_name": order['bag_name'] or "Сюрприз",
+                "amount": float(order['amount_paid']) if order['amount_paid'] else 0,
+                "payment_status": order['payment_status'] or "pending",
+                "status": order['status'] or "pending",  # ✅ УЖЕ СТРОКА!
+                "created_at": order['created_at'].isoformat() if order['created_at'] else None
             })
         
         return {"orders": result}
