@@ -622,29 +622,34 @@ async def admin_api_login(request: Request, db: Session = Depends(get_db)):
             content={"success": False, "detail": str(e)}
         )
 
-
 @app.get("/api/admin/stats")
-async def get_admin_stats(
-    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
-    db: Session = Depends(get_db)
-):
-    """Получить статистику для админ-панели"""
-    
-    total_users = db.query(User).count()
-    total_suppliers = db.query(Supplier).count()
-    total_couriers = db.query(CourierProfile).count()
-    total_orders = db.query(Order).count()
-    pending_couriers = db.query(CourierProfile).filter(CourierProfile.is_verified == False).count()
-    total_revenue = db.query(Order).filter(Order.payment_status == "paid").with_entities(func.sum(Order.amount_paid)).scalar() or 0
-    
-    return {
-        "total_users": total_users,
-        "total_suppliers": total_suppliers,
-        "total_couriers": total_couriers,
-        "total_orders": total_orders,
-        "pending_couriers": pending_couriers,
-        "total_revenue": total_revenue
-    }
+async def get_admin_stats(request: Request):
+    """Получить статистику - чистый SQL"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT 
+                (SELECT COUNT(*) FROM users) as total_users,
+                (SELECT COUNT(*) FROM orders) as total_orders,
+                (SELECT COUNT(*) FROM suppliers) as total_suppliers,
+                (SELECT COUNT(*) FROM surprise_bags) as total_bags,
+                (SELECT COUNT(*) FROM courier_profiles WHERE is_verified = false) as pending_couriers,
+                COALESCE(SUM(amount_paid), 0) as total_revenue
+            FROM orders
+            WHERE payment_status = 'paid'
+        """)
+        
+        stats = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        return stats
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 # backend/main.py - ИСПРАВЛЕННЫЙ админ логин (API, не HTML форма)
 
 
@@ -827,59 +832,78 @@ async def get_admin_orders(
             status_code=500,
             content={"error": str(e), "orders": []}
         )
-@app.get("/api/admin/couriers")
-async def get_admin_couriers(
-    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
-    db: Session = Depends(get_db)
-):
-    """Получить подтвержденных курьеров"""
-    
-    couriers = db.query(CourierProfile).filter(
-        CourierProfile.is_verified == True
-    ).all()
-    
-    result = []
-    for c in couriers:
-        result.append({
-            "id": c.id,
-            "first_name": c.first_name,
-            "last_name": c.last_name,
-            "phone": c.phone,
-            "courier_type": c.courier_type,
-            "car_model": c.car_model,
-            "car_number": c.car_number,
-            "is_online": c.is_online,
-            "total_deliveries": c.total_deliveries,
-            "rating": c.rating
-        })
-    
-    return {"couriers": result}
 
+        
+@app.get("/api/admin/couriers")
+async def get_admin_couriers(request: Request):
+    """Получить подтвержденных курьеров - чистый SQL"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT 
+                cp.id,
+                cp.first_name,
+                cp.last_name,
+                cp.phone,
+                cp.courier_type,
+                cp.car_model,
+                cp.car_number,
+                cp.is_online,
+                cp.total_deliveries,
+                cp.rating
+            FROM courier_profiles cp
+            WHERE cp.is_verified = true
+            ORDER BY cp.created_at DESC
+        """)
+        
+        couriers = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return {"couriers": couriers}
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+
+
+        
 @app.get("/api/admin/pending-couriers")
-async def get_admin_pending_couriers(
-    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
-    db: Session = Depends(get_db)
-):
-    """Получить неподтвержденных курьеров"""
-    
-    pending = db.query(CourierProfile).filter(
-        CourierProfile.is_verified == False
-    ).all()
-    
-    result = []
-    for p in pending:
-        result.append({
-            "id": p.id,
-            "first_name": p.first_name,
-            "last_name": p.last_name,
-            "phone": p.phone,
-            "courier_type": p.courier_type,
-            "car_model": p.car_model,
-            "car_number": p.car_number,
-            "created_at": p.created_at.isoformat() if p.created_at else None
-        })
-    
-    return {"couriers": result}
+async def get_admin_pending_couriers(request: Request):
+    """Получить неподтвержденных курьеров - чистый SQL"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT 
+                cp.id,
+                cp.user_id,
+                cp.first_name,
+                cp.last_name,
+                cp.phone,
+                cp.courier_type,
+                cp.car_model,
+                cp.car_number,
+                cp.created_at
+            FROM courier_profiles cp
+            WHERE cp.is_verified = false
+            ORDER BY cp.created_at DESC
+        """)
+        
+        couriers = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return {"couriers": couriers}
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 # backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
 
@@ -966,150 +990,118 @@ async def admin_reject_courier(
     print(f"❌ Заявка курьера #{courier_id} отклонена")
     
     return {"success": True, "message": "Заявка отклонена"}
-
 @app.get("/api/admin/reservations")
-async def get_admin_reservations(
-    admin = Depends(get_current_admin_from_token),  # ← ТОЛЬКО ТАК!
-    db: Session = Depends(get_db)
-):
-    """Получить активные бронирования"""
-    
-    active_reservations = db.query(TemporaryReservation).filter(
-        TemporaryReservation.is_paid == False,
-        TemporaryReservation.expires_at > datetime.utcnow()
-    ).order_by(TemporaryReservation.expires_at.asc()).all()
-    
-    result = []
-    for res in active_reservations:
-        user = db.query(User).filter(User.id == res.user_id).first()
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == res.bag_id).first()
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first() if bag else None
+async def get_admin_reservations(request: Request):
+    """Получить активные резервации - чистый SQL"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        time_left = int((res.expires_at - datetime.utcnow()).total_seconds() / 60)
+        cur.execute("""
+            SELECT 
+                tr.id,
+                tr.user_id,
+                tr.bag_id,
+                tr.quantity,
+                tr.reserved_at,
+                tr.expires_at,
+                u.full_name as user_name,
+                u.phone as user_phone,
+                sb.name as bag_name,
+                s.business_name as supplier_name,
+                sb.discounted_price
+            FROM temporary_reservations tr
+            LEFT JOIN users u ON u.id = tr.user_id
+            LEFT JOIN surprise_bags sb ON sb.id = tr.bag_id
+            LEFT JOIN suppliers s ON s.id = sb.supplier_id
+            WHERE tr.is_paid = false 
+              AND tr.expires_at > NOW()
+            ORDER BY tr.expires_at ASC
+        """)
         
-        result.append({
-            "id": res.id,
-            "user_name": user.full_name or user.phone if user else f"User {res.user_id}",
-            "user_phone": user.phone if user else "Не указан",
-            "bag_name": bag.name if bag else "Товар",
-            "supplier_name": supplier.business_name if supplier else "Ресторан",
-            "quantity": res.quantity,
-            "total_amount": bag.discounted_price * res.quantity if bag else 0,
-            "reserved_at": res.reserved_at.isoformat(),
-            "expires_at": res.expires_at.isoformat(),
-            "time_left_minutes": time_left
-        })
-    
-    return {"reservations": result}
+        reservations = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        # Форматируем с расчетом оставшегося времени
+        result = []
+        for res in reservations:
+            time_left = int((res['expires_at'] - datetime.utcnow()).total_seconds() / 60)
+            result.append({
+                "id": res['id'],
+                "user_name": res['user_name'] or res['user_phone'] or f"User {res['user_id']}",
+                "user_phone": res['user_phone'] or "Не указан",
+                "bag_name": res['bag_name'] or "Товар",
+                "supplier_name": res['supplier_name'] or "Ресторан",
+                "quantity": res['quantity'],
+                "total_amount": float(res['discounted_price'] or 0) * res['quantity'],
+                "reserved_at": res['reserved_at'].isoformat() if res['reserved_at'] else None,
+                "expires_at": res['expires_at'].isoformat() if res['expires_at'] else None,
+                "time_left_minutes": time_left
+            })
+        
+        return {"reservations": result}
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 # backend/main.py - добавьте WebSocket для курьеров
 
 # ============ АДМИН ЭНДПОИНТЫ ДЛЯ УПРАВЛЕНИЯ ЗАКАЗАМИ ============
 # backend/main.py - ИСПРАВЛЕННЫЙ эндпоинт
-
 @app.put("/api/admin/update-order-status/{order_id}")
 async def admin_update_order_status(
     order_id: int,
-    request: Request,
-    db: Session = Depends(get_db)
+    request: Request
 ):
-    """Админ обновляет статус заказа"""
-    
-    # ✅ Проверяем Bearer токен админа
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token required")
-    
-    token = auth_header.split(" ")[1]
+    """Обновление статуса заказа - чистый SQL"""
     try:
-        from jose import jwt
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        role = payload.get("role")
+        data = await request.json()
+        field = data.get("field")
+        value = data.get("value")
         
-        if role != "admin":
-            raise HTTPException(status_code=403, detail="Admin only")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
-    
-    # Получаем данные
-    data = await request.json()
-    field = data.get("field")
-    value = data.get("value")
-    
-    print(f"📝 Обновление заказа #{order_id}: {field} = {value}")
-    
-    # Находим заказ
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    old_status = order.status.value if order.status else "unknown"
-    
-    # Обновляем статус в зависимости от поля
-    if field == "payment_status":
-        order.payment_status = value
-        if value == "paid" and not order.paid_at:
-            order.paid_at = datetime.utcnow()
-            order.status = OrderStatus.CONFIRMED
-            print(f"✅ Заказ #{order_id} оплачен, статус изменен на CONFIRMED")
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Проверяем существование заказа
+        cur.execute("SELECT id FROM orders WHERE id = %s", (order_id,))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        if field == "payment_status":
+            cur.execute("""
+                UPDATE orders 
+                SET payment_status = %s
+                WHERE id = %s
+            """, (value, order_id))
             
-    elif field == "order_status":
-        # Конвертируем строку в enum
-        status_map = {
-            "pending": OrderStatus.PENDING,
-            "confirmed": OrderStatus.CONFIRMED,
-            "preparing": OrderStatus.PREPARING,
-            "ready_for_pickup": OrderStatus.READY_FOR_PICKUP,
-            "out_for_delivery": OrderStatus.OUT_FOR_DELIVERY,
-            "nearby": OrderStatus.NEARBY,
-            "delivered": OrderStatus.DELIVERED,
-            "cancelled": OrderStatus.CANCELLED
-        }
-        
-        if value in status_map:
-            order.status = status_map[value]
-            
-            # Дополнительные действия при смене статуса
-            if value == "delivered":
-                order.delivered_at = datetime.utcnow()
-                print(f"✅ Заказ #{order_id} доставлен")
+            if value == "paid":
+                cur.execute("""
+                    UPDATE orders 
+                    SET status = 'confirmed', paid_at = NOW()
+                    WHERE id = %s
+                """, (order_id,))
                 
-            elif value == "cancelled":
-                order.cancelled_at = datetime.utcnow()
-                print(f"❌ Заказ #{order_id} отменен")
-                
-            elif value == "out_for_delivery":
-                order.delivery_started_at = datetime.utcnow()
-                order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
-                print(f"🚚 Заказ #{order_id} в пути, дедлайн: {order.delivery_deadline}")
+        elif field == "order_status":
+            # ✅ Просто вставляем строку - никакого enum!
+            cur.execute("""
+                UPDATE orders 
+                SET status = %s
+                WHERE id = %s
+            """, (value, order_id))
         
-        print(f"📦 Заказ #{order_id}: статус изменен с {old_status} на {value}")
-    
-    db.commit()
-    
-    # Отправляем уведомление клиенту через WebSocket (если есть)
-    try:
-        await notify_user(order.user_id, {
-            "type": "order_status_updated",
-            "data": {
-                "order_id": order.id,
-                "order_number": order.order_number,
-                "old_status": old_status,
-                "new_status": value,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        })
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {"success": True}
+        
     except Exception as e:
-        print(f"⚠️ Не удалось отправить уведомление клиенту: {e}")
-    
-    return {
-        "success": True,
-        "message": f"Статус заказа #{order.order_number} изменен с {old_status} на {value}",
-        "order_id": order.id,
-        "field": field,
-        "old_value": old_status,
-        "new_value": value
-    }
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Вспомогательная функция для отправки уведомлений пользователю
@@ -8338,73 +8330,41 @@ async def get_supplier_surprise_bags(supplier_id: int, db: Session = Depends(get
 
 # backend/main.py - ЗАМЕНИТЕ ваш существующий эндпоинт
 # backend/main.py - ЗАМЕНИТЕ эндпоинт на этот:
-
 @app.delete("/api/admin/cleanup-cancelled-orders")
-async def cleanup_cancelled_orders(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Очистка ВСЕХ отмененных заказов (без ограничения по времени)"""
-    
-    # Проверяем админ-токен
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
-    
-    token = auth_header.split(" ")[1]
-    
+async def cleanup_cancelled_orders(request: Request):
+    """Очистка отмененных заказов - чистый SQL"""
     try:
-        from jose import jwt
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        conn = get_db_connection()
+        cur = conn.cursor()
         
-        # Проверяем роль
-        role = payload.get("role")
-        if role != "admin":
-            return JSONResponse(status_code=403, content={"success": False, "message": "Admin access required"})
+        # Получаем отмененные заказы
+        cur.execute("""
+            SELECT id, order_number 
+            FROM orders 
+            WHERE status = 'cancelled'
+        """)
+        cancelled = cur.fetchall()
         
-        # Получаем admin_id из токена (это admin.id)
-        admin_id = payload.get("sub")
+        # Удаляем отмененные заказы
+        cur.execute("""
+            DELETE FROM orders 
+            WHERE status = 'cancelled'
+        """)
+        deleted_count = cur.rowcount
         
-        # Проверяем, что админ существует в БД (ищем по id, а не по user_id!)
-        admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-        if not admin:
-            return JSONResponse(status_code=403, content={"success": False, "message": "Admin not found"})
-            
-    except jwt.ExpiredSignatureError:
-        return JSONResponse(status_code=401, content={"success": False, "message": "Token expired"})
-    except jwt.JWTError as e:
-        return JSONResponse(status_code=401, content={"success": False, "message": f"Invalid token: {str(e)}"})
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "cancelled_orders": [{"id": row[0], "order_number": row[1]} for row in cancelled]
+        }
+        
     except Exception as e:
-        return JSONResponse(status_code=401, content={"success": False, "message": f"Auth error: {str(e)}"})
-    
-    # Находим ВСЕ отмененные заказы
-    cancelled_orders = db.query(Order).filter(
-        Order.status == OrderStatus.CANCELLED
-    ).all()
-    
-    deleted_count = 0
-    for order in cancelled_orders:
-        # Освобождаем курьера, если он был назначен
-        if order.assigned_courier_id:
-            courier = db.query(CourierProfile).filter(
-                CourierProfile.user_id == order.assigned_courier_id,
-                CourierProfile.current_order_id == order.id
-            ).first()
-            if courier:
-                courier.current_order_id = None
-                courier.current_order_status = None
-                courier.is_available = True
-        
-        db.delete(order)
-        deleted_count += 1
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Удалено {deleted_count} отмененных заказов",
-        "deleted_count": deleted_count
-    }
+        print(f"Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 # backend/main.py - добавь эту фоновую задачу
 
 
