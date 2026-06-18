@@ -9230,17 +9230,19 @@ async def supplier_check_auth(request: Request, db: Session = Depends(get_db)):
     except:
         return JSONResponse(status_code=401, content={"authenticated": False})
     
+
+    
 @app.get("/supplier/dashboard")
 async def supplier_dashboard(
     request: Request, 
     db: Session = Depends(get_db)
 ):
-    """Страница дашборда поставщика - поддерживает JWT и Cookie"""
+    """Страница дашборда поставщика - ЧИСТЫЙ SQL"""
     
     supplier_id = None
     auth_token = None
     
-    # 1. Сначала проверяем JWT токен из Authorization header или query param
+    # 1. Проверяем JWT токен
     auth_header = request.headers.get("Authorization")
     
     if auth_header and auth_header.startswith("Bearer "):
@@ -9259,9 +9261,15 @@ async def supplier_dashboard(
                 supplier_id = payload.get("supplier_id")
                 if not supplier_id:
                     user_id = int(payload.get("sub"))
-                    supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
-                    if supplier:
-                        supplier_id = supplier.id
+                    # Чистый SQL вместо SQLAlchemy
+                    conn = get_db_connection()
+                    cur = conn.cursor()
+                    cur.execute("SELECT id FROM suppliers WHERE user_id = %s", (user_id,))
+                    result = cur.fetchone()
+                    cur.close()
+                    conn.close()
+                    if result:
+                        supplier_id = result[0]
         except Exception as e:
             print(f"JWT decode error: {e}")
             auth_token = None
@@ -9272,66 +9280,118 @@ async def supplier_dashboard(
         if cookie_supplier_id:
             supplier_id = int(cookie_supplier_id)
     
-    # 3. Если нет авторизации - редирект на логин
+    # 3. Если нет авторизации - редирект
     if not supplier_id:
         return RedirectResponse(url="/supplier/login", status_code=303)
     
-    # Получаем данные поставщика
-    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     
-    if not supplier:
-        response = RedirectResponse(url="/supplier/login", status_code=303)
-        response.delete_cookie("supplier_id")
-        return response
-    
-    # Получаем заказы
-    all_orders = db.query(Order).filter(Order.supplier_id == supplier.id).order_by(Order.created_at.desc()).all()
-    
-    print(f"📦 Supplier {supplier.business_name} has {len(all_orders)} orders")
-    
-    # Подготовка списка заказов для шаблона
-    recent_orders_list = []
-    for order in all_orders[:10]:
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-        recent_orders_list.append({
-            "id": order.id,
-            "order_number": order.order_number or f"ORD-{order.id}",
-            "customer_address": order.customer_address or "Мекенжай көрсетілмеген",
-            "surprise_bag_name": bag.name if bag else "Тосын сый",
-            "amount_paid": order.amount_paid or 0,
-            "status": order.status.value if order.status else "pending",
-            "created_at": order.created_at
+    try:
+        # Получаем данные поставщика
+        cur.execute("""
+            SELECT id, business_name, city, address, phone, email, rating, is_active
+            FROM suppliers 
+            WHERE id = %s
+        """, (supplier_id,))
+        
+        supplier = cur.fetchone()
+        
+        if not supplier:
+            cur.close()
+            conn.close()
+            response = RedirectResponse(url="/supplier/login", status_code=303)
+            response.delete_cookie("supplier_id")
+            return response
+        
+        # Получаем заказы поставщика
+        cur.execute("""
+            SELECT 
+                o.id,
+                o.order_number,
+                o.customer_address,
+                o.amount_paid,
+                o.status::text as status,
+                o.created_at,
+                sb.name as surprise_bag_name
+            FROM orders o
+            LEFT JOIN surprise_bags sb ON sb.id = o.surprise_bag_id
+            WHERE o.supplier_id = %s
+            ORDER BY o.created_at DESC
+        """, (supplier_id,))
+        
+        all_orders = cur.fetchall()
+        
+        print(f"📦 Supplier {supplier['business_name']} has {len(all_orders)} orders")
+        
+        # Статистика через чистый SQL
+        cur.execute("""
+            SELECT 
+                COUNT(*) as total_orders,
+                COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders,
+                COUNT(CASE WHEN DATE(created_at) = CURRENT_DATE THEN 1 END) as today_orders,
+                COALESCE(SUM(CASE WHEN status = 'delivered' THEN amount_paid ELSE 0 END), 0) as total_revenue
+            FROM orders
+            WHERE supplier_id = %s
+        """, (supplier_id,))
+        
+        stats_data = cur.fetchone()
+        
+        # Получаем сюрпризы
+        cur.execute("""
+            SELECT 
+                id, name, description, original_price, discounted_price,
+                discount_percentage, image_url, available_quantity,
+                is_active, created_at
+            FROM surprise_bags
+            WHERE supplier_id = %s
+            ORDER BY created_at DESC
+        """, (supplier_id,))
+        
+        surprise_bags = cur.fetchall()
+        
+        # Подготовка списка заказов для шаблона
+        recent_orders_list = []
+        for order in all_orders[:10]:
+            recent_orders_list.append({
+                "id": order['id'],
+                "order_number": order['order_number'] or f"ORD-{order['id']}",
+                "customer_address": order['customer_address'] or "Мекенжай көрсетілмеген",
+                "surprise_bag_name": order['surprise_bag_name'] or "Тосын сый",
+                "amount_paid": float(order['amount_paid']) if order['amount_paid'] else 0,
+                "status": order['status'] or "pending",
+                "created_at": order['created_at']
+            })
+        
+        stats = {
+            "total_orders": stats_data['total_orders'] if stats_data else 0,
+            "pending_orders": stats_data['pending_orders'] if stats_data else 0,
+            "today_orders": stats_data['today_orders'] if stats_data else 0,
+            "total_revenue": float(stats_data['total_revenue']) if stats_data else 0
+        }
+        
+        lang = request.query_params.get("lang", "ru")
+        
+        cur.close()
+        conn.close()
+        
+        return templates.TemplateResponse("supplier_dashboard.html", {
+            "request": request,
+            "supplier": supplier,
+            "stats": stats,
+            "recent_orders": recent_orders_list,
+            "all_orders": recent_orders_list,
+            "surprise_bags": surprise_bags,
+            "monthly_revenue": stats["total_revenue"],
+            "lang": lang,
+            "token": auth_token
         })
-    
-    # Статистика
-    total_orders = len(all_orders)
-    pending_orders = len([o for o in all_orders if o.status == OrderStatus.PENDING])
-    today_orders = len([o for o in all_orders if o.created_at and o.created_at.date() == datetime.utcnow().date()])
-    total_revenue = sum([o.amount_paid or 0 for o in all_orders if o.status == OrderStatus.DELIVERED])
-    
-    stats = {
-        "total_orders": total_orders,
-        "pending_orders": pending_orders,
-        "today_orders": today_orders,
-        "total_revenue": total_revenue
-    }
-    
-    # Сюрпризы
-    surprise_bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier.id).all()
-    
-    lang = request.query_params.get("lang", "ru")
-    
-    return templates.TemplateResponse("supplier_dashboard.html", {
-        "request": request,
-        "supplier": supplier,
-        "stats": stats,
-        "recent_orders": recent_orders_list,
-        "all_orders": recent_orders_list,
-        "surprise_bags": surprise_bags,
-        "monthly_revenue": total_revenue,
-        "lang": lang,
-        "token": auth_token  # Передаем токен в шаблон
-    })
+        
+    except Exception as e:
+        cur.close()
+        conn.close()
+        print(f"❌ Ошибка supplier_dashboard: {e}")
+        return RedirectResponse(url="/supplier/login", status_code=303)
     
 @app.post("/supplier/logout")
 async def supplier_logout(request: Request):
