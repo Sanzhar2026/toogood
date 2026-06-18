@@ -1865,7 +1865,6 @@ async def courier_arrived(order_id: int, request: Request):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
     order_id: int,
@@ -1886,11 +1885,15 @@ async def customer_confirm_delivery(
             from jose import jwt
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             user_id = payload.get("sub")
-        except:
-            pass
+            print(f"🔑 user_id из токена: {user_id}")
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.JWTError as e:
+            raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
     
     if not user_id:
         user_id = request.cookies.get("user_id")
+        print(f"🍪 user_id из cookie: {user_id}")
     
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -1899,7 +1902,23 @@ async def customer_confirm_delivery(
     cur = conn.cursor()
     
     try:
-        # 1. Проверяем заказ
+        # 1. ✅ ДОБАВЛЯЕМ ЗНАЧЕНИЕ В ENUM (если нет)
+        cur.execute("""
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_enum 
+                    WHERE enumtypid = 'orderstatus'::regtype 
+                    AND enumlabel = 'waiting_confirmation'
+                ) THEN
+                    ALTER TYPE orderstatus ADD VALUE 'waiting_confirmation';
+                END IF;
+            END $$;
+        """)
+        conn.commit()
+        print("✅ ENUM обновлен (waiting_confirmation добавлен)")
+        
+        # 2. Проверяем заказ
         cur.execute("""
             SELECT id, user_id, status, assigned_courier_id, order_number, amount_paid
             FROM orders 
@@ -1920,26 +1939,51 @@ async def customer_confirm_delivery(
         
         print(f"📋 Заказ #{order_id}: статус={order_status}, клиент={order_user_id}")
         
-        # 2. Проверяем, что заказ принадлежит клиенту
+        # 3. Проверяем, что заказ принадлежит клиенту
         if int(order_user_id) != int(user_id):
             cur.close()
             conn.close()
             raise HTTPException(status_code=403, detail="Not your order")
         
-        # 3. ✅ Проверяем, что заказ в статусе 'waiting_confirmation'
-        if order_status != 'waiting_confirmation':
+        # 4. ✅ Проверяем статус
+        if order_status == 'delivered':
             cur.close()
             conn.close()
             return JSONResponse(
                 status_code=400,
                 content={
                     "success": False, 
-                    "message": f"Заказ не ожидает подтверждения. Статус: {order_status}",
+                    "message": "Заказ уже был доставлен ранее",
+                    "status": "delivered"
+                }
+            )
+        
+        if order_status == 'cancelled':
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False, 
+                    "message": "Заказ был отменен",
+                    "status": "cancelled"
+                }
+            )
+        
+        # 5. ✅ Проверяем, что заказ в статусе 'waiting_confirmation' или 'nearby'
+        if order_status not in ['waiting_confirmation', 'nearby']:
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False, 
+                    "message": f"Заказ не готов к получению. Статус: {order_status}",
                     "status": order_status
                 }
             )
         
-        # 4. ✅ Меняем статус на 'delivered' (ТОЛЬКО ТЕПЕРЬ!)
+        # 6. ✅ Меняем статус на 'delivered'
         cur.execute("""
             UPDATE orders 
             SET status = 'delivered',
@@ -1947,7 +1991,7 @@ async def customer_confirm_delivery(
             WHERE id = %s
         """, (order_id,))
         
-        # 5. Освобождаем курьера
+        # 7. Освобождаем курьера
         if assigned_courier:
             cur.execute("""
                 UPDATE courier_profiles 
@@ -1960,7 +2004,7 @@ async def customer_confirm_delivery(
             """, (assigned_courier,))
             print(f"✅ Курьер {assigned_courier} освобожден")
         
-        # 6. Добавляем в трекинг
+        # 8. Добавляем в трекинг
         cur.execute("""
             INSERT INTO order_tracking 
             (order_id, status, message, created_at)
@@ -1973,7 +2017,7 @@ async def customer_confirm_delivery(
         
         print(f"✅ Заказ #{order_id} доставлен!")
         
-        # 7. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРУ
+        # 9. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРУ
         try:
             if assigned_courier:
                 await manager.send_to_courier(assigned_courier, {
@@ -2007,8 +2051,6 @@ async def customer_confirm_delivery(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
-
 
 
     
@@ -3362,7 +3404,23 @@ async def complete_order(order_id: int, request: Request):
     cur = conn.cursor()
     
     try:
-        # 1. Проверяем курьера
+        # 1. ✅ ДОБАВЛЯЕМ ЗНАЧЕНИЕ В ENUM (если нет)
+        cur.execute("""
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_enum 
+                    WHERE enumtypid = 'orderstatus'::regtype 
+                    AND enumlabel = 'waiting_confirmation'
+                ) THEN
+                    ALTER TYPE orderstatus ADD VALUE 'waiting_confirmation';
+                END IF;
+            END $$;
+        """)
+        conn.commit()
+        print("✅ ENUM обновлен (waiting_confirmation добавлен)")
+        
+        # 2. Проверяем курьера
         cur.execute("""
             SELECT id, first_name, last_name 
             FROM courier_profiles 
@@ -3375,9 +3433,11 @@ async def complete_order(order_id: int, request: Request):
             conn.close()
             raise HTTPException(status_code=404, detail="Courier not found")
         
-        courier_name = f"{courier[1]} {courier[2]}"
+        courier_first_name = courier[1]
+        courier_last_name = courier[2]
+        courier_name = f"{courier_first_name} {courier_last_name}"
         
-        # 2. Проверяем заказ
+        # 3. Проверяем заказ
         cur.execute("""
             SELECT id, assigned_courier_id, user_id, order_number, amount_paid, status
             FROM orders 
@@ -3398,13 +3458,13 @@ async def complete_order(order_id: int, request: Request):
         
         print(f"📋 Заказ #{order_id}: статус={current_status}, курьер={assigned_courier}")
         
-        # 3. Проверяем, что заказ назначен этому курьеру
+        # 4. Проверяем, что заказ назначен этому курьеру
         if assigned_courier != int(user_id):
             cur.close()
             conn.close()
             raise HTTPException(status_code=403, detail="Order not assigned to you")
         
-        # 4. Проверяем, что заказ в статусе 'nearby'
+        # 5. Проверяем, что заказ в статусе 'nearby'
         if current_status != 'nearby':
             cur.close()
             conn.close()
@@ -3413,14 +3473,14 @@ async def complete_order(order_id: int, request: Request):
                 content={"success": False, "message": f"Заказ не в статусе 'nearby'. Текущий статус: {current_status}"}
             )
         
-        # 5. ✅ МЕНЯЕМ СТАТУС НА 'waiting_confirmation' (НЕ НА 'delivered'!)
+        # 6. ✅ МЕНЯЕМ СТАТУС НА 'waiting_confirmation'
         cur.execute("""
             UPDATE orders 
             SET status = 'waiting_confirmation'
             WHERE id = %s
         """, (order_id,))
         
-        # 6. Добавляем в трекинг
+        # 7. Добавляем в трекинг
         cur.execute("""
             INSERT INTO order_tracking 
             (order_id, status, message, created_at)
@@ -3433,7 +3493,7 @@ async def complete_order(order_id: int, request: Request):
         
         print(f"✅ Заказ #{order_id} передан клиенту, статус: waiting_confirmation")
         
-        # 7. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КЛИЕНТУ
+        # 8. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КЛИЕНТУ
         try:
             if customer_user_id:
                 await manager.send_to_user(customer_user_id, {
@@ -3468,8 +3528,6 @@ async def complete_order(order_id: int, request: Request):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
-        
 @app.post("/api/courier/login")
 async def courier_login(request: Request, db: Session = Depends(get_db)):
     """Логин для курьеров с JWT токеном"""
