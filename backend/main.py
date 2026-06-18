@@ -1201,7 +1201,7 @@ async def create_order(request: Request):
     # Получаем данные
     data = await request.json()
     bag_id = data.get("bag_id")
-    delivery_type = data.get("delivery_type", "pickup")  # pickup или delivery
+    delivery_type = data.get("delivery_type", "pickup")
     customer_address = data.get("address", "Самовывоз")
     customer_lat = data.get("lat")
     customer_lon = data.get("lon")
@@ -1218,7 +1218,7 @@ async def create_order(request: Request):
               AND bag_id = %s 
               AND is_paid = false 
               AND expires_at > NOW()
-            ORDER BY created_at DESC
+            ORDER BY reserved_at DESC
             LIMIT 1
         """, (int(user_id), bag_id))
         
@@ -1378,8 +1378,9 @@ async def create_order(request: Request):
         cur.close()
         conn.close()
         print(f"❌ Ошибка создания заказа: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/api/surprise-bags/{bag_id}/rating")
 async def get_surprise_bag_rating(
     bag_id: int,
