@@ -1179,7 +1179,7 @@ async def admin_bulk_update_status(
 # backend/main.py - добавить
 @app.post("/api/orders")
 async def create_order(request: Request):
-    """Создание заказа после оплаты - ЧИСТЫЙ SQL"""
+    """Создание заказа после оплаты - ЧИСТЫЙ SQL (БЕЗ delivery_status)"""
     
     # ✅ Получаем user_id из Bearer токена
     auth_header = request.headers.get("Authorization")
@@ -1246,19 +1246,19 @@ async def create_order(request: Request):
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         now = datetime.utcnow()
         
-        # 4. Создаем заказ
+        # 4. Создаем заказ (БЕЗ delivery_status!)
         if reservation:
             # Есть активная резервация - используем её
             cur.execute("""
                 INSERT INTO orders (
                     user_id, supplier_id, surprise_bag_id, 
-                    order_number, status, delivery_status,
+                    order_number, status,
                     payment_status, customer_address, 
                     customer_lat, customer_lon,
                     amount_paid, delivery_type, created_at
                 ) VALUES (
                     %s, %s, %s,
-                    %s, 'pending', 'at_supplier',
+                    %s, 'pending',
                     'pending', %s,
                     %s, %s,
                     %s, %s, %s
@@ -1331,17 +1331,17 @@ async def create_order(request: Request):
                 now + timedelta(minutes=15)
             ))
             
-            # Создаем заказ
+            # Создаем заказ (БЕЗ delivery_status!)
             cur.execute("""
                 INSERT INTO orders (
                     user_id, supplier_id, surprise_bag_id, 
-                    order_number, status, delivery_status,
+                    order_number, status,
                     payment_status, customer_address, 
                     customer_lat, customer_lon,
                     amount_paid, delivery_type, created_at
                 ) VALUES (
                     %s, %s, %s,
-                    %s, 'pending', 'at_supplier',
+                    %s, 'pending',
                     'pending', %s,
                     %s, %s,
                     %s, %s, %s
@@ -1381,7 +1381,6 @@ async def create_order(request: Request):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 
