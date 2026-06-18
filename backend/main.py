@@ -1808,123 +1808,195 @@ async def customer_confirm_delivery(
 # backend/main.py - ЕДИНСТВЕННЫЙ эндпоинт для take-order
 
 @app.post("/api/courier/take-order/{order_id}")
-async def courier_take_order(order_id: int, request: Request, db: Session = Depends(get_db)):
-    """Курьер берет заказ в работу (едет в ресторан)"""
+async def courier_take_order(order_id: int, request: Request):
+    """Курьер берет заказ в работу - ЧИСТЫЙ SQL"""
     
     print("=" * 50)
     print(f"📦 ПОПЫТКА ВЗЯТЬ ЗАКАЗ #{order_id}")
     
     # ✅ ТОЛЬКО Bearer токен
-    user_id = None
     auth_header = request.headers.get("Authorization")
-    print(f"📨 Authorization header: {auth_header[:50] if auth_header else 'None'}...")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
     
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-            print(f"🔑 Пользователь из Bearer токена: {user_id}")
-        except Exception as e:
-            print(f"❌ Ошибка декодирования токена: {e}")
-            raise HTTPException(status_code=401, detail="Invalid token")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        print(f"🔑 Пользователь из Bearer токена: {user_id}")
+    except Exception as e:
+        print(f"❌ Ошибка декодирования токена: {e}")
+        raise HTTPException(status_code=401, detail="Invalid token")
     
     if not user_id:
-        print("❌ Нет user_id в токене")
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    # Получаем курьера
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    if not courier:
-        print(f"❌ Курьер не найден для user_id={user_id}")
-        raise HTTPException(status_code=404, detail="Courier not found")
+    conn = get_db_connection()
+    cur = conn.cursor()
     
-    print(f"👤 Курьер: {courier.first_name} {courier.last_name}, онлайн: {courier.is_online}")
-    
-    # Проверяем, что курьер на линии
-    if not courier.is_online:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Вы не на линии. Включите режим 'На линии'"}
-        )
-    
-    # Получаем заказ
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        print(f"❌ Заказ #{order_id} не найден")
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    print(f"📋 Заказ #{order_id}: статус={order.status}, назначен курьеру={order.assigned_courier_id}")
-    
-    # Проверяем что это доставка
-    if order.delivery_type != "delivery":
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Это заказ на самовывоз! Курьер не требуется."}
-        )
-    
-    # Проверяем, что заказ доступен для взятия
-    if order.status != OrderStatus.CONFIRMED:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": f"Заказ не доступен. Текущий статус: {order.status}"}
-        )
-    
-    if order.assigned_courier_id is not None:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Заказ уже назначен другому курьеру"}
-        )
-    
-    # Проверяем, есть ли у курьера активный заказ
-    if courier.current_order_id is not None:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": f"У вас уже есть активный заказ #{courier.current_order_id}"}
-        )
-    
-    # ✅ ПРАВИЛЬНО: статус READY_FOR_PICKUP (едет в ресторан)
-    order.assigned_courier_id = courier.user_id
-    order.status = OrderStatus.READY_FOR_PICKUP  # ← ИЗМЕНЕНО!
-    
-    # ❌ НЕ СТАВИМ ДЕДЛАЙН ЗДЕСЬ!
-    # order.delivery_deadline = ... (убрать!)
-    
-    # Обновляем статус курьера
-    courier.current_order_id = order_id
-    courier.current_order_status = "assigned"
-    courier.is_available = False
-    
-    db.commit()
-    
-    print(f"✅ Заказ #{order_id} назначен курьеру {courier.first_name} {courier.last_name}")
-    print(f"📍 Курьер должен ехать в ресторан")
-    
-    # Отправляем уведомление клиенту через WebSocket
     try:
-        await manager.broadcast({
-            "type": "order_assigned",
-            "data": {
-                "order_id": order_id,
-                "courier_name": f"{courier.first_name} {courier.last_name}",
-                "courier_phone": courier.phone,
-                "courier_lat": courier.current_lat,
-                "courier_lon": courier.current_lon,
-                "status": "assigned"
-            },
-            "timestamp": datetime.utcnow().isoformat()
-        }, channel=f"order_{order_id}")
+        # 1. Получаем курьера
+        cur.execute("""
+            SELECT id, is_online, is_available, current_order_id, is_verified
+            FROM courier_profiles 
+            WHERE user_id = %s
+        """, (int(user_id),))
+        
+        courier = cur.fetchone()
+        if not courier:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Courier not found")
+        
+        courier_id = courier[0]
+        is_online = courier[1]
+        is_available = courier[2]
+        current_order_id = courier[3]
+        is_verified = courier[4]
+        
+        print(f"👤 Курьер: id={courier_id}, онлайн={is_online}, верифицирован={is_verified}")
+        
+        # Проверки
+        if not is_verified:
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Курьер не верифицирован"}
+            )
+        
+        if not is_online:
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Вы не на линии. Включите режим 'На линии'"}
+            )
+        
+        if current_order_id:
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": f"У вас уже есть активный заказ #{current_order_id}"}
+            )
+        
+        # 2. Проверяем заказ (с блокировкой FOR UPDATE)
+        cur.execute("""
+            SELECT id, status, assigned_courier_id, delivery_type, order_number
+            FROM orders 
+            WHERE id = %s 
+            FOR UPDATE
+        """, (order_id,))
+        
+        order = cur.fetchone()
+        if not order:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        order_status = order[1]
+        assigned_courier = order[2]
+        delivery_type = order[3]
+        order_number = order[4]
+        
+        print(f"📋 Заказ #{order_id}: статус={order_status}, назначен курьеру={assigned_courier}, тип={delivery_type}")
+        
+        # Проверяем, что заказ доступен
+        if order_status != 'confirmed':
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": f"Заказ не доступен. Текущий статус: {order_status}"}
+            )
+        
+        if assigned_courier is not None:
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Заказ уже назначен другому курьеру"}
+            )
+        
+        if delivery_type != 'delivery':
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Это заказ на самовывоз! Курьер не требуется."}
+            )
+        
+        # 3. Назначаем заказ курьеру
+        cur.execute("""
+            UPDATE orders 
+            SET assigned_courier_id = %s,
+                status = 'ready_for_pickup'
+            WHERE id = %s
+        """, (int(user_id), order_id))
+        
+        # 4. Обновляем профиль курьера
+        cur.execute("""
+            UPDATE courier_profiles 
+            SET current_order_id = %s,
+                current_order_status = 'assigned',
+                is_available = false
+            WHERE user_id = %s
+        """, (order_id, int(user_id)))
+        
+        # 5. Добавляем запись в трекинг
+        cur.execute("""
+            INSERT INTO order_tracking 
+            (order_id, status, delivery_status, message, created_at)
+            VALUES (%s, 'ready_for_pickup', 'at_supplier', 
+                    'Курьер назначен на заказ', NOW())
+        """, (order_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        print(f"✅ Заказ #{order_id} назначен курьеру {user_id}")
+        
+        # 6. Отправляем уведомления
+        try:
+            # Клиенту
+            cur = conn.cursor()
+            cur.execute("SELECT user_id FROM orders WHERE id = %s", (order_id,))
+            order_owner = cur.fetchone()
+            cur.close()
+            
+            if order_owner:
+                await manager.broadcast({
+                    "type": "order_assigned",
+                    "data": {
+                        "order_id": order_id,
+                        "order_number": order_number,
+                        "courier_id": user_id,
+                        "status": "assigned",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                }, channel=f"user_{order_owner[0]}")
+                print(f"📢 Уведомление отправлено клиенту {order_owner[0]}")
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление: {e}")
+        
+        return {
+            "success": True,
+            "message": "Заказ взят в работу! Едьте в ресторан.",
+            "order_id": order_id,
+            "status": "ready_for_pickup"
+        }
+        
     except Exception as e:
-        print(f"⚠️ Не удалось отправить уведомление: {e}")
-    
-    return {
-        "success": True,
-        "message": "Заказ взят в работу! Едьте в ресторан.",
-        "order_id": order_id,
-        "status": "ready_for_pickup"
-    }
-
+        conn.rollback()
+        cur.close()
+        conn.close()
+        print(f"❌ Ошибка при взятии заказа: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/admin/process-refund/{order_id}")
 async def admin_process_refund(order_id: int, request: Request, db: Session = Depends(get_db)):
