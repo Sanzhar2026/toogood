@@ -1865,6 +1865,8 @@ async def courier_arrived(order_id: int, request: Request):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
     order_id: int,
@@ -1902,23 +1904,7 @@ async def customer_confirm_delivery(
     cur = conn.cursor()
     
     try:
-        # 1. ✅ ДОБАВЛЯЕМ ЗНАЧЕНИЕ В ENUM (если нет)
-        cur.execute("""
-            DO $$ 
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_enum 
-                    WHERE enumtypid = 'orderstatus'::regtype 
-                    AND enumlabel = 'waiting_confirmation'
-                ) THEN
-                    ALTER TYPE orderstatus ADD VALUE 'waiting_confirmation';
-                END IF;
-            END $$;
-        """)
-        conn.commit()
-        print("✅ ENUM обновлен (waiting_confirmation добавлен)")
-        
-        # 2. Проверяем заказ
+        # 1. Проверяем заказ
         cur.execute("""
             SELECT id, user_id, status, assigned_courier_id, order_number, amount_paid
             FROM orders 
@@ -1937,15 +1923,15 @@ async def customer_confirm_delivery(
         order_number = order[4]
         amount_paid = order[5]
         
-        print(f"📋 Заказ #{order_id}: статус={order_status}, клиент={order_user_id}")
+        print(f"📋 Заказ #{order_id}: статус={order_status}, клиент={order_user_id}, курьер={assigned_courier}")
         
-        # 3. Проверяем, что заказ принадлежит клиенту
+        # 2. Проверяем, что заказ принадлежит клиенту
         if int(order_user_id) != int(user_id):
             cur.close()
             conn.close()
             raise HTTPException(status_code=403, detail="Not your order")
         
-        # 4. ✅ Проверяем статус
+        # 3. ✅ Проверяем статус
         if order_status == 'delivered':
             cur.close()
             conn.close()
@@ -1970,7 +1956,7 @@ async def customer_confirm_delivery(
                 }
             )
         
-        # 5. ✅ Проверяем, что заказ в статусе 'waiting_confirmation' или 'nearby'
+        # 4. ✅ Проверяем, что заказ в статусе 'waiting_confirmation' или 'nearby'
         if order_status not in ['waiting_confirmation', 'nearby']:
             cur.close()
             conn.close()
@@ -1983,7 +1969,7 @@ async def customer_confirm_delivery(
                 }
             )
         
-        # 6. ✅ Меняем статус на 'delivered'
+        # 5. ✅ Меняем статус на 'delivered'
         cur.execute("""
             UPDATE orders 
             SET status = 'delivered',
@@ -1991,7 +1977,7 @@ async def customer_confirm_delivery(
             WHERE id = %s
         """, (order_id,))
         
-        # 7. Освобождаем курьера
+        # 6. Освобождаем курьера
         if assigned_courier:
             cur.execute("""
                 UPDATE courier_profiles 
@@ -2004,7 +1990,7 @@ async def customer_confirm_delivery(
             """, (assigned_courier,))
             print(f"✅ Курьер {assigned_courier} освобожден")
         
-        # 8. Добавляем в трекинг
+        # 7. Добавляем в трекинг
         cur.execute("""
             INSERT INTO order_tracking 
             (order_id, status, message, created_at)
@@ -2017,9 +2003,24 @@ async def customer_confirm_delivery(
         
         print(f"✅ Заказ #{order_id} доставлен!")
         
-        # 9. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРУ
+        # 8. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРУ (ВАЖНО!)
         try:
             if assigned_courier:
+                # Получаем имя курьера для уведомления
+                conn2 = get_db_connection()
+                cur2 = conn2.cursor()
+                cur2.execute("""
+                    SELECT first_name, last_name 
+                    FROM courier_profiles 
+                    WHERE user_id = %s
+                """, (assigned_courier,))
+                courier = cur2.fetchone()
+                cur2.close()
+                conn2.close()
+                
+                courier_name = f"{courier[0]} {courier[1]}" if courier else "Курьер"
+                
+                # ✅ ОТПРАВЛЯЕМ ЧЕРЕЗ send_to_courier
                 await manager.send_to_courier(assigned_courier, {
                     "type": "delivery_confirmed_by_customer",
                     "data": {
@@ -2027,20 +2028,38 @@ async def customer_confirm_delivery(
                         "order_number": order_number,
                         "status": "delivered",
                         "message": f"✅ Клиент подтвердил получение заказа #{order_number}!",
+                        "courier_name": courier_name,
                         "amount": float(amount_paid) if amount_paid else 0,
                         "timestamp": datetime.utcnow().isoformat()
                     }
                 })
                 print(f"📢 Уведомление отправлено курьеру {assigned_courier}")
+                
+                # ✅ ТАКЖЕ ОТПРАВЛЯЕМ ЧЕРЕЗ BROADCAST (на всякий случай)
+                await manager.broadcast({
+                    "type": "delivery_confirmed_by_customer",
+                    "data": {
+                        "order_id": order_id,
+                        "order_number": order_number,
+                        "status": "delivered",
+                        "message": f"✅ Клиент подтвердил получение заказа #{order_number}!",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                }, channel=f"courier_{assigned_courier}")
+                print(f"📢 Broadcast отправлен курьеру {assigned_courier}")
+                
         except Exception as e:
             print(f"⚠️ Не удалось отправить уведомление курьеру: {e}")
+            import traceback
+            traceback.print_exc()
         
         return {
             "success": True,
             "message": "Спасибо! Заказ получен.",
             "order_id": order_id,
             "order_number": order_number,
-            "status": "delivered"
+            "status": "delivered",
+            "courier_notified": True
         }
         
     except Exception as e:
@@ -2051,7 +2070,6 @@ async def customer_confirm_delivery(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
 
     
 @app.post("/api/courier/take-order/{order_id}")
