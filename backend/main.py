@@ -8332,20 +8332,59 @@ async def get_supplier_surprise_bags(supplier_id: int, db: Session = Depends(get
 # backend/main.py - ЗАМЕНИТЕ эндпоинт на этот:
 @app.delete("/api/admin/cleanup-cancelled-orders")
 async def cleanup_cancelled_orders(request: Request):
-    """Очистка отмененных заказов - чистый SQL"""
+    """Очистка отмененных заказов - чистый SQL с освобождением курьеров"""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Получаем отмененные заказы
+        # 1. Сначала находим все отмененные заказы
         cur.execute("""
-            SELECT id, order_number 
+            SELECT id, order_number, assigned_courier_id
             FROM orders 
             WHERE status = 'cancelled'
         """)
         cancelled = cur.fetchall()
         
-        # Удаляем отмененные заказы
+        if not cancelled:
+            cur.close()
+            conn.close()
+            return {
+                "success": True,
+                "deleted_count": 0,
+                "message": "Нет отмененных заказов для удаления"
+            }
+        
+        # 2. ОСВОБОЖДАЕМ КУРЬЕРОВ (снимаем привязку к заказу)
+        for order in cancelled:
+            order_id = order[0]
+            courier_id = order[2] if len(order) > 2 else None
+            
+            if courier_id:
+                # Освобождаем курьера
+                cur.execute("""
+                    UPDATE courier_profiles 
+                    SET current_order_id = NULL,
+                        current_order_status = NULL,
+                        is_available = true
+                    WHERE current_order_id = %s
+                """, (order_id,))
+                print(f"✅ Освобожден курьер от заказа #{order_id}")
+        
+        # 3. Удаляем записи из order_tracking (если есть)
+        order_ids = [str(o[0]) for o in cancelled]
+        if order_ids:
+            cur.execute(f"""
+                DELETE FROM order_tracking 
+                WHERE order_id IN ({','.join(order_ids)})
+            """)
+            
+            # 4. Удаляем из assigned_orders (если есть)
+            cur.execute(f"""
+                DELETE FROM assigned_orders 
+                WHERE order_id IN ({','.join(order_ids)})
+            """)
+        
+        # 5. Теперь удаляем сами заказы
         cur.execute("""
             DELETE FROM orders 
             WHERE status = 'cancelled'
@@ -8359,14 +8398,17 @@ async def cleanup_cancelled_orders(request: Request):
         return {
             "success": True,
             "deleted_count": deleted_count,
-            "cancelled_orders": [{"id": row[0], "order_number": row[1]} for row in cancelled]
+            "cancelled_orders": [
+                {"id": o[0], "order_number": o[1]} for o in cancelled
+            ],
+            "message": f"Удалено {deleted_count} отмененных заказов"
         }
         
     except Exception as e:
         print(f"Error: {e}")
+        conn.rollback()
+        conn.close()
         raise HTTPException(status_code=500, detail=str(e))
-# backend/main.py - добавь эту фоновую задачу
-
 
 
 
