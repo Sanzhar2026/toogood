@@ -1826,57 +1826,165 @@ async def courier_arrived(order_id: int, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
     
 
-
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
     order_id: int,
-    request: Request,
-    db: Session = Depends(get_db)
+    request: Request
 ):
-    """Клиент подтверждает получение заказа"""
+    """Клиент подтверждает получение заказа - с уведомлением курьеру"""
     
-    # Получаем user_id из токена
-    user_id = get_current_user_from_token(request)
+    # Проверка токена
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        # Пробуем через cookie
+        user_id = request.cookies.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+    else:
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+        except:
+            raise HTTPException(status_code=401, detail="Invalid token")
     
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    conn = get_db_connection()
+    cur = conn.cursor()
     
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.user_id == int(user_id)
-    ).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # ✅ Меняем статус на DELIVERED
-    order.status = OrderStatus.DELIVERED
-    order.delivered_at = datetime.utcnow()
-    
-    # Освобождаем курьера
-    if order.assigned_courier_id:
-        courier = db.query(CourierProfile).filter(
-            CourierProfile.user_id == order.assigned_courier_id
-        ).first()
-        if courier:
-            courier.current_order_id = None
-            courier.current_order_status = None
-            courier.is_available = True
-            courier.total_deliveries += 1
-    
-    db.commit()
-    
-    # Уведомляем курьера
-    await manager.broadcast({
-        "type": "delivery_confirmed",
-        "data": {
+    try:
+        # 1. Проверяем заказ
+        cur.execute("""
+            SELECT id, user_id, status, assigned_courier_id, order_number, amount_paid
+            FROM orders 
+            WHERE id = %s
+        """, (order_id,))
+        
+        order = cur.fetchone()
+        if not order:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        order_user_id = order[1]
+        order_status = order[2]
+        assigned_courier = order[3]
+        order_number = order[4]
+        amount_paid = order[5]
+        
+        # Проверяем, что заказ принадлежит клиенту
+        if int(order_user_id) != int(user_id):
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=403, detail="Not your order")
+        
+        # 2. Проверяем, что заказ в статусе 'nearby'
+        if order_status != 'nearby':
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": f"Заказ не готов к получению. Статус: {order_status}"}
+            )
+        
+        # 3. Меняем статус на 'delivered'
+        cur.execute("""
+            UPDATE orders 
+            SET status = 'delivered',
+                delivered_at = NOW()
+            WHERE id = %s
+        """, (order_id,))
+        
+        # 4. ✅ ОСВОБОЖДАЕМ КУРЬЕРА
+        if assigned_courier:
+            cur.execute("""
+                UPDATE courier_profiles 
+                SET current_order_id = NULL,
+                    current_order_status = NULL,
+                    is_available = true,
+                    total_deliveries = COALESCE(total_deliveries, 0) + 1,
+                    completed_orders_today = COALESCE(completed_orders_today, 0) + 1,
+                    last_order_completed_at = NOW()
+                WHERE user_id = %s
+            """, (assigned_courier,))
+            print(f"✅ Курьер {assigned_courier} освобожден")
+        
+        # 5. Добавляем в трекинг
+        cur.execute("""
+            INSERT INTO order_tracking 
+            (order_id, status, message, created_at)
+            VALUES (%s, 'delivered', 'Клиент подтвердил получение заказа', NOW())
+        """, (order_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        # ============================================
+        # 6. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРУ
+        # ============================================
+        try:
+            if assigned_courier:
+                # Получаем имя курьера для уведомления
+                conn2 = get_db_connection()
+                cur2 = conn2.cursor()
+                cur2.execute("""
+                    SELECT first_name, last_name 
+                    FROM courier_profiles 
+                    WHERE user_id = %s
+                """, (assigned_courier,))
+                courier = cur2.fetchone()
+                cur2.close()
+                conn2.close()
+                
+                courier_name = f"{courier[0]} {courier[1]}" if courier else "Курьер"
+                
+                # Уведомление курьеру через WebSocket
+                await manager.broadcast({
+                    "type": "delivery_confirmed",
+                    "data": {
+                        "order_id": order_id,
+                        "order_number": order_number,
+                        "status": "delivered",
+                        "message": f"✅ Клиент подтвердил получение заказа #{order_number}!",
+                        "amount": float(amount_paid) if amount_paid else 0,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                }, channel=f"courier_{assigned_courier}")
+                print(f"📢 Уведомление отправлено КУРЬЕРУ {assigned_courier}")
+                
+                # Уведомление ВСЕМ курьерам (обновить список)
+                await manager.broadcast({
+                    "type": "order_completed",
+                    "data": {
+                        "order_id": order_id,
+                        "order_number": order_number,
+                        "courier_id": assigned_courier,
+                        "status": "delivered",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                }, channel="couriers")
+                print(f"📢 Уведомление отправлено ВСЕМ курьерам")
+                
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление курьеру: {e}")
+        
+        return {
+            "success": True,
+            "message": "Спасибо! Заказ получен.",
             "order_id": order_id,
-            "status": "delivered"
+            "order_number": order_number,
+            "status": "delivered",
+            "courier_freed": True,
+            "courier_notified": True
         }
-    }, channel=f"courier_{order.assigned_courier_id}")
-    
-    return {"success": True, "message": "Спасибо! Заказ получен"}
-
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        print(f"❌ Ошибка: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
