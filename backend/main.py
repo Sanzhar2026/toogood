@@ -1250,6 +1250,7 @@ async def admin_update_order_status(
         conn.close()
         print(f"❌ Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
 # Вспомогательная функция для отправки уведомлений пользователю
 async def notify_user(user_id: int, message: dict):
     """Отправить уведомление конкретному пользователю"""
