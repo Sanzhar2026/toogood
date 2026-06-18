@@ -1,4 +1,5 @@
 # backend/websocket_manager.py - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
+
 from typing import Dict, List, Set
 from fastapi import WebSocket
 import asyncio
@@ -7,7 +8,7 @@ import gc
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
-        self.general_connections: List[WebSocket] = []  # ✅ ДОБАВЛЕНО
+        self.general_connections: List[WebSocket] = []
         self.courier_connections: Dict[int, Set[WebSocket]] = {}
         self.user_connections: Dict[int, Set[WebSocket]] = {}
         self.supplier_connections: Dict[int, Set[WebSocket]] = {}
@@ -67,11 +68,9 @@ class ConnectionManager:
     
     async def disconnect(self, websocket: WebSocket, user_type: str = None, user_id: int = None):
         """Отключение авторизованного пользователя"""
-        # Удаляем из active_connections
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
         
-        # Если знаем тип и ID - удаляем из соответствующего словаря
         if user_type and user_id:
             if user_type == "courier" and user_id in self.courier_connections:
                 self.courier_connections[user_id].discard(websocket)
@@ -86,7 +85,6 @@ class ConnectionManager:
                 if not self.supplier_connections[user_id]:
                     del self.supplier_connections[user_id]
         else:
-            # Если не знаем тип - ищем во всех словарях
             self._remove_from_all_dicts(websocket)
         
         print(f"🔌 User disconnected. Total: {len(self.active_connections)}")
@@ -131,6 +129,20 @@ class ConnectionManager:
         elif channel.startswith("supplier_"):
             supplier_id = channel.replace("supplier_", "")
             clients = self.supplier_connections_str.get(supplier_id, []).copy()
+        elif channel.startswith("courier_"):
+            # ✅ ДЛЯ КУРЬЕРОВ
+            courier_id = int(channel.replace("courier_", ""))
+            if courier_id in self.courier_connections:
+                clients = list(self.courier_connections[courier_id])
+            else:
+                clients = []
+        elif channel.startswith("user_"):
+            # ✅ ДЛЯ КЛИЕНТОВ
+            user_id = int(channel.replace("user_", ""))
+            if user_id in self.user_connections:
+                clients = list(self.user_connections[user_id])
+            else:
+                clients = []
         else:
             clients = list(self.active_connections)
         
@@ -154,22 +166,37 @@ class ConnectionManager:
         for conn in disconnected:
             await self.disconnect(conn)
     
-    # backend/websocket_manager.py
     async def send_to_user(self, user_id: int, message: dict):
-      """Отправить сообщение конкретному пользователю"""
-      if user_id in self.user_connections:
-        disconnected = []
-        for ws in self.user_connections[user_id]:
-            try:
-                await ws.send_json(message)
-            except:
-                disconnected.append(ws)
-        for ws in disconnected:
-            await self.disconnect(ws, "user", user_id)
-        return True
-      else:
-        print(f"⚠️ Пользователь {user_id} не подключен к WebSocket")
-        return False
+        """Отправить сообщение конкретному пользователю"""
+        if user_id in self.user_connections:
+            disconnected = []
+            for ws in self.user_connections[user_id]:
+                try:
+                    await ws.send_json(message)
+                except:
+                    disconnected.append(ws)
+            for ws in disconnected:
+                await self.disconnect(ws, "user", user_id)
+            return True
+        else:
+            print(f"⚠️ Пользователь {user_id} не подключен к WebSocket")
+            return False
+    
+    async def send_to_courier(self, courier_id: int, message: dict):
+        """✅ Отправить сообщение конкретному курьеру"""
+        if courier_id in self.courier_connections:
+            disconnected = []
+            for ws in self.courier_connections[courier_id]:
+                try:
+                    await ws.send_json(message)
+                except:
+                    disconnected.append(ws)
+            for ws in disconnected:
+                await self.disconnect(ws, "courier", courier_id)
+            return True
+        else:
+            print(f"⚠️ Курьер {courier_id} не подключен к WebSocket")
+            return False
     
     async def subscribe_supplier(self, websocket: WebSocket, supplier_id: str):
         """Подписать поставщика на его канал"""
