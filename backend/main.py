@@ -340,10 +340,9 @@ def get_user_id_from_request(request: Request) -> int | None:
     return None
 
 # backend/main.py
-
 @app.post("/api/courier/pickup-order/{order_id}")
-async def courier_pickup_order(order_id: int, request: Request, db: Session = Depends(get_db)):
-    """Курьер забрал заказ из ресторана (едет к клиенту)"""
+async def courier_pickup_order(order_id: int, request: Request):
+    """Курьер забрал заказ - ЧИСТЫЙ SQL"""
     
     # Проверка токена
     auth_header = request.headers.get("Authorization")
@@ -355,46 +354,70 @@ async def courier_pickup_order(order_id: int, request: Request, db: Session = De
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # 1. Проверяем заказ
+        cur.execute("""
+            SELECT id, status, assigned_courier_id
+            FROM orders 
+            WHERE id = %s
+        """, (order_id,))
+        
+        order = cur.fetchone()
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        if order[1] != 'ready_for_pickup':
+            raise HTTPException(status_code=400, detail=f"Заказ не готов к выдаче. Статус: {order[1]}")
+        
+        if order[2] != int(user_id):
+            raise HTTPException(status_code=403, detail="Заказ назначен другому курьеру")
+        
+        # 2. Обновляем статус заказа
+        cur.execute("""
+            UPDATE orders 
+            SET status = 'picked_up',
+                delivery_started_at = NOW(),
+                delivery_deadline = NOW() + INTERVAL '30 minutes'
+            WHERE id = %s
+        """, (order_id,))
+        
+        # 3. Обновляем статус курьера
+        cur.execute("""
+            UPDATE courier_profiles 
+            SET current_order_status = 'picked_up'
+            WHERE user_id = %s
+        """, (int(user_id),))
+        
+        # 4. Добавляем в трекинг
+        cur.execute("""
+            INSERT INTO order_tracking 
+            (order_id, status, delivery_status, message, created_at)
+            VALUES (%s, 'picked_up', 'en_route', 'Курьер забрал заказ из ресторана', NOW())
+        """, (order_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "message": "Заказ забран! Едем к клиенту.",
+            "order_id": order_id,
+            "status": "picked_up",
+            "delivery_deadline": "через 30 минут"
+        }
+        
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
-    
-    # Находим курьера
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
-    
-    # Находим заказ
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Проверяем что заказ назначен этому курьеру
-    if order.assigned_courier_id != courier.user_id:
-        raise HTTPException(status_code=403, detail="Order not assigned to you")
-    
-    # Проверяем статус
-    if order.status != OrderStatus.READY_FOR_PICKUP:
-        raise HTTPException(status_code=400, detail=f"Order not ready for pickup. Current status: {order.status}")
-    
-    # ✅ Меняем статус на PICKED_UP (теперь есть в enum!)
-    order.status = OrderStatus.PICKED_UP
-    
-    # Устанавливаем дедлайн с момента забора
-    now = datetime.utcnow()
-    order.delivery_started_at = now
-    order.delivery_deadline = now + timedelta(minutes=30)
-    
-    db.commit()
-    
-    print(f"✅ Курьер {courier.first_name} забрал заказ #{order_id} из ресторана")
-    print(f"⏰ Дедлайн доставки клиенту: {order.delivery_deadline}")
-    
-    return {
-        "success": True, 
-        "message": "Заказ забран из ресторана! Едем к клиенту.",
-        "delivery_deadline": order.delivery_deadline.isoformat()
-    }
-# backend/main.py - в самом конце файла
+        conn.rollback()
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/avatar/{user_id}")
 async def get_avatar(user_id: int):
@@ -1435,58 +1458,68 @@ manager = ConnectionManager()
 
 # backend/main.py - добавьте эндпоинты для подтверждения доставки
 @app.post("/api/courier/arrived/{order_id}")
-async def courier_arrived(
-    order_id: int,
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Курьер прибыл к клиенту - отправляет уведомление"""
+async def courier_arrived(order_id: int, request: Request):
+    """Курьер прибыл к клиенту - ЧИСТЫЙ SQL"""
     
-    user_id = get_current_user_from_token(request)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
     
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == user_id).first()
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
-    
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    if order.assigned_courier_id != courier.user_id:
-        raise HTTPException(status_code=403, detail="Order not assigned to you")
-    
-    # ✅ НЕ МЕНЯЕМ СТАТУС ЗАКАЗА
-    # order.status = "nearby"
-    # order.delivery_status = "nearby"
-    
-    # Обновляем только статус курьера
-    courier.current_order_status = "nearby"
-    db.commit()
-    
-    # Отправляем уведомление клиенту
+    token = auth_header.split(" ")[1]
     try:
-        await manager.broadcast({
-            "type": "courier_arrived",
-            "data": {
-                "order_id": order_id,
-                "order_number": order.order_number,
-                "courier_name": f"{courier.first_name} {courier.last_name}",
-                "courier_phone": courier.phone,
-                "message": f"Курьер {courier.first_name} прибыл к вам!"
-            }
-        }, channel=f"user_{order.user_id}")
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # 1. Проверяем заказ
+        cur.execute("""
+            SELECT id, status, assigned_courier_id, user_id
+            FROM orders 
+            WHERE id = %s
+        """, (order_id,))
         
-        print(f"📢 Уведомление отправлено клиенту {order.user_id}")
+        order = cur.fetchone()
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        if order[2] != int(user_id):
+            raise HTTPException(status_code=403, detail="Order not assigned to you")
+        
+        # 2. Обновляем статус курьера
+        cur.execute("""
+            UPDATE courier_profiles 
+            SET current_order_status = 'nearby'
+            WHERE user_id = %s
+        """, (int(user_id),))
+        
+        # 3. Добавляем в трекинг
+        cur.execute("""
+            INSERT INTO order_tracking 
+            (order_id, status, delivery_status, message, created_at)
+            VALUES (%s, 'nearby', 'nearby', 'Курьер прибыл к клиенту', NOW())
+        """, (order_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "message": "Уведомление о прибытии отправлено клиенту",
+            "order_id": order_id
+        }
         
     except Exception as e:
-        print(f"❌ Ошибка отправки уведомления: {e}")
-    
-    return {
-        "success": True,
-        "message": "Уведомление о прибытии отправлено клиенту",
-        "order_id": order_id,
-        "order_number": order.order_number
-    }     
+        conn.rollback()
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))     
 
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
@@ -2470,13 +2503,10 @@ async def courier_register(request: Request, db: Session = Depends(get_db)):
         "courier_id": new_user.id
     }
 
-
-# backend/main.py - исправленный эндпоинт (поддержка Bearer токена)
 @app.post("/api/courier/go-online")
-async def courier_go_online(request: Request, db: Session = Depends(get_db)):
-    """Курьер выходит на линию (только Bearer токен)"""
+async def courier_go_online(request: Request):
+    """Курьер выходит на линию - ЧИСТЫЙ SQL"""
     
-    # ✅ ТОЛЬКО Bearer токен
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -2486,52 +2516,47 @@ async def courier_go_online(request: Request, db: Session = Depends(get_db)):
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token: no user_id")
-            
-        print(f"🔑 Курьер выходит на линию, user_id: {user_id}")
-        
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.JWTError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
     
-    # Получаем координаты
     data = await request.json()
     lat = data.get("lat")
     lon = data.get("lon")
     
-    # Находим курьера
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
+    conn = get_db_connection()
+    cur = conn.cursor()
     
-    if not courier.is_verified:
-        raise HTTPException(status_code=403, detail="Курьер не верифицирован")
-    
-    # Обновляем статус
-    courier.is_online = True
-    courier.is_available = True
-    courier.last_online_at = datetime.utcnow()
-    
-    if lat and lon:
-        courier.current_lat = lat
-        courier.current_lon = lon
-        courier.last_location_update = datetime.utcnow()
-        print(f"📍 Позиция курьера сохранена: {lat}, {lon}")
-    
-    db.commit()
-    
-    print(f"✅ Курьер {courier.first_name} {courier.last_name} теперь на линии")
-    
-    return {
-        "success": True, 
-        "message": "Вы на линии", 
-        "is_online": True
-    }
+    try:
+        # Проверяем верификацию
+        cur.execute("""
+            SELECT is_verified FROM courier_profiles WHERE user_id = %s
+        """, (int(user_id),))
+        
+        result = cur.fetchone()
+        if not result or not result[0]:
+            raise HTTPException(status_code=403, detail="Курьер не верифицирован")
+        
+        cur.execute("""
+            UPDATE courier_profiles 
+            SET is_online = true,
+                is_available = true,
+                last_online_at = NOW(),
+                current_lat = %s,
+                current_lon = %s
+            WHERE user_id = %s
+        """, (lat, lon, int(user_id)))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {"success": True, "message": "Вы на линии", "is_online": True}
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/order/{order_id}/reject")
 async def customer_reject_order(
@@ -2619,12 +2644,10 @@ async def force_clear_courier_order(request: Request, db: Session = Depends(get_
     return {"success": True, "message": f"Очищен заказ #{old_order_id}"}
 
 
-
 @app.post("/api/courier/go-offline")
-async def courier_go_offline(request: Request, db: Session = Depends(get_db)):
-    """Курьер уходит с линии (только Bearer токен)"""
+async def courier_go_offline(request: Request):
+    """Курьер уходит с линии - ЧИСТЫЙ SQL"""
     
-    # ✅ ТОЛЬКО Bearer токен
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -2634,72 +2657,58 @@ async def courier_go_offline(request: Request, db: Session = Depends(get_db)):
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Проверяем, есть ли активный заказ
+        cur.execute("""
+            SELECT current_order_id FROM courier_profiles WHERE user_id = %s
+        """, (int(user_id),))
         
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token: no user_id")
-            
-        print(f"🔑 Курьер уходит с линии, user_id: {user_id}")
+        result = cur.fetchone()
+        if result and result[0]:
+            raise HTTPException(status_code=400, detail="У вас есть активный заказ")
         
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.JWTError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+        cur.execute("""
+            UPDATE courier_profiles 
+            SET is_online = false,
+                is_available = false,
+                last_offline_at = NOW()
+            WHERE user_id = %s
+        """, (int(user_id),))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {"success": True, "message": "Вы офлайн", "is_online": False}
+        
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")
-    
-    # Находим курьера
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
-    
-    # Проверяем, есть ли активный заказ
-    if courier.current_order_id:
-        raise HTTPException(
-            status_code=400, 
-            detail="У вас есть активный заказ. Завершите доставку, чтобы уйти с линии."
-        )
-    
-    # Обновляем статус
-    courier.is_online = False
-    courier.is_available = False
-    courier.last_offline_at = datetime.utcnow()
-    db.commit()
-    
-    print(f"✅ Курьер {courier.first_name} {courier.last_name} ушел с линии")
-    
-    return {
-        "success": True, 
-        "message": "Вы офлайн", 
-        "is_online": False
-    }
-
+        conn.rollback()
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/courier/update-location")
-async def update_courier_location(request: Request, db: Session = Depends(get_db)):
-    """Обновление геолокации курьера (только Bearer токен)"""
+async def update_courier_location(request: Request):
+    """Обновление геолокации курьера - ЧИСТЫЙ SQL"""
     
-    # ✅ ТОЛЬКО Bearer токен, БЕЗ fallback на cookies
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated - Bearer token required")
+        raise HTTPException(status_code=401, detail="Bearer token required")
     
     token = auth_header.split(" ")[1]
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-        
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token - no user_id")
-            
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.JWTError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
     
-    # Получаем данные
     data = await request.json()
     lat = data.get("lat")
     lon = data.get("lon")
@@ -2707,44 +2716,29 @@ async def update_courier_location(request: Request, db: Session = Depends(get_db
     if lat is None or lon is None:
         raise HTTPException(status_code=400, detail="Latitude and longitude required")
     
-    # Находим курьера
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
+    conn = get_db_connection()
+    cur = conn.cursor()
     
-    # ✅ Получаем courier_id из профиля
-    courier_id = courier.id
-    
-    # Обновляем локацию
-    courier.current_lat = lat
-    courier.current_lon = lon
-    courier.last_location_update = datetime.utcnow()
-    
-    # Автоматическое определение "почти закончил"
-    if courier.current_order_id:
-        order = db.query(Order).filter(Order.id == courier.current_order_id).first()
-        if order and order.customer_lat:
-            from math import radians, sin, cos, sqrt, atan2
-            def haversine(lat1, lon1, lat2, lon2):
-                R = 6371
-                dlat = radians(lat2 - lat1)
-                dlon = radians(lon2 - lon1)
-                a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
-                c = 2 * atan2(sqrt(a), sqrt(1-a))
-                return R * c
-            
-            distance_km = haversine(lat, lon, order.customer_lat, order.customer_lon)
-            if distance_km <= 0.5 and courier.current_order_status != "almost_done":
-                courier.current_order_status = "almost_done"
-                print(f"✅ Курьер {courier_id} почти у цели! (расстояние {distance_km:.2f} км)")
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "status": courier.current_order_status,
-        "message": "Location updated"
-    }
+    try:
+        cur.execute("""
+            UPDATE courier_profiles 
+            SET current_lat = %s,
+                current_lon = %s,
+                last_location_update = NOW()
+            WHERE user_id = %s
+        """, (lat, lon, int(user_id)))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {"success": True, "message": "Location updated"}
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=500, detail=str(e))
 # backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
 
 # backend/main.py - добавьте поддержку Bearer токена в эндпоинт статуса
@@ -2859,44 +2853,110 @@ async def get_online_couriers(db: Session = Depends(get_db)):
     
     return {"success": True, "couriers": result}
 
-
 @app.post("/api/courier/complete-order/{order_id}")
 async def complete_order(
     order_id: int,
-    request: Request,
-    db: Session = Depends(get_db)
+    request: Request
 ):
-    """Завершить доставку"""
+    """Завершить доставку - ЧИСТЫЙ SQL"""
     
     # ✅ ТОЛЬКО Bearer токен
-    user_id = get_current_user_from_token(request)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
     
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
     
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    conn = get_db_connection()
+    cur = conn.cursor()
     
-    order.status = OrderStatus.DELIVERED
-    order.delivered_at = datetime.utcnow()
-    
-    courier.current_order_id = None
-    courier.current_order_status = None
-    courier.is_available = True
-    courier.total_deliveries += 1
-    courier.completed_orders_today += 1
-    courier.last_order_completed_at = datetime.utcnow()
-    
-    db.commit()
-    
-    return {"success": True, "message": "Заказ доставлен"}
-
-
-
+    try:
+        # 1. Проверяем, что курьер существует
+        cur.execute("""
+            SELECT id, user_id, current_order_id, is_available
+            FROM courier_profiles 
+            WHERE user_id = %s
+        """, (int(user_id),))
+        
+        courier = cur.fetchone()
+        if not courier:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Courier not found")
+        
+        courier_id = courier[0]
+        current_order_id = courier[2]
+        
+        # 2. Проверяем, что заказ существует и принадлежит курьеру
+        cur.execute("""
+            SELECT id, status, order_number
+            FROM orders 
+            WHERE id = %s AND assigned_courier_id = %s
+        """, (order_id, int(user_id)))
+        
+        order = cur.fetchone()
+        if not order:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Order not found or not assigned to you")
+        
+        order_status = order[1] if len(order) > 1 else None
+        
+        # 3. Обновляем статус заказа на DELIVERED
+        cur.execute("""
+            UPDATE orders 
+            SET status = 'delivered',
+                delivered_at = NOW()
+            WHERE id = %s
+        """, (order_id,))
+        
+        # 4. Добавляем запись в трекинг
+        cur.execute("""
+            INSERT INTO order_tracking 
+            (order_id, status, delivery_status, message, created_at)
+            VALUES (%s, 'delivered', 'arrived', 'Доставка завершена', NOW())
+        """, (order_id,))
+        
+        # 5. Освобождаем курьера
+        cur.execute("""
+            UPDATE courier_profiles 
+            SET current_order_id = NULL,
+                current_order_status = NULL,
+                is_available = true,
+                total_deliveries = COALESCE(total_deliveries, 0) + 1,
+                completed_orders_today = COALESCE(completed_orders_today, 0) + 1,
+                last_order_completed_at = NOW()
+            WHERE user_id = %s
+        """, (int(user_id),))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {
+            "success": True, 
+            "message": "Заказ доставлен",
+            "order_id": order_id,
+            "status": "delivered"
+        }
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        print(f"❌ Ошибка завершения доставки: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
