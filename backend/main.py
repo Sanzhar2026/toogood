@@ -1178,147 +1178,277 @@ async def admin_bulk_update_status(
     }       
 # backend/main.py - добавить
 @app.post("/api/orders")
-async def create_order(order_data: OrderCreate, request: Request, db: Session = Depends(get_db)):
-    """Создание заказа после оплаты"""
+async def create_order(request: Request):
+    """Создание заказа после оплаты - ЧИСТЫЙ SQL"""
     
-    user_id = get_user_id_from_request(request)
+    # ✅ Получаем user_id из Bearer токена
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
     
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
     
-    # ✅ ДОБАВЛЯЕМ delivery_type (если нет в order_data, то "delivery")
-    delivery_type = getattr(order_data, 'delivery_type', 'delivery')
+    # Получаем данные
+    data = await request.json()
+    bag_id = data.get("bag_id")
+    delivery_type = data.get("delivery_type", "pickup")  # pickup или delivery
+    customer_address = data.get("address", "Самовывоз")
+    customer_lat = data.get("lat")
+    customer_lon = data.get("lon")
     
-    # ✅ ПРОВЕРКА КООРДИНАТ
-    customer_lat = order_data.lat
-    customer_lon = order_data.lon
+    conn = get_db_connection()
+    cur = conn.cursor()
     
-    # Если координаты не переданы и это доставка - пробуем получить из адреса
-    if delivery_type == "delivery" and (not customer_lat or not customer_lon):
-        if order_data.address and order_data.address != "Самовывоз":
-            try:
-                import httpx
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"https://nominatim.openstreetmap.org/search?q={order_data.address}&format=json&limit=1"
-                    )
-                    if response.status_code == 200:
-                        geo_data = response.json()
-                        if geo_data:
-                            customer_lat = float(geo_data[0]["lat"])
-                            customer_lon = float(geo_data[0]["lon"])
-                            print(f"📍 Геокодинг: {order_data.address} -> {customer_lat}, {customer_lon}")
-            except Exception as e:
-                print(f"❌ Геокодинг ошибка: {e}")
+    try:
+        # 1. Проверяем, есть ли активная резервация
+        cur.execute("""
+            SELECT id, bag_id, user_id, quantity, is_paid
+            FROM temporary_reservations 
+            WHERE user_id = %s 
+              AND bag_id = %s 
+              AND is_paid = false 
+              AND expires_at > NOW()
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (int(user_id), bag_id))
         
-        # Если всё ещё нет - используем координаты по умолчанию
-        if not customer_lat or not customer_lon:
-            customer_lat = 43.238
-            customer_lon = 76.945
-            print(f"⚠️ Используем координаты по умолчанию")
-    
-    # СНАЧАЛА ПРОВЕРЯЕМ - ЕСТЬ ЛИ АКТИВНАЯ РЕЗЕРВАЦИЯ
-    active_reservation = db.query(TemporaryReservation).filter(
-        TemporaryReservation.user_id == user_id,
-        TemporaryReservation.bag_id == order_data.bag_id,
-        TemporaryReservation.is_paid == False,
-        TemporaryReservation.expires_at > datetime.utcnow()
-    ).first()
-    
-    if active_reservation:
-        print(f"✅ Найдена активная резервация для user {user_id}, bag {order_data.bag_id}")
+        reservation = cur.fetchone()
         
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order_data.bag_id).first()
+        # 2. Получаем информацию о сюрпризе
+        cur.execute("""
+            SELECT id, supplier_id, discounted_price, name
+            FROM surprise_bags 
+            WHERE id = %s
+        """, (bag_id,))
         
+        bag = cur.fetchone()
         if not bag:
+            cur.close()
+            conn.close()
             raise HTTPException(status_code=404, detail="Bag not found")
         
+        bag_supplier_id = bag[1]
+        bag_price = bag[2]
+        bag_name = bag[3]
+        
+        # 3. Генерируем номер заказа
+        import secrets
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
+        now = datetime.utcnow()
         
-        # ✅ ДОБАВЛЯЕМ delivery_type
-        order = Order(
-        user_id=user_id,
-        supplier_id=bag.supplier_id,
-        surprise_bag_id=bag.id,
-        order_number=order_number,
-        status=OrderStatus.PENDING,
-        payment_status="pending",  # ← НЕ ОПЛАЧЕН!
-        delivery_type=order_data.delivery_type if hasattr(order_data, 'delivery_type') else "delivery",  # ← ДОБАВИТЬ!
-        customer_lat=order_data.lat if order_data.delivery_type == "delivery" else None,
-        customer_lon=order_data.lon if order_data.delivery_type == "delivery" else None,
-        customer_address=order_data.address,
-        amount_paid=bag.discounted_price,
-        created_at=datetime.utcnow()
-    )
+        # 4. Создаем заказ
+        if reservation:
+            # Есть активная резервация - используем её
+            cur.execute("""
+                INSERT INTO orders (
+                    user_id, supplier_id, surprise_bag_id, 
+                    order_number, status, delivery_status,
+                    payment_status, customer_address, 
+                    customer_lat, customer_lon,
+                    amount_paid, delivery_type, created_at
+                ) VALUES (
+                    %s, %s, %s,
+                    %s, 'pending', 'at_supplier',
+                    'pending', %s,
+                    %s, %s,
+                    %s, %s, %s
+                ) RETURNING id
+            """, (
+                int(user_id),
+                bag_supplier_id,
+                bag_id,
+                order_number,
+                customer_address if customer_address else "Самовывоз",
+                customer_lat if delivery_type == "delivery" else None,
+                customer_lon if delivery_type == "delivery" else None,
+                bag_price,
+                delivery_type,
+                now
+            ))
+            
+            order_id = cur.fetchone()[0]
+            
+            # Помечаем резервацию как оплаченную
+            cur.execute("""
+                UPDATE temporary_reservations 
+                SET is_paid = true 
+                WHERE id = %s
+            """, (reservation[0],))
+            
+        else:
+            # Нет резервации - проверяем наличие товара
+            cur.execute("""
+                SELECT available_quantity, is_active 
+                FROM surprise_bags 
+                WHERE id = %s
+            """, (bag_id,))
+            
+            bag_status = cur.fetchone()
+            if not bag_status:
+                cur.close()
+                conn.close()
+                raise HTTPException(status_code=404, detail="Bag not found")
+            
+            available = bag_status[0]
+            is_active = bag_status[1]
+            
+            if available < 1 or not is_active:
+                cur.close()
+                conn.close()
+                raise HTTPException(status_code=400, detail=f"Товар недоступен, осталось: {available}")
+            
+            # Уменьшаем количество
+            cur.execute("""
+                UPDATE surprise_bags 
+                SET available_quantity = available_quantity - 1,
+                    is_active = CASE WHEN available_quantity - 1 <= 0 THEN false ELSE true END
+                WHERE id = %s
+            """, (bag_id,))
+            
+            # Создаем резервацию
+            cur.execute("""
+                INSERT INTO temporary_reservations (
+                    bag_id, user_id, quantity, 
+                    reserved_at, expires_at, is_paid
+                ) VALUES (
+                    %s, %s, 1,
+                    %s, %s, false
+                )
+            """, (
+                bag_id,
+                int(user_id),
+                now,
+                now + timedelta(minutes=15)
+            ))
+            
+            # Создаем заказ
+            cur.execute("""
+                INSERT INTO orders (
+                    user_id, supplier_id, surprise_bag_id, 
+                    order_number, status, delivery_status,
+                    payment_status, customer_address, 
+                    customer_lat, customer_lon,
+                    amount_paid, delivery_type, created_at
+                ) VALUES (
+                    %s, %s, %s,
+                    %s, 'pending', 'at_supplier',
+                    'pending', %s,
+                    %s, %s,
+                    %s, %s, %s
+                ) RETURNING id
+            """, (
+                int(user_id),
+                bag_supplier_id,
+                bag_id,
+                order_number,
+                customer_address if customer_address else "Самовывоз",
+                customer_lat if delivery_type == "delivery" else None,
+                customer_lon if delivery_type == "delivery" else None,
+                bag_price,
+                delivery_type,
+                now
+            ))
+            
+            order_id = cur.fetchone()[0]
         
-        db.add(order)
-        active_reservation.is_paid = True
-        
-        db.commit()
-        db.refresh(order)
-        
-        print(f"✅ Заказ {order.id} создан из резервации, тип доставки: {delivery_type}")
+        conn.commit()
+        cur.close()
+        conn.close()
         
         return {
-            "order_id": order.id,
-            "order_number": order.order_number,
-            "status": order.status.value,
-            "message": "Order created successfully from reservation"
-        }
-    
-    else:
-        # НЕТ РЕЗЕРВАЦИИ - ПРОВЕРЯЕМ НАЛИЧИЕ ТОВАРА
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order_data.bag_id).first()
-        
-        if not bag:
-            raise HTTPException(status_code=404, detail="Bag not found")
-        
-        if bag.available_quantity < 1:
-            raise HTTPException(status_code=400, detail=f"Товар недоступен, осталось: {bag.available_quantity}")
-        
-        bag.available_quantity -= 1
-        if bag.available_quantity <= 0:
-            bag.is_active = False
-        
-        reservation = TemporaryReservation(
-            bag_id=bag.id,
-            user_id=user_id,
-            quantity=1,
-            reserved_at=datetime.utcnow(),
-            expires_at=datetime.utcnow() + timedelta(minutes=15),
-            is_paid=False
-        )
-        db.add(reservation)
-        
-        order_number = f"ORD-{secrets.token_hex(4).upper()}"
-        
-        # ✅ ДОБАВЛЯЕМ delivery_type
-        order = Order(
-            user_id=user_id,
-            supplier_id=bag.supplier_id,
-            surprise_bag_id=bag.id,
-            order_number=order_number,
-            status=OrderStatus.PENDING,
-            delivery_type=delivery_type,  # ← ДОБАВИТЬ!
-            customer_lat=customer_lat if delivery_type == "delivery" else None,
-            customer_lon=customer_lon if delivery_type == "delivery" else None,
-            customer_address=order_data.address,
-            amount_paid=bag.discounted_price,
-            created_at=datetime.utcnow()
-        )
-        
-        db.add(order)
-        db.commit()
-        db.refresh(order)
-        
-        return {
-            "order_id": order.id,
-            "order_number": order.order_number,
-            "status": order.status.value,
+            "success": True,
+            "order_id": order_id,
+            "order_number": order_number,
+            "status": "pending",
             "message": "Order created successfully"
         }
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        print(f"❌ Ошибка создания заказа: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/surprise-bags/{bag_id}/rating")
+async def get_surprise_bag_rating(
+    bag_id: int,
+    request: Request
+):
+    """Получить рейтинг сюрприза - ЧИСТЫЙ SQL"""
     
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    try:
+        # 1. Проверяем существование сюрприза
+        cur.execute("""
+            SELECT id, rating, total_reviews 
+            FROM surprise_bags 
+            WHERE id = %s
+        """, (bag_id,))
+        
+        bag = cur.fetchone()
+        if not bag:
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Surprise bag not found"}
+            )
+        
+        # 2. Получаем оценку текущего пользователя (если есть)
+        user_rating = None
+        auth_header = request.headers.get("Authorization")
+        
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            try:
+                from jose import jwt
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_id = payload.get("sub")
+                
+                if user_id:
+                    cur.execute("""
+                        SELECT rating 
+                        FROM surprise_bag_reviews 
+                        WHERE surprise_bag_id = %s AND user_id = %s
+                    """, (bag_id, int(user_id)))
+                    
+                    review = cur.fetchone()
+                    if review:
+                        user_rating = review['rating']
+            except:
+                pass
+        
+        cur.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "rating": bag['rating'] or 0,
+            "total_reviews": bag['total_reviews'] or 0,
+            "user_rating": user_rating
+        }
+        
+    except Exception as e:
+        cur.close()
+        conn.close()
+        print(f"❌ Ошибка получения рейтинга: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
 # backend/main.py - эндпоинт для отметки оплаты
 # backend/main.py - ПОЛНОСТЬЮ ЗАМЕНИТЕ существующий эндпоинт
 
