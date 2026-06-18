@@ -1078,21 +1078,39 @@ async def admin_update_order_status(
     order_id: int,
     request: Request
 ):
-    """Обновление статуса заказа - чистый SQL"""
+    """Админ обновляет статус заказа - ЧИСТЫЙ SQL"""
+    
+    # Проверка токена...
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
     try:
-        data = await request.json()
-        field = data.get("field")
-        value = data.get("value")
-        
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Admin only")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    
+    data = await request.json()
+    field = data.get("field")
+    value = data.get("value")
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
         # Проверяем существование заказа
-        cur.execute("SELECT id FROM orders WHERE id = %s", (order_id,))
-        if not cur.fetchone():
+        cur.execute("SELECT id, status FROM orders WHERE id = %s", (order_id,))
+        order = cur.fetchone()
+        if not order:
             cur.close()
             conn.close()
             raise HTTPException(status_code=404, detail="Order not found")
+        
+        old_status = order[1] if len(order) > 1 else "unknown"
         
         if field == "payment_status":
             cur.execute("""
@@ -1102,30 +1120,65 @@ async def admin_update_order_status(
             """, (value, order_id))
             
             if value == "paid":
+                # ✅ ВАЖНО: при оплате ставим статус 'confirmed' (доступен для курьеров)
                 cur.execute("""
                     UPDATE orders 
-                    SET status = 'confirmed', paid_at = NOW()
+                    SET status = 'confirmed', 
+                        paid_at = NOW(),
+                        confirmed_at = NOW()
                     WHERE id = %s
                 """, (order_id,))
+                print(f"✅ Заказ #{order_id} оплачен, статус изменен на CONFIRMED")
+                
+                # ✅ Отправляем уведомление курьерам
+                try:
+                    # Получаем данные заказа для уведомления
+                    cur.execute("""
+                        SELECT order_number, supplier_id, amount_paid
+                        FROM orders WHERE id = %s
+                    """, (order_id,))
+                    order_data = cur.fetchone()
+                    
+                    await manager.broadcast({
+                        "type": "new_order",
+                        "data": {
+                            "order_id": order_id,
+                            "order_number": order_data[0] if order_data else None,
+                            "supplier_id": order_data[1] if order_data else None,
+                            "amount": order_data[2] if order_data else 0,
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+                    }, channel="couriers")
+                    print(f"📢 Уведомление о заказе #{order_id} отправлено курьерам")
+                except Exception as e:
+                    print(f"⚠️ Не удалось отправить уведомление: {e}")
                 
         elif field == "order_status":
-            # ✅ Просто вставляем строку - никакого enum!
+            # ✅ Статус в нижнем регистре!
             cur.execute("""
                 UPDATE orders 
                 SET status = %s
                 WHERE id = %s
-            """, (value, order_id))
+            """, (value.lower(), order_id))
+            print(f"📦 Заказ #{order_id}: статус изменен с {old_status} на {value}")
         
         conn.commit()
         cur.close()
         conn.close()
         
-        return {"success": True}
+        return {
+            "success": True,
+            "message": f"Статус заказа #{order_id} изменен",
+            "old_status": old_status,
+            "new_status": value
+        }
         
     except Exception as e:
-        print(f"Error: {e}")
+        conn.rollback()
+        cur.close()
+        conn.close()
+        print(f"❌ Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # Вспомогательная функция для отправки уведомлений пользователю
 async def notify_user(user_id: int, message: dict):
@@ -1465,8 +1518,6 @@ async def admin_mark_reservation_paid(
     
     # ✅ ПРОВЕРКА BEARER TOKEN
     auth_header = request.headers.get("Authorization")
-    print(f"🔍 Authorization header: {auth_header[:50] if auth_header else 'None'}...")
-    
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
             status_code=401,
@@ -1474,32 +1525,18 @@ async def admin_mark_reservation_paid(
         )
     
     token = auth_header.split(" ")[1]
-    
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        role = payload.get("role")
-        print(f"✅ Token decoded: role={role}")
-        
-        if role != "admin":
+        if payload.get("role") != "admin":
             return JSONResponse(
                 status_code=403,
                 content={"success": False, "message": "Admin only"}
             )
-    except jwt.ExpiredSignatureError:
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "message": "Token expired"}
-        )
-    except jwt.JWTError as e:
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "message": f"Invalid token: {str(e)}"}
-        )
     except Exception as e:
         return JSONResponse(
             status_code=401,
-            content={"success": False, "message": f"Auth error: {str(e)}"}
+            content={"success": False, "message": f"Invalid token: {str(e)}"}
         )
     
     conn = get_db_connection()
@@ -1508,7 +1545,7 @@ async def admin_mark_reservation_paid(
     try:
         # 1. Проверяем резервацию
         cur.execute("""
-            SELECT id, bag_id, user_id, quantity, is_paid, expires_at
+            SELECT id, bag_id, user_id, quantity, is_paid
             FROM temporary_reservations 
             WHERE id = %s AND is_paid = false
         """, (reservation_id,))
@@ -1526,11 +1563,9 @@ async def admin_mark_reservation_paid(
         reservation_user_id = reservation[2]
         reservation_quantity = reservation[3]
         
-        print(f"✅ Найдена резервация #{reservation_id}, user_id={reservation_user_id}")
-        
         # 2. Получаем сюрприз
         cur.execute("""
-            SELECT id, supplier_id, discounted_price, name
+            SELECT id, supplier_id, discounted_price, name, delivery_type
             FROM surprise_bags 
             WHERE id = %s
         """, (reservation_bag_id,))
@@ -1560,18 +1595,20 @@ async def admin_mark_reservation_paid(
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         now = datetime.utcnow()
         
-        # 5. Создаем заказ
+        # 5. Создаем заказ со статусом CONFIRMED (доступен для курьеров!)
         cur.execute("""
             INSERT INTO orders (
                 user_id, supplier_id, surprise_bag_id, 
-                order_number, status, delivery_status,
+                order_number, status,
                 payment_status, paid_at, amount_paid,
-                customer_address, delivery_type, created_at
+                customer_address, delivery_type, created_at,
+                confirmed_at
             ) VALUES (
                 %s, %s, %s,
-                %s, 'confirmed', 'at_supplier',
+                %s, 'confirmed',
                 'paid', %s, %s,
-                'Самовывоз', 'pickup', %s
+                'Самовывоз', 'pickup', %s,
+                %s
             ) RETURNING id
         """, (
             reservation_user_id,
@@ -1580,12 +1617,13 @@ async def admin_mark_reservation_paid(
             order_number,
             now,
             bag_price * reservation_quantity,
+            now,
             now
         ))
         
         order_id = cur.fetchone()[0]
         
-        # 6. Удаляем из корзины (если есть)
+        # 6. Удаляем из корзины
         cur.execute("""
             DELETE FROM cart_items 
             WHERE user_id = %s AND surprise_bag_id = %s
@@ -1598,7 +1636,7 @@ async def admin_mark_reservation_paid(
                 message, created_at
             ) VALUES (
                 %s, 'confirmed', 'at_supplier',
-                'Заказ создан из резервации (админ)', %s
+                'Заказ создан из резервации и подтвержден админом', %s
             )
         """, (order_id, now))
         
@@ -1606,27 +1644,46 @@ async def admin_mark_reservation_paid(
         cur.close()
         conn.close()
         
-        print(f"✅ Заказ #{order_id} создан из резервации #{reservation_id}")
+        # ✅ 8. ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРАМ
+        try:
+            # Отправляем через WebSocket
+            await manager.broadcast({
+                "type": "new_order",
+                "data": {
+                    "order_id": order_id,
+                    "order_number": order_number,
+                    "supplier_id": bag_supplier_id,
+                    "amount": bag_price * reservation_quantity,
+                    "bag_name": bag_name,
+                    "timestamp": now.isoformat()
+                }
+            }, channel="couriers")
+            print(f"📢 Уведомление о заказе #{order_id} отправлено курьерам")
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление: {e}")
+        
+        print(f"✅ Заказ #{order_id} создан из резервации #{reservation_id}, статус: confirmed")
         
         return {
             "success": True,
             "message": "Оплата подтверждена, заказ создан",
             "order_id": order_id,
-            "order_number": order_number
+            "order_number": order_number,
+            "status": "confirmed",
+            "available_for_couriers": True
         }
         
     except Exception as e:
         conn.rollback()
         cur.close()
         conn.close()
-        print(f"❌ Ошибка при создании заказа: {e}")
+        print(f"❌ Ошибка: {e}")
         import traceback
         traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": f"Ошибка: {str(e)}"}
         )
-
 
 manager = ConnectionManager()
 
