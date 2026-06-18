@@ -1381,6 +1381,11 @@ async def create_order(request: Request):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+        
 @app.get("/api/surprise-bags/{bag_id}/rating")
 async def get_surprise_bag_rating(
     bag_id: int,
@@ -1452,21 +1457,18 @@ async def get_surprise_bag_rating(
         )
 # backend/main.py - эндпоинт для отметки оплаты
 # backend/main.py - ПОЛНОСТЬЮ ЗАМЕНИТЕ существующий эндпоинт
-
 @app.post("/api/admin/mark-reservation-paid/{reservation_id}")
 async def admin_mark_reservation_paid(
     reservation_id: int,
-    request: Request,
-    db: Session = Depends(get_db)
+    request: Request
 ):
-    """Админ отмечает бронирование как оплаченное и создает заказ"""
+    """Админ отмечает бронирование как оплаченное и создает заказ - ЧИСТЫЙ SQL"""
     
-    # ✅ ПРОВЕРКА BEARER TOKEN (НЕ COOKIES!)
+    # ✅ ПРОВЕРКА BEARER TOKEN
     auth_header = request.headers.get("Authorization")
     print(f"🔍 Authorization header: {auth_header[:50] if auth_header else 'None'}...")
     
     if not auth_header or not auth_header.startswith("Bearer "):
-        print("❌ Нет Bearer токена")
         return JSONResponse(
             status_code=401,
             content={"success": False, "message": "Bearer token required"}
@@ -1481,104 +1483,146 @@ async def admin_mark_reservation_paid(
         print(f"✅ Token decoded: role={role}")
         
         if role != "admin":
-            print(f"❌ Не админ: role={role}")
             return JSONResponse(
                 status_code=403,
                 content={"success": False, "message": "Admin only"}
             )
     except jwt.ExpiredSignatureError:
-        print("❌ Токен просрочен")
         return JSONResponse(
             status_code=401,
             content={"success": False, "message": "Token expired"}
         )
     except jwt.JWTError as e:
-        print(f"❌ Ошибка токена: {e}")
         return JSONResponse(
             status_code=401,
             content={"success": False, "message": f"Invalid token: {str(e)}"}
         )
     except Exception as e:
-        print(f"❌ Другая ошибка: {e}")
         return JSONResponse(
             status_code=401,
             content={"success": False, "message": f"Auth error: {str(e)}"}
         )
     
-    # Находим резервацию
-    reservation = db.query(TemporaryReservation).filter(
-        TemporaryReservation.id == reservation_id,
-        TemporaryReservation.is_paid == False
-    ).first()
-    
-    if not reservation:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Reservation not found or already paid"}
-        )
-    
-    print(f"✅ Найдена резервация #{reservation_id}, user_id={reservation.user_id}")
+    conn = get_db_connection()
+    cur = conn.cursor()
     
     try:
-        # Помечаем как оплаченную
-        reservation.is_paid = True
+        # 1. Проверяем резервацию
+        cur.execute("""
+            SELECT id, bag_id, user_id, quantity, is_paid, expires_at
+            FROM temporary_reservations 
+            WHERE id = %s AND is_paid = false
+        """, (reservation_id,))
         
-        # Получаем сюрприз
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == reservation.bag_id).first()
+        reservation = cur.fetchone()
+        if not reservation:
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Reservation not found or already paid"}
+            )
+        
+        reservation_bag_id = reservation[1]
+        reservation_user_id = reservation[2]
+        reservation_quantity = reservation[3]
+        
+        print(f"✅ Найдена резервация #{reservation_id}, user_id={reservation_user_id}")
+        
+        # 2. Получаем сюрприз
+        cur.execute("""
+            SELECT id, supplier_id, discounted_price, name
+            FROM surprise_bags 
+            WHERE id = %s
+        """, (reservation_bag_id,))
+        
+        bag = cur.fetchone()
         if not bag:
+            cur.close()
+            conn.close()
             return JSONResponse(
                 status_code=404,
                 content={"success": False, "message": "Bag not found"}
             )
         
-        # Получаем ресторан
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        bag_supplier_id = bag[1]
+        bag_price = bag[2]
+        bag_name = bag[3]
         
-        # Получаем пользователя
-        user = db.query(User).filter(User.id == reservation.user_id).first()
+        # 3. Помечаем резервацию как оплаченную
+        cur.execute("""
+            UPDATE temporary_reservations 
+            SET is_paid = true 
+            WHERE id = %s
+        """, (reservation_id,))
         
-        # Генерируем номер заказа
+        # 4. Генерируем номер заказа
         import secrets
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
+        now = datetime.utcnow()
         
-        # Создаем заказ
-        order = Order(
-            user_id=reservation.user_id,
-            supplier_id=bag.supplier_id,
-            surprise_bag_id=reservation.bag_id,
-            order_number=order_number,
-            status=OrderStatus.CONFIRMED,
-            payment_status="paid",
-            paid_at=datetime.utcnow(),
-            amount_paid=bag.discounted_price * reservation.quantity,
-            created_at=datetime.utcnow(),
-            customer_address="Самовывоз"
-        )
-        db.add(order)
-        db.flush()
+        # 5. Создаем заказ
+        cur.execute("""
+            INSERT INTO orders (
+                user_id, supplier_id, surprise_bag_id, 
+                order_number, status, delivery_status,
+                payment_status, paid_at, amount_paid,
+                customer_address, delivery_type, created_at
+            ) VALUES (
+                %s, %s, %s,
+                %s, 'confirmed', 'at_supplier',
+                'paid', %s, %s,
+                'Самовывоз', 'pickup', %s
+            ) RETURNING id
+        """, (
+            reservation_user_id,
+            bag_supplier_id,
+            reservation_bag_id,
+            order_number,
+            now,
+            bag_price * reservation_quantity,
+            now
+        ))
         
-        # Удаляем из корзины
-        cart_item = db.query(CartItem).filter(
-            CartItem.user_id == reservation.user_id,
-            CartItem.surprise_bag_id == reservation.bag_id
-        ).first()
-        if cart_item:
-            db.delete(cart_item)
+        order_id = cur.fetchone()[0]
         
-        db.commit()
+        # 6. Удаляем из корзины (если есть)
+        cur.execute("""
+            DELETE FROM cart_items 
+            WHERE user_id = %s AND surprise_bag_id = %s
+        """, (reservation_user_id, reservation_bag_id))
         
-        print(f"✅ Заказ #{order.id} создан из резервации #{reservation_id}")
+        # 7. Добавляем запись в трекинг
+        cur.execute("""
+            INSERT INTO order_tracking (
+                order_id, status, delivery_status, 
+                message, created_at
+            ) VALUES (
+                %s, 'confirmed', 'at_supplier',
+                'Заказ создан из резервации (админ)', %s
+            )
+        """, (order_id, now))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        print(f"✅ Заказ #{order_id} создан из резервации #{reservation_id}")
         
         return {
             "success": True,
             "message": "Оплата подтверждена, заказ создан",
-            "order_id": order.id,
+            "order_id": order_id,
             "order_number": order_number
         }
         
     except Exception as e:
-        db.rollback()
+        conn.rollback()
+        cur.close()
+        conn.close()
         print(f"❌ Ошибка при создании заказа: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": f"Ошибка: {str(e)}"}
