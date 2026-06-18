@@ -1867,7 +1867,6 @@ async def courier_arrived(order_id: int, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
     order_id: int,
@@ -2000,8 +1999,12 @@ async def customer_confirm_delivery(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-# backend/main.py - ЕДИНСТВЕННЫЙ эндпоинт для take-order
+    
 
+
+
+
+    
 @app.post("/api/courier/take-order/{order_id}")
 async def courier_take_order(order_id: int, request: Request):
     """Курьер берет заказ в работу - БЕЗ delivery_status"""
