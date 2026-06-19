@@ -9007,89 +9007,124 @@ async def supplier_register_page(request: Request, lang: str = "ru"):
     })
 # ============ SUPPLIER ROUTES ============
 @app.post("/supplier/api/register")
-async def supplier_api_register(request: Request, db: Session = Depends(get_db)):
-    """API регистрация поставщика - принимает JSON"""
-    
+async def supplier_api_register(request: Request):
+    """API регистрация поставщика - БЕЗ КУКИ, только JWT, ЧИСТЫЙ SQL"""
     try:
         data = await request.json()
         
         print(f"📥 API Register: {data.get('email')}")
         
-        # Проверка обязательных полей
+        # ======== ПРОВЕРКА ОБЯЗАТЕЛЬНЫХ ПОЛЕЙ ========
         required_fields = ['business_name', 'email', 'phone', 'password', 'city', 'address', 'lat', 'lon', 'pickup_start', 'pickup_end']
         for field in required_fields:
-            if field not in data:
-                return JSONResponse(
-                    status_code=422,
-                    content={"success": False, "message": f"Missing field: {field}"}
-                )
+            if field not in data or not data.get(field):
+                return {
+                    "success": False, 
+                    "message": f"Missing field: {field}"
+                }
         
-        # Проверка существующего пользователя
-        existing = db.query(User).filter(User.email == data.get("email")).first()
-        if existing:
-            return JSONResponse(
-                status_code=400,
-                content={"success": False, "message": "Email already registered"}
+        business_name = data.get("business_name", "").strip()
+        business_type = data.get("business_type", "restaurant")
+        email = data.get("email", "").strip()
+        phone = data.get("phone", "").strip()
+        password = data.get("password", "")
+        city = data.get("city", "").strip()
+        address = data.get("address", "").strip()
+        lat = float(data.get("lat"))
+        lon = float(data.get("lon"))
+        pickup_start = data.get("pickup_start", "19:30")
+        pickup_end = data.get("pickup_end", "20:00")
+        description = data.get("description", "").strip()
+        
+        # ======== ВАЛИДАЦИЯ ========
+        if len(password) < 6:
+            return {"success": False, "message": "Пароль должен быть минимум 6 символов"}
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Проверка email
+        cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return {"success": False, "message": "Пользователь с таким email уже существует"}
+        
+        # Проверка названия магазина
+        cur.execute("SELECT id FROM suppliers WHERE business_name = %s", (business_name,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return {"success": False, "message": "Магазин с таким названием уже существует"}
+        
+        # ======== СОЗДАЕМ ПОЛЬЗОВАТЕЛЯ ========
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        cur.execute("""
+            INSERT INTO users (username, email, password_hash, role, created_at)
+            VALUES (%s, %s, %s, 'supplier', NOW())
+            RETURNING id
+        """, (business_name, email, password_hash))
+        
+        user_id = cur.fetchone()[0]
+        
+        # ======== СОЗДАЕМ ПОСТАВЩИКА ========
+        cur.execute("""
+            INSERT INTO suppliers (
+                user_id, business_name, business_type, city, address, phone, 
+                email, lat, lon, pickup_start_time, pickup_end_time,
+                description, rating, is_active, created_at
             )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, true, NOW())
+            RETURNING id
+        """, (user_id, business_name, business_type, city, address, phone, 
+              email, lat, lon, pickup_start, pickup_end, description))
         
-        # Создаем пользователя
-        user = User(
-            email=data.get("email"),
-            phone=data.get("phone"),
-            password=hash_password(data.get("password")),
-            full_name=data.get("business_name"),
-            role=UserRole.SUPPLIER,
-            is_active=True,
-            created_at=datetime.utcnow()
-        )
-        db.add(user)
-        db.flush()
+        supplier_id = cur.fetchone()[0]
         
-        # Создаем профиль поставщика
-        supplier = Supplier(
-            user_id=user.id,
-            business_name=data.get("business_name"),
-            business_type=data.get("business_type", "restaurant"),
-            description=data.get("description", ""),
-            city=data.get("city"),
-            address=data.get("address"),
-            lat=float(data.get("lat")),
-            lon=float(data.get("lon")),
-            phone=data.get("phone"),
-            email=data.get("email"),
-            pickup_start_time=data.get("pickup_start"),
-            pickup_end_time=data.get("pickup_end"),
-            created_at=datetime.utcnow()
-        )
-        db.add(supplier)
-        db.commit()
+        conn.commit()
+        cur.close()
+        conn.close()
         
-        print(f"✅ Supplier registered: {data.get('email')}")
+        print(f"✅ Зарегистрирован новый поставщик: {business_name} (тип: {business_type})")
         
-        # Создаем JWT токен
-        token = create_access_token(data={
-            "sub": str(user.id),
+        # ======== СОЗДАЕМ JWT ТОКЕН ========
+        from jose import jwt
+        import datetime
+        
+        token_data = {
+            "sub": str(user_id),
             "role": "supplier",
-            "supplier_id": supplier.id,
-            "email": user.email
-        })
+            "supplier_id": supplier_id,
+            "email": email,
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
+        }
+        
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
         
         return {
             "success": True,
+            "message": "Регистрация успешна!",
             "token": token,
             "supplier": {
-                "id": supplier.id,
-                "business_name": supplier.business_name,
-                "email": user.email
+                "id": supplier_id,
+                "business_name": business_name,
+                "business_type": business_type,
+                "email": email,
+                "city": city,
+                "address": address
             }
         }
         
     except Exception as e:
-        print(f"❌ API Register error: {e}")
+        print(f"❌ Ошибка регистрации: {e}")
         import traceback
         traceback.print_exc()
-        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+        return {"success": False, "message": str(e)}
+    
 
+    
 @app.delete("/api/admin/delete-all-bags")
 async def admin_delete_all_bags(
     request: Request,

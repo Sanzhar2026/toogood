@@ -250,43 +250,44 @@
             <h2>🏪 {% if lang == 'kz' %}Дүкен ретінде тіркелу{% else %}Регистрация как магазин{% endif %}</h2>
             
             <div id="errorMessage" class="error-message"></div>
+            <div id="successMessage" style="background: #d1fae5; border: 1px solid #86efac; color: #065f46; padding: 12px; border-radius: 12px; margin-bottom: 20px; display: none; font-size: 14px;"></div>
 
-            <!-- ✅ УБРАЛИ action и method - форма отправляется через JavaScript -->
             <form id="registerForm">
                 <div class="form-grid">
                     <div class="form-group full-width">
                         <label>🏪 {% if lang == 'kz' %}Дүкен атауы{% else %}Название магазина{% endif %} *</label>
-                        <input type="text" name="business_name" required placeholder="e.g., Sarqyn Restoran">
+                        <input type="text" name="business_name" id="business_name" required placeholder="e.g., Sarqyn Restoran">
                     </div>
 
                     <div class="form-group">
                         <label>📂 {% if lang == 'kz' %}Түрі{% else %}Тип{% endif %} *</label>
-                        <select name="business_type" required>
-                            <option value="Restaurant">🍕 {% if lang == 'kz' %}Мейрамхана{% else %}Ресторан{% endif %}</option>
-                            <option value="Bakery">🥖 {% if lang == 'kz' %}Наубайхана{% else %}Пекарня{% endif %}</option>
-                            <option value="Cafe">☕ {% if lang == 'kz' %}Кафе{% else %}Кафе{% endif %}</option>
-                            <option value="Supermarket">🛒 {% if lang == 'kz' %}Супермаркет{% else %}Супермаркет{% endif %}</option>
+                        <select name="business_type" id="business_type" required>
+                            <option value="restaurant">🍕 {% if lang == 'kz' %}Мейрамхана{% else %}Ресторан{% endif %}</option>
+                            <option value="bakery">🥖 {% if lang == 'kz' %}Наубайхана{% else %}Пекарня{% endif %}</option>
+                            <option value="cafe">☕ {% if lang == 'kz' %}Кафе{% else %}Кафе{% endif %}</option>
+                            <option value="fastfood">🍔 {% if lang == 'kz' %}Фастфуд{% else %}Фастфуд{% endif %}</option>
+                            <option value="supermarket">🛒 {% if lang == 'kz' %}Супермаркет{% else %}Супермаркет{% endif %}</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label>📧 Email *</label>
-                        <input type="email" name="email" required placeholder="your@email.com">
+                        <input type="email" name="email" id="email" required placeholder="your@email.com">
                     </div>
 
                     <div class="form-group">
                         <label>📞 {% if lang == 'kz' %}Телефон{% else %}Телефон{% endif %} *</label>
-                        <input type="tel" name="phone" required placeholder="+7 777 123 4567">
+                        <input type="tel" name="phone" id="phone" required placeholder="+7 777 123 4567">
                     </div>
 
                     <div class="form-group">
                         <label>🔒 {% if lang == 'kz' %}Құпия сөз{% else %}Пароль{% endif %} *</label>
-                        <input type="password" name="password" required placeholder="••••••••">
+                        <input type="password" name="password" id="password" required placeholder="Минимум 6 символов" minlength="6">
                     </div>
 
                     <div class="form-group">
                         <label>🔒 {% if lang == 'kz' %}Құпия сөзді растау{% else %}Подтверждение пароля{% endif %} *</label>
-                        <input type="password" name="confirm_password" required placeholder="••••••••">
+                        <input type="password" name="confirm_password" id="confirm_password" required placeholder="Повторите пароль">
                     </div>
                 </div>
 
@@ -339,20 +340,20 @@
                 <div class="coordinates-row">
                     <div class="form-group">
                         <label>🕐 {% if lang == 'kz' %}Таңдау уақыты (басталу){% else %}Время выдачи (начало){% endif %} *</label>
-                        <input type="time" name="pickup_start" required value="19:30">
+                        <input type="time" name="pickup_start" id="pickup_start" required value="19:30">
                     </div>
                     <div class="form-group">
                         <label>🕑 {% if lang == 'kz' %}Таңдау уақыты (аяқталу){% else %}Время выдачи (конец){% endif %} *</label>
-                        <input type="time" name="pickup_end" required value="20:00">
+                        <input type="time" name="pickup_end" id="pickup_end" required value="20:00">
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label>📝 {% if lang == 'kz' %}Сипаттама{% else %}Описание{% endif %}</label>
-                    <textarea name="description" rows="3" placeholder="{% if lang == 'kz' %}Дүкеніңіз туралы қысқаша ақпарат{% else %}Краткая информация о вашем магазине{% endif %}"></textarea>
+                    <textarea name="description" id="description" rows="3" placeholder="{% if lang == 'kz' %}Дүкеніңіз туралы қысқаша ақпарат{% else %}Краткая информация о вашем магазине{% endif %}"></textarea>
                 </div>
 
-                <button type="submit" class="btn-register">
+                <button type="submit" class="btn-register" id="submitBtn">
                     🚀 {% if lang == 'kz' %}Тіркелу{% else %}Зарегистрироваться{% endif %}
                 </button>
 
@@ -530,35 +531,55 @@
             }, 2000);
         }
     });
-    
+
     // ============ ОСНОВНОЙ КОД РЕГИСТРАЦИИ ============
     // Отправка формы на API без cookies, только JWT токен
     
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        // Скрываем предыдущую ошибку
-        const errorDiv = document.getElementById('errorMessage');
+        // Скрываем предыдущие сообщения
+        var errorDiv = document.getElementById('errorMessage');
+        var successDiv = document.getElementById('successMessage');
         errorDiv.style.display = 'none';
+        successDiv.style.display = 'none';
         
         // Получаем значения полей
-        const business_name = document.querySelector('input[name="business_name"]').value;
-        const business_type = document.querySelector('select[name="business_type"]').value;
-        const email = document.querySelector('input[name="email"]').value;
-        const phone = document.querySelector('input[name="phone"]').value;
-        const password = document.querySelector('input[name="password"]').value;
-        const confirm_password = document.querySelector('input[name="confirm_password"]').value;
-        const city = document.querySelector('select[name="city"]').value;
-        const address = document.querySelector('input[name="address"]').value;
-        const lat = parseFloat(document.querySelector('input[name="lat"]').value);
-        const lon = parseFloat(document.querySelector('input[name="lon"]').value);
-        const pickup_start = document.querySelector('input[name="pickup_start"]').value;
-        const pickup_end = document.querySelector('input[name="pickup_end"]').value;
-        const description = document.querySelector('textarea[name="description"]').value;
+        var business_name = document.getElementById('business_name').value.trim();
+        var business_type = document.getElementById('business_type').value;
+        var email = document.getElementById('email').value.trim();
+        var phone = document.getElementById('phone').value.trim();
+        var password = document.getElementById('password').value;
+        var confirm_password = document.getElementById('confirm_password').value;
+        var city = document.getElementById('citySelect').value;
+        var address = document.getElementById('address').value.trim();
+        var lat = parseFloat(document.getElementById('lat').value);
+        var lon = parseFloat(document.getElementById('lon').value);
+        var pickup_start = document.getElementById('pickup_start').value;
+        var pickup_end = document.getElementById('pickup_end').value;
+        var description = document.getElementById('description').value.trim();
         
         // Валидация
-        if (!business_name || !email || !phone || !password || !confirm_password || !city || !address || !pickup_start || !pickup_end) {
-            errorDiv.textContent = currentLang === 'kz' ? 'Барлық міндетті өрістерді толтырыңыз!' : 'Заполните все обязательные поля!';
+        if (!business_name) {
+            errorDiv.textContent = currentLang === 'kz' ? 'Дүкен атауын енгізіңіз!' : 'Введите название магазина!';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        if (!email) {
+            errorDiv.textContent = 'Введите email!';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        if (!phone) {
+            errorDiv.textContent = currentLang === 'kz' ? 'Телефон нөмірін енгізіңіз!' : 'Введите номер телефона!';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        if (!password || password.length < 6) {
+            errorDiv.textContent = currentLang === 'kz' ? 'Құпия сөз кемінде 6 таңбадан тұруы керек!' : 'Пароль должен быть не менее 6 символов!';
             errorDiv.style.display = 'block';
             return;
         }
@@ -569,8 +590,14 @@
             return;
         }
         
-        if (password.length < 6) {
-            errorDiv.textContent = currentLang === 'kz' ? 'Құпия сөз кемінде 6 таңбадан тұруы керек!' : 'Пароль должен быть не менее 6 символов!';
+        if (!city) {
+            errorDiv.textContent = currentLang === 'kz' ? 'Қаланы таңдаңыз!' : 'Выберите город!';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        if (!address) {
+            errorDiv.textContent = currentLang === 'kz' ? 'Мекенжайды енгізіңіз!' : 'Введите адрес!';
             errorDiv.style.display = 'block';
             return;
         }
@@ -581,14 +608,20 @@
             return;
         }
         
+        if (!pickup_start || !pickup_end) {
+            errorDiv.textContent = currentLang === 'kz' ? 'Таңдау уақытын енгізіңіз!' : 'Введите время выдачи!';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
         // Блокируем кнопку
-        const submitBtn = e.target.querySelector('.btn-register');
-        const originalText = submitBtn.innerHTML;
+        var submitBtn = document.getElementById('submitBtn');
+        var originalText = submitBtn.innerHTML;
         submitBtn.disabled = true;
         submitBtn.innerHTML = currentLang === 'kz' ? 'Тіркелу...' : 'Регистрация...';
         
         // Формируем данные для API
-        const requestData = {
+        var requestData = {
             business_name: business_name,
             business_type: business_type,
             email: email,
@@ -603,9 +636,11 @@
             description: description || ''
         };
         
+        console.log('📤 Отправка данных:', requestData);
+        
         try {
             // ✅ Отправляем на API эндпоинт
-            const response = await fetch('/supplier/api/register', {
+            var response = await fetch('/supplier/api/register', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -613,25 +648,34 @@
                 body: JSON.stringify(requestData)
             });
             
-            const result = await response.json();
+            var result = await response.json();
+            console.log('📥 Ответ сервера:', result);
             
             if (result.success) {
                 // ✅ Сохраняем JWT токен (БЕЗ COOKIES!)
                 localStorage.setItem('supplier_token', result.token);
+                sessionStorage.setItem('supplier_token', result.token);
                 localStorage.setItem('supplier_id', result.supplier.id);
                 localStorage.setItem('supplier_email', result.supplier.email);
                 localStorage.setItem('supplier_name', result.supplier.business_name);
                 
+                // Показываем сообщение об успехе
+                successDiv.textContent = '✅ ' + (result.message || (currentLang === 'kz' ? 'Тіркелу сәтті!' : 'Регистрация успешна!'));
+                successDiv.style.display = 'block';
+                
                 // Редирект на дашборд с токеном в URL
-                window.location.href = `/supplier/dashboard?token=${encodeURIComponent(result.token)}`;
+                setTimeout(function() {
+                    window.location.href = '/supplier/dashboard?token=' + encodeURIComponent(result.token);
+                }, 1000);
+                
             } else {
-                errorDiv.textContent = result.message || (currentLang === 'kz' ? 'Тіркелу қатесі!' : 'Ошибка регистрации!');
+                errorDiv.textContent = '❌ ' + (result.message || (currentLang === 'kz' ? 'Тіркелу қатесі!' : 'Ошибка регистрации!'));
                 errorDiv.style.display = 'block';
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
             }
         } catch (error) {
-            console.error('Registration error:', error);
+            console.error('❌ Registration error:', error);
             errorDiv.textContent = currentLang === 'kz' ? 'Желі қатесі. Қосылымды тексеріңіз.' : 'Ошибка сети. Проверьте соединение.';
             errorDiv.style.display = 'block';
             submitBtn.disabled = false;
