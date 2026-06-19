@@ -10003,7 +10003,90 @@ async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
         import traceback
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+
+# backend/main.py - ЭНДПОИНТ ЛОГИНА
+
+@app.post("/supplier/login")
+async def supplier_login(request: Request):
+    """API входа поставщика"""
+    try:
+        data = await request.json()
+        email = data.get("email", "").strip()
+        password = data.get("password", "")
         
+        print(f"🔐 LOGIN: email={email}")
+        
+        if not email or not password:
+            return {"success": False, "error": "Email и пароль обязательны"}
+        
+        # Подключаемся к БД
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Ищем пользователя
+        cur.execute("""
+            SELECT u.id, u.email, u.password, u.role, u.is_active,
+                   s.id as supplier_id, s.business_name, s.is_active as supplier_active
+            FROM users u
+            LEFT JOIN suppliers s ON s.user_id = u.id
+            WHERE u.email = %s
+        """, (email,))
+        
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not user:
+            print("❌ Пользователь не найден")
+            return {"success": False, "error": "Неверный email или пароль"}
+        
+        if not user.get('is_active'):
+            print("❌ Пользователь неактивен")
+            return {"success": False, "error": "Аккаунт деактивирован"}
+        
+        if user.get('role') != 'supplier':
+            print(f"❌ Неправильная роль: {user.get('role')}")
+            return {"success": False, "error": "Доступ запрещен"}
+        
+        # Проверяем пароль
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        if user.get('password') != password_hash:
+            print("❌ Неверный пароль")
+            return {"success": False, "error": "Неверный email или пароль"}
+        
+        # Создаем токен
+        from jose import jwt
+        import datetime
+        
+        token_data = {
+            "sub": str(user['id']),
+            "role": "supplier",
+            "supplier_id": user['supplier_id'],
+            "email": user['email'],
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
+        }
+        
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+        
+        print(f"✅ Логин успешен: {user.get('business_name')}")
+        
+        return {
+            "success": True,
+            "token": token,
+            "supplier_id": user['supplier_id'],
+            "business_name": user.get('business_name'),
+            "message": "Вход выполнен успешно"
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка логина: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
 @app.get("/api/supplier/check-auth")
 async def supplier_check_auth(request: Request, db: Session = Depends(get_db)):
     """Проверка валидности токена поставщика"""
