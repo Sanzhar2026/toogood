@@ -1,337 +1,122 @@
-<!-- ТОЛЬКО JS ЧАСТЬ - ВСТАВЬ В КОНЕЦ supplier_dashboard.html -->
+<!-- templates/supplier_data.html -->
+<div id="supplierData" 
+     data-supplier-id="{{ supplier.id }}" 
+     data-token="{{ token or '' }}" 
+     data-address="{{ supplier.address or '' }}"
+     data-phone="{{ supplier.phone or '' }}"
+     data-rating="{{ supplier.rating or 0 }}"
+     data-business-type="{{ supplier.business_type or 'restaurant' }}"
+     data-products='{{ products|tojson|safe }}'
+     data-templates='{{ templates_data|tojson|safe }}'
+     style="display: none;">
+</div>
+
 <script>
-// ======== ПОЛУЧАЕМ ТОКЕН ИЗ URL ========
 (function() {
+    console.log('🚀 Загрузка supplier_data...');
+    
+    // ======== 1. ПОЛУЧАЕМ ТОКЕН ИЗ URL ========
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
     
     if (tokenFromUrl) {
         sessionStorage.setItem('supplier_token', tokenFromUrl);
         localStorage.setItem('supplier_token', tokenFromUrl);
-        console.log('✅ Токен сохранен из URL');
+        console.log('✅ Токен сохранен из URL в supplier_token');
     }
     
-    const token = sessionStorage.getItem('supplier_token');
-    if (!token) {
-        console.warn('⚠️ Нет токена в sessionStorage');
+    const el = document.getElementById('supplierData');
+    if (!el) {
+        console.error('❌ supplierData элемент не найден!');
+        return;
+    }
+    
+    // ======== 2. ЗАГРУЖАЕМ ДАННЫЕ ========
+    const tokenFromData = el.dataset.token || '';
+    const supplierId = parseInt(el.dataset.supplierId);
+    
+    console.log('📄 Токен из data-token:', tokenFromData ? tokenFromData.substring(0, 30) + '...' : '❌ НЕТ');
+    console.log('📄 Supplier ID:', supplierId);
+    
+    // ======== 3. СОХРАНЯЕМ ТОКЕН В supplier_token ========
+    if (tokenFromData && tokenFromData !== 'None' && tokenFromData !== '') {
+        sessionStorage.setItem('supplier_token', tokenFromData);
+        localStorage.setItem('supplier_token', tokenFromData);
+        console.log('✅ Токен сохранен из data-token в supplier_token');
+    }
+    
+    // ======== 4. ПРОВЕРЯЕМ ЧТО ТОКЕН ЕСТЬ ========
+    const finalToken = sessionStorage.getItem('supplier_token');
+    if (!finalToken) {
+        console.warn('⚠️ НЕТ ТОКЕНА!');
     } else {
-        console.log('🔑 Токен есть:', token.substring(0, 30) + '...');
-    }
-})();
-
-// ======== authFetch - ГЛАВНАЯ ФУНКЦИЯ ========
-async function authFetch(url, options = {}) {
-    // ======== БЕРЕМ ТОКЕН ИЗ SESSIONSTORAGE ========
-    let token = sessionStorage.getItem('supplier_token');
-    
-    // Если нет в sessionStorage - пробуем из localStorage
-    if (!token) {
-        token = localStorage.getItem('supplier_token');
+        console.log('🔑 ИТОГОВЫЙ ТОКЕН:', finalToken.substring(0, 30) + '...');
     }
     
-    // Если все еще нет - пробуем из window.supplierData
-    if (!token && window.supplierData) {
-        token = window.supplierData.token;
-    }
-    
-    // Если совсем нет - редирект
-    if (!token) {
-        console.error('❌ НЕТ ТОКЕНА! Редирект на логин...');
-        window.location.href = '/supplier/login';
-        throw new Error('No token');
-    }
-    
-    console.log('🔑 Отправка запроса к', url, 'с токеном:', token.substring(0, 30) + '...');
-    
+    // ======== 5. ЗАГРУЖАЕМ ПРОДУКТЫ ========
     try {
-        const response = await fetch(url, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + token,
-                ...options.headers
+        window.productsData = JSON.parse(el.dataset.products || '[]');
+    } catch(e) {
+        window.productsData = [];
+    }
+    
+    // ======== 6. ЗАГРУЖАЕМ ШАБЛОНЫ ========
+    try {
+        window.templatesData = JSON.parse(el.dataset.templates || '{"templates":{}}');
+    } catch(e) {
+        window.templatesData = { templates: {} };
+    }
+    
+    // ======== 7. СОЗДАЕМ WINDOW.SUPPLIERDATA ========
+    window.supplierData = {
+        id: supplierId,
+        token: finalToken || tokenFromData || '',
+        address: el.dataset.address || '',
+        phone: el.dataset.phone || '',
+        rating: parseFloat(el.dataset.rating) || 0,
+        businessType: el.dataset.businessType || 'restaurant'
+    };
+    
+    // ======== 8. ТЕСТОВЫЕ ДАННЫЕ ЕСЛИ НЕТ (БЕЗ name_en) ========
+    if (!window.productsData || window.productsData.length === 0) {
+        console.warn('⚠️ Нет продуктов, создаем тестовые');
+        window.productsData = [
+            {id: 1, name_ru: 'Маргарита Пицца', name_kz: 'Маргарита Пицца', icon: '🍕', price: 2500},
+            {id: 2, name_ru: 'Пепперони Пицца', name_kz: 'Пепперони Пицца', icon: '🍕', price: 3200},
+            {id: 6, name_ru: 'Гамбургер', name_kz: 'Гамбургер', icon: '🍔', price: 1800},
+            {id: 14, name_ru: 'Кока-Кола', name_kz: 'Кока-Кола', icon: '🥤', price: 500},
+            {id: 16, name_ru: 'Чизкейк', name_kz: 'Чизкейк', icon: '🍰', price: 1200},
+            {id: 18, name_ru: 'Картошка Фри', name_kz: 'Картоп Фри', icon: '🍟', price: 800}
+        ];
+    }
+    
+    // ======== 9. ТЕСТОВЫЕ ШАБЛОНЫ ЕСЛИ НЕТ ========
+    if (!window.templatesData || !window.templatesData.templates || Object.keys(window.templatesData.templates).length === 0) {
+        console.warn('⚠️ Нет шаблонов, создаем тестовые');
+        window.templatesData = {
+            icon: '🎁',
+            name: {'en': 'Restaurant', 'ru': 'Ресторан', 'kz': 'Ресторан'},
+            templates: {
+                'dinner_set': {
+                    name: {'en': 'Dinner Set', 'ru': 'Ужин на двоих', 'kz': 'Кешкі ас'},
+                    items: [{'id': 1, 'qty': 2}, {'id': 14, 'qty': 2}],
+                    price: 5500,
+                    description: {'en': 'Romantic dinner', 'ru': 'Романтический ужин', 'kz': 'Романтикалық кешкі ас'}
+                },
+                'family_set': {
+                    name: {'en': 'Family Set', 'ru': 'Семейный обед', 'kz': 'Отбасылық түскі ас'},
+                    items: [{'id': 2, 'qty': 2}, {'id': 18, 'qty': 2}],
+                    price: 7200,
+                    description: {'en': 'Family lunch', 'ru': 'Семейный обед', 'kz': 'Отбасылық түскі ас'}
+                }
             }
-        });
-        
-        if (response.status === 401) {
-            console.error('❌ 401 Unauthorized - токен не валидный!');
-            sessionStorage.removeItem('supplier_token');
-            localStorage.removeItem('supplier_token');
-            window.location.href = '/supplier/login';
-            throw new Error('Unauthorized');
-        }
-        
-        return response;
-    } catch(error) {
-        console.error('❌ Ошибка запроса:', error);
-        throw error;
+        };
     }
-}
-
-// ======== ПЕРЕВОДЫ ========
-const translations = {
-    kz: {
-        chooseProduct: 'Тауарды таңдаңыз',
-        selectTemplate: 'Дайын сюрпризді таңдаңыз',
-        templateLoaded: 'Жүктелді:',
-        youCanEdit: 'Сіз өңдей аласыз',
-        location: '{address} | {phone}',
-        rating: '⭐ {rating}',
-        navDashboard: 'Басты бет',
-        navCouriers: 'Курьерлер',
-        navOrders: 'Тапсырыстар',
-        navBags: 'Сюрприздер',
-        statTotalOrders: 'Барлық тапсырыс',
-        statPending: 'Күтілуде',
-        statToday: 'Бүгінгі',
-        statRevenue: 'Табыс',
-        titleActiveOrders: 'Белсенді тапсырыстар',
-        btnRefresh: 'Жаңарту',
-        thOrder: 'Тапсырыс #',
-        thCustomer: 'Клиент / Мекенжай',
-        thProduct: 'Өнім',
-        thAmount: 'Сома',
-        thStatus: 'Статус',
-        thCourier: 'Курьер',
-        thAction: 'Әрекет',
-        thMap: 'Карта',
-        titleBags: 'Сюрприздер',
-        btnAdd: 'Қосу',
-        btnClearInactive: 'Белсенді еместерді тазалау',
-        btnDeleteAll: 'Барлығын жою',
-        thBagName: 'Атауы',
-        thBagDesc: 'Сипаттама',
-        thBagPrice: 'Бағасы',
-        thBagDiscounted: 'Жеңілдікпен',
-        thBagDiscount: 'Жеңілдік',
-        thBagQty: 'Саны',
-        thBagType: 'Түрі',
-        thBagStatus: 'Күйі',
-        thBagAction: 'Әрекет',
-        formTitle: 'Сюрприз қосу',
-        labelTemplate: 'Дайын сюрприз',
-        labelName: 'Сюрприз атауы *',
-        labelDesc: 'Сипаттама',
-        labelProducts: 'Өнімдер тізімі',
-        selectedTitle: 'Таңдалған өнімдер:',
-        labelOriginalPrice: 'Бастапқы баға (₸)',
-        labelDiscount: 'Жеңілдік',
-        labelDiscountedPrice: 'Жеңілдікпен баға (₸)',
-        labelQuantity: 'Саны',
-        labelPickupStart: 'Алу уақыты (басталуы)',
-        labelPickupEnd: 'Алу уақыты (аяқталуы)',
-        labelImage: 'Сурет URL',
-        labelBagType: '📦 Сюрприз түрі',
-        submitBtn: 'Сюрприз қосу'
-    },
-    ru: {
-        chooseProduct: 'Выберите товар',
-        selectTemplate: 'Выберите готовый сюрприз',
-        templateLoaded: 'Загружено:',
-        youCanEdit: 'Вы можете редактировать',
-        location: '{address} | {phone}',
-        rating: '⭐ {rating}',
-        navDashboard: 'Главная',
-        navCouriers: 'Курьеры',
-        navOrders: 'Заказы',
-        navBags: 'Сюрпризы',
-        statTotalOrders: 'Всего заказов',
-        statPending: 'Ожидают',
-        statToday: 'Заказов сегодня',
-        statRevenue: 'Общий доход',
-        titleActiveOrders: 'Активные заказы',
-        btnRefresh: 'Обновить',
-        thOrder: 'Заказ #',
-        thCustomer: 'Клиент / Адрес',
-        thProduct: 'Товар',
-        thAmount: 'Сумма',
-        thStatus: 'Статус',
-        thCourier: 'Курьер',
-        thAction: 'Действие',
-        thMap: 'Карта',
-        titleBags: 'Сюрпризы',
-        btnAdd: 'Добавить',
-        btnClearInactive: 'Удалить неактивные',
-        btnDeleteAll: 'Удалить все',
-        thBagName: 'Название',
-        thBagDesc: 'Описание',
-        thBagPrice: 'Цена',
-        thBagDiscounted: 'Со скидкой',
-        thBagDiscount: 'Скидка',
-        thBagQty: 'Кол-во',
-        thBagType: 'Тип',
-        thBagStatus: 'Статус',
-        thBagAction: 'Действие',
-        formTitle: 'Добавить сюрприз',
-        labelTemplate: 'Готовый сюрприз',
-        labelName: 'Название сюрприза *',
-        labelDesc: 'Описание',
-        labelProducts: 'Список товаров',
-        selectedTitle: 'Выбранные товары:',
-        labelOriginalPrice: 'Оригинальная цена (₸)',
-        labelDiscount: 'Скидка',
-        labelDiscountedPrice: 'Цена со скидкой (₸)',
-        labelQuantity: 'Количество',
-        labelPickupStart: 'Время выдачи (начало)',
-        labelPickupEnd: 'Время выдачи (конец)',
-        labelImage: 'URL изображения',
-        labelBagType: '📦 Тип сюрприза',
-        submitBtn: 'Добавить сюрприз'
-    },
-    en: {
-        chooseProduct: 'Choose product',
-        selectTemplate: 'Select ready surprise',
-        templateLoaded: 'Loaded:',
-        youCanEdit: 'You can edit',
-        location: '{address} | {phone}',
-        rating: '⭐ {rating}',
-        navDashboard: 'Dashboard',
-        navCouriers: 'Couriers',
-        navOrders: 'Orders',
-        navBags: 'Surprise Bags',
-        statTotalOrders: 'Total Orders',
-        statPending: 'Pending',
-        statToday: 'Today Orders',
-        statRevenue: 'Total Revenue',
-        titleActiveOrders: 'Active Orders',
-        btnRefresh: 'Refresh',
-        thOrder: 'Order #',
-        thCustomer: 'Customer / Address',
-        thProduct: 'Product',
-        thAmount: 'Amount',
-        thStatus: 'Status',
-        thCourier: 'Courier',
-        thAction: 'Action',
-        thMap: 'Map',
-        titleBags: 'Surprise Bags',
-        btnAdd: 'Add',
-        btnClearInactive: 'Clear Inactive',
-        btnDeleteAll: 'Delete All',
-        thBagName: 'Name',
-        thBagDesc: 'Description',
-        thBagPrice: 'Price',
-        thBagDiscounted: 'Discounted',
-        thBagDiscount: 'Discount',
-        thBagQty: 'Quantity',
-        thBagType: 'Type',
-        thBagStatus: 'Status',
-        thBagAction: 'Action',
-        formTitle: 'Add Surprise Bag',
-        labelTemplate: 'Ready Surprise Package',
-        labelName: 'Surprise Bag Name *',
-        labelDesc: 'Description',
-        labelProducts: 'Products List',
-        selectedTitle: 'Selected Products:',
-        labelOriginalPrice: 'Original Price (₸)',
-        labelDiscount: 'Discount',
-        labelDiscountedPrice: 'Discounted Price (₸)',
-        labelQuantity: 'Quantity',
-        labelPickupStart: 'Pickup Start Time',
-        labelPickupEnd: 'Pickup End Time',
-        labelImage: 'Image URL',
-        labelBagType: '📦 Surprise Type',
-        submitBtn: 'Add Surprise'
-    }
-};
-
-// ======== ОСТАЛЬНОЙ КОД (ФУНКЦИИ) ========
-let currentLang = 'ru';
-let selectedProducts = [];
-let ws = null;
-let supplierId = parseInt(document.getElementById('supplierData').getAttribute('data-supplier-id'));
-let tokenFromHtml = document.getElementById('supplierData').getAttribute('data-token');
-
-function getSupplierToken() {
-    let token = sessionStorage.getItem('supplier_token');
-    if (!token && tokenFromHtml && tokenFromHtml !== '' && tokenFromHtml !== 'None') {
-        token = tokenFromHtml;
-        sessionStorage.setItem('supplier_token', token);
-    }
-    return token;
-}
-
-function clearSupplierToken() { 
-    sessionStorage.removeItem('supplier_token');
-    localStorage.removeItem('supplier_token');
-}
-
-function logout() { 
-    clearSupplierToken(); 
-    window.location.href = '/supplier/login'; 
-}
-
-function showNotification(message, type) {
-    const notification = document.createElement('div');
-    notification.className = 'notification';
-    notification.innerHTML = (type === 'success' ? '✓' : '⚠') + ' ' + message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
-}
-
-function escapeHtml(str) { 
-    if (!str) return ''; 
-    return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); 
-}
-
-function getImageByTitle(title) {
-    const lowerTitle = title.toLowerCase();
-    if (lowerTitle.includes('пицц') || lowerTitle.includes('pizza')) return 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&h=400&fit=crop';
-    if (lowerTitle.includes('бургер') || lowerTitle.includes('burger')) return 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&h=400&fit=crop';
-    if (lowerTitle.includes('суши') || lowerTitle.includes('sushi') || lowerTitle.includes('ролл')) return 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&h=400&fit=crop';
-    if (lowerTitle.includes('салат') || lowerTitle.includes('salad')) return 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&h=400&fit=crop';
-    if (lowerTitle.includes('десерт') || lowerTitle.includes('dessert') || lowerTitle.includes('торт')) return 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&h=400&fit=crop';
-    return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=400&fit=crop';
-}
-
-// ======== ОСТАЛЬНЫЕ ФУНКЦИИ (toggleBagTypeFields, initData, renderSelectedProducts, updateTotalPrice, removeProduct, addProduct, applyDiscount, loadSurpriseTemplate, submitBagForm, setLanguage, refreshOrders, getStatusText, getActionButtons, attachOrderHandlers, updateOrderStatus, refreshBags, clearInactiveBags, clearAllBags, initWebSocket) ========
-// ... (ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ ИЗ ТВОЕГО ФАЙЛА)
-
-// ======== ИНИЦИАЛИЗАЦИЯ ========
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Загрузка дашборда...');
     
-    const savedLang = localStorage.getItem('supplier_lang') || 'ru';
-    setLanguage(savedLang);
-    
-    initData();
-    refreshOrders();
-    refreshBags();
-    initWebSocket();
-    
-    document.getElementById('refreshOrdersBtn').addEventListener('click', refreshOrders);
-    document.getElementById('toggleAddBagBtn').addEventListener('click', function() {
-        const form = document.getElementById('addBagForm');
-        form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    });
-    document.getElementById('clearInactiveBagsBtn').addEventListener('click', clearInactiveBags);
-    document.getElementById('clearAllBagsBtn').addEventListener('click', clearAllBags);
-    document.getElementById('addProductBtn').addEventListener('click', addProduct);
-    
-    document.querySelectorAll('.discount-preset').forEach(btn => {
-        btn.addEventListener('click', function() {
-            applyDiscount(parseInt(this.dataset.percent));
-        });
-    });
-    
-    document.getElementById('surpriseTemplate').addEventListener('change', loadSurpriseTemplate);
-    
-    document.getElementById('createBagForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        submitBagForm();
-    });
-    
-    document.querySelectorAll('.lang-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            setLanguage(this.dataset.lang);
-        });
-    });
-    
-    setInterval(() => {
-        refreshOrders();
-        refreshBags();
-    }, 30000);
-    
-    console.log('✅ Дашборд загружен!');
-});
+    console.log('✅ Supplier Data загружено!');
+    console.log('📦 Products:', window.productsData?.length || 0);
+    console.log('📋 Templates:', Object.keys(window.templatesData?.templates || {}).length);
+    console.log('🔑 Token:', window.supplierData.token ? window.supplierData.token.substring(0, 30) + '...' : '❌ НЕТ');
+    console.log('🆔 Supplier ID:', window.supplierData.id);
+})();
 </script>
-{% endblock %}

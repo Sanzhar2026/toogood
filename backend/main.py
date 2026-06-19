@@ -9235,29 +9235,23 @@ async def supplier_check_auth(request: Request, db: Session = Depends(get_db)):
 # backend/main.py - ДОБАВЛЯЕМ ПЕРЕДАЧУ ПРОДУКТОВ И ШАБЛОНОВ
 
 # backend/main.py - ДОБАВЛЯЕМ ПЕРЕДАЧУ ПРОДУКТОВ И ШАБЛОНОВ
-
 @app.get("/supplier/dashboard")
 async def supplier_dashboard(
     request: Request, 
     db: Session = Depends(get_db)
 ):
-    """Страница дашборда поставщика - БЕЗ КУКИ"""
+    """Страница дашборда поставщика"""
     
     supplier_id = None
     auth_token = None
     
     # ======== ПОЛУЧАЕМ ТОКЕН ========
-    # 1. Из заголовка Authorization
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         auth_token = auth_header.split(" ")[1]
-        print(f"🔑 Token from header: {auth_token[:30]}...")
     
-    # 2. Из query параметра (ОСНОВНОЙ СПОСОБ!)
     if not auth_token:
         auth_token = request.query_params.get("token")
-        if auth_token:
-            print(f"🔑 Token from query: {auth_token[:30]}...")
     
     # ======== ПРОВЕРЯЕМ ТОКЕН ========
     if auth_token:
@@ -9265,8 +9259,6 @@ async def supplier_dashboard(
             from jose import jwt
             payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
             role = payload.get("role")
-            
-            print(f"🔓 Decoded - role: {role}, sub: {payload.get('sub')}")
             
             if role == "supplier":
                 supplier_id = payload.get("supplier_id")
@@ -9284,12 +9276,10 @@ async def supplier_dashboard(
             print(f"❌ JWT error: {e}")
             auth_token = None
     
-    # ======== ЕСЛИ НЕТ SUPPLIER_ID - РЕДИРЕКТ ========
     if not supplier_id:
         print("❌ No supplier_id, redirect to login")
         return RedirectResponse(url="/supplier/login?error=no_token", status_code=303)
     
-    # ======== ЧИСТЫЙ SQL - ПОЛУЧАЕМ ДАННЫЕ ========
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
@@ -9354,9 +9344,9 @@ async def supplier_dashboard(
         
         surprise_bags = cur.fetchall()
         
-        # Получаем продукты
+        # ======== ИСПРАВЛЕНО: ПОЛУЧАЕМ ПРОДУКТЫ БЕЗ name_en ========
         cur.execute("""
-            SELECT id, name_ru, name_kz, name_en, icon, price
+            SELECT id, name_ru, name_kz, icon, price
             FROM foods
             ORDER BY id
         """)
@@ -9365,17 +9355,12 @@ async def supplier_dashboard(
         # Если нет продуктов в базе - создаем тестовые
         if not products:
             products = [
-                {'id': 1, 'name_ru': 'Маргарита Пицца', 'name_kz': 'Маргарита Пицца', 'name_en': 'Margherita Pizza', 'icon': '🍕', 'price': 2500},
-                {'id': 2, 'name_ru': 'Пепперони Пицца', 'name_kz': 'Пепперони Пицца', 'name_en': 'Pepperoni Pizza', 'icon': '🍕', 'price': 3200},
-                {'id': 6, 'name_ru': 'Гамбургер', 'name_kz': 'Гамбургер', 'name_en': 'Hamburger', 'icon': '🍔', 'price': 1800},
-                {'id': 12, 'name_ru': 'Греческий Салат', 'name_kz': 'Грек Салаты', 'name_en': 'Greek Salad', 'icon': '🥗', 'price': 1500},
-                {'id': 13, 'name_ru': 'Цезарь Салат', 'name_kz': 'Цезарь Салаты', 'name_en': 'Caesar Salad', 'icon': '🥗', 'price': 2200},
-                {'id': 14, 'name_ru': 'Кока-Кола', 'name_kz': 'Кока-Кола', 'name_en': 'Coca-Cola', 'icon': '🥤', 'price': 500},
-                {'id': 15, 'name_ru': 'Лимонад', 'name_kz': 'Лимонад', 'name_en': 'Lemonade', 'icon': '🧃', 'price': 800},
-                {'id': 16, 'name_ru': 'Чизкейк', 'name_kz': 'Чизкейк', 'name_en': 'Cheesecake', 'icon': '🍰', 'price': 1200},
-                {'id': 17, 'name_ru': 'Тирамису', 'name_kz': 'Тирамису', 'name_en': 'Tiramisu', 'icon': '🍰', 'price': 1400},
-                {'id': 18, 'name_ru': 'Картошка Фри', 'name_kz': 'Картоп Фри', 'name_en': 'French Fries', 'icon': '🍟', 'price': 800},
-                {'id': 19, 'name_ru': 'Куриные Крылышки', 'name_kz': 'Тауық Қанаттары', 'name_en': 'Chicken Wings', 'icon': '🍗', 'price': 1800},
+                {'id': 1, 'name_ru': 'Маргарита Пицца', 'name_kz': 'Маргарита Пицца', 'icon': '🍕', 'price': 2500},
+                {'id': 2, 'name_ru': 'Пепперони Пицца', 'name_kz': 'Пепперони Пицца', 'icon': '🍕', 'price': 3200},
+                {'id': 6, 'name_ru': 'Гамбургер', 'name_kz': 'Гамбургер', 'icon': '🍔', 'price': 1800},
+                {'id': 14, 'name_ru': 'Кока-Кола', 'name_kz': 'Кока-Кола', 'icon': '🥤', 'price': 500},
+                {'id': 16, 'name_ru': 'Чизкейк', 'name_kz': 'Чизкейк', 'icon': '🍰', 'price': 1200},
+                {'id': 18, 'name_ru': 'Картошка Фри', 'name_kz': 'Картоп Фри', 'icon': '🍟', 'price': 800}
             ]
         
         # Получаем шаблоны по типу заведения
@@ -9418,7 +9403,6 @@ async def supplier_dashboard(
         cur.close()
         conn.close()
         
-        # ======== ВОЗВРАЩАЕМ С ТОКЕНОМ ========
         return templates.TemplateResponse("supplier_dashboard.html", {
             "request": request,
             "supplier": supplier,
@@ -9430,7 +9414,7 @@ async def supplier_dashboard(
             "templates_data": templates_data,
             "monthly_revenue": stats["total_revenue"],
             "lang": lang,
-            "token": auth_token  # 👈 ПЕРЕДАЕМ ТОКЕН
+            "token": auth_token
         })
         
     except Exception as e:
@@ -9438,7 +9422,6 @@ async def supplier_dashboard(
         conn.close()
         print(f"❌ Ошибка supplier_dashboard: {e}")
         return RedirectResponse(url="/supplier/login", status_code=303)
-
 
 
 
@@ -9570,11 +9553,11 @@ async def supplier_logout(request: Request):
 async def get_foods(db: Session = Depends(get_db)):
     """Get all foods for dropdown list"""
     try:
-        # ЧИСТЫЙ SQL
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        # ======== ИСПРАВЛЕНО: БЕЗ name_en ========
         cur.execute("""
-            SELECT id, name_ru, name_kz, name_en, icon, price, image, discount
+            SELECT id, name_ru, name_kz, icon, price
             FROM foods
             ORDER BY id
         """)
@@ -9587,8 +9570,6 @@ async def get_foods(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"❌ Error getting foods: {e}")
         return []
-# ============ ЭНДПОИНТЫ ДЛЯ СТРАНИЦЫ МАГАЗИНА ============
-
 @app.get("/api/suppliers/{supplier_id}")
 async def get_supplier_by_id(supplier_id: int):
     """Получить информацию о магазине по ID - ЧИСТЫЙ SQL"""
