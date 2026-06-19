@@ -1,9 +1,19 @@
-<!-- supplier_data.html -->
 <div id="supplierData" 
      data-supplier-id="{{ supplier.id }}" 
      data-token="{{ token if token else '' }}" 
      data-address="{{ supplier.address or '' }}"
      data-phone="{{ supplier.phone or '' }}"
      data-rating="{{ supplier.rating or 0 }}"
+     data-business-type="{{ supplier.business_type or 'restaurant' }}"
      style="display: none;">
 </div>
+
+<script>
+    window.productsData = {{ products|tojson|safe }};
+    window.templatesData = {{ templates_data|tojson|safe }};
+    window.supplierData = {
+        id: {{ supplier.id }},
+        businessType: "{{ supplier.business_type or 'restaurant' }}",
+        businessName: "{{ supplier.business_name }}"
+    };
+</script>

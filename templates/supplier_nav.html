@@ -1,23 +1,13 @@
-<!-- supplier_nav.html -->
-<div class="admin-header">
-    <div class="business-info">
-        <h1>{{ supplier.business_name }}</h1>
-        <p id="locationText">{{ supplier.address or 'Address not specified' }} | {{ supplier.phone or '—' }}</p>
-    </div>
-    <div class="header-actions">
-        <span class="rating-badge" id="ratingText">⭐ {{ supplier.rating or 0 }}</span>
-        <div class="lang-selector">
-            <button class="lang-btn" data-lang="kz">Қаз</button>
-            <button class="lang-btn" data-lang="ru">Рус</button>
-            <button class="lang-btn active" data-lang="en">En</button>
-        </div>
-        <button onclick="logout()" class="logout-btn">Logout</button>
-    </div>
+<div class="business-info">
+    <h1>{{ supplier.business_name }}</h1>
+    <p id="locationText">{{ supplier.address or 'Адрес не указан' }} | {{ supplier.phone or '—' }}</p>
 </div>
-
-<div class="nav-links">
-    <a href="/supplier/dashboard" class="active" id="navDashboard">Dashboard</a>
-    <a href="/supplier/couriers" id="navCouriers">Couriers</a>
-    <a href="/supplier/orders" id="navOrders">Orders</a>
-    <a href="/supplier/surprise-bags" id="navBags">Surprise Bags</a>
+<div class="header-actions">
+    <span class="rating-badge" id="ratingText">⭐ {{ supplier.rating or 0 }}</span>
+    <div class="lang-selector">
+        <button class="lang-btn" data-lang="kz">Қаз</button>
+        <button class="lang-btn" data-lang="ru">Рус</button>
+        <button class="lang-btn active" data-lang="en">En</button>
+    </div>
+    <button onclick="logout()" class="logout-btn">Выйти</button>
 </div>

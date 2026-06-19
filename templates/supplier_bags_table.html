@@ -1,26 +1,25 @@
-<!-- supplier_bags_table.html -->
 <div class="bags-section">
     <div class="section-header">
-        <span class="section-title" id="titleBags">Surprise Bags</span>
+        <span class="section-title" id="titleBags">Сюрпризы</span>
         <div style="display: flex; gap: 0.5rem;">
-            <button class="refresh-btn" id="toggleAddBagBtn"><span id="btnAdd">Add Surprise</span></button>
-            <button class="clear-btn" id="clearInactiveBagsBtn"><span id="btnClearInactive">Clear Inactive</span></button>
-            <button class="clear-btn" id="clearAllBagsBtn" style="background: #dc2626;"><span id="btnDeleteAll">Delete All</span></button>
+            <button class="refresh-btn" id="toggleAddBagBtn"><span id="btnAdd">Добавить</span></button>
+            <button class="clear-btn" id="clearInactiveBagsBtn"><span id="btnClearInactive">Удалить неактивные</span></button>
+            <button class="clear-btn" id="clearAllBagsBtn" style="background: #dc2626;"><span id="btnDeleteAll">Удалить все</span></button>
         </div>
     </div>
     <div class="table-container">
         <table>
             <thead>
                 <tr>
-                    <th id="thBagName">Name</th>
-                    <th id="thBagDesc">Description</th>
-                    <th id="thBagPrice">Price</th>
-                    <th id="thBagDiscounted">Discounted</th>
-                    <th id="thBagDiscount">Discount</th>
-                    <th id="thBagQty">Quantity</th>
-                    <th id="thBagType">Type</th>
-                    <th id="thBagStatus">Status</th>
-                    <th id="thBagAction">Action</th>
+                    <th id="thBagName">Название</th>
+                    <th id="thBagDesc">Описание</th>
+                    <th id="thBagPrice">Цена</th>
+                    <th id="thBagDiscounted">Со скидкой</th>
+                    <th id="thBagDiscount">Скидка</th>
+                    <th id="thBagQty">Кол-во</th>
+                    <th id="thBagType">Тип</th>
+                    <th id="thBagStatus">Статус</th>
+                    <th id="thBagAction">Действие</th>
                 </tr>
             </thead>
             <tbody id="bagsTableBody"></tbody>
