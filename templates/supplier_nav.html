@@ -1,5 +1,6 @@
+<!-- templates/supplier_nav.html -->
 <div class="business-info">
-    <h1>{{ supplier.business_name }}</h1>
+    <h1 id="supplierName">{{ supplier.business_name }}</h1>
     <p id="locationText">{{ supplier.address or 'Адрес не указан' }} | {{ supplier.phone or '—' }}</p>
 </div>
 <div class="header-actions">

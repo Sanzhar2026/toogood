@@ -12,7 +12,7 @@
 </div>
 
 <script>
-    // ✅ Загружаем данные из data-атрибутов в глобальные переменные
+    // Загружаем данные из data-атрибутов
     (function() {
         const el = document.getElementById('supplierData');
         if (!el) return;
@@ -38,7 +38,7 @@
             window.templatesData = { templates: {} };
         }
         
-        console.log('✅ Supplier Data loaded:', window.supplierData);
+        console.log('✅ Supplier Data loaded');
         console.log('📦 Products:', window.productsData?.length || 0);
         console.log('📋 Templates:', Object.keys(window.templatesData?.templates || {}).length);
     })();
