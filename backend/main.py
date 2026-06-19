@@ -6625,10 +6625,7 @@ async def get_supplier_products(
 # ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ СОЗДАНИЯ ТОВАРА
 # ============================================================
 @app.post("/api/supplier/products")
-async def create_supplier_product(
-    request: Request,
-    supplier_id: int = Depends(get_supplier_id_from_token)
-):
+async def create_supplier_product(request: Request, supplier_id: int = Depends(get_supplier_id_from_token)):
     """Создать новый товар поставщика"""
     try:
         data = await request.json()
@@ -6637,7 +6634,7 @@ async def create_supplier_product(
         name_kz = data.get("name_kz", "").strip()
         name_en = data.get("name_en", "").strip()
         price = float(data.get("price", 0))
-        category_id = data.get("category_id")
+        category_value = data.get("category_id")  # Может быть строка ("sauce") или число (id)
         image_url = data.get("image_url", "").strip()
         description_ru = data.get("description_ru", "").strip()
         description_kz = data.get("description_kz", "").strip()
@@ -6650,23 +6647,46 @@ async def create_supplier_product(
         if price <= 0:
             return {"success": False, "error": "Цена должна быть больше 0"}
         
-        if category_id:
-            conn_check = get_db_connection()
-            cur_check = conn_check.cursor()
-            cur_check.execute("""
-                SELECT id FROM supplier_categories 
-                WHERE id = %s AND supplier_id = %s AND is_active = true
-            """, (category_id, supplier_id))
-            if not cur_check.fetchone():
-                cur_check.close()
-                conn_check.close()
-                return {"success": False, "error": "Категория не найдена или неактивна"}
-            cur_check.close()
-            conn_check.close()
-        
         conn = get_db_connection()
         cur = conn.cursor()
         
+        category_id = None
+        
+        # ✅ ЕСЛИ КАТЕГОРИЯ НЕ ВЫБРАНА
+        if category_value:
+            # ✅ ПРОВЕРЯЕМ, ЭТО ЧИСЛО ИЛИ СТРОКА
+            if str(category_value).isdigit():
+                # Это ID категории
+                category_id = int(category_value)
+                cur.execute("""
+                    SELECT id FROM supplier_categories 
+                    WHERE id = %s AND supplier_id = %s AND is_active = true
+                """, (category_id, supplier_id))
+                if not cur.fetchone():
+                    cur.close()
+                    conn.close()
+                    return {"success": False, "error": "Категория не найдена"}
+            else:
+                # Это название категории (soup, salad, etc.)
+                # Проверяем, есть ли такая категория у поставщика
+                cur.execute("""
+                    SELECT id FROM supplier_categories 
+                    WHERE name_ru = %s AND supplier_id = %s AND is_active = true
+                """, (category_value, supplier_id))
+                result = cur.fetchone()
+                if result:
+                    category_id = result[0]
+                else:
+                    # Если нет - создаем новую категорию
+                    cur.execute("""
+                        INSERT INTO supplier_categories (supplier_id, name_ru, name_kz, icon, is_custom, is_active)
+                        VALUES (%s, %s, %s, '📦', false, true)
+                        RETURNING id
+                    """, (supplier_id, category_value, category_value))
+                    category_id = cur.fetchone()[0]
+                    print(f"✅ Создана новая категория: {category_value}")
+        
+        # Создаем товар
         cur.execute("""
             INSERT INTO supplier_products (
                 supplier_id, name_ru, name_kz, name_en, description_ru, description_kz,
@@ -6690,8 +6710,9 @@ async def create_supplier_product(
         
     except Exception as e:
         print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
         return {"success": False, "error": str(e)}
-
 
 # ============================================================
 # ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ УДАЛЕНИЯ ТОВАРА
