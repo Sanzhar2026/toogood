@@ -1,3 +1,4 @@
+<!-- templates/supplier_login.html - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ -->
 {% extends "layout_supplier.html" %}
 
 {% block content %}
@@ -213,12 +214,12 @@
 
             <div class="form-group">
                 <label>📧 Email</label>
-                <input type="email" id="email" required autofocus placeholder="your@email.com">
+                <input type="email" id="email" required autofocus placeholder="your@email.com" value="ZX@mail.com">
             </div>
 
             <div class="form-group">
                 <label>🔒 Пароль</label>
-                <input type="password" id="password" required placeholder="••••••••">
+                <input type="password" id="password" required placeholder="••••••••" value="123456">
             </div>
 
             <button id="loginBtn" class="btn-login">
@@ -249,6 +250,17 @@
     const loginBtn = document.getElementById('loginBtn');
     const errorMsg = document.getElementById('errorMsg');
 
+    // ============================================================
+    // ПРОВЕРКА ТОКЕНА ПРИ ЗАГРУЗКЕ - АВТОМАТИЧЕСКИЙ ПЕРЕХОД
+    // ============================================================
+    (function() {
+        const token = sessionStorage.getItem('supplier_token');
+        if (token) {
+            console.log('🔑 Токен найден, автоматический переход на дашборд...');
+            window.location.replace('/supplier/dashboard?token=' + encodeURIComponent(token));
+        }
+    })();
+
     async function doLogin() {
         const email = emailInput.value.trim();
         const password = passwordInput.value;
@@ -264,7 +276,8 @@
         errorMsg.classList.remove('show');
 
         try {
-            const response = await fetch('/supplier/api/login', {
+            // ✅ ИСПРАВЛЕНО: ПРАВИЛЬНЫЙ ЭНДПОИНТ
+            const response = await fetch('/supplier/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -276,21 +289,28 @@
             });
 
             const data = await response.json();
+            console.log('📥 Ответ сервера:', data);
 
-            if (response.ok && data.token) {
-                // ✅ Сохраняем JWT токен
+            if (data.success && data.token) {
+                // ✅ Сохраняем токен
                 sessionStorage.setItem('supplier_token', data.token);
-                sessionStorage.setItem('supplier', JSON.stringify(data.supplier));
+                localStorage.setItem('supplier_token', data.token);
+                
+                if (data.supplier) {
+                    sessionStorage.setItem('supplier', JSON.stringify(data.supplier));
+                }
+                
+                console.log('✅ Токен сохранен:', data.token.substring(0, 30) + '...');
                 
                 // ✅ Редирект на дашборд С ТОКЕНОМ В URL
-                window.location.href = '/supplier/dashboard?token=' + data.token;
+                window.location.replace('/supplier/dashboard?token=' + encodeURIComponent(data.token));
             } else {
-                showError(data.message || data.detail || 'Неверный email или пароль');
+                showError(data.message || data.error || 'Неверный email или пароль');
                 loginBtn.disabled = false;
                 loginBtn.innerHTML = '🔑 Войти';
             }
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('❌ Login error:', error);
             showError('Ошибка сети. Попробуйте снова');
             loginBtn.disabled = false;
             loginBtn.innerHTML = '🔑 Войти';
@@ -298,7 +318,7 @@
     }
 
     function showError(message) {
-        errorMsg.textContent = message;
+        errorMsg.textContent = '❌ ' + message;
         errorMsg.classList.add('show');
         setTimeout(() => {
             errorMsg.classList.remove('show');
@@ -313,5 +333,8 @@
             doLogin();
         }
     });
+
+    console.log('🚀 Страница логина загружена');
+    console.log('💡 Эндпоинт: /supplier/login');
 </script>
 {% endblock %}
