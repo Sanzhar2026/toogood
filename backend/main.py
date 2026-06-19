@@ -9241,23 +9241,32 @@ async def supplier_dashboard(
     request: Request, 
     db: Session = Depends(get_db)
 ):
-    """Страница дашборда поставщика"""
+    """Страница дашборда поставщика - БЕЗ КУКИ"""
     
     supplier_id = None
     auth_token = None
     
+    # ======== ПОЛУЧАЕМ ТОКЕН ========
+    # 1. Из заголовка Authorization
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         auth_token = auth_header.split(" ")[1]
+        print(f"🔑 Token from header: {auth_token[:30]}...")
     
+    # 2. Из query параметра (ОСНОВНОЙ СПОСОБ!)
     if not auth_token:
         auth_token = request.query_params.get("token")
+        if auth_token:
+            print(f"🔑 Token from query: {auth_token[:30]}...")
     
+    # ======== ПРОВЕРЯЕМ ТОКЕН ========
     if auth_token:
         try:
             from jose import jwt
             payload = jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
             role = payload.get("role")
+            
+            print(f"🔓 Decoded - role: {role}, sub: {payload.get('sub')}")
             
             if role == "supplier":
                 supplier_id = payload.get("supplier_id")
@@ -9272,17 +9281,15 @@ async def supplier_dashboard(
                     if result:
                         supplier_id = result[0]
         except Exception as e:
-            print(f"JWT decode error: {e}")
+            print(f"❌ JWT error: {e}")
             auth_token = None
     
+    # ======== ЕСЛИ НЕТ SUPPLIER_ID - РЕДИРЕКТ ========
     if not supplier_id:
-        cookie_supplier_id = request.cookies.get("supplier_id")
-        if cookie_supplier_id:
-            supplier_id = int(cookie_supplier_id)
+        print("❌ No supplier_id, redirect to login")
+        return RedirectResponse(url="/supplier/login?error=no_token", status_code=303)
     
-    if not supplier_id:
-        return RedirectResponse(url="/supplier/login", status_code=303)
-    
+    # ======== ЧИСТЫЙ SQL - ПОЛУЧАЕМ ДАННЫЕ ========
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
@@ -9299,9 +9306,7 @@ async def supplier_dashboard(
         if not supplier:
             cur.close()
             conn.close()
-            response = RedirectResponse(url="/supplier/login", status_code=303)
-            response.delete_cookie("supplier_id")
-            return response
+            return RedirectResponse(url="/supplier/login", status_code=303)
         
         # Получаем заказы
         cur.execute("""
@@ -9310,7 +9315,7 @@ async def supplier_dashboard(
                 o.order_number,
                 o.customer_address,
                 o.amount_paid,
-                o.status::text as status,
+                o.status,
                 o.created_at,
                 o.delivery_deadline,
                 o.assigned_courier_id,
@@ -9349,7 +9354,7 @@ async def supplier_dashboard(
         
         surprise_bags = cur.fetchall()
         
-        # ✅ ПОЛУЧАЕМ ПРОДУКТЫ
+        # Получаем продукты
         cur.execute("""
             SELECT id, name_ru, name_kz, name_en, icon, price
             FROM foods
@@ -9373,14 +9378,13 @@ async def supplier_dashboard(
                 {'id': 19, 'name_ru': 'Куриные Крылышки', 'name_kz': 'Тауық Қанаттары', 'name_en': 'Chicken Wings', 'icon': '🍗', 'price': 1800},
             ]
         
-        # ✅ ПОЛУЧАЕМ ШАБЛОНЫ ПО ТИПУ ЗАВЕДЕНИЯ
+        # Получаем шаблоны по типу заведения
         business_type = supplier.get('business_type') or 'restaurant'
         templates_data = get_templates_by_type(business_type)
         
         # Подготовка списка заказов для шаблона
         recent_orders_list = []
         for order in all_orders[:10]:
-            # Получаем имя курьера
             courier_name = None
             if order.get('assigned_courier_id'):
                 cur2 = conn.cursor()
@@ -9414,6 +9418,7 @@ async def supplier_dashboard(
         cur.close()
         conn.close()
         
+        # ======== ВОЗВРАЩАЕМ С ТОКЕНОМ ========
         return templates.TemplateResponse("supplier_dashboard.html", {
             "request": request,
             "supplier": supplier,
@@ -9421,11 +9426,11 @@ async def supplier_dashboard(
             "recent_orders": recent_orders_list,
             "all_orders": recent_orders_list,
             "surprise_bags": surprise_bags,
-            "products": products,  # ✅ ПЕРЕДАЕМ ПРОДУКТЫ
-            "templates_data": templates_data,  # ✅ ПЕРЕДАЕМ ШАБЛОНЫ
+            "products": products,
+            "templates_data": templates_data,
             "monthly_revenue": stats["total_revenue"],
             "lang": lang,
-            "token": auth_token
+            "token": auth_token  # 👈 ПЕРЕДАЕМ ТОКЕН
         })
         
     except Exception as e:
@@ -9433,6 +9438,8 @@ async def supplier_dashboard(
         conn.close()
         print(f"❌ Ошибка supplier_dashboard: {e}")
         return RedirectResponse(url="/supplier/login", status_code=303)
+
+
 
 
 # ✅ Функция получения шаблонов по типу
@@ -9551,94 +9558,154 @@ def get_templates_by_type(business_type: str) -> dict:
     }
     
     return templates.get(business_type, templates['restaurant'])
+
+
 @app.post("/supplier/logout")
 async def supplier_logout(request: Request):
-    response = RedirectResponse(url="/supplier/login", status_code=303)
-    response.delete_cookie("supplier_id")
-    return response
+    """Выход поставщика - чистим session и редирект"""
+    # Просто редирект на логин, куки не используем
+    return RedirectResponse(url="/supplier/login?logout=success", status_code=303)
 
 @app.get("/api/foods")
 async def get_foods(db: Session = Depends(get_db)):
     """Get all foods for dropdown list"""
     try:
-        foods = db.query(Food).all()
-        result = []
-        for food in foods:
-            result.append({
-                "id": food.id,
-                "name_ru": food.name_ru,
-                "name_kz": food.name_kz,
-                "price": food.price,
-                "image": food.image,
-                "discount": food.discount
-            })
-        print(f"📦 Returned {len(result)} foods")
-        return result
+        # ЧИСТЫЙ SQL
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id, name_ru, name_kz, name_en, icon, price, image, discount
+            FROM foods
+            ORDER BY id
+        """)
+        foods = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        print(f"📦 Returned {len(foods)} foods")
+        return foods
     except Exception as e:
         print(f"❌ Error getting foods: {e}")
         return []
-
 # ============ ЭНДПОИНТЫ ДЛЯ СТРАНИЦЫ МАГАЗИНА ============
 
 @app.get("/api/suppliers/{supplier_id}")
-async def get_supplier_by_id(supplier_id: int, db: Session = Depends(get_db)):
-    """Получить информацию о магазине по ID"""
-    
-    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Supplier not found")
-    
-    return {
-        "id": supplier.id,
-        "business_name": supplier.business_name,
-        "description": supplier.description,
-        "address": supplier.address,
-        "city": supplier.city,
-        "phone": supplier.phone,
-        "email": supplier.email,
-        "rating": supplier.rating,
-        "cover_image": supplier.cover_image,
-        "lat": supplier.lat,
-        "lon": supplier.lon,
-        "is_active": supplier.is_active
-    }
-
+async def get_supplier_by_id(supplier_id: int):
+    """Получить информацию о магазине по ID - ЧИСТЫЙ SQL"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT 
+                id, business_name, description, address, city, 
+                phone, email, rating, cover_image, lat, lon, is_active
+            FROM suppliers 
+            WHERE id = %s
+        """, (supplier_id,))
+        
+        supplier = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not supplier:
+            raise HTTPException(status_code=404, detail="Supplier not found")
+        
+        return supplier
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/suppliers/{supplier_id}/surprise-bags")
-async def get_supplier_surprise_bags(supplier_id: int, db: Session = Depends(get_db)):
-    """Получить все активные сюрпризы магазина"""
-    
-    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Supplier not found")
-    
-    bags = db.query(SurpriseBag).filter(
-        SurpriseBag.supplier_id == supplier_id,
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
-    ).all()
-    
-    result = []
-    for bag in bags:
-        result.append({
-            "id": bag.id,
-            "name": bag.name,
-            "description": bag.description,
-            "original_price": bag.original_price,
-            "discounted_price": bag.discounted_price,
-            "discount_percentage": bag.discount_percentage,
-            "image_url": bag.image_url,
-            "available_quantity": bag.available_quantity,
-            "pickup_start_time": bag.pickup_start_time,
-            "pickup_end_time": bag.pickup_end_time,
-            "is_active": bag.is_active
-        })
-    
-    return result
+async def get_supplier_surprise_bags(supplier_id: int):
+    """Получить все активные сюрпризы магазина - ЧИСТЫЙ SQL"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Проверяем существует ли поставщик
+        cur.execute("SELECT id FROM suppliers WHERE id = %s", (supplier_id,))
+        supplier = cur.fetchone()
+        if not supplier:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Supplier not found")
+        
+        # Получаем активные сюрпризы
+        cur.execute("""
+            SELECT 
+                id, name, description, original_price, discounted_price,
+                discount_percentage, image_url, available_quantity,
+                pickup_start_time, pickup_end_time, is_active
+            FROM surprise_bags
+            WHERE supplier_id = %s 
+                AND is_active = true 
+                AND available_quantity > 0
+            ORDER BY created_at DESC
+        """, (supplier_id,))
+        
+        bags = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return bags
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-
-
+@app.get("/api/supplier/verify-token")
+async def verify_supplier_token(request: Request):
+    """Проверка токена поставщика - ЧИСТЫЙ SQL"""
+    try:
+        # Получаем токен из заголовка
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return {"valid": False, "error": "No token provided"}
+        
+        token = auth_header.split(" ")[1]
+        
+        # Проверяем токен
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        if payload.get("role") != "supplier":
+            return {"valid": False, "error": "Not a supplier"}
+        
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            user_id = int(payload.get("sub"))
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM suppliers WHERE user_id = %s", (user_id,))
+            result = cur.fetchone()
+            cur.close()
+            conn.close()
+            if result:
+                supplier_id = result[0]
+        
+        # Проверяем что поставщик существует
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, business_name FROM suppliers WHERE id = %s", (supplier_id,))
+        supplier = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not supplier:
+            return {"valid": False, "error": "Supplier not found"}
+        
+        return {
+            "valid": True,
+            "supplier_id": supplier_id,
+            "business_name": supplier[1]
+        }
+    except jwt.ExpiredSignatureError:
+        return {"valid": False, "error": "Token expired"}
+    except jwt.JWTError:
+        return {"valid": False, "error": "Invalid token"}
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return {"valid": False, "error": str(e)}
 # backend/main.py - добавь этот эндпоинт
 
 # backend/main.py - ЗАМЕНИТЕ ваш существующий эндпоинт

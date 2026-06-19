@@ -607,8 +607,17 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
         const phone = document.getElementById('supplierData')?.getAttribute('data-phone') || '';
         const rating = document.getElementById('supplierData')?.getAttribute('data-rating') || '0';
         
-        document.getElementById('locationText').innerHTML = t.location.replace('{address}', address).replace('{phone}', phone);
-        document.getElementById('ratingText').innerHTML = t.rating.replace('{rating}', rating);
+        // Обновляем навбар из supplier_nav.html
+        const locationText = document.getElementById('locationText');
+        if (locationText) {
+            locationText.innerHTML = t.location.replace('{address}', address).replace('{phone}', phone);
+        }
+        
+        const ratingText = document.getElementById('ratingText');
+        if (ratingText) {
+            ratingText.innerHTML = t.rating.replace('{rating}', rating);
+        }
+        
         document.getElementById('navDashboard').innerHTML = t.navDashboard;
         document.getElementById('navCouriers').innerHTML = t.navCouriers;
         document.getElementById('navOrders').innerHTML = t.navOrders;
