@@ -1,4 +1,4 @@
-# backend/models.py - ПОЛНАЯ ВЕРСИЯ БЕЗ DELIVERY_STATUS
+# backend/models.py - ПОЛНАЯ ВЕРСИЯ С НОВЫМИ МОДЕЛЯМИ
 
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum
 from sqlalchemy.orm import relationship
@@ -26,20 +26,12 @@ class OrderStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
-# ❌ УДАЛЕН DeliveryStatus - он больше не нужен
-# class DeliveryStatus(str, enum.Enum):
-#     AT_SUPPLIER = "at_supplier"
-#     EN_ROUTE = "en_route"
-#     NEARBY = "nearby"
-#     ARRIVED = "arrived"
-
-
 class CourierType(str, enum.Enum):
     PEDESTRIAN = "pedestrian"
     DRIVER = "driver"
 
 
-# Food model
+# ======== Food model (старый, для совместимости) ========
 class Food(Base):
     __tablename__ = "foods"
     id = Column(Integer, primary_key=True, index=True)
@@ -50,7 +42,48 @@ class Food(Base):
     discount = Column(Integer, default=0)
 
 
-# CartItem model
+# ======== SupplierProduct model (НОВЫЙ - товары поставщика) ========
+class SupplierProduct(Base):
+    """Товары/блюда, которые добавляет сам поставщик"""
+    __tablename__ = "supplier_products"
+    
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"), nullable=False)
+    
+    # Название на разных языках
+    name_ru = Column(String(255), nullable=False)
+    name_kz = Column(String(255), nullable=False)
+    name_en = Column(String(255), nullable=True)
+    
+    # Описание
+    description_ru = Column(Text, nullable=True)
+    description_kz = Column(Text, nullable=True)
+    
+    # Цена
+    price = Column(Float, nullable=False)
+    
+    # Категория (блюдо, напиток, десерт и т.д.)
+    category = Column(String(100), nullable=True)
+    
+    # Изображение
+    image_url = Column(String(500), nullable=True)
+    
+    # Доступность
+    is_available = Column(Boolean, default=True)
+    
+    # Время приготовления (в минутах)
+    preparation_time = Column(Integer, default=15)
+    
+    # Создан
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Связи
+    supplier = relationship("Supplier", back_populates="products")
+    surprise_bag_items = relationship("SurpriseBagItem", back_populates="supplier_product")
+
+
+# ======== CartItem model ========
 class CartItem(Base):
     __tablename__ = "cart_items"
     id = Column(Integer, primary_key=True)
@@ -64,7 +97,7 @@ class CartItem(Base):
     surprise_bag = relationship("SurpriseBag", back_populates="cart_items")
 
 
-# User model
+# ======== User model ========
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
@@ -86,17 +119,17 @@ class User(Base):
     cart_items = relationship("CartItem", back_populates="user")
     courier_profile = relationship("CourierProfile", back_populates="user", uselist=False)
     
-    # Оценки пользователя
     supplier_reviews = relationship("SupplierReview", back_populates="user", cascade="all, delete-orphan")
     surprise_bag_reviews = relationship("SurpriseBagReview", back_populates="user", cascade="all, delete-orphan")
 
 
+# ======== Supplier model ========
 class Supplier(Base):
     __tablename__ = "suppliers"
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     business_name = Column(String(255), nullable=False)
-    business_type = Column(String(100))
+    business_type = Column(String(100))  # restaurant, cafe, fastfood, supermarket, bakery
     description = Column(Text)
     logo = Column(String(500))
     cover_image = Column(String(500))
@@ -107,7 +140,6 @@ class Supplier(Base):
     phone = Column(String(50))
     email = Column(String(255))
     
-    # Рейтинг магазина
     rating = Column(Float, default=0)
     total_reviews = Column(Integer, default=0)
     
@@ -121,16 +153,19 @@ class Supplier(Base):
     surprise_bags = relationship("SurpriseBag", back_populates="supplier")
     orders = relationship("Order", back_populates="supplier", foreign_keys="Order.supplier_id")
     reviews = relationship("SupplierReview", back_populates="supplier", cascade="all, delete-orphan")
+    
+    # НОВОЕ: Связь с товарами поставщика
+    products = relationship("SupplierProduct", back_populates="supplier", cascade="all, delete-orphan")
 
 
+# ======== SupplierReview model ========
 class SupplierReview(Base):
-    """Оценки и отзывы на магазины"""
     __tablename__ = "supplier_reviews"
     
     id = Column(Integer, primary_key=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    rating = Column(Integer, nullable=False)  # 1-5
+    rating = Column(Integer, nullable=False)
     comment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -139,28 +174,37 @@ class SupplierReview(Base):
     user = relationship("User", back_populates="supplier_reviews")
 
 
+# ======== SurpriseBagItem model (ОБНОВЛЕН) ========
 class SurpriseBagItem(Base):
     __tablename__ = "surprise_bag_items"
     
     id = Column(Integer, primary_key=True)
     surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id", ondelete="CASCADE"))
-    product_id = Column(Integer, nullable=False)
-    product_name = Column(String(255), nullable=False)
-    product_price = Column(Integer, nullable=False)
+    
+    # НОВОЕ: Связь с товаром поставщика
+    supplier_product_id = Column(Integer, ForeignKey("supplier_products.id", ondelete="CASCADE"), nullable=True)
+    
+    # Старые поля (для обратной совместимости)
+    product_id = Column(Integer, nullable=True)
+    product_name = Column(String(255), nullable=True)
+    product_price = Column(Integer, nullable=True)
+    
     quantity = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
     
+    # Связи
     surprise_bag = relationship("SurpriseBag", back_populates="items")
+    supplier_product = relationship("SupplierProduct", back_populates="surprise_bag_items")
 
 
+# ======== SurpriseBagReview model ========
 class SurpriseBagReview(Base):
-    """Оценки и отзывы на сюрпризы"""
     __tablename__ = "surprise_bag_reviews"
     
     id = Column(Integer, primary_key=True)
     surprise_bag_id = Column(Integer, ForeignKey("surprise_bags.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    rating = Column(Integer, nullable=False)  # 1-5
+    rating = Column(Integer, nullable=False)
     comment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -169,6 +213,7 @@ class SurpriseBagReview(Base):
     user = relationship("User", back_populates="surprise_bag_reviews")
 
 
+# ======== SurpriseBag model (ОБНОВЛЕН) ========
 class SurpriseBag(Base):
     __tablename__ = "surprise_bags"
     
@@ -187,31 +232,21 @@ class SurpriseBag(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     possible_items = Column(Text)
-    
-    # Город поставщика
     city = Column(String(100), nullable=True)
-    
-    # Тип сюрприза: True = скрыть состав (Surprise), False = показать состав (Search)
     hide_contents = Column(Boolean, default=False)
-    
-    # Рейтинг сюрприза
     rating = Column(Float, default=0)
     total_reviews = Column(Integer, default=0)
     
-    # Вспомогательные свойства для удобства
     @property
     def is_surprise_type(self) -> bool:
-        """True - для страницы Surprise (состав скрыт)"""
         return self.hide_contents == True
     
     @property
     def is_search_type(self) -> bool:
-        """True - для страницы поиска (состав виден)"""
         return self.hide_contents == False
     
     @property
     def type_display(self) -> str:
-        """Отображаемое название типа"""
         return "🎁 Surprise" if self.hide_contents else "📋 Search"
     
     supplier = relationship("Supplier", back_populates="surprise_bags")
@@ -221,6 +256,7 @@ class SurpriseBag(Base):
     reviews = relationship("SurpriseBagReview", back_populates="surprise_bag", cascade="all, delete-orphan")
 
 
+# ======== Order model ========
 class Order(Base):
     __tablename__ = "orders"
     id = Column(Integer, primary_key=True)
@@ -232,7 +268,6 @@ class Order(Base):
     total_amount = Column(Float, nullable=True)
     order_number = Column(String(50), unique=True, nullable=True)
     
-    # ✅ ТОЛЬКО status, БЕЗ delivery_status
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING)
     
     payment_id = Column(String(100), nullable=True)
@@ -276,14 +311,12 @@ class Order(Base):
     tracking_updates = relationship("OrderTracking", back_populates="order")
 
 
+# ======== OrderTracking model ========
 class OrderTracking(Base):
     __tablename__ = "order_tracking"
     id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
-    
-    # ✅ ТОЛЬКО status, БЕЗ delivery_status
     status = Column(SQLEnum(OrderStatus), nullable=True)
-    
     lat = Column(Float, nullable=True)
     lon = Column(Float, nullable=True)
     message = Column(String(500))
@@ -292,6 +325,7 @@ class OrderTracking(Base):
     order = relationship("Order", back_populates="tracking_updates")
 
 
+# ======== CourierProfile model ========
 class CourierProfile(Base):
     __tablename__ = "courier_profiles"
     id = Column(Integer, primary_key=True)
@@ -334,6 +368,7 @@ class CourierProfile(Base):
     proposed_order = relationship("Order", foreign_keys=[proposed_order_id])
 
 
+# ======== SupplierCourier model ========
 class SupplierCourier(Base):
     __tablename__ = "supplier_couriers"
     id = Column(Integer, primary_key=True)
@@ -343,6 +378,7 @@ class SupplierCourier(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+# ======== AssignedOrder model ========
 class AssignedOrder(Base):
     __tablename__ = "assigned_orders"
     id = Column(Integer, primary_key=True)
@@ -355,6 +391,7 @@ class AssignedOrder(Base):
     courier = relationship("User", backref="assignments")
 
 
+# ======== Admin model ========
 class Admin(Base):
     __tablename__ = "admins"
     id = Column(Integer, primary_key=True)
@@ -363,6 +400,7 @@ class Admin(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+# ======== TemporaryReservation model ========
 class TemporaryReservation(Base):
     __tablename__ = "temporary_reservations"
     
