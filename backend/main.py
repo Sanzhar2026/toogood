@@ -9231,20 +9231,22 @@ async def supplier_check_auth(request: Request, db: Session = Depends(get_db)):
         return JSONResponse(status_code=401, content={"authenticated": False})
     
 
-    
+
+# backend/main.py - ДОБАВЛЯЕМ ПЕРЕДАЧУ ПРОДУКТОВ И ШАБЛОНОВ
+
+# backend/main.py - ДОБАВЛЯЕМ ПЕРЕДАЧУ ПРОДУКТОВ И ШАБЛОНОВ
+
 @app.get("/supplier/dashboard")
 async def supplier_dashboard(
     request: Request, 
     db: Session = Depends(get_db)
 ):
-    """Страница дашборда поставщика - ЧИСТЫЙ SQL"""
+    """Страница дашборда поставщика"""
     
     supplier_id = None
     auth_token = None
     
-    # 1. Проверяем JWT токен
     auth_header = request.headers.get("Authorization")
-    
     if auth_header and auth_header.startswith("Bearer "):
         auth_token = auth_header.split(" ")[1]
     
@@ -9261,7 +9263,6 @@ async def supplier_dashboard(
                 supplier_id = payload.get("supplier_id")
                 if not supplier_id:
                     user_id = int(payload.get("sub"))
-                    # Чистый SQL вместо SQLAlchemy
                     conn = get_db_connection()
                     cur = conn.cursor()
                     cur.execute("SELECT id FROM suppliers WHERE user_id = %s", (user_id,))
@@ -9274,13 +9275,11 @@ async def supplier_dashboard(
             print(f"JWT decode error: {e}")
             auth_token = None
     
-    # 2. Если JWT не сработал, проверяем cookie
     if not supplier_id:
         cookie_supplier_id = request.cookies.get("supplier_id")
         if cookie_supplier_id:
             supplier_id = int(cookie_supplier_id)
     
-    # 3. Если нет авторизации - редирект
     if not supplier_id:
         return RedirectResponse(url="/supplier/login", status_code=303)
     
@@ -9290,7 +9289,7 @@ async def supplier_dashboard(
     try:
         # Получаем данные поставщика
         cur.execute("""
-            SELECT id, business_name, city, address, phone, email, rating, is_active
+            SELECT id, business_name, business_type, city, address, phone, email, rating, is_active
             FROM suppliers 
             WHERE id = %s
         """, (supplier_id,))
@@ -9304,7 +9303,7 @@ async def supplier_dashboard(
             response.delete_cookie("supplier_id")
             return response
         
-        # Получаем заказы поставщика
+        # Получаем заказы
         cur.execute("""
             SELECT 
                 o.id,
@@ -9313,6 +9312,8 @@ async def supplier_dashboard(
                 o.amount_paid,
                 o.status::text as status,
                 o.created_at,
+                o.delivery_deadline,
+                o.assigned_courier_id,
                 sb.name as surprise_bag_name
             FROM orders o
             LEFT JOIN surprise_bags sb ON sb.id = o.surprise_bag_id
@@ -9322,9 +9323,7 @@ async def supplier_dashboard(
         
         all_orders = cur.fetchall()
         
-        print(f"📦 Supplier {supplier['business_name']} has {len(all_orders)} orders")
-        
-        # Статистика через чистый SQL
+        # Статистика
         cur.execute("""
             SELECT 
                 COUNT(*) as total_orders,
@@ -9341,8 +9340,8 @@ async def supplier_dashboard(
         cur.execute("""
             SELECT 
                 id, name, description, original_price, discounted_price,
-                discount_percentage, image_url, available_quantity,
-                is_active, created_at
+                discount_percentage, image_url, available_quantity, total_quantity,
+                is_active, created_at, hide_contents
             FROM surprise_bags
             WHERE supplier_id = %s
             ORDER BY created_at DESC
@@ -9350,9 +9349,47 @@ async def supplier_dashboard(
         
         surprise_bags = cur.fetchall()
         
+        # ✅ ПОЛУЧАЕМ ПРОДУКТЫ
+        cur.execute("""
+            SELECT id, name_ru, name_kz, name_en, icon, price
+            FROM foods
+            ORDER BY id
+        """)
+        products = cur.fetchall()
+        
+        # Если нет продуктов в базе - создаем тестовые
+        if not products:
+            products = [
+                {'id': 1, 'name_ru': 'Маргарита Пицца', 'name_kz': 'Маргарита Пицца', 'name_en': 'Margherita Pizza', 'icon': '🍕', 'price': 2500},
+                {'id': 2, 'name_ru': 'Пепперони Пицца', 'name_kz': 'Пепперони Пицца', 'name_en': 'Pepperoni Pizza', 'icon': '🍕', 'price': 3200},
+                {'id': 6, 'name_ru': 'Гамбургер', 'name_kz': 'Гамбургер', 'name_en': 'Hamburger', 'icon': '🍔', 'price': 1800},
+                {'id': 12, 'name_ru': 'Греческий Салат', 'name_kz': 'Грек Салаты', 'name_en': 'Greek Salad', 'icon': '🥗', 'price': 1500},
+                {'id': 13, 'name_ru': 'Цезарь Салат', 'name_kz': 'Цезарь Салаты', 'name_en': 'Caesar Salad', 'icon': '🥗', 'price': 2200},
+                {'id': 14, 'name_ru': 'Кока-Кола', 'name_kz': 'Кока-Кола', 'name_en': 'Coca-Cola', 'icon': '🥤', 'price': 500},
+                {'id': 15, 'name_ru': 'Лимонад', 'name_kz': 'Лимонад', 'name_en': 'Lemonade', 'icon': '🧃', 'price': 800},
+                {'id': 16, 'name_ru': 'Чизкейк', 'name_kz': 'Чизкейк', 'name_en': 'Cheesecake', 'icon': '🍰', 'price': 1200},
+                {'id': 17, 'name_ru': 'Тирамису', 'name_kz': 'Тирамису', 'name_en': 'Tiramisu', 'icon': '🍰', 'price': 1400},
+                {'id': 18, 'name_ru': 'Картошка Фри', 'name_kz': 'Картоп Фри', 'name_en': 'French Fries', 'icon': '🍟', 'price': 800},
+                {'id': 19, 'name_ru': 'Куриные Крылышки', 'name_kz': 'Тауық Қанаттары', 'name_en': 'Chicken Wings', 'icon': '🍗', 'price': 1800},
+            ]
+        
+        # ✅ ПОЛУЧАЕМ ШАБЛОНЫ ПО ТИПУ ЗАВЕДЕНИЯ
+        business_type = supplier.get('business_type') or 'restaurant'
+        templates_data = get_templates_by_type(business_type)
+        
         # Подготовка списка заказов для шаблона
         recent_orders_list = []
         for order in all_orders[:10]:
+            # Получаем имя курьера
+            courier_name = None
+            if order.get('assigned_courier_id'):
+                cur2 = conn.cursor()
+                cur2.execute("SELECT first_name, last_name FROM courier_profiles WHERE user_id = %s", (order['assigned_courier_id'],))
+                courier = cur2.fetchone()
+                cur2.close()
+                if courier:
+                    courier_name = f"{courier[0]} {courier[1]}"
+            
             recent_orders_list.append({
                 "id": order['id'],
                 "order_number": order['order_number'] or f"ORD-{order['id']}",
@@ -9360,7 +9397,9 @@ async def supplier_dashboard(
                 "surprise_bag_name": order['surprise_bag_name'] or "Тосын сый",
                 "amount_paid": float(order['amount_paid']) if order['amount_paid'] else 0,
                 "status": order['status'] or "pending",
-                "created_at": order['created_at']
+                "created_at": order['created_at'],
+                "delivery_deadline": order['delivery_deadline'],
+                "assigned_courier_name": courier_name
             })
         
         stats = {
@@ -9382,6 +9421,8 @@ async def supplier_dashboard(
             "recent_orders": recent_orders_list,
             "all_orders": recent_orders_list,
             "surprise_bags": surprise_bags,
+            "products": products,  # ✅ ПЕРЕДАЕМ ПРОДУКТЫ
+            "templates_data": templates_data,  # ✅ ПЕРЕДАЕМ ШАБЛОНЫ
             "monthly_revenue": stats["total_revenue"],
             "lang": lang,
             "token": auth_token
@@ -9392,7 +9433,124 @@ async def supplier_dashboard(
         conn.close()
         print(f"❌ Ошибка supplier_dashboard: {e}")
         return RedirectResponse(url="/supplier/login", status_code=303)
+
+
+# ✅ Функция получения шаблонов по типу
+def get_templates_by_type(business_type: str) -> dict:
+    """Возвращает шаблоны сюрпризов в зависимости от типа заведения"""
     
+    templates = {
+        'restaurant': {
+            'icon': '🍽️',
+            'name': {'en': 'Restaurant', 'ru': 'Ресторан', 'kz': 'Ресторан'},
+            'templates': {
+                'dinner_set': {
+                    'name': {'en': 'Dinner Set', 'ru': 'Ужин на двоих', 'kz': 'Кешкі ас'},
+                    'items': [{'id': 1, 'qty': 2}, {'id': 12, 'qty': 1}, {'id': 14, 'qty': 2}],
+                    'price': 5500,
+                    'description': {'en': 'Romantic dinner for two', 'ru': 'Романтический ужин на двоих', 'kz': 'Екеуге арналған романтикалық кешкі ас'}
+                },
+                'family_set': {
+                    'name': {'en': 'Family Set', 'ru': 'Семейный обед', 'kz': 'Отбасылық түскі ас'},
+                    'items': [{'id': 2, 'qty': 2}, {'id': 13, 'qty': 1}, {'id': 18, 'qty': 2}],
+                    'price': 7200,
+                    'description': {'en': 'Family lunch', 'ru': 'Семейный обед', 'kz': 'Отбасылық түскі ас'}
+                }
+            }
+        },
+        'cafe': {
+            'icon': '☕',
+            'name': {'en': 'Cafe', 'ru': 'Кафе', 'kz': 'Кафе'},
+            'templates': {
+                'coffee_set': {
+                    'name': {'en': 'Coffee Set', 'ru': 'Кофе с десертом', 'kz': 'Кофе десертпен'},
+                    'items': [{'id': 14, 'qty': 2}, {'id': 16, 'qty': 1}],
+                    'price': 2300,
+                    'description': {'en': 'Coffee and dessert', 'ru': 'Кофе и десерт', 'kz': 'Кофе және десерт'}
+                },
+                'breakfast_set': {
+                    'name': {'en': 'Breakfast Set', 'ru': 'Завтрак', 'kz': 'Таңғы ас'},
+                    'items': [{'id': 6, 'qty': 1}, {'id': 14, 'qty': 1}],
+                    'price': 2800,
+                    'description': {'en': 'Healthy breakfast', 'ru': 'Полезный завтрак', 'kz': 'Пайдалы таңғы ас'}
+                }
+            }
+        },
+        'fastfood': {
+            'icon': '🍔',
+            'name': {'en': 'Fast Food', 'ru': 'Фастфуд', 'kz': 'Фастфуд'},
+            'templates': {
+                'burger_set': {
+                    'name': {'en': 'Burger Set', 'ru': 'Бургер с картошкой', 'kz': 'Бургер картоппен'},
+                    'items': [{'id': 6, 'qty': 2}, {'id': 18, 'qty': 1}],
+                    'price': 3400,
+                    'description': {'en': 'Burger and fries', 'ru': 'Бургер и картошка фри', 'kz': 'Бургер және картоп фри'}
+                },
+                'pizza_set': {
+                    'name': {'en': 'Pizza Set', 'ru': 'Пицца с напитками', 'kz': 'Пицца сусындармен'},
+                    'items': [{'id': 1, 'qty': 1}, {'id': 14, 'qty': 2}],
+                    'price': 3900,
+                    'description': {'en': 'Pizza and drinks', 'ru': 'Пицца и напитки', 'kz': 'Пицца және сусындар'}
+                }
+            }
+        },
+        'bakery': {
+            'icon': '🥖',
+            'name': {'en': 'Bakery', 'ru': 'Пекарня', 'kz': 'Наубайхана'},
+            'templates': {
+                'sweet_set': {
+                    'name': {'en': 'Sweet Set', 'ru': 'Сладкий набор', 'kz': 'Тәтті жинақ'},
+                    'items': [{'id': 16, 'qty': 2}, {'id': 17, 'qty': 1}],
+                    'price': 2800,
+                    'description': {'en': 'Sweet pastries', 'ru': 'Сладкая выпечка', 'kz': 'Тәтті тоқаштар'}
+                },
+                'bread_set': {
+                    'name': {'en': 'Bread Set', 'ru': 'Хлебный набор', 'kz': 'Нан жинағы'},
+                    'items': [{'id': 1, 'qty': 1}, {'id': 2, 'qty': 1}],
+                    'price': 3200,
+                    'description': {'en': 'Fresh bread', 'ru': 'Свежий хлеб', 'kz': 'Жаңа нан'}
+                }
+            }
+        },
+        'supermarket': {
+            'icon': '🛒',
+            'name': {'en': 'Supermarket', 'ru': 'Супермаркет', 'kz': 'Супермаркет'},
+            'templates': {
+                'snack_set': {
+                    'name': {'en': 'Snack Set', 'ru': 'Снэк-набор', 'kz': 'Снэк жинағы'},
+                    'items': [{'id': 18, 'qty': 2}, {'id': 19, 'qty': 1}],
+                    'price': 2600,
+                    'description': {'en': 'Snacks for party', 'ru': 'Снэки для вечеринки', 'kz': 'Кешке арналған снэктер'}
+                },
+                'drink_set': {
+                    'name': {'en': 'Drink Set', 'ru': 'Напитки', 'kz': 'Сусындар'},
+                    'items': [{'id': 14, 'qty': 3}, {'id': 15, 'qty': 2}],
+                    'price': 1900,
+                    'description': {'en': 'Assorted drinks', 'ru': 'Ассорти напитков', 'kz': 'Сусындар ассорти'}
+                }
+            }
+        },
+        'shop': {
+            'icon': '🛍️',
+            'name': {'en': 'Shop', 'ru': 'Магазин', 'kz': 'Дүкен'},
+            'templates': {
+                'lunch_set': {
+                    'name': {'en': 'Lunch Set', 'ru': 'Обед на вынос', 'kz': 'Алып кететін түскі ас'},
+                    'items': [{'id': 12, 'qty': 1}, {'id': 6, 'qty': 1}],
+                    'price': 3300,
+                    'description': {'en': 'Quick lunch', 'ru': 'Быстрый обед', 'kz': 'Жылдам түскі ас'}
+                },
+                'salad_set': {
+                    'name': {'en': 'Salad Set', 'ru': 'Салаты', 'kz': 'Салаттар'},
+                    'items': [{'id': 12, 'qty': 1}, {'id': 13, 'qty': 1}],
+                    'price': 3700,
+                    'description': {'en': 'Fresh salads', 'ru': 'Свежие салаты', 'kz': 'Жаңа салаттар'}
+                }
+            }
+        }
+    }
+    
+    return templates.get(business_type, templates['restaurant'])
 @app.post("/supplier/logout")
 async def supplier_logout(request: Request):
     response = RedirectResponse(url="/supplier/login", status_code=303)
