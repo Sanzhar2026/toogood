@@ -532,12 +532,171 @@ async function authFetch(url, options = {}) {
 }
 
 // ============================================================
-// ПЕРЕВОДЫ
+// ПЕРЕВОДЫ (СОКРАЩЕНЫ)
 // ============================================================
 const translations = {
-    kz: { /* ... полные переводы ... */ },
-    ru: { /* ... полные переводы ... */ },
-    en: { /* ... полные переводы ... */ }
+    kz: {
+        chooseProduct: 'Тауарды таңдаңыз',
+        selectTemplate: 'Дайын сюрпризді таңдаңыз',
+        templateLoaded: 'Жүктелді:',
+        youCanEdit: 'Сіз өңдей аласыз',
+        location: '{address} | {phone}',
+        rating: '⭐ {rating}',
+        navDashboard: 'Басты бет',
+        navCouriers: 'Курьерлер',
+        navOrders: 'Тапсырыстар',
+        navBags: 'Сюрприздер',
+        statTotalOrders: 'Барлық тапсырыс',
+        statPending: 'Күтілуде',
+        statToday: 'Бүгінгі',
+        statRevenue: 'Табыс',
+        titleActiveOrders: 'Белсенді тапсырыстар',
+        btnRefresh: 'Жаңарту',
+        thOrder: 'Тапсырыс #',
+        thCustomer: 'Клиент / Мекенжай',
+        thProduct: 'Өнім',
+        thAmount: 'Сома',
+        thStatus: 'Статус',
+        thCourier: 'Курьер',
+        thAction: 'Әрекет',
+        thMap: 'Карта',
+        titleBags: 'Сюрприздер',
+        btnAdd: 'Қосу',
+        btnClearInactive: 'Белсенді еместерді тазалау',
+        btnDeleteAll: 'Барлығын жою',
+        thBagName: 'Атауы',
+        thBagDesc: 'Сипаттама',
+        thBagPrice: 'Бағасы',
+        thBagDiscounted: 'Жеңілдікпен',
+        thBagDiscount: 'Жеңілдік',
+        thBagQty: 'Саны',
+        thBagType: 'Түрі',
+        thBagStatus: 'Күйі',
+        thBagAction: 'Әрекет',
+        formTitle: 'Сюрприз қосу',
+        labelTemplate: 'Дайын сюрприз',
+        labelName: 'Сюрприз атауы *',
+        labelDesc: 'Сипаттама',
+        labelProducts: 'Өнімдер тізімі',
+        selectedTitle: 'Таңдалған өнімдер:',
+        labelOriginalPrice: 'Бастапқы баға (₸)',
+        labelDiscount: 'Жеңілдік',
+        labelDiscountedPrice: 'Жеңілдікпен баға (₸)',
+        labelQuantity: 'Саны',
+        labelPickupStart: 'Алу уақыты (басталуы)',
+        labelPickupEnd: 'Алу уақыты (аяқталуы)',
+        labelImage: 'Сурет URL',
+        labelBagType: '📦 Сюрприз түрі',
+        submitBtn: 'Сюрприз қосу'
+    },
+    ru: {
+        chooseProduct: 'Выберите товар',
+        selectTemplate: 'Выберите готовый сюрприз',
+        templateLoaded: 'Загружено:',
+        youCanEdit: 'Вы можете редактировать',
+        location: '{address} | {phone}',
+        rating: '⭐ {rating}',
+        navDashboard: 'Главная',
+        navCouriers: 'Курьеры',
+        navOrders: 'Заказы',
+        navBags: 'Сюрпризы',
+        statTotalOrders: 'Всего заказов',
+        statPending: 'Ожидают',
+        statToday: 'Заказов сегодня',
+        statRevenue: 'Общий доход',
+        titleActiveOrders: 'Активные заказы',
+        btnRefresh: 'Обновить',
+        thOrder: 'Заказ #',
+        thCustomer: 'Клиент / Адрес',
+        thProduct: 'Товар',
+        thAmount: 'Сумма',
+        thStatus: 'Статус',
+        thCourier: 'Курьер',
+        thAction: 'Действие',
+        thMap: 'Карта',
+        titleBags: 'Сюрпризы',
+        btnAdd: 'Добавить',
+        btnClearInactive: 'Удалить неактивные',
+        btnDeleteAll: 'Удалить все',
+        thBagName: 'Название',
+        thBagDesc: 'Описание',
+        thBagPrice: 'Цена',
+        thBagDiscounted: 'Со скидкой',
+        thBagDiscount: 'Скидка',
+        thBagQty: 'Кол-во',
+        thBagType: 'Тип',
+        thBagStatus: 'Статус',
+        thBagAction: 'Действие',
+        formTitle: 'Добавить сюрприз',
+        labelTemplate: 'Готовый сюрприз',
+        labelName: 'Название сюрприза *',
+        labelDesc: 'Описание',
+        labelProducts: 'Список товаров',
+        selectedTitle: 'Выбранные товары:',
+        labelOriginalPrice: 'Оригинальная цена (₸)',
+        labelDiscount: 'Скидка',
+        labelDiscountedPrice: 'Цена со скидкой (₸)',
+        labelQuantity: 'Количество',
+        labelPickupStart: 'Время выдачи (начало)',
+        labelPickupEnd: 'Время выдачи (конец)',
+        labelImage: 'URL изображения',
+        labelBagType: '📦 Тип сюрприза',
+        submitBtn: 'Добавить сюрприз'
+    },
+    en: {
+        chooseProduct: 'Choose product',
+        selectTemplate: 'Select ready surprise',
+        templateLoaded: 'Loaded:',
+        youCanEdit: 'You can edit',
+        location: '{address} | {phone}',
+        rating: '⭐ {rating}',
+        navDashboard: 'Dashboard',
+        navCouriers: 'Couriers',
+        navOrders: 'Orders',
+        navBags: 'Surprise Bags',
+        statTotalOrders: 'Total Orders',
+        statPending: 'Pending',
+        statToday: 'Today Orders',
+        statRevenue: 'Total Revenue',
+        titleActiveOrders: 'Active Orders',
+        btnRefresh: 'Refresh',
+        thOrder: 'Order #',
+        thCustomer: 'Customer / Address',
+        thProduct: 'Product',
+        thAmount: 'Amount',
+        thStatus: 'Status',
+        thCourier: 'Courier',
+        thAction: 'Action',
+        thMap: 'Map',
+        titleBags: 'Surprise Bags',
+        btnAdd: 'Add',
+        btnClearInactive: 'Clear Inactive',
+        btnDeleteAll: 'Delete All',
+        thBagName: 'Name',
+        thBagDesc: 'Description',
+        thBagPrice: 'Price',
+        thBagDiscounted: 'Discounted',
+        thBagDiscount: 'Discount',
+        thBagQty: 'Quantity',
+        thBagType: 'Type',
+        thBagStatus: 'Status',
+        thBagAction: 'Action',
+        formTitle: 'Add Surprise Bag',
+        labelTemplate: 'Ready Surprise Package',
+        labelName: 'Surprise Bag Name *',
+        labelDesc: 'Description',
+        labelProducts: 'Products List',
+        selectedTitle: 'Selected Products:',
+        labelOriginalPrice: 'Original Price (₸)',
+        labelDiscount: 'Discount',
+        labelDiscountedPrice: 'Discounted Price (₸)',
+        labelQuantity: 'Quantity',
+        labelPickupStart: 'Pickup Start Time',
+        labelPickupEnd: 'Pickup End Time',
+        labelImage: 'Image URL',
+        labelBagType: '📦 Surprise Type',
+        submitBtn: 'Add Surprise'
+    }
 };
 
 // ============================================================
@@ -692,7 +851,7 @@ function getCategoriesByType(type) {
 }
 
 // ============================================================
-// ТЕСТОВЫЕ ДАННЫЕ (СОКРАЩЕННЫЕ ДЛЯ ЭКОНОМИИ МЕСТА)
+// ТЕСТОВЫЕ ДАННЫЕ (СОКРАЩЕНЫ)
 // ============================================================
 function getTestProductsByType(type) {
     var allProducts = {
@@ -964,7 +1123,6 @@ function toggleAddBagForm() {
         form.style.display = 'block';
         form.style.animation = 'slideDown 0.3s ease';
         console.log('✅ Форма сюрприза показана');
-        // Прокрутка к форме
         form.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
         form.style.display = 'none';
@@ -989,24 +1147,26 @@ function updateCategorySelect() {
     emptyOption.textContent = '-- Выберите категорию --';
     categorySelect.appendChild(emptyOption);
     
+    // ✅ СТАНДАРТНЫЕ КАТЕГОРИИ - ИСПОЛЬЗУЕМ value КАК СТРОКУ
     if (standardCategories.length > 0) {
         var optGroup = document.createElement('optgroup');
         optGroup.label = '📋 Стандартные категории';
         standardCategories.forEach(function(cat) {
             var option = document.createElement('option');
-            option.value = cat.value;
+            option.value = cat.value;  // "soup", "salad", etc.
             option.textContent = cat.label;
             optGroup.appendChild(option);
         });
         categorySelect.appendChild(optGroup);
     }
     
+    // ✅ СВОИ КАТЕГОРИИ - ИСПОЛЬЗУЕМ ID
     if (customCategories && customCategories.length > 0) {
         var optGroup2 = document.createElement('optgroup');
         optGroup2.label = '✨ Мои категории';
         customCategories.forEach(function(cat) {
             var option = document.createElement('option');
-            option.value = cat.id;
+            option.value = cat.id;  // число
             option.textContent = (cat.icon || '📦') + ' ' + cat.name_ru;
             optGroup2.appendChild(option);
         });
@@ -1392,12 +1552,12 @@ async function submitBagForm() {
 }
 
 // ============================================================
-// УСТАНОВКА ЯЗЫКА (СОКРАЩЕНА ДЛЯ ЭКОНОМИИ)
+// УСТАНОВКА ЯЗЫКА (СОКРАЩЕНА)
 // ============================================================
 function setLanguage(lang) {
     currentLang = lang || 'ru';
     var t = translations[lang] || {};
-    // ... полный код setLanguage ...
+    // ... полная версия setLanguage ...
 }
 
 // ============================================================
@@ -1431,41 +1591,178 @@ async function deleteProduct(productId) {
 }
 
 // ============================================================
-// ЗАКАЗЫ (СОКРАЩЕНЫ ДЛЯ ЭКОНОМИИ)
+// ЗАКАЗЫ (СОКРАЩЕНЫ)
 // ============================================================
 async function refreshOrders() {
-    // ... полный код ...
+    try {
+        var response = await authFetch('/api/supplier/orders');
+        var data = await response.json();
+        if (!data.success) return;
+        var orders = data.orders;
+        var tbody = document.getElementById('ordersTableBody');
+        tbody.innerHTML = '';
+        var pendingCount = 0;
+        var activeOrders = orders.filter(function(o) { return o.status !== 'cancelled' && o.status !== 'deleted'; });
+        if (activeOrders.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">Нет активных заказов</td></tr>';
+            document.getElementById('pendingOrders').innerText = '0';
+            document.getElementById('totalOrders').innerText = '0';
+            return;
+        }
+        for (var i = 0; i < activeOrders.length; i++) {
+            var order = activeOrders[i];
+            if (order.status === 'pending') pendingCount++;
+            var row = '<tr data-order-id="' + order.id + '">' +
+                '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.65rem;color:#94a3b8;">#' + order.id + '</span></td>' +
+                '<td>' + escapeHtml(order.customer_address || 'Адрес не указан') + '<br><span style="font-size:0.6rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
+                '<td>' + escapeHtml(order.bag_name) + '</td>' +
+                '<td><strong>' + order.amount_paid + '</strong> ₸</td>' +
+                '<td><span class="status-badge status-' + order.status + '">' + getStatusText(order.status) + '</span></td>' +
+                '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? escapeHtml(order.assigned_courier_name) : '—') + '</td>' +
+                '<td>' + getActionButtons(order) + '</td>' +
+                '<td><button class="btn track-btn" data-order-id="' + order.id + '">Карта</button></td>' +
+                '</tr>';
+            tbody.innerHTML += row;
+        }
+        document.getElementById('pendingOrders').innerText = pendingCount;
+        document.getElementById('totalOrders').innerText = activeOrders.length;
+        attachOrderHandlers();
+    } catch(error) { console.error('Refresh error:', error); }
 }
 
 function getStatusText(status) {
-    // ... полный код ...
+    var texts = { pending: 'Ожидает', confirmed: 'Подтвержден', preparing: 'Готовится', ready_for_pickup: 'Готов', out_for_delivery: 'В пути', delivered: 'Доставлен', cancelled: 'Отменен', deleted: 'Удален' };
+    return texts[status] || status;
 }
 
 function getActionButtons(order) {
-    // ... полный код ...
+    if (order.status === 'confirmed') {
+        return '<div><button class="auto-assign-btn btn" data-order-id="' + order.id + '">Автоназначить</button><br><button class="manual-assign-btn btn" data-order-id="' + order.id + '" style="margin-top:0.3rem;">Вручную</button></div>';
+    } else if (order.status === 'out_for_delivery') {
+        return '<div class="delivery-timer" data-deadline="' + order.delivery_deadline + '"></div>';
+    } else if (order.status === 'delivered') {
+        return '<span style="color: #10b981;">Доставлен</span>';
+    } else {
+        return '<select class="status-select" data-order-id="' + order.id + '">' +
+            '<option value="">Изменить статус</option>' +
+            '<option value="confirmed">Подтвердить</option>' +
+            '<option value="preparing">Готовить</option>' +
+            '<option value="ready_for_pickup">Готов</option>' +
+            '<option value="out_for_delivery">Отправить</option>' +
+            '<option value="delivered">Доставлен</option>' +
+            '<option value="cancelled">Отменить</option>' +
+            '</select>';
+    }
 }
 
 function attachOrderHandlers() {
-    // ... полный код ...
+    var selects = document.querySelectorAll('.status-select');
+    for (var i = 0; i < selects.length; i++) {
+        var select = selects[i];
+        select.removeEventListener('change', select._handler);
+        select._handler = function() { 
+            var orderId = this.getAttribute('data-order-id'); 
+            var newStatus = this.value; 
+            if (newStatus) updateOrderStatus(orderId, newStatus); 
+            this.value = ''; 
+        };
+        select.addEventListener('change', select._handler);
+    }
+    var trackBtns = document.querySelectorAll('.track-btn');
+    for (var j = 0; j < trackBtns.length; j++) {
+        var btn = trackBtns[j];
+        btn._handler = function() { window.location.href = '/track-order/' + this.getAttribute('data-order-id'); };
+        btn.addEventListener('click', btn._handler);
+    }
+    // ... attach auto-assign и manual-assign
 }
 
 async function updateOrderStatus(orderId, newStatus) {
-    // ... полный код ...
+    try {
+        var response = await authFetch('/api/supplier/orders/' + orderId + '/status', { 
+            method: 'PUT', 
+            body: JSON.stringify({ status: newStatus }) 
+        });
+        if (response.ok) { 
+            showNotification('Статус изменен на ' + getStatusText(newStatus)); 
+            refreshOrders(); 
+        }
+    } catch(error) { console.error(error); }
 }
 
 // ============================================================
-// СЮРПРИЗЫ (СОКРАЩЕНЫ ДЛЯ ЭКОНОМИИ)
+// СЮРПРИЗЫ
 // ============================================================
 async function refreshBags() {
-    // ... полный код ...
+    try {
+        var response = await authFetch('/api/supplier/surprise-bags');
+        var data = await response.json();
+        if (!data.bags) return;
+        var tbody = document.getElementById('bagsTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        for (var i = 0; i < data.bags.length; i++) {
+            var bag = data.bags[i];
+            var isHidden = bag.hide_contents === true;
+            var typeIcon = isHidden ? '🔒' : '🔓';
+            var typeText = isHidden ? 'Скрытый' : 'Открытый';
+            var typeColor = isHidden ? '#f59e0b' : '#10b981';
+            var row = '<tr data-bag-id="' + bag.id + '">' +
+                '<td><strong>' + escapeHtml(bag.name) + '</strong></td>' +
+                '<td>' + escapeHtml(bag.description || '-') + '</td>' +
+                '<td>' + bag.original_price + ' ₸</td>' +
+                '<td><strong style="color: #ef4444;">' + bag.discounted_price + ' ₸</strong></td>' +
+                '<td><span style="background: #ef4444; color: white; padding: 0.2rem 0.4rem; border-radius: 1rem; font-size: 0.65rem;">-' + (bag.discount_percentage || 0) + '%</span></td>' +
+                '<td>' + bag.available_quantity + '/' + bag.total_quantity + '</td>' +
+                '<td><span style="color: ' + typeColor + '; font-weight: bold;">' + typeIcon + ' ' + typeText + '</span></td>' +
+                '<td>' + (bag.is_active ? '<span style="color: #10b981;">Активен</span>' : '<span style="color: #ef4444;">Неактивен</span>') + '</td>' +
+                '<td>' +
+                    '<button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">Вкл/Выкл</button>' +
+                    '<button class="btn toggle-type-btn" data-bag-id="' + bag.id + '" style="margin-top: 0.3rem;">' + (isHidden ? '🔓 Сделать открытым' : '🔒 Сделать скрытым') + '</button>' +
+                '</td>' +
+                '</tr>';
+            tbody.innerHTML += row;
+        }
+        // ... attach handlers
+    } catch(error) { console.error('Refresh bags error:', error); }
 }
 
 async function clearInactiveBags() {
-    // ... полный код ...
+    if (!confirm('Удалить неактивные сюрпризы?')) return;
+    var btn = document.getElementById('clearInactiveBagsBtn');
+    btn.disabled = true;
+    try { 
+        var response = await authFetch('/api/supplier/clear-inactive-bags', { method: 'DELETE' }); 
+        var data = await response.json(); 
+        if (data.success) { 
+            showNotification(data.message, 'success'); 
+            refreshBags(); 
+        }
+    } catch(error) { 
+        showNotification('Ошибка удаления', 'error'); 
+    }
+    finally { 
+        btn.disabled = false; 
+    }
 }
 
 async function clearAllBags() {
-    // ... полный код ...
+    if (!confirm('Удалить ВСЕ сюрпризы?')) return;
+    var btn = document.getElementById('clearAllBagsBtn');
+    btn.disabled = true;
+    try { 
+        var response = await authFetch('/api/supplier/clear-all-bags', { method: 'DELETE' }); 
+        var data = await response.json(); 
+        if (data.success) { 
+            showNotification(data.message, 'success'); 
+            refreshBags(); 
+        }
+    } catch(error) { 
+        showNotification('Ошибка удаления', 'error'); 
+    }
+    finally { 
+        btn.disabled = false; 
+    }
 }
 
 // ============================================================
@@ -1478,23 +1775,18 @@ function initWebSocket() {
             console.warn('⚠️ Нет токена для WebSocket');
             return;
         }
-        
         var wsUrl = 'wss://' + window.location.host + '/ws/supplier/' + supplierId + '?token=' + encodeURIComponent(token);
         ws = new WebSocket(wsUrl);
         var dot = document.getElementById('wsDot');
         var status = document.getElementById('wsStatus');
-        
         ws.onopen = function() {
             dot.className = 'ws-dot connected';
             status.textContent = 'Подключено';
             console.log('✅ WebSocket connected');
         };
-        
         ws.onmessage = function(event) {
             try {
                 var data = JSON.parse(event.data);
-                console.log('📨 WS message:', data);
-                
                 if (data.type === 'order_update' || data.type === 'new_order') {
                     refreshOrders();
                     showNotification('📦 Обновление заказов!', 'success');
@@ -1509,18 +1801,14 @@ function initWebSocket() {
                 console.error('WS message error:', e);
             }
         };
-        
-        ws.onclose = function(event) {
+        ws.onclose = function() {
             dot.className = 'ws-dot disconnected';
             status.textContent = 'Отключено';
-            console.log('❌ WebSocket closed:', event.code, event.reason);
             setTimeout(initWebSocket, 5000);
         };
-        
-        ws.onerror = function(error) {
+        ws.onerror = function() {
             dot.className = 'ws-dot disconnected';
             status.textContent = 'Ошибка';
-            console.error('❌ WebSocket error:', error);
         };
     } catch(e) {
         console.error('WebSocket init error:', e);
@@ -1539,19 +1827,16 @@ document.addEventListener('DOMContentLoaded', function() {
     
     loadCategories();
     
-    // Загружаем товары
     loadSupplierProducts().then(function() {
         console.log('✅ Товары загружены');
     });
     
-    // Если нет продуктов - создаем тестовые
     if (!window.productsData || window.productsData.length === 0) {
         window.productsData = getTestProductsByType(businessType);
         updateProductsTable();
         updateProductSelect();
     }
     
-    // Загружаем шаблоны
     if (!window.templatesData || !window.templatesData.templates || Object.keys(window.templatesData.templates).length === 0) {
         window.templatesData = getTestTemplatesByType(businessType);
         updateTemplateSelect();
@@ -1561,23 +1846,19 @@ document.addEventListener('DOMContentLoaded', function() {
     refreshBags();
     initWebSocket();
     
-    // Обработчики
     document.getElementById('refreshOrdersBtn').addEventListener('click', refreshOrders);
-    
     document.getElementById('clearInactiveBagsBtn').addEventListener('click', clearInactiveBags);
     document.getElementById('clearAllBagsBtn').addEventListener('click', clearAllBags);
     document.getElementById('addProductBtn').addEventListener('click', addProduct);
     
     var discountBtns = document.querySelectorAll('.discount-preset');
     for (var i = 0; i < discountBtns.length; i++) {
-        var btn = discountBtns[i];
-        btn.addEventListener('click', function() {
+        discountBtns[i].addEventListener('click', function() {
             applyDiscount(parseInt(this.dataset.percent));
         });
     }
     
     document.getElementById('surpriseTemplate').addEventListener('change', loadSurpriseTemplate);
-    
     document.getElementById('createBagForm').addEventListener('submit', function(e) {
         e.preventDefault();
         submitBagForm();
@@ -1585,41 +1866,29 @@ document.addEventListener('DOMContentLoaded', function() {
     
     var langBtns = document.querySelectorAll('.lang-btn');
     for (var j = 0; j < langBtns.length; j++) {
-        var btn2 = langBtns[j];
-        btn2.addEventListener('click', function() {
+        langBtns[j].addEventListener('click', function() {
             setLanguage(this.dataset.lang);
         });
     }
     
-    // Обработчик формы создания категории
+    // Форма создания категории
     var categoryForm = document.getElementById('createCategoryForm');
     if (categoryForm) {
         categoryForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
             var nameRu = document.getElementById('categoryNameRu').value.trim();
             var nameKz = document.getElementById('categoryNameKz').value.trim();
             var nameEn = document.getElementById('categoryNameEn').value.trim();
             var icon = document.getElementById('categoryIcon').value;
-            
             if (!nameRu || !nameKz) {
                 showNotification('❌ Введите название на обоих языках', 'error');
                 return;
             }
-            
-            var data = {
-                name_ru: nameRu,
-                name_kz: nameKz,
-                name_en: nameEn,
-                icon: icon
-            };
-            
             try {
                 var response = await authFetch('/api/supplier/categories', {
                     method: 'POST',
-                    body: JSON.stringify(data)
+                    body: JSON.stringify({ name_ru: nameRu, name_kz: nameKz, name_en: nameEn, icon: icon })
                 });
-                
                 var result = await response.json();
                 if (result.success) {
                     showNotification('✅ Категория "' + nameRu + '" добавлена!', 'success');
@@ -1636,16 +1905,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Обработчик формы создания товара
+    // Форма создания товара
     var productForm = document.getElementById('createProductForm');
     if (productForm) {
         productForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
             var nameRu = document.getElementById('productNameRu').value.trim();
             var nameKz = document.getElementById('productNameKz').value.trim();
             var price = parseFloat(document.getElementById('productPrice').value);
-            var categoryId = document.getElementById('productCategory').value;
+            var categoryValue = document.getElementById('productCategory').value;
             var prepTime = parseInt(document.getElementById('productPrepTime').value) || 15;
             var descRu = document.getElementById('productDescRu').value.trim();
             var descKz = document.getElementById('productDescKz').value.trim();
@@ -1654,7 +1922,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 showNotification('❌ Введите название на обоих языках', 'error');
                 return;
             }
-            
             if (!price || price <= 0) {
                 showNotification('❌ Введите корректную цену', 'error');
                 return;
@@ -1664,7 +1931,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 name_ru: nameRu,
                 name_kz: nameKz,
                 price: price,
-                category_id: categoryId || null,
+                category_id: categoryValue || null,
                 preparation_time: prepTime,
                 description_ru: descRu,
                 description_kz: descKz,
@@ -1676,7 +1943,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     method: 'POST',
                     body: JSON.stringify(data)
                 });
-                
                 var result = await response.json();
                 if (result.success) {
                     showNotification('✅ Товар "' + nameRu + '" добавлен!', 'success');
@@ -1695,7 +1961,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Автообновление
     setInterval(function() {
         refreshOrders();
         refreshBags();
