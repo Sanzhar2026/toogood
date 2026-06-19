@@ -53,7 +53,7 @@
         console.log('🔑 ИТОГОВЫЙ ТОКЕН:', finalToken.substring(0, 30) + '...');
     }
     
-    // ======== 5. ЗАГРУЖАЕМ ПРОДУКТЫ ========
+    // ======== 5. ЗАГРУЖАЕМ ПРОДУКТЫ (БЕЗ icon И name_en) ========
     try {
         window.productsData = JSON.parse(el.dataset.products || '[]');
     } catch(e) {
@@ -77,20 +77,20 @@
         businessType: el.dataset.businessType || 'restaurant'
     };
     
-    // ======== 8. ТЕСТОВЫЕ ДАННЫЕ ЕСЛИ НЕТ (БЕЗ name_en) ========
+    // ======== 8. ТЕСТОВЫЕ ДАННЫЕ (БЕЗ icon И name_en) ========
     if (!window.productsData || window.productsData.length === 0) {
         console.warn('⚠️ Нет продуктов, создаем тестовые');
         window.productsData = [
-            {id: 1, name_ru: 'Маргарита Пицца', name_kz: 'Маргарита Пицца', icon: '🍕', price: 2500},
-            {id: 2, name_ru: 'Пепперони Пицца', name_kz: 'Пепперони Пицца', icon: '🍕', price: 3200},
-            {id: 6, name_ru: 'Гамбургер', name_kz: 'Гамбургер', icon: '🍔', price: 1800},
-            {id: 14, name_ru: 'Кока-Кола', name_kz: 'Кока-Кола', icon: '🥤', price: 500},
-            {id: 16, name_ru: 'Чизкейк', name_kz: 'Чизкейк', icon: '🍰', price: 1200},
-            {id: 18, name_ru: 'Картошка Фри', name_kz: 'Картоп Фри', icon: '🍟', price: 800}
+            {id: 1, name_ru: 'Маргарита Пицца', name_kz: 'Маргарита Пицца', price: 2500},
+            {id: 2, name_ru: 'Пепперони Пицца', name_kz: 'Пепперони Пицца', price: 3200},
+            {id: 6, name_ru: 'Гамбургер', name_kz: 'Гамбургер', price: 1800},
+            {id: 14, name_ru: 'Кока-Кола', name_kz: 'Кока-Кола', price: 500},
+            {id: 16, name_ru: 'Чизкейк', name_kz: 'Чизкейк', price: 1200},
+            {id: 18, name_ru: 'Картошка Фри', name_kz: 'Картоп Фри', price: 800}
         ];
     }
     
-    // ======== 9. ТЕСТОВЫЕ ШАБЛОНЫ ЕСЛИ НЕТ ========
+    // ======== 9. ТЕСТОВЫЕ ШАБЛОНЫ ========
     if (!window.templatesData || !window.templatesData.templates || Object.keys(window.templatesData.templates).length === 0) {
         console.warn('⚠️ Нет шаблонов, создаем тестовые');
         window.templatesData = {

@@ -9344,23 +9344,23 @@ async def supplier_dashboard(
         
         surprise_bags = cur.fetchall()
         
-        # ======== ИСПРАВЛЕНО: ПОЛУЧАЕМ ПРОДУКТЫ БЕЗ name_en ========
+        # ======== ИСПРАВЛЕНО: ТОЛЬКО name_ru, name_kz, price (БЕЗ icon и name_en) ========
         cur.execute("""
-            SELECT id, name_ru, name_kz, icon, price
+            SELECT id, name_ru, name_kz, price
             FROM foods
             ORDER BY id
         """)
         products = cur.fetchall()
         
-        # Если нет продуктов в базе - создаем тестовые
+        # Если нет продуктов в базе - создаем тестовые (БЕЗ icon)
         if not products:
             products = [
-                {'id': 1, 'name_ru': 'Маргарита Пицца', 'name_kz': 'Маргарита Пицца', 'icon': '🍕', 'price': 2500},
-                {'id': 2, 'name_ru': 'Пепперони Пицца', 'name_kz': 'Пепперони Пицца', 'icon': '🍕', 'price': 3200},
-                {'id': 6, 'name_ru': 'Гамбургер', 'name_kz': 'Гамбургер', 'icon': '🍔', 'price': 1800},
-                {'id': 14, 'name_ru': 'Кока-Кола', 'name_kz': 'Кока-Кола', 'icon': '🥤', 'price': 500},
-                {'id': 16, 'name_ru': 'Чизкейк', 'name_kz': 'Чизкейк', 'icon': '🍰', 'price': 1200},
-                {'id': 18, 'name_ru': 'Картошка Фри', 'name_kz': 'Картоп Фри', 'icon': '🍟', 'price': 800}
+                {'id': 1, 'name_ru': 'Маргарита Пицца', 'name_kz': 'Маргарита Пицца', 'price': 2500},
+                {'id': 2, 'name_ru': 'Пепперони Пицца', 'name_kz': 'Пепперони Пицца', 'price': 3200},
+                {'id': 6, 'name_ru': 'Гамбургер', 'name_kz': 'Гамбургер', 'price': 1800},
+                {'id': 14, 'name_ru': 'Кока-Кола', 'name_kz': 'Кока-Кола', 'price': 500},
+                {'id': 16, 'name_ru': 'Чизкейк', 'name_kz': 'Чизкейк', 'price': 1200},
+                {'id': 18, 'name_ru': 'Картошка Фри', 'name_kz': 'Картоп Фри', 'price': 800}
             ]
         
         # Получаем шаблоны по типу заведения
@@ -9422,8 +9422,6 @@ async def supplier_dashboard(
         conn.close()
         print(f"❌ Ошибка supplier_dashboard: {e}")
         return RedirectResponse(url="/supplier/login", status_code=303)
-
-
 
 # ✅ Функция получения шаблонов по типу
 def get_templates_by_type(business_type: str) -> dict:
