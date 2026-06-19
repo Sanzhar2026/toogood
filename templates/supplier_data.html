@@ -1,3 +1,4 @@
+<!-- templates/supplier_data.html -->
 <div id="supplierData" 
      data-supplier-id="{{ supplier.id }}" 
      data-token="{{ token if token else '' }}" 
@@ -5,15 +6,40 @@
      data-phone="{{ supplier.phone or '' }}"
      data-rating="{{ supplier.rating or 0 }}"
      data-business-type="{{ supplier.business_type or 'restaurant' }}"
+     data-products='{{ products|tojson|safe }}'
+     data-templates='{{ templates_data|tojson|safe }}'
      style="display: none;">
 </div>
 
 <script>
-    window.productsData = {{ products|tojson|safe }};
-    window.templatesData = {{ templates_data|tojson|safe }};
-    window.supplierData = {
-        id: {{ supplier.id }},
-        businessType: "{{ supplier.business_type or 'restaurant' }}",
-        businessName: "{{ supplier.business_name }}"
-    };
+    // ✅ Загружаем данные из data-атрибутов в глобальные переменные
+    (function() {
+        const el = document.getElementById('supplierData');
+        if (!el) return;
+        
+        window.supplierData = {
+            id: parseInt(el.dataset.supplierId),
+            token: el.dataset.token || '',
+            address: el.dataset.address || '',
+            phone: el.dataset.phone || '',
+            rating: parseFloat(el.dataset.rating) || 0,
+            businessType: el.dataset.businessType || 'restaurant'
+        };
+        
+        try {
+            window.productsData = JSON.parse(el.dataset.products || '[]');
+        } catch(e) {
+            window.productsData = [];
+        }
+        
+        try {
+            window.templatesData = JSON.parse(el.dataset.templates || '{"templates":{}}');
+        } catch(e) {
+            window.templatesData = { templates: {} };
+        }
+        
+        console.log('✅ Supplier Data loaded:', window.supplierData);
+        console.log('📦 Products:', window.productsData?.length || 0);
+        console.log('📋 Templates:', Object.keys(window.templatesData?.templates || {}).length);
+    })();
 </script>
