@@ -53,10 +53,6 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
 .status-delivered { background: #d1fae5; color: #065f46; }
 .status-cancelled { background: #fee2e2; color: #991b1b; }
 .btn { padding: 0.3rem 0.6rem; border: none; border-radius: 0.4rem; cursor: pointer; font-size: 0.7rem; transition: all 0.2s; }
-.btn-primary-sm { background: #fbbf24; color: #0f172a; }
-.btn-primary-sm:hover { background: #f59e0b; }
-.btn-danger-sm { background: #ef4444; color: white; }
-.btn-danger-sm:hover { background: #dc2626; }
 .toggle-type-btn { background: #8b5cf6; color: white; margin-top: 0.3rem; }
 .toggle-type-btn:hover { background: #7c3aed; }
 .auto-assign-btn { background: #10b981; color: white; }
@@ -72,7 +68,6 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
 .discount-buttons { display: flex; gap: 0.3rem; flex-wrap: wrap; }
 .discount-preset { padding: 0.3rem 0.6rem; border: none; border-radius: 0.4rem; cursor: pointer; font-weight: bold; font-size: 0.7rem; background: #e2e8f0; transition: all 0.2s; }
 .discount-preset:hover { background: #fbbf24; }
-.discount-preset.active { background: #fbbf24; }
 .product-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .selected-products-list { max-height: 150px; overflow-y: auto; margin-top: 0.5rem; }
 .product-item { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem; background: white; border-radius: 0.4rem; margin-bottom: 0.3rem; border: 1px solid #e2e8f0; font-size: 0.7rem; }
@@ -1462,11 +1457,17 @@ async function clearAllBags() {
 }
 
 // ============================================================
-// WEBSOCKET
+// WEBSOCKET - ИСПРАВЛЕННАЯ ВЕРСИЯ
 // ============================================================
 function initWebSocket() {
     try {
-        var wsUrl = 'wss://' + window.location.host + '/ws/supplier/' + supplierId;
+        var token = sessionStorage.getItem('supplier_token');
+        if (!token) {
+            console.warn('⚠️ Нет токена для WebSocket');
+            return;
+        }
+        
+        var wsUrl = 'wss://' + window.location.host + '/ws/supplier/' + supplierId + '?token=' + encodeURIComponent(token);
         ws = new WebSocket(wsUrl);
         var dot = document.getElementById('wsDot');
         var status = document.getElementById('wsStatus');
@@ -1474,11 +1475,14 @@ function initWebSocket() {
         ws.onopen = function() {
             dot.className = 'ws-dot connected';
             status.textContent = 'Подключено';
+            console.log('✅ WebSocket connected');
         };
         
         ws.onmessage = function(event) {
             try {
                 var data = JSON.parse(event.data);
+                console.log('📨 WS message:', data);
+                
                 if (data.type === 'order_update' || data.type === 'new_order') {
                     refreshOrders();
                     showNotification('📦 Обновление заказов!', 'success');
@@ -1486,20 +1490,27 @@ function initWebSocket() {
                 if (data.type === 'bag_update') {
                     refreshBags();
                 }
+                if (data.type === 'ping') {
+                    // Ответ на пинг
+                    ws.send(JSON.stringify({type: 'pong'}));
+                }
             } catch(e) {
                 console.error('WS message error:', e);
             }
         };
         
-        ws.onclose = function() {
+        ws.onclose = function(event) {
             dot.className = 'ws-dot disconnected';
             status.textContent = 'Отключено';
+            console.log('❌ WebSocket closed:', event.code, event.reason);
+            // Пытаемся переподключиться через 5 секунд
             setTimeout(initWebSocket, 5000);
         };
         
-        ws.onerror = function() {
+        ws.onerror = function(error) {
             dot.className = 'ws-dot disconnected';
             status.textContent = 'Ошибка';
+            console.error('❌ WebSocket error:', error);
         };
     } catch(e) {
         console.error('WebSocket init error:', e);
@@ -1554,7 +1565,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Добавляем обработчик для формы создания товара
+    // Обработчик для формы создания товара
     var productForm = document.getElementById('createProductForm');
     if (productForm) {
         productForm.addEventListener('submit', async function(e) {
@@ -1610,6 +1621,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Автообновление каждые 30 секунд
     setInterval(function() {
         refreshOrders();
         refreshBags();

@@ -151,6 +151,48 @@ def get_city_from_coords(lat: float, lon: float) -> str:
 
 
 
+# backend/main.py - ДОБАВЬ В НАЧАЛО ФАЙЛА
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import jwt, JWTError
+
+security = HTTPBearer()
+
+async def get_current_supplier(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    """Получить текущего поставщика из токена"""
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        if role != "supplier":
+            raise HTTPException(status_code=403, detail="Not a supplier")
+        
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            user_id = int(payload.get("sub"))
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM suppliers WHERE user_id = %s", (user_id,))
+            result = cur.fetchone()
+            cur.close()
+            conn.close()
+            if not result:
+                raise HTTPException(status_code=404, detail="Supplier not found")
+            supplier_id = result[0]
+        
+        # Проверяем что поставщик существует
+        supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+        if not supplier:
+            raise HTTPException(status_code=404, detail="Supplier not found")
+        
+        return supplier
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
 @router.get("/avatar-file/{user_id}")
 async def get_avatar_file(
     user_id: int,
@@ -5928,95 +5970,9 @@ templates = Jinja2Templates(directory="templates")
 # ============================================================
 
 # ======== ПОЛУЧИТЬ ВСЕ ТОВАРЫ ПОСТАВЩИКА ========
-@app.get("/api/supplier/products")
-async def get_supplier_products(request: Request, db: Session = Depends(get_db)):
-    """Получить все товары поставщика"""
-    try:
-        # Получаем supplier_id из токена
-        supplier_id = request.state.supplier_id
-        
-        products = db.query(SupplierProduct).filter(
-            SupplierProduct.supplier_id == supplier_id
-        ).order_by(SupplierProduct.created_at.desc()).all()
-        
-        result = []
-        for p in products:
-            result.append({
-                "id": p.id,
-                "name_ru": p.name_ru,
-                "name_kz": p.name_kz,
-                "name_en": p.name_en,
-                "description_ru": p.description_ru,
-                "description_kz": p.description_kz,
-                "price": p.price,
-                "category": p.category,
-                "image_url": p.image_url,
-                "is_available": p.is_available,
-                "preparation_time": p.preparation_time,
-                "created_at": p.created_at
-            })
-        
-        return {"success": True, "products": result}
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return {"success": False, "error": str(e)}
 
 
 # ======== ДОБАВИТЬ НОВЫЙ ТОВАР ========
-@app.post("/api/supplier/products")
-async def create_supplier_product(request: Request, db: Session = Depends(get_db)):
-    """Создать новый товар поставщика"""
-    try:
-        data = await request.json()
-        supplier_id = request.state.supplier_id
-        
-        name_ru = data.get("name_ru", "").strip()
-        name_kz = data.get("name_kz", "").strip()
-        name_en = data.get("name_en", "").strip()
-        price = float(data.get("price", 0))
-        category = data.get("category", "").strip()
-        image_url = data.get("image_url", "").strip()
-        description_ru = data.get("description_ru", "").strip()
-        description_kz = data.get("description_kz", "").strip()
-        preparation_time = int(data.get("preparation_time", 15))
-        is_available = data.get("is_available", True)
-        
-        if not name_ru or not name_kz:
-            return {"success": False, "error": "Название обязательно"}
-        
-        if price <= 0:
-            return {"success": False, "error": "Цена должна быть больше 0"}
-        
-        new_product = SupplierProduct(
-            supplier_id=supplier_id,
-            name_ru=name_ru,
-            name_kz=name_kz,
-            name_en=name_en,
-            description_ru=description_ru,
-            description_kz=description_kz,
-            price=price,
-            category=category,
-            image_url=image_url,
-            is_available=is_available,
-            preparation_time=preparation_time
-        )
-        
-        db.add(new_product)
-        db.commit()
-        db.refresh(new_product)
-        
-        return {
-            "success": True,
-            "message": "Товар добавлен",
-            "product_id": new_product.id
-        }
-        
-    except Exception as e:
-        db.rollback()
-        print(f"❌ Error: {e}")
-        return {"success": False, "error": str(e)}
-
 
 # ======== ОБНОВИТЬ ТОВАР ========
 @app.put("/api/supplier/products/{product_id}")
@@ -6068,29 +6024,6 @@ async def update_supplier_product(product_id: int, request: Request, db: Session
 
 
 # ======== УДАЛИТЬ ТОВАР ========
-@app.delete("/api/supplier/products/{product_id}")
-async def delete_supplier_product(product_id: int, request: Request, db: Session = Depends(get_db)):
-    """Удалить товар поставщика"""
-    try:
-        supplier_id = request.state.supplier_id
-        
-        product = db.query(SupplierProduct).filter(
-            SupplierProduct.id == product_id,
-            SupplierProduct.supplier_id == supplier_id
-        ).first()
-        
-        if not product:
-            return {"success": False, "error": "Товар не найден"}
-        
-        db.delete(product)
-        db.commit()
-        
-        return {"success": True, "message": "Товар удален"}
-        
-    except Exception as e:
-        db.rollback()
-        print(f"❌ Error: {e}")
-        return {"success": False, "error": str(e)}
 
 
 # ======== ПОЛУЧИТЬ ТОВАРЫ ДЛЯ ВЫБОРА В СЮРПРИЗЕ ========
@@ -6197,19 +6130,188 @@ async def create_surprise_bag(request: Request, db: Session = Depends(get_db)):
 
 
 # ======== ПОЛУЧИТЬ СЮРПРИЗЫ ПОСТАВЩИКА ========
+
+# ============================================================
+# ПОЛУЧИТЬ ТОВАРЫ ПОСТАВЩИКА
+# ============================================================
+@app.get("/api/supplier/products")
+async def get_supplier_products(
+    supplier: Supplier = Depends(get_current_supplier),
+    db: Session = Depends(get_db)
+):
+    """Получить все товары поставщика"""
+    try:
+        products = db.query(SupplierProduct).filter(
+            SupplierProduct.supplier_id == supplier.id
+        ).order_by(SupplierProduct.created_at.desc()).all()
+        
+        result = []
+        for p in products:
+            result.append({
+                "id": p.id,
+                "name_ru": p.name_ru,
+                "name_kz": p.name_kz,
+                "name_en": p.name_en,
+                "description_ru": p.description_ru,
+                "description_kz": p.description_kz,
+                "price": p.price,
+                "category": p.category,
+                "image_url": p.image_url,
+                "is_available": p.is_available,
+                "preparation_time": p.preparation_time,
+                "created_at": p.created_at
+            })
+        
+        return {"success": True, "products": result}
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# ДОБАВИТЬ ТОВАР
+# ============================================================
+@app.post("/api/supplier/products")
+async def create_supplier_product(
+    request: Request,
+    supplier: Supplier = Depends(get_current_supplier),
+    db: Session = Depends(get_db)
+):
+    """Создать новый товар поставщика"""
+    try:
+        data = await request.json()
+        
+        name_ru = data.get("name_ru", "").strip()
+        name_kz = data.get("name_kz", "").strip()
+        name_en = data.get("name_en", "").strip()
+        price = float(data.get("price", 0))
+        category = data.get("category", "").strip()
+        image_url = data.get("image_url", "").strip()
+        description_ru = data.get("description_ru", "").strip()
+        description_kz = data.get("description_kz", "").strip()
+        preparation_time = int(data.get("preparation_time", 15))
+        is_available = data.get("is_available", True)
+        
+        if not name_ru or not name_kz:
+            return {"success": False, "error": "Название обязательно"}
+        
+        if price <= 0:
+            return {"success": False, "error": "Цена должна быть больше 0"}
+        
+        new_product = SupplierProduct(
+            supplier_id=supplier.id,
+            name_ru=name_ru,
+            name_kz=name_kz,
+            name_en=name_en,
+            description_ru=description_ru,
+            description_kz=description_kz,
+            price=price,
+            category=category,
+            image_url=image_url,
+            is_available=is_available,
+            preparation_time=preparation_time
+        )
+        
+        db.add(new_product)
+        db.commit()
+        db.refresh(new_product)
+        
+        return {
+            "success": True,
+            "message": "Товар добавлен",
+            "product_id": new_product.id
+        }
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# УДАЛИТЬ ТОВАР
+# ============================================================
+@app.delete("/api/supplier/products/{product_id}")
+async def delete_supplier_product(
+    product_id: int,
+    supplier: Supplier = Depends(get_current_supplier),
+    db: Session = Depends(get_db)
+):
+    """Удалить товар поставщика"""
+    try:
+        product = db.query(SupplierProduct).filter(
+            SupplierProduct.id == product_id,
+            SupplierProduct.supplier_id == supplier.id
+        ).first()
+        
+        if not product:
+            return {"success": False, "error": "Товар не найден"}
+        
+        db.delete(product)
+        db.commit()
+        
+        return {"success": True, "message": "Товар удален"}
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# ПОЛУЧИТЬ ЗАКАЗЫ
+# ============================================================
+@app.get("/api/supplier/orders")
+async def get_supplier_orders(
+    supplier: Supplier = Depends(get_current_supplier),
+    db: Session = Depends(get_db)
+):
+    """Получить заказы поставщика"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT 
+                o.id,
+                o.order_number,
+                o.customer_address,
+                o.amount_paid,
+                o.status,
+                o.created_at,
+                o.delivery_deadline,
+                o.assigned_courier_id,
+                sb.name as bag_name
+            FROM orders o
+            LEFT JOIN surprise_bags sb ON sb.id = o.surprise_bag_id
+            WHERE o.supplier_id = %s
+            ORDER BY o.created_at DESC
+        """, (supplier.id,))
+        
+        orders = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        return {"success": True, "orders": orders}
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# ПОЛУЧИТЬ СЮРПРИЗЫ
+# ============================================================
 @app.get("/api/supplier/surprise-bags")
-async def get_supplier_bags(request: Request, db: Session = Depends(get_db)):
+async def get_supplier_bags(
+    supplier: Supplier = Depends(get_current_supplier),
+    db: Session = Depends(get_db)
+):
     """Получить все сюрпризы поставщика"""
     try:
-        supplier_id = request.state.supplier_id
-        
         bags = db.query(SurpriseBag).filter(
-            SurpriseBag.supplier_id == supplier_id
+            SurpriseBag.supplier_id == supplier.id
         ).order_by(SurpriseBag.created_at.desc()).all()
         
         result = []
         for bag in bags:
-            # Получаем товары в сюрпризе
             items = db.query(SurpriseBagItem).filter(
                 SurpriseBagItem.surprise_bag_id == bag.id
             ).all()
@@ -6243,12 +6345,9 @@ async def get_supplier_bags(request: Request, db: Session = Depends(get_db)):
             })
         
         return {"success": True, "bags": result}
-        
     except Exception as e:
         print(f"❌ Error: {e}")
         return {"success": False, "error": str(e)}
-
-
 
 # ============ PAYMENT IMITATION SYSTEM ============
 import uuid
@@ -9400,7 +9499,9 @@ async def supplier_api_register(request: Request):
         traceback.print_exc()
         return {"success": False, "message": str(e)}
 
-    
+
+
+
 @app.delete("/api/admin/delete-all-bags")
 async def admin_delete_all_bags(
     request: Request,
@@ -10314,69 +10415,69 @@ async def get_all_surprise_bags(
             })
     
     return JSONResponse(content=result)
-@app.get("/api/supplier/surprise-bags")
-async def get_supplier_surprise_bags(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """API для получения сюрпризов поставщика (для JS)"""
+# @app.get("/api/supplier/surprise-bags")
+# async def get_supplier_surprise_bags(
+#     request: Request,
+#     db: Session = Depends(get_db)
+# ):
+#     """API для получения сюрпризов поставщика (для JS)"""
     
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
+#     auth_header = request.headers.get("Authorization")
+#     if not auth_header or not auth_header.startswith("Bearer "):
+#         return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
     
-    token = auth_header.split(" ")[1]
+#     token = auth_header.split(" ")[1]
     
-    try:
-        from jose import jwt
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#     try:
+#         from jose import jwt
+#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
-        if payload.get("role") != "supplier":
-            return JSONResponse(status_code=403, content={"success": False, "message": "Forbidden"})
+#         if payload.get("role") != "supplier":
+#             return JSONResponse(status_code=403, content={"success": False, "message": "Forbidden"})
         
-        supplier_id = payload.get("supplier_id")
-        if not supplier_id:
-            user_id = int(payload.get("sub"))
-            supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
-            if supplier:
-                supplier_id = supplier.id
+#         supplier_id = payload.get("supplier_id")
+#         if not supplier_id:
+#             user_id = int(payload.get("sub"))
+#             supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
+#             if supplier:
+#                 supplier_id = supplier.id
         
-        if not supplier_id:
-            return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
+#         if not supplier_id:
+#             return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
         
-        bags = db.query(SurpriseBag).filter(
-            SurpriseBag.supplier_id == supplier_id
-        ).order_by(SurpriseBag.created_at.desc()).all()
+#         bags = db.query(SurpriseBag).filter(
+#             SurpriseBag.supplier_id == supplier_id
+#         ).order_by(SurpriseBag.created_at.desc()).all()
         
-        bags_list = []
-        for bag in bags:
-            bags_list.append({
-                "id": bag.id,
-                "name": bag.name or "",
-                "description": bag.description or "",
-                "original_price": float(bag.original_price) if bag.original_price else 0,
-                "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
-                "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
-                "image_url": bag.image_url or "",
-                "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
-                "total_quantity": int(bag.total_quantity) if bag.total_quantity else 0,
-                "is_active": bool(bag.is_active) if bag.is_active is not None else False,
-                "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
-                "city": bag.city or "",
-                "pickup_start_time": bag.pickup_start_time or "",
-                "pickup_end_time": bag.pickup_end_time or "",
-                "created_at": bag.created_at.isoformat() if bag.created_at else None
-            })
+#         bags_list = []
+#         for bag in bags:
+#             bags_list.append({
+#                 "id": bag.id,
+#                 "name": bag.name or "",
+#                 "description": bag.description or "",
+#                 "original_price": float(bag.original_price) if bag.original_price else 0,
+#                 "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
+#                 "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
+#                 "image_url": bag.image_url or "",
+#                 "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
+#                 "total_quantity": int(bag.total_quantity) if bag.total_quantity else 0,
+#                 "is_active": bool(bag.is_active) if bag.is_active is not None else False,
+#                 "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
+#                 "city": bag.city or "",
+#                 "pickup_start_time": bag.pickup_start_time or "",
+#                 "pickup_end_time": bag.pickup_end_time or "",
+#                 "created_at": bag.created_at.isoformat() if bag.created_at else None
+#             })
         
-        print(f"📦 Найдено сюрпризов: {len(bags_list)}")
-        return JSONResponse(content={"success": True, "bags": jsonable_encoder(bags_list)})
+#         print(f"📦 Найдено сюрпризов: {len(bags_list)}")
+#         return JSONResponse(content={"success": True, "bags": jsonable_encoder(bags_list)})
         
-    except Exception as e:
-        print(f"❌ Error getting supplier bags: {e}")
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
-# backend/main.py - ИСПРАВЛЕННЫЕ ЭНДПОИНТЫ
+#     except Exception as e:
+#         print(f"❌ Error getting supplier bags: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+# # backend/main.py - ИСПРАВЛЕННЫЕ ЭНДПОИНТЫ
 
 @app.post("/users/{user_id}/avatar")
 async def upload_avatar(
@@ -10566,121 +10667,6 @@ async def force_delete_all_bags(db: Session = Depends(get_db)):
 
 
 
-@app.get("/api/supplier/orders")
-async def get_supplier_orders(
-    request: Request
-):
-    """API для получения заказов поставщика - ЧИСТЫЙ SQL"""
-    
-    # Проверяем токен
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "message": "Unauthorized"}
-        )
-    
-    token = auth_header.split(" ")[1]
-    
-    try:
-        from jose import jwt
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        
-        if payload.get("role") != "supplier":
-            return JSONResponse(
-                status_code=403,
-                content={"success": False, "message": "Forbidden"}
-            )
-        
-        supplier_id = payload.get("supplier_id")
-        if not supplier_id:
-            user_id = int(payload.get("sub"))
-            # Получаем supplier_id по user_id
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute("SELECT id FROM suppliers WHERE user_id = %s", (user_id,))
-            result = cur.fetchone()
-            cur.close()
-            conn.close()
-            if result:
-                supplier_id = result[0]
-        
-        if not supplier_id:
-            return JSONResponse(
-                status_code=404,
-                content={"success": False, "message": "Supplier not found"}
-            )
-        
-        # ✅ ЧИСТЫЙ SQL - без SQLAlchemy!
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        cur.execute("""
-            SELECT 
-                o.id,
-                o.order_number,
-                o.status::text as status,
-                o.amount_paid,
-                o.customer_address,
-                o.created_at,
-                o.delivery_deadline,
-                o.assigned_courier_id,
-                sb.name as bag_name,
-                u.full_name as customer_name,
-                u.phone as customer_phone
-            FROM orders o
-            LEFT JOIN surprise_bags sb ON sb.id = o.surprise_bag_id
-            LEFT JOIN users u ON u.id = o.user_id
-            WHERE o.supplier_id = %s
-            ORDER BY o.created_at DESC
-        """, (supplier_id,))
-        
-        orders = cur.fetchall()
-        cur.close()
-        conn.close()
-        
-        # Форматируем результат
-        orders_list = []
-        for order in orders:
-            # Получаем имя курьера если назначен
-            courier_name = None
-            if order['assigned_courier_id']:
-                conn2 = get_db_connection()
-                cur2 = conn2.cursor()
-                cur2.execute("""
-                    SELECT first_name, last_name 
-                    FROM courier_profiles 
-                    WHERE user_id = %s
-                """, (order['assigned_courier_id'],))
-                courier = cur2.fetchone()
-                cur2.close()
-                conn2.close()
-                if courier:
-                    courier_name = f"{courier[0]} {courier[1]}"
-            
-            orders_list.append({
-                "id": order['id'],
-                "order_number": order['order_number'] or f"ORD-{order['id']}",
-                "customer_address": order['customer_address'] or "Адрес не указан",
-                "bag_name": order['bag_name'] or "Сюрприз",
-                "amount_paid": float(order['amount_paid']) if order['amount_paid'] else 0,
-                "status": order['status'] or "pending",
-                "created_at": order['created_at'].isoformat() if order['created_at'] else None,
-                "assigned_courier_name": courier_name,
-                "delivery_deadline": order['delivery_deadline'].isoformat() if order['delivery_deadline'] else None
-            })
-        
-        return {"success": True, "orders": orders_list}
-        
-    except Exception as e:
-        print(f"Error getting supplier orders: {e}")
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "message": str(e)}
-        )
-    
 
 
 
@@ -11137,6 +11123,12 @@ async def update_courier_order_status(
     
     return {"success": True, "message": f"Status updated to {new_status}"}
 
+
+
+
+
+
+
 @app.post("/api/courier/location")
 async def update_courier_location(request: Request, db: Session = Depends(get_db)):
     """Обновление GPS-координат курьера"""
@@ -11268,6 +11260,83 @@ async def supplier_bags_page(request: Request, db: Session = Depends(get_db)):
         "request": request,
         "supplier": supplier
     })
+
+# backend/main.py - ДОБАВИТЬ В КОНЕЦ ФАЙЛА
+
+from backend.websocket_manager import manager
+from fastapi import WebSocket, WebSocketDisconnect
+from jose import jwt, JWTError
+
+@app.websocket("/ws/supplier/{supplier_id}")
+async def websocket_supplier(
+    websocket: WebSocket,
+    supplier_id: int
+):
+    """WebSocket для поставщика"""
+    
+    # Проверяем токен из query параметра
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008, reason="Token required")
+        return
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        if role != "supplier":
+            await websocket.close(code=1008, reason="Not a supplier")
+            return
+        
+        # Проверяем что supplier_id совпадает
+        token_supplier_id = payload.get("supplier_id")
+        if not token_supplier_id or int(token_supplier_id) != supplier_id:
+            await websocket.close(code=1008, reason="Invalid supplier")
+            return
+        
+    except JWTError:
+        await websocket.close(code=1008, reason="Invalid token")
+        return
+    except Exception as e:
+        print(f"❌ WS Error: {e}")
+        await websocket.close(code=1011, reason="Internal error")
+        return
+    
+    # Принимаем соединение
+    await websocket.accept()
+    
+    # Регистрируем в менеджере
+    await manager.connect(websocket, "supplier", supplier_id)
+    print(f"✅ WebSocket connected for supplier {supplier_id}")
+    
+    try:
+        while True:
+            # Ждем сообщения
+            data = await websocket.receive_text()
+            print(f"📨 WS message from supplier {supplier_id}: {data}")
+            
+            try:
+                # Пытаемся распарсить JSON
+                import json
+                message = json.loads(data)
+                
+                # Обработка разных типов сообщений
+                if message.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                elif message.get("type") == "broadcast":
+                    # Пересылаем всем поставщикам
+                    await manager.broadcast(message, f"supplier_{supplier_id}")
+                    
+            except json.JSONDecodeError:
+                # Если не JSON - игнорируем
+                pass
+                
+    except WebSocketDisconnect:
+        print(f"❌ WebSocket disconnected for supplier {supplier_id}")
+    finally:
+        # Отключаем
+        await manager.disconnect(websocket, "supplier", supplier_id)
+
+        
 # ============ RUN APP ============
 if __name__ == "__main__":
     import uvicorn
