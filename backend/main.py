@@ -9290,10 +9290,7 @@ async def supplier_api_register(request: Request):
         required_fields = ['business_name', 'email', 'phone', 'password', 'city', 'address', 'lat', 'lon', 'pickup_start', 'pickup_end']
         for field in required_fields:
             if field not in data or not data.get(field):
-                return {
-                    "success": False, 
-                    "message": f"Missing field: {field}"
-                }
+                return {"success": False, "message": f"Missing field: {field}"}
         
         business_name = data.get("business_name", "").strip()
         business_type = data.get("business_type", "restaurant")
@@ -9322,6 +9319,13 @@ async def supplier_api_register(request: Request):
             conn.close()
             return {"success": False, "message": "Пользователь с таким email уже существует"}
         
+        # Проверка телефона
+        cur.execute("SELECT id FROM users WHERE phone = %s", (phone,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return {"success": False, "message": "Пользователь с таким телефоном уже существует"}
+        
         # Проверка названия магазина
         cur.execute("SELECT id FROM suppliers WHERE business_name = %s", (business_name,))
         if cur.fetchone():
@@ -9333,11 +9337,12 @@ async def supplier_api_register(request: Request):
         import hashlib
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         
+        # ✅ ИСПОЛЬЗУЕМ full_name (как в модели User)
         cur.execute("""
-            INSERT INTO users (username, email, password_hash, role, created_at)
-            VALUES (%s, %s, %s, 'supplier', NOW())
+            INSERT INTO users (full_name, email, phone, password, role, created_at)
+            VALUES (%s, %s, %s, %s, 'supplier', NOW())
             RETURNING id
-        """, (business_name, email, password_hash))
+        """, (business_name, email, phone, password_hash))
         
         user_id = cur.fetchone()[0]
         
@@ -9394,7 +9399,6 @@ async def supplier_api_register(request: Request):
         import traceback
         traceback.print_exc()
         return {"success": False, "message": str(e)}
-    
 
     
 @app.delete("/api/admin/delete-all-bags")
