@@ -1,0 +1,146 @@
+<!-- supplier_add_bag_form.html -->
+<div class="add-bag-form" id="addBagForm" style="display: none;">
+    <h3 id="formTitle" style="margin-bottom: 1rem; font-size: 1rem;">Add Surprise Bag</h3>
+    <form id="createBagForm">
+        <div class="form-group full-width">
+            <label id="labelTemplate">Ready Surprise Package</label>
+            <select id="surpriseTemplate">
+                <option value="">-- Choose ready surprise --</option>
+                <optgroup label="🍕 Pizza Sets">
+                    <option value="pizza_classic">🍕 Pizza Set "Classic"</option>
+                    <option value="pizza_italian">🇮🇹 Pizza Set "Italian Dinner"</option>
+                    <option value="pizza_meat">🥩 Pizza Set "Meat"</option>
+                    <option value="pizza_vegan">🌱 Pizza Set "Vegan"</option>
+                    <option value="pizza_kids">👧 Pizza Set "Kids"</option>
+                </optgroup>
+                <optgroup label="🍣 Sushi Sets">
+                    <option value="sushi_samurai">⚔️ Sushi Set "Samurai"</option>
+                    <option value="sushi_classic">🎌 Sushi Set "Classic"</option>
+                    <option value="sushi_premium">👑 Sushi Set "Premium"</option>
+                    <option value="sushi_spicy">🔥 Sushi Set "Spicy"</option>
+                    <option value="sushi_family">👨‍👩‍👧‍👦 Sushi Set "Family"</option>
+                </optgroup>
+                <optgroup label="🍔 Burger Sets">
+                    <option value="burger_american">🇺🇸 Burger Set "American"</option>
+                    <option value="burger_classic">🍔 Burger Set "Classic"</option>
+                    <option value="burger_chicken">🐔 Burger Set "Chicken"</option>
+                    <option value="burger_double">🍔🍔 Burger Set "Double"</option>
+                    <option value="burger_cheesy">🧀 Burger Set "Cheesy"</option>
+                </optgroup>
+                <optgroup label="🍰 Dessert Sets">
+                    <option value="dessert_sweet">🍰 Dessert Set "Sweet"</option>
+                    <option value="dessert_chocolate">🍫 Dessert Set "Chocolate Heaven"</option>
+                    <option value="dessert_fruit">🍓 Dessert Set "Fruit"</option>
+                    <option value="dessert_macaroon">🍪 Dessert Set "Macaron"</option>
+                </optgroup>
+                <optgroup label="💪 Healthy Sets">
+                    <option value="healthy_fitness">💪 Healthy Set "Fitness"</option>
+                    <option value="healthy_vegan">🌿 Healthy Set "Vegan"</option>
+                    <option value="healthy_protein">🥚 Healthy Set "Protein"</option>
+                </optgroup>
+                <optgroup label="🍕🍣 Mix Sets">
+                    <option value="mix_asia_italy">🍕🍣 Mix Set "Asia & Italy"</option>
+                    <option value="mix_burger_pizza">🍔🍕 Mix Set "Burger & Pizza"</option>
+                    <option value="mix_sushi_dessert">🍣🍰 Mix Set "Sushi & Dessert"</option>
+                    <option value="mix_family">👨‍👩‍👧‍👦 Mix Set "Family Feast"</option>
+                </optgroup>
+                <optgroup label="🎉 Snack Sets">
+                    <option value="snack_party">🎉 Snack Set "Party"</option>
+                    <option value="snack_sport">⚽ Snack Set "Sport"</option>
+                    <option value="snack_cheese">🧀 Snack Set "Cheese"</option>
+                    <option value="snack_chicken">🍗 Snack Set "Chicken"</option>
+                </optgroup>
+            </select>
+            <small id="selectedHint" style="color: #64748b;">Select ready surprise to auto-fill</small>
+        </div>
+
+        <div class="form-group full-width">
+            <label id="labelName">Surprise Bag Name *</label>
+            <input type="text" id="bagName" required>
+        </div>
+
+        <div class="form-group full-width">
+            <label id="labelDesc">Description</label>
+            <textarea id="bagDescription" rows="2"></textarea>
+        </div>
+
+        <div class="form-group full-width">
+            <label id="labelProducts">Products List</label>
+            <div class="product-row">
+                <select id="productSelect">
+                    <option value="">-- Choose product --</option>
+                </select>
+                <input type="number" id="productQuantity" class="quantity-input" value="1" min="1">
+                <button type="button" class="btn-primary" id="addProductBtn">+ Add</button>
+            </div>
+            <div id="selectedProductsPreview" style="display: none;">
+                <strong id="selectedTitle">Selected Products:</strong>
+                <div id="selectedProductsList" class="selected-products-list"></div>
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label id="labelOriginalPrice">Original Price (₸)</label>
+                <input type="number" id="originalPrice" readonly style="background: #f1f5f9;">
+            </div>
+            <div class="form-group">
+                <label id="labelDiscount">Discount</label>
+                <div class="discount-buttons">
+                    <button type="button" class="discount-preset" data-percent="30">-30%</button>
+                    <button type="button" class="discount-preset" data-percent="40">-40%</button>
+                    <button type="button" class="discount-preset" data-percent="50">-50%</button>
+                    <button type="button" class="discount-preset" data-percent="75">-75%</button>
+                    <button type="button" class="discount-preset" data-percent="0">No discount</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label id="labelDiscountedPrice">Discounted Price (₸)</label>
+                <input type="number" id="discountedPrice" required>
+                <div id="discountInfo" style="font-size: 0.7rem; color: #10b981;"></div>
+            </div>
+            <div class="form-group">
+                <label id="labelQuantity">Quantity</label>
+                <input type="number" id="availableQuantity" value="5" min="1">
+            </div>
+            <div class="form-group">
+                <label id="labelPickupStart">Pickup Start Time</label>
+                <input type="text" id="pickupStart" placeholder="19:30">
+            </div>
+            <div class="form-group">
+                <label id="labelPickupEnd">Pickup End Time</label>
+                <input type="text" id="pickupEnd" placeholder="20:00">
+            </div>
+        </div>
+
+        <!-- ✅ ВЫБОР ТИПА СЮРПРИЗА -->
+        <div class="form-group full-width">
+            <label id="labelBagType">📦 Тип сюрприза</label>
+            <div style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 1rem; background: #f1f5f9; border-radius: 0.5rem;">
+                    <input type="radio" name="bag_type" value="visible" checked onchange="toggleBagTypeFields()">
+                    <span>🔓 Открытый</span>
+                    <small style="color: #64748b;">Клиент видит состав</small>
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 1rem; background: #f1f5f9; border-radius: 0.5rem;">
+                    <input type="radio" name="bag_type" value="hidden" onchange="toggleBagTypeFields()">
+                    <span>🔒 Скрытый</span>
+                    <small style="color: #64748b;">Клиент НЕ видит состав</small>
+                </label>
+            </div>
+            <div id="hiddenHint" style="display: none; margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border-radius: 0.5rem; font-size: 0.7rem; color: #92400e;">
+                🎁 Скрытый режим: клиент увидит только название и цену. Состав будет секретом до получения заказа.
+            </div>
+        </div>
+
+        <div class="form-group full-width">
+            <label id="labelImage">Image URL</label>
+            <input type="text" id="imageUrl" placeholder="Auto-filled from template or by name">
+        </div>
+
+        <button type="submit" class="submit-btn" id="submitBtn">Add Surprise</button>
+    </form>
+</div>

@@ -1,0 +1,9 @@
+<!-- supplier_data.html -->
+<div id="supplierData" 
+     data-supplier-id="{{ supplier.id }}" 
+     data-token="{{ token if token else '' }}" 
+     data-address="{{ supplier.address or '' }}"
+     data-phone="{{ supplier.phone or '' }}"
+     data-rating="{{ supplier.rating or 0 }}"
+     style="display: none;">
+</div>

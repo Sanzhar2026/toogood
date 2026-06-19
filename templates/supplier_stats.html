@@ -1,0 +1,19 @@
+<!-- supplier_stats.html -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number" id="totalOrders">{{ stats.total_orders }}</div>
+        <div class="stat-label" id="statTotalOrders">Total Orders</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="pendingOrders">{{ stats.pending_orders }}</div>
+        <div class="stat-label" id="statPending">Pending</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.today_orders }}</div>
+        <div class="stat-label" id="statToday">Today Orders</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.total_revenue }} ₸</div>
+        <div class="stat-label" id="statRevenue">Total Revenue</div>
+    </div>
+</div>
