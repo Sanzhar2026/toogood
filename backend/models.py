@@ -1,35 +1,13 @@
-# backend/models.py - ПОЛНАЯ ВЕРСИЯ С КАТЕГОРИЯМИ
+# backend/models.py - ПОЛНАЯ ВЕРСИЯ БЕЗ ENUM
 
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.database import Base
-import enum
 
-
-class UserRole(str, enum.Enum):
-    CUSTOMER = "customer"
-    SUPPLIER = "supplier"
-    COURIER = "courier"  
-    ADMIN = "admin"
-
-
-class OrderStatus(str, enum.Enum):
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    PREPARING = "preparing"
-    READY_FOR_PICKUP = "ready_for_pickup"
-    PICKED_UP = "picked_up"
-    OUT_FOR_DELIVERY = "out_for_delivery"
-    NEARBY = "nearby"
-    DELIVERED = "delivered"
-    CANCELLED = "cancelled"
-
-
-class CourierType(str, enum.Enum):
-    PEDESTRIAN = "pedestrian"
-    DRIVER = "driver"
-
+# ============================================================
+# ВСЕ МОДЕЛИ БЕЗ ENUM - ТОЛЬКО VARCHAR
+# ============================================================
 
 # ======== Food model ========
 class Food(Base):
@@ -42,7 +20,7 @@ class Food(Base):
     discount = Column(Integer, default=0)
 
 
-# ======== SupplierCategory model (НОВЫЙ) ========
+# ======== SupplierCategory model ========
 class SupplierCategory(Base):
     """Категории товаров поставщика"""
     __tablename__ = "supplier_categories"
@@ -63,7 +41,7 @@ class SupplierCategory(Base):
     products = relationship("SupplierProduct", back_populates="category")
 
 
-# ======== SupplierProduct model (ОБНОВЛЕН) ========
+# ======== SupplierProduct model ========
 class SupplierProduct(Base):
     """Товары/блюда, которые добавляет сам поставщик"""
     __tablename__ = "supplier_products"
@@ -118,7 +96,8 @@ class User(Base):
     last_name = Column(String(100), nullable=True)
     full_name = Column(String(255), nullable=True)
     
-    role = Column(SQLEnum(UserRole), default=UserRole.CUSTOMER)
+    # ✅ role - VARCHAR, БЕЗ ENUM
+    role = Column(String(50), default='customer')
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
@@ -269,7 +248,8 @@ class Order(Base):
     total_amount = Column(Float, nullable=True)
     order_number = Column(String(50), unique=True, nullable=True)
     
-    status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING)
+    # ✅ status - VARCHAR, БЕЗ ENUM
+    status = Column(String(50), default='pending')
     
     payment_id = Column(String(100), nullable=True)
     payment_status = Column(String(50), default="pending")
@@ -317,7 +297,8 @@ class OrderTracking(Base):
     __tablename__ = "order_tracking"
     id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
-    status = Column(SQLEnum(OrderStatus), nullable=True)
+    # ✅ status - VARCHAR, БЕЗ ENUM
+    status = Column(String(50), nullable=True)
     lat = Column(Float, nullable=True)
     lon = Column(Float, nullable=True)
     message = Column(String(500))
@@ -334,6 +315,7 @@ class CourierProfile(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     phone = Column(String(50), nullable=False, unique=True)
+    # ✅ courier_type - VARCHAR, БЕЗ ENUM
     courier_type = Column(String(20), default="pedestrian")
     car_model = Column(String(100), nullable=True)
     car_number = Column(String(50), nullable=True)
