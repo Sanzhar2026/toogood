@@ -1,4 +1,4 @@
-# backend/schemas.py - ПОЛНАЯ ВЕРСИЯ БЕЗ ENUM
+# backend/schemas.py - ПОЛНАЯ ВЕРСИЯ С РЕЙТИНГАМИ
 
 from pydantic import BaseModel, Field
 from datetime import datetime
@@ -434,5 +434,53 @@ class ReviewResponse(BaseModel):
     comment: Optional[str]
     created_at: datetime
 
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# ✅ RATING SCHEMAS (НОВЫЕ)
+# ============================================================
+
+class RatingBase(BaseModel):
+    """Базовая схема для рейтинга"""
+    rating: float = Field(ge=1.0, le=5.0, description="Оценка от 1.0 до 5.0")
+    comment: Optional[str] = Field(None, max_length=500, description="Комментарий к оценке")
+
+class RatingCreate(RatingBase):
+    """Схема для создания рейтинга"""
+    bag_id: int = Field(..., description="ID сюрприза")
+
+class RatingUpdate(RatingBase):
+    """Схема для обновления рейтинга"""
+    pass
+
+class RatingResponse(RatingBase):
+    """Схема для ответа с рейтингом"""
+    id: int
+    bag_id: int
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class RatingStats(BaseModel):
+    """Статистика рейтингов для сюрприза"""
+    average_rating: float = Field(..., description="Средняя оценка")
+    total_ratings: int = Field(..., description="Количество оценок")
+    rating_distribution: dict = Field(..., description="Распределение оценок {1: 0, 2: 0, ...}")
+    recent_ratings: List[dict] = Field(default=[], description="Последние 5 оценок")
+
+class MyRatingResponse(BaseModel):
+    """Ответ с рейтингом пользователя для конкретного сюрприза"""
+    id: int
+    bag_id: int
+    rating: float
+    comment: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    
     class Config:
         from_attributes = True

@@ -1,12 +1,12 @@
-# backend/models.py - ПОЛНАЯ ВЕРСИЯ БЕЗ ENUM
+# backend/models.py - ПОЛНАЯ ВЕРСИЯ
 
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from backend.database import Base
 
 # ============================================================
-# ВСЕ МОДЕЛИ БЕЗ ENUM - ТОЛЬКО VARCHAR
+# ВСЕ МОДЕЛИ
 # ============================================================
 
 # ======== Food model ========
@@ -96,7 +96,6 @@ class User(Base):
     last_name = Column(String(100), nullable=True)
     full_name = Column(String(255), nullable=True)
     
-    # ✅ role - VARCHAR, БЕЗ ENUM
     role = Column(String(50), default='customer')
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -108,6 +107,9 @@ class User(Base):
     
     supplier_reviews = relationship("SupplierReview", back_populates="user", cascade="all, delete-orphan")
     surprise_bag_reviews = relationship("SurpriseBagReview", back_populates="user", cascade="all, delete-orphan")
+    
+    # ✅ НОВОЕ: Связь с рейтингами
+    ratings = relationship("Rating", back_populates="user", cascade="all, delete-orphan")
 
 
 # ======== Supplier model ========
@@ -193,6 +195,29 @@ class SurpriseBagReview(Base):
     user = relationship("User", back_populates="surprise_bag_reviews")
 
 
+# ======== ✅ НОВАЯ МОДЕЛЬ: Rating ========
+class Rating(Base):
+    """Рейтинг сюрпризов от пользователей (1-5 звезд)"""
+    __tablename__ = "ratings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    bag_id = Column(Integer, ForeignKey("surprise_bags.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    rating = Column(Float, nullable=False)  # 1.0 - 5.0
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Уникальность: один пользователь - одна оценка на сюрприз
+    __table_args__ = (
+        UniqueConstraint('bag_id', 'user_id', name='unique_bag_user_rating'),
+    )
+    
+    # Relationships
+    bag = relationship("SurpriseBag", back_populates="ratings")
+    user = relationship("User", back_populates="ratings")
+
+
 # ======== SurpriseBag model ========
 class SurpriseBag(Base):
     __tablename__ = "surprise_bags"
@@ -217,6 +242,9 @@ class SurpriseBag(Base):
     rating = Column(Float, default=0)
     total_reviews = Column(Integer, default=0)
     
+    # ✅ НОВОЕ: Связь с рейтингами
+    ratings = relationship("Rating", back_populates="bag", cascade="all, delete-orphan")
+    
     @property
     def is_surprise_type(self) -> bool:
         return self.hide_contents == True
@@ -228,6 +256,18 @@ class SurpriseBag(Base):
     @property
     def type_display(self) -> str:
         return "🎁 Surprise" if self.hide_contents else "📋 Search"
+    
+    # ✅ НОВОЕ: Средний рейтинг
+    @property
+    def average_rating(self):
+        if not self.ratings:
+            return 0.0
+        return round(sum(r.rating for r in self.ratings) / len(self.ratings), 2)
+    
+    # ✅ НОВОЕ: Количество оценок
+    @property
+    def rating_count(self):
+        return len(self.ratings)
     
     supplier = relationship("Supplier", back_populates="surprise_bags")
     orders = relationship("Order", back_populates="surprise_bag")
@@ -248,7 +288,6 @@ class Order(Base):
     total_amount = Column(Float, nullable=True)
     order_number = Column(String(50), unique=True, nullable=True)
     
-    # ✅ status - VARCHAR, БЕЗ ENUM
     status = Column(String(50), default='pending')
     
     payment_id = Column(String(100), nullable=True)
@@ -297,7 +336,6 @@ class OrderTracking(Base):
     __tablename__ = "order_tracking"
     id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
-    # ✅ status - VARCHAR, БЕЗ ENUM
     status = Column(String(50), nullable=True)
     lat = Column(Float, nullable=True)
     lon = Column(Float, nullable=True)
@@ -315,7 +353,6 @@ class CourierProfile(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     phone = Column(String(50), nullable=False, unique=True)
-    # ✅ courier_type - VARCHAR, БЕЗ ENUM
     courier_type = Column(String(20), default="pedestrian")
     car_model = Column(String(100), nullable=True)
     car_number = Column(String(50), nullable=True)
