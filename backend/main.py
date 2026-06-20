@@ -11571,7 +11571,91 @@ async def geocode(lat: float, lon: float):
         city = data.get('address', {}).get('city', 'Не определен')
         return {"city": city}
 
-
+@app.get("/api/orders")
+async def get_orders(request: Request):
+    """Получить все заказы пользователя"""
+    
+    # Проверка токена
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем все заказы пользователя
+        cur.execute("""
+            SELECT 
+                o.id,
+                o.order_number,
+                o.status,
+                o.delivery_type,
+                o.customer_address,
+                o.amount_paid,
+                o.created_at,
+                o.payment_status,
+                o.payment_method,
+                o.paid_at,
+                o.delivery_deadline,
+                o.assigned_courier_id,
+                s.business_name as supplier_name,
+                sb.name as surprise_bag_name,
+                u.first_name || ' ' || u.last_name as courier_name
+            FROM orders o
+            LEFT JOIN suppliers s ON o.supplier_id = s.id
+            LEFT JOIN surprise_bags sb ON o.surprise_bag_id = sb.id
+            LEFT JOIN users u ON o.assigned_courier_id = u.id
+            WHERE o.user_id = %s
+            ORDER BY o.created_at DESC
+        """, (int(user_id),))
+        
+        orders = cur.fetchall()
+        
+        result = []
+        for order in orders:
+            result.append({
+                "id": order[0],
+                "order_number": order[1],
+                "status": order[2],
+                "delivery_type": order[3],
+                "customer_address": order[4],
+                "amount_paid": float(order[5]) if order[5] else 0,
+                "created_at": order[6].isoformat() if order[6] else None,
+                "payment_status": order[7],
+                "payment_method": order[8],
+                "paid_at": order[9].isoformat() if order[9] else None,
+                "delivery_deadline": order[10].isoformat() if order[10] else None,
+                "assigned_courier_id": order[11],
+                "supplier_name": order[12],
+                "surprise_bag_name": order[13],
+                "courier_name": order[14]
+            })
+        
+        cur.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "orders": result,
+            "count": len(result)
+        }
+        
+    except Exception as e:
+        cur.close()
+        conn.close()
+        print(f"❌ Ошибка получения заказов: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
 @app.get("/api/orders/{order_id}")
 async def get_order_by_id(order_id: int, request: Request):
     """Получить заказ по ID - ЧИСТЫЙ SQL БЕЗ delivery_status"""
