@@ -3048,7 +3048,35 @@ async def courier_accept_order(order_id: int, request: Request, db: Session = De
 
 
 
+# backend/main.py - ПРОВЕРЬ ЧТО ЭНДПОИНТ ЕСТЬ
 
+@app.get("/api/cart/reservation")  # ✅ ДОЛЖНО БЫТЬ GET
+async def get_active_reservation(request: Request, db: Session = Depends(get_db)):
+    """Получить активную резервацию для текущего пользователя"""
+    
+    user_id = get_user_id_from_token(request)
+    
+    if not user_id:
+        return {"reservation": None}
+    
+    from datetime import datetime
+    
+    reservation = db.query(TemporaryReservation).filter(
+        TemporaryReservation.user_id == user_id,
+        TemporaryReservation.is_paid == False,
+        TemporaryReservation.expires_at > datetime.utcnow()
+    ).first()
+    
+    if reservation:
+        return {
+            "reservation": {
+                "id": reservation.id,
+                "expires_at": reservation.expires_at.isoformat(),
+                "bag_id": reservation.bag_id
+            }
+        }
+    
+    return {"reservation": None}
 
 
 
