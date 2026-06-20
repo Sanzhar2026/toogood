@@ -11699,12 +11699,12 @@ async def get_order_statuses():
     }
 
 # backend/main.py - ЗАМЕНИТЕ ваш существующий check-auth
+# backend/main.py - ВЕСЬ ЭНДПОИНТ
 
 @app.get("/api/check-auth")
 async def check_auth(request: Request, db: Session = Depends(get_db)):
-    """Проверка авторизации через JWT токен (НЕ cookies!)"""
+    """Проверка авторизации через JWT токен"""
     
-    # ✅ Проверяем Authorization header
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return {"authenticated": False, "error": "No token provided"}
@@ -11723,6 +11723,7 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
         if not user:
             return {"authenticated": False}
         
+        # ✅ role - это VARCHAR, просто строка
         return {
             "authenticated": True,
             "user_id": user.id,
@@ -11730,7 +11731,9 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
                 "id": user.id,
                 "phone": user.phone,
                 "full_name": user.full_name,
-                "role": user.role.value if user.role else "customer"
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "role": user.role if user.role else "customer"
             }
         }
     except jwt.ExpiredSignatureError:
@@ -11738,8 +11741,9 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
     except jwt.JWTError as e:
         print(f"❌ JWT Error: {e}")
         return {"authenticated": False, "error": "Invalid token"}
-    
-
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return {"authenticated": False, "error": str(e)}
 
 @app.get("/api/debug-cookies")
 async def debug_cookies(request: Request):
