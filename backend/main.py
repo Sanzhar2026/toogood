@@ -3056,16 +3056,16 @@ async def courier_accept_order(order_id: int, request: Request, db: Session = De
 
 
 
-
-# backend/main.py - добавьте
 @app.get("/api/cart/reservation")
 async def get_active_reservation(request: Request, db: Session = Depends(get_db)):
     """Получить активную резервацию для текущего пользователя"""
     
-    user_id = get_user_id_from_request(request)
+    user_id = get_user_id_from_token(request)
     
     if not user_id:
         return {"reservation": None}
+    
+    from datetime import datetime
     
     reservation = db.query(TemporaryReservation).filter(
         TemporaryReservation.user_id == user_id,
@@ -3083,7 +3083,6 @@ async def get_active_reservation(request: Request, db: Session = Depends(get_db)
         }
     
     return {"reservation": None}
-
 
 @app.get("/api/courier/me")
 async def get_courier_info(request: Request, db: Session = Depends(get_db)):
@@ -3121,7 +3120,24 @@ async def get_courier_info(request: Request, db: Session = Depends(get_db)):
 
 
 
-
+def get_user_id_from_token(request: Request):
+    """Получить user_id из Bearer токена"""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if user_id:
+            return int(user_id)
+    except Exception as e:
+        print(f"❌ Ошибка декодирования токена: {e}")
+        return None
+    
+    return None
 
 # backend/main.py - добавьте в конец файла
 
