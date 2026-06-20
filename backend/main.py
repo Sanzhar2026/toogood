@@ -8352,92 +8352,89 @@ async def verify_phone(request: Request):
 
 # backend/main.py - замените ваш существующий эндпоинт регистрации
 
+# backend/main.py - ДОБАВИТЬ ЭТОТ ЭНДПОИНТ
+
 @app.post("/api/verify-and-register")
-async def verify_and_register(request: Request, db: Session = Depends(get_db)):
+async def verify_and_register(request: Request):
+    """Регистрация с верификацией кода (без SMS, код генерируется на фронтенде)"""
     try:
         data = await request.json()
         
-        phone = data.get('phone')
-        full_name = data.get('full_name')
-        password = data.get('password')
-        verification_code = data.get('verification_code')
-
-        if not phone or not full_name or not password:
-            raise HTTPException(status_code=400, detail="Все поля обязательны")
-
-        # ✅ НЕ ПРОВЕРЯЕМ КОД НА БЭКЕНДЕ - мы уже проверили на фронтенде!
-        # Просто проверяем что код есть
-        if not verification_code or len(verification_code) != 6:
-            raise HTTPException(status_code=400, detail="Неверный код подтверждения")
-
-        # Форматирование телефона
-        import re
-        digits = re.sub(r'\D', '', phone)
-        if digits.startswith('77') and len(digits) == 11:
-            formatted_phone = '+' + digits
-        elif digits.startswith('7') and len(digits) == 11:
-            formatted_phone = '+' + digits
-        elif digits.startswith('8') and len(digits) == 11:
-            formatted_phone = '+7' + digits[1:]
-        elif len(digits) == 10:
-            formatted_phone = '+77' + digits
-        else:
-            formatted_phone = '+' + digits
-
-        # Проверка существующего пользователя
-        existing = db.query(User).filter(User.phone == formatted_phone).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Этот номер уже зарегистрирован")
-
-        # Создание пользователя
-        hashed_password = hash_password(password)
+        phone = data.get("phone", "").strip()
+        full_name = data.get("full_name", "").strip()
+        password = data.get("password", "")
+        verification_code = data.get("verification_code", "")
         
-        name_parts = full_name.split(' ', 1)
-        first_name = name_parts[0] if name_parts else ''
-        last_name = name_parts[1] if len(name_parts) > 1 else ''
-        
-        new_user = User(
-            phone=formatted_phone,
-            first_name=first_name,
-            last_name=last_name,
-            full_name=full_name,
-            password=hashed_password,
-            role=UserRole.CUSTOMER,
-            phone_verified=True,
-            is_active=True,
-            created_at=datetime.utcnow()
-        )
-        
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-
-        # Создаем JWT токен
-        access_token = create_access_token(data={
-            "sub": str(new_user.id),
-            "role": "customer"
-        })
-
-        return JSONResponse({
-            "success": True,
-            "message": "Регистрация прошла успешно",
-            "user_id": new_user.id,
-            "token": access_token,
-            "user": {
-                "id": new_user.id,
-                "phone": new_user.phone,
-                "full_name": new_user.full_name,
-                "role": "customer"
+        # ✅ ПРОВЕРКА ОБЯЗАТЕЛЬНЫХ ПОЛЕЙ
+        if not phone or not full_name or not password or not verification_code:
+            return {
+                "success": False, 
+                "detail": "Заполните все поля"
             }
-        })
-
-    except HTTPException:
-        raise
+        
+        if len(password) < 4:
+            return {
+                "success": False,
+                "detail": "Пароль должен быть минимум 4 символа"
+            }
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # ✅ ПРОВЕРКА НА СУЩЕСТВОВАНИЕ
+        cur.execute("SELECT id FROM users WHERE phone = %s", (phone,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return {
+                "success": False,
+                "detail": "Пользователь с таким номером уже существует"
+            }
+        
+        # ✅ СОЗДАНИЕ ПОЛЬЗОВАТЕЛЯ
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        cur.execute("""
+            INSERT INTO users (full_name, phone, password, role, is_active, created_at)
+            VALUES (%s, %s, %s, 'customer', true, NOW())
+            RETURNING id
+        """, (full_name, phone, password_hash))
+        
+        user_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        # ✅ СОЗДАНИЕ ТОКЕНА
+        from jose import jwt
+        import datetime
+        
+        token_data = {
+            "sub": str(user_id),
+            "role": "customer",
+            "phone": phone,
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
+        }
+        
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+        
+        return {
+            "success": True,
+            "message": "Регистрация успешна",
+            "user_id": user_id,
+            "token": token,
+            "phone": phone
+        }
+        
     except Exception as e:
-        db.rollback()
-        print(f"❌ Registration error: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка сервера")
-
+        print(f"❌ Verify and register error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "detail": str(e)
+        }
 async def get_current_user(request: Request, db: Session = Depends(get_db)):
     """Получить текущего авторизованного пользователя"""
     user_id = request.cookies.get("user_id")
@@ -9908,7 +9905,95 @@ async def supplier_api_register(request: Request):
         return {"success": False, "message": str(e)}
 
 
+# backend/main.py - РЕГИСТРАЦИЯ КЛИЕНТА
 
+@app.post("/api/auth/register")
+async def register_user(request: Request):
+    """Регистрация нового клиента"""
+    try:
+        data = await request.json()
+        
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+        phone = data.get("phone", "").strip()
+        password = data.get("password", "")
+        
+        # ======== ВАЛИДАЦИЯ ========
+        if not first_name or not last_name:
+            return {"success": False, "detail": "Введите имя и фамилию"}
+        
+        if not phone:
+            return {"success": False, "detail": "Введите номер телефона"}
+        
+        if not password or len(password) < 6:
+            return {"success": False, "detail": "Пароль должен быть минимум 6 символов"}
+        
+        # ======== ПОДКЛЮЧЕНИЕ К БД ========
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Проверка телефона
+        cur.execute("SELECT id FROM users WHERE phone = %s", (phone,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return {"success": False, "detail": "Пользователь с таким телефоном уже существует"}
+        
+        # ======== СОЗДАЕМ ПОЛЬЗОВАТЕЛЯ ========
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        full_name = f"{first_name} {last_name}"
+        
+        cur.execute("""
+            INSERT INTO users (first_name, last_name, full_name, phone, password, role, is_active, created_at)
+            VALUES (%s, %s, %s, %s, %s, 'customer', true, NOW())
+            RETURNING id
+        """, (first_name, last_name, full_name, phone, password_hash))
+        
+        user_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        print(f"✅ Зарегистрирован новый клиент: {first_name} {last_name} (телефон: {phone})")
+        
+        # ======== СОЗДАЕМ JWT ТОКЕН ========
+        from jose import jwt
+        import datetime
+        
+        token_data = {
+            "sub": str(user_id),
+            "role": "customer",
+            "phone": phone,
+            "first_name": first_name,
+            "last_name": last_name,
+            "full_name": full_name,
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
+        }
+        
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+        
+        return {
+            "success": True,
+            "message": "Регистрация успешна",
+            "user_id": user_id,
+            "token": token,
+            "user": {
+                "id": user_id,
+                "first_name": first_name,
+                "last_name": last_name,
+                "full_name": full_name,
+                "phone": phone,
+                "role": "customer"
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка регистрации: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "detail": str(e)}
 
 @app.delete("/api/admin/delete-all-bags")
 async def admin_delete_all_bags(
