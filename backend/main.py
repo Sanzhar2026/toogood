@@ -3082,35 +3082,47 @@ async def get_active_reservation(request: Request, db: Session = Depends(get_db)
 
 
 
-
-
 @app.get("/api/cart/reservation")
-async def get_active_reservation(request: Request, db: Session = Depends(get_db)):
-    """Получить активную резервацию для текущего пользователя"""
+async def get_active_reservation(request: Request):
+    """Получить активную резервацию - ЧИСТЫЙ SQL"""
     
     user_id = get_user_id_from_token(request)
     
     if not user_id:
         return {"reservation": None}
     
-    from datetime import datetime
-    
-    reservation = db.query(TemporaryReservation).filter(
-        TemporaryReservation.user_id == user_id,
-        TemporaryReservation.is_paid == False,
-        TemporaryReservation.expires_at > datetime.utcnow()
-    ).first()
-    
-    if reservation:
-        return {
-            "reservation": {
-                "id": reservation.id,
-                "expires_at": reservation.expires_at.isoformat(),
-                "bag_id": reservation.bag_id
+    try:
+        from datetime import datetime
+        
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT id, bag_id, expires_at
+            FROM temporary_reservations
+            WHERE user_id = %s AND is_paid = false AND expires_at > NOW()
+            ORDER BY expires_at ASC
+            LIMIT 1
+        """, (user_id,))
+        
+        reservation = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if reservation:
+            return {
+                "reservation": {
+                    "id": reservation['id'],
+                    "expires_at": reservation['expires_at'].isoformat(),
+                    "bag_id": reservation['bag_id']
+                }
             }
-        }
-    
-    return {"reservation": None}
+        
+        return {"reservation": None}
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        return {"reservation": None}
 
 @app.get("/api/courier/me")
 async def get_courier_info(request: Request, db: Session = Depends(get_db)):
