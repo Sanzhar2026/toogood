@@ -1192,7 +1192,8 @@ async def get_admin_pending_couriers(request: Request):
 @app.post("/api/admin/verify-courier/{courier_id}")
 async def admin_verify_courier(
     courier_id: int, 
-    request: Request, 
+    request: Request,
+    
     db: Session = Depends(get_db)
 ):
     """Админ подтверждает курьера"""
