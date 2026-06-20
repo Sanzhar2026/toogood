@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from backend.database import SessionLocal, engine, get_db
 from backend import models
-from backend.models import Food, User, UserRole, Supplier, SurpriseBag, Order, OrderStatus, OrderTracking
+from backend.models import Food, User, Supplier, SurpriseBag, Order, OrderTracking
 from datetime import datetime, timedelta
 import secrets
 import os
@@ -20,8 +20,8 @@ from backend.schemas import (
 )
 from datetime import datetime, timedelta
 from backend.models import (
-    CartItem,Food, User, UserRole, Supplier, SurpriseBag, SurpriseBagItem,SupplierReview,
-    Order, OrderStatus, OrderTracking, CourierProfile, AssignedOrder ,TemporaryReservation,SurpriseBagReview, Admin
+    CartItem,Food, User, Supplier, SurpriseBag, SurpriseBagItem,SupplierReview,
+    Order, OrderTracking, CourierProfile, AssignedOrder ,TemporaryReservation,SurpriseBagReview, Admin
 )
 from backend.websocket_manager import ConnectionManager
 from backend.routes.users import router as users_router
@@ -101,7 +101,7 @@ from typing import Optional
 from jose import jwt
 
 from backend.database import get_db
-from backend.models import User, UserRole
+from backend.models import User
 
 # 👇 ВАЖНО: импортируй SECRET_KEY и ALGORITHM из config или main
 # Вариант 1: если есть config.py
@@ -637,6 +637,8 @@ async def get_avatar(user_id: int):
     
     raise HTTPException(status_code=404, detail="Avatar not found")
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/courier/pickup-order/{order_id}")
 async def courier_pickup_order(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Курьер забрал заказ из ресторана (едет к клиенту)"""
@@ -644,38 +646,62 @@ async def courier_pickup_order(order_id: int, request: Request, db: Session = De
     # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token required")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
     token = auth_header.split(" ")[1]
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
+        if payload.get("role") != "courier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Not a courier"}
+            )
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
     
     # Находим курьера
     courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
     if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "detail": "Courier not found"}
+        )
     
     # Находим заказ
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "detail": "Order not found"}
+        )
     
     # Проверяем что заказ назначен этому курьеру
     if order.assigned_courier_id != courier.user_id:
-        raise HTTPException(status_code=403, detail="Order not assigned to you")
+        return JSONResponse(
+            status_code=403,
+            content={"success": False, "detail": "Order not assigned to you"}
+        )
     
-    # Проверяем статус
-    if order.status != OrderStatus.READY_FOR_PICKUP:
-        raise HTTPException(status_code=400, detail=f"Order not ready for pickup. Current status: {order.status}")
+    # ✅ ИСПРАВЛЕНО: status = 'ready_for_pickup' (строка, БЕЗ ENUM)
+    if order.status != "ready_for_pickup":
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "detail": f"Order not ready for pickup. Current status: {order.status}"}
+        )
     
-    # ✅ Меняем статус на PICKED_UP (теперь есть в enum!)
-    order.status = OrderStatus.PICKED_UP
+    # ✅ ИСПРАВЛЕНО: status = 'picked_up' (строка, БЕЗ ENUM)
+    order.status = "picked_up"
     
     # Устанавливаем дедлайн с момента забора
+    from datetime import datetime, timedelta
     now = datetime.utcnow()
     order.delivery_started_at = now
     order.delivery_deadline = now + timedelta(minutes=30)
@@ -686,7 +712,7 @@ async def courier_pickup_order(order_id: int, request: Request, db: Session = De
     print(f"⏰ Дедлайн доставки клиенту: {order.delivery_deadline}")
     
     return {
-        "success": True, 
+        "success": True,
         "message": "Заказ забран из ресторана! Едем к клиенту.",
         "delivery_deadline": order.delivery_deadline.isoformat()
     }
@@ -881,7 +907,8 @@ async def get_admin_stats(request: Request):
 # backend/main.py - ИСПРАВЛЕННЫЙ админ логин (API, не HTML форма)
 
 
-    
+    # backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/admin/cancel-order/{order_id}")
 async def admin_cancel_order(
     order_id: int, 
@@ -893,32 +920,52 @@ async def admin_cancel_order(
     # ✅ ТОЛЬКО Bearer токен, НИКАКИХ КУК!
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token required")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
     token = auth_header.split(" ")[1]
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
         role = payload.get("role")
         
         # Проверяем что это админ
         if role != "admin":
-            raise HTTPException(status_code=403, detail="Admin only")
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
             
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
     except jwt.JWTError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    data = await request.json()
-    reason = data.get("reason", "Отменено администратором")
+    try:
+        data = await request.json()
+        reason = data.get("reason", "Отменено администратором")
+    except:
+        reason = "Отменено администратором"
     
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "detail": "Order not found"}
+        )
     
     print(f"🔍 Отмена заказа #{order_id}, назначенный курьер: {order.assigned_courier_id}")
     
@@ -946,14 +993,16 @@ async def admin_cancel_order(
             "is_online": True
         })
     
-    # ✅ КРИТИЧЕСКИ ВАЖНО: заполняем cancelled_at
-    order.status = OrderStatus.CANCELLED
+    from datetime import datetime
+    
+    # ✅ ИСПРАВЛЕНО: status = 'cancelled' (строка, БЕЗ ENUM)
+    order.status = "cancelled"
     order.payment_status = "refunded"
     order.refund_status = "completed"
     order.refund_processed_at = datetime.utcnow()
     order.refund_amount = order.amount_paid
     order.refund_reason = reason
-    order.cancelled_at = datetime.utcnow()  # ← ЭТА СТРОКА!
+    order.cancelled_at = datetime.utcnow()
     
     # Возвращаем количество сюрприза
     bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
@@ -996,7 +1045,7 @@ async def admin_cancel_order(
         print(f"❌ Ошибка отправки уведомления клиенту: {e}")
     
     return {
-        "success": True, 
+        "success": True,
         "message": f"Заказ #{order.order_number} отменен, деньги возвращены",
         "order_id": order_id,
         "order_number": order.order_number,
@@ -1412,7 +1461,7 @@ async def notify_user(user_id: int, message: dict):
         except Exception as e:
             print(f"❌ Ошибка отправки пользователю {user_id}: {e}")
 
-@app.post("/api/admin/bulk-update-status")
+app.post("/api/admin/bulk-update-status")
 async def admin_bulk_update_status(
     request: Request,
     db: Session = Depends(get_db)
@@ -1422,35 +1471,78 @@ async def admin_bulk_update_status(
     # Проверка админа
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token required")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
     token = auth_header.split(" ")[1]
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("role") != "admin":
-            raise HTTPException(status_code=403, detail="Admin only")
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
     
-    data = await request.json()
-    order_ids = data.get("order_ids", [])
-    new_status = data.get("status")
-    
-    updated_count = 0
-    for order_id in order_ids:
-        order = db.query(Order).filter(Order.id == order_id).first()
-        if order:
-            order.status = OrderStatus(new_status)
-            updated_count += 1
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Обновлено {updated_count} заказов",
-        "updated_count": updated_count
-    }       
+    try:
+        data = await request.json()
+        order_ids = data.get("order_ids", [])
+        new_status = data.get("status")
+        
+        if not order_ids:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "No order IDs provided"}
+            )
+        
+        if not new_status:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "No status provided"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: проверяем что статус валидный (строка)
+        valid_statuses = [
+            "pending", "confirmed", "preparing", "ready_for_pickup",
+            "picked_up", "out_for_delivery", "nearby", "delivered", "cancelled"
+        ]
+        
+        if new_status not in valid_statuses:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Invalid status: {new_status}"}
+            )
+        
+        updated_count = 0
+        for order_id in order_ids:
+            order = db.query(Order).filter(Order.id == order_id).first()
+            if order:
+                order.status = new_status  # ✅ СТРОКА, БЕЗ ENUM
+                updated_count += 1
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Обновлено {updated_count} заказов",
+            "updated_count": updated_count
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+
 # backend/main.py - добавить
 @app.post("/api/orders")
 async def create_order(request: Request):
@@ -2434,45 +2526,109 @@ async def courier_take_order(order_id: int, request: Request):
 
 
 
-
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.post("/api/admin/process-refund/{order_id}")
 async def admin_process_refund(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Админ обрабатывает возврат денег клиенту"""
     
-    admin_id = request.cookies.get("admin_id")
-    if not admin_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
-    if not admin:
-        raise HTTPException(status_code=403, detail="Access denied")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    data = await request.json()
-    reason = data.get("reason", "Возврат по запросу администратора")
-    
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Обновляем статусы
-    order.payment_status = "refunded"
-    order.refund_status = "completed"
-    order.refund_processed_at = datetime.utcnow()
-    order.refund_reason = reason
-    order.refund_amount = order.amount_paid
-    order.status = OrderStatus.CANCELLED
-    
-    # Возвращаем количество сюрприза
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-    if bag:
-        bag.available_quantity += 1
-        if bag.available_quantity > 0:
-            bag.is_active = True
-    
-    db.commit()
-    
-    return {"success": True, "message": "Возврат обработан, деньги возвращены клиенту"}
+    try:
+        data = await request.json()
+        reason = data.get("reason", "Возврат по запросу администратора")
+        
+        from datetime import datetime
+        
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # Обновляем статусы
+        order.payment_status = "refunded"
+        order.refund_status = "completed"
+        order.refund_processed_at = datetime.utcnow()
+        order.refund_reason = reason
+        order.refund_amount = order.amount_paid
+        
+        # ✅ ИСПРАВЛЕНО: status = 'cancelled' (строка, БЕЗ ENUM)
+        order.status = "cancelled"
+        order.cancelled_at = datetime.utcnow()
+        
+        # Возвращаем количество сюрприза
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        if bag:
+            bag.available_quantity += 1
+            if bag.available_quantity > 0:
+                bag.is_active = True
+            print(f"📦 Восстановлен товар '{bag.name}', теперь {bag.available_quantity} шт.")
+        
+        # ✅ ОСВОБОЖДАЕМ КУРЬЕРА (если был назначен)
+        if order.assigned_courier_id:
+            db.query(CourierProfile).filter(
+                CourierProfile.user_id == order.assigned_courier_id
+            ).update({
+                "current_order_id": None,
+                "current_order_status": None,
+                "is_available": True,
+                "is_online": True
+            })
+            print(f"✅ Курьер освобожден от заказа #{order_id}")
+        
+        db.commit()
+        
+        print(f"✅ Админ обработал возврат для заказа #{order.order_number}")
+        
+        return {
+            "success": True,
+            "message": "Возврат обработан, деньги возвращены клиенту",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "amount_refunded": order.amount_paid,
+            "refund_processed_at": order.refund_processed_at.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 # backend/main.py - исправленный WebSocket без Depends
 courier_connections = {}
 supplier_connections = {}
@@ -2949,104 +3105,296 @@ async def get_online_couriers(db: Session = Depends(get_db)):
     
     return {"success": True, "couriers": result}
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/courier/respond-to-proposal")
 async def respond_to_proposal(request: Request, db: Session = Depends(get_db)):
     """Курьер отвечает на предложение заказа"""
     
-    user_id = request.cookies.get("user_id")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    data = await request.json()
-    response = data.get("response")  # "accept" или "decline"
-    
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
-    
-    if not courier.proposed_order_id:
-        return {"success": False, "message": "Нет предложенных заказов"}
-    
-    # Проверяем, не истекло ли предложение
-    if courier.proposed_order_expires_at and courier.proposed_order_expires_at < datetime.utcnow():
-        courier.proposed_order_id = None
-        db.commit()
-        return {"success": False, "message": "Предложение истекло"}
-    
-    if response == "accept":
-        order = db.query(Order).filter(Order.id == courier.proposed_order_id).first()
-        if order and order.status == OrderStatus.PENDING:
-            order.assigned_courier_id = courier.user_id
-            order.status = OrderStatus.CONFIRMED
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем что это курьер
+        if payload.get("role") != "courier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Not a courier"}
+            )
             
-            if courier.current_order_id:
-                # Ставим в очередь
-                message = "Заказ добавлен в очередь"
-            else:
-                courier.current_order_id = courier.proposed_order_id
-                courier.current_order_status = "assigned"
-                courier.is_available = False
-                message = "Заказ назначен!"
-            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
+    
+    try:
+        data = await request.json()
+        response = data.get("response")  # "accept" или "decline"
+        
+        if response not in ["accept", "decline"]:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Response must be 'accept' or 'decline'"}
+            )
+        
+        from datetime import datetime
+        
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+        
+        if not courier:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Courier not found"}
+            )
+        
+        if not courier.proposed_order_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Нет предложенных заказов"}
+            )
+        
+        # Проверяем, не истекло ли предложение
+        if courier.proposed_order_expires_at and courier.proposed_order_expires_at < datetime.utcnow():
             courier.proposed_order_id = None
             db.commit()
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Предложение истекло"}
+            )
+        
+        if response == "accept":
+            order = db.query(Order).filter(Order.id == courier.proposed_order_id).first()
             
-            # Уведомляем через WebSocket
-            await manager.broadcast({
-                "type": "order_assigned",
-                "order_id": order.id,
-                "courier_id": courier.id
-            }, channel="orders")
+            if not order:
+                courier.proposed_order_id = None
+                db.commit()
+                return JSONResponse(
+                    status_code=404,
+                    content={"success": False, "detail": "Order not found"}
+                )
             
-            return {"success": True, "message": message, "order_id": order.id}
-    
-    else:  # decline
-        courier.proposed_order_id = None
-        db.commit()
-        return {"success": True, "message": "Предложение отклонено"}
-    
-    return {"success": False, "message": "Ошибка"}
-
+            # ✅ ИСПРАВЛЕНО: проверка статуса как строка (БЕЗ ENUM)
+            if order.status == "pending":
+                order.assigned_courier_id = courier.user_id
+                order.status = "confirmed"
+                order.confirmed_at = datetime.utcnow()
+                
+                if courier.current_order_id:
+                    # Ставим в очередь
+                    message = "Заказ добавлен в очередь"
+                else:
+                    courier.current_order_id = courier.proposed_order_id
+                    courier.current_order_status = "confirmed"
+                    courier.is_available = False
+                    message = "Заказ назначен!"
+                
+                courier.proposed_order_id = None
+                db.commit()
+                
+                # Уведомляем через WebSocket
+                try:
+                    await manager.broadcast({
+                        "type": "order_assigned",
+                        "order_id": order.id,
+                        "courier_id": courier.id,
+                        "courier_name": f"{courier.first_name} {courier.last_name}"
+                    }, channel="orders")
+                except Exception as e:
+                    print(f"⚠️ Ошибка отправки WebSocket: {e}")
+                
+                return {
+                    "success": True,
+                    "message": message,
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "status": order.status
+                }
+            else:
+                return JSONResponse(
+                    status_code=400,
+                    content={"success": False, "detail": f"Order status is not pending: {order.status}"}
+                )
+        
+        else:  # decline
+            courier.proposed_order_id = None
+            db.commit()
+            return {
+                "success": True,
+                "message": "Предложение отклонено"
+            }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.post("/api/courier/accept-order/{order_id}")
 async def courier_accept_order(order_id: int, request: Request, db: Session = Depends(get_db)):
     """Курьер принимает заказ из списка"""
     
-    user_id = request.cookies.get("user_id")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем что это курьер
+        if payload.get("role") != "courier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Not a courier"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
-    
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
-    
-    order = db.query(Order).filter(Order.id == order_id).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    if order.status not in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
-        raise HTTPException(status_code=400, detail="Заказ уже назначен")
-    
-    if courier.current_order_id:
-        raise HTTPException(status_code=400, detail="У вас уже есть активный заказ")
-    
-    # Назначаем заказ
-    order.assigned_courier_id = courier.user_id
-    order.status = OrderStatus.CONFIRMED
-    courier.current_order_id = order_id
-    courier.current_order_status = "assigned"
-    courier.is_available = False
-    
-    db.commit()
-    
-    return {"success": True, "message": "Заказ принят", "order_id": order_id}
-
-
+    try:
+        from datetime import datetime
+        
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+        
+        if not courier:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Courier profile not found"}
+            )
+        
+        # Проверяем что курьер активен и верифицирован
+        if not courier.is_verified:
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Курьер не верифицирован"}
+            )
+        
+        if not courier.is_available:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Курьер не доступен"}
+            )
+        
+        order = db.query(Order).filter(Order.id == order_id).first()
+        
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: проверка статуса как строка (БЕЗ ENUM)
+        if order.status not in ["pending", "confirmed"]:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Заказ уже назначен. Текущий статус: {order.status}"}
+            )
+        
+        if courier.current_order_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "У вас уже есть активный заказ"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: status = 'confirmed' (строка, БЕЗ ENUM)
+        order.assigned_courier_id = courier.user_id
+        order.status = "confirmed"
+        order.confirmed_at = datetime.utcnow()
+        
+        courier.current_order_id = order_id
+        courier.current_order_status = "confirmed"
+        courier.is_available = False
+        
+        db.commit()
+        
+        print(f"✅ Курьер {courier.first_name} принял заказ #{order.order_number}")
+        
+        # Уведомляем через WebSocket
+        try:
+            await manager.broadcast({
+                "type": "order_assigned",
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "courier_id": courier.id,
+                "courier_name": f"{courier.first_name} {courier.last_name}"
+            }, channel="orders")
+        except Exception as e:
+            print(f"⚠️ Ошибка отправки WebSocket: {e}")
+        
+        return {
+            "success": True,
+            "message": "Заказ принят",
+            "order_id": order_id,
+            "order_number": order.order_number,
+            "status": order.status,
+            "courier": {
+                "id": courier.id,
+                "name": f"{courier.first_name} {courier.last_name}",
+                "car_model": courier.car_model,
+                "car_number": courier.car_number
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 # backend/main.py - ПРОВЕРЬ ЧТО ЭНДП
 
@@ -3156,68 +3504,114 @@ def get_user_id_from_token(request: Request):
 # backend/main.py - убедитесь что эндпоинт выглядит так:
 
 # backend/main.py - исправленный эндпоинт
+# backend/main.py - ИСПРАВЛЕННАЯ РЕГИСТРАЦИЯ КУРЬЕРА
 
 @app.post("/courier/register")
 async def courier_register(request: Request, db: Session = Depends(get_db)):
     """Регистрация курьера"""
-    data = await request.json()
-    
-    first_name = data.get("first_name")
-    last_name = data.get("last_name")
-    phone = format_phone_number(data.get("phone"))
-    password = data.get("password")
-    courier_type = data.get("courier_type", "pedestrian")
-    car_model = data.get("car_model", "")
-    car_number = data.get("car_number", "")
-    
-    if not first_name or not last_name or not phone or not password:
-        raise HTTPException(status_code=400, detail="Все поля обязательны")
-    
-    existing = db.query(User).filter(User.phone == phone).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Пользователь с таким номером уже существует")
-    
-    speed = 5.0 if courier_type == "pedestrian" else 40.0
-    radius = 3.0 if courier_type == "pedestrian" else 15.0
-    
-    hashed_password = hash_password(password)
-    full_name = f"{first_name} {last_name}"
-    
-    # ✅ ИСПРАВЛЕНО: используем правильные имена полей
-    new_user = User(
-        phone=phone,
-        first_name=first_name,   # ✅ теперь есть в модели
-        last_name=last_name,      # ✅ теперь есть в модели
-        full_name=full_name,
-        password=hashed_password,
-        role=UserRole.COURIER,
-        is_active=False,
-        created_at=datetime.utcnow()
-    )
-    db.add(new_user)
-    db.flush()
-    
-    courier_profile = CourierProfile(
-        user_id=new_user.id,
-        first_name=first_name,
-        last_name=last_name,
-        phone=phone,
-        courier_type=courier_type,
-        car_model=car_model if courier_type == "driver" else None,
-        car_number=car_number if courier_type == "driver" else None,
-        speed_kmh=speed,
-        delivery_radius_km=radius,
-        is_verified=False,
-        created_at=datetime.utcnow()
-    )
-    db.add(courier_profile)
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": "Заявка отправлена на рассмотрение",
-        "courier_id": new_user.id
-    }
+    try:
+        data = await request.json()
+        
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+        phone = data.get("phone", "").strip()
+        password = data.get("password", "")
+        courier_type = data.get("courier_type", "pedestrian")
+        car_model = data.get("car_model", "").strip()
+        car_number = data.get("car_number", "").strip()
+        
+        # ======== ВАЛИДАЦИЯ ========
+        if not first_name or not last_name:
+            return {
+                "success": False, 
+                "detail": "Введите имя и фамилию"
+            }
+        
+        if not phone:
+            return {
+                "success": False, 
+                "detail": "Введите номер телефона"
+            }
+        
+        if not password or len(password) < 6:
+            return {
+                "success": False, 
+                "detail": "Пароль должен быть минимум 6 символов"
+            }
+        
+        if courier_type == "driver" and not car_model:
+            return {
+                "success": False, 
+                "detail": "Укажите модель автомобиля"
+            }
+        
+        # ======== ПРОВЕРКА СУЩЕСТВОВАНИЯ ========
+        existing = db.query(User).filter(User.phone == phone).first()
+        if existing:
+            return {
+                "success": False, 
+                "detail": "Пользователь с таким номером уже существует"
+            }
+        
+        # ======== СОЗДАЕМ ПОЛЬЗОВАТЕЛЯ ========
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        full_name = f"{first_name} {last_name}"
+        
+        # ✅ ИСПРАВЛЕНО: role = 'courier' (строка, БЕЗ ENUM)
+        new_user = User(
+            phone=phone,
+            first_name=first_name,
+            last_name=last_name,
+            full_name=full_name,
+            password=password_hash,
+            role="courier",  # ✅ СТРОКА, БЕЗ ENUM
+            is_active=False,
+            created_at=datetime.utcnow()
+        )
+        db.add(new_user)
+        db.flush()
+        
+        # ======== СОЗДАЕМ ПРОФИЛЬ КУРЬЕРА ========
+        speed = 5.0 if courier_type == "pedestrian" else 40.0
+        radius = 3.0 if courier_type == "pedestrian" else 15.0
+        
+        # ✅ ИСПРАВЛЕНО: courier_type = строка, БЕЗ ENUM
+        courier_profile = CourierProfile(
+            user_id=new_user.id,
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone,
+            courier_type=courier_type,  # "pedestrian" или "driver"
+            car_model=car_model if courier_type == "driver" else None,
+            car_number=car_number if courier_type == "driver" else None,
+            speed_kmh=speed,
+            delivery_radius_km=radius,
+            is_verified=False,
+            is_active=True,
+            is_available=True,
+            rating=5.0,
+            total_deliveries=0,
+            created_at=datetime.utcnow()
+        )
+        db.add(courier_profile)
+        db.commit()
+        
+        print(f"✅ Зарегистрирован новый курьер: {full_name} (тип: {courier_type})")
+        
+        return {
+            "success": True,
+            "message": "Заявка отправлена на рассмотрение",
+            "courier_id": new_user.id
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка регистрации курьера: {e}")
+        db.rollback()
+        return {
+            "success": False, 
+            "detail": str(e)
+        }
 
 @app.post("/api/courier/go-online")
 async def courier_go_online(request: Request):
@@ -3273,6 +3667,7 @@ async def courier_go_online(request: Request):
         cur.close()
         conn.close()
         raise HTTPException(status_code=500, detail=str(e))
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.post("/api/order/{order_id}/reject")
 async def customer_reject_order(
@@ -3282,9 +3677,9 @@ async def customer_reject_order(
 ):
     """Клиент отказывается от заказа"""
     
-    # Получаем user_id из токена
-    user_id = None
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (ОСНОВНОЙ СПОСОБ)
     auth_header = request.headers.get("Authorization")
+    user_id = None
     
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
@@ -3292,44 +3687,89 @@ async def customer_reject_order(
             from jose import jwt
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             user_id = payload.get("sub")
-        except:
-            pass
+            
+            # Проверяем что это клиент (customer)
+            if payload.get("role") != "customer":
+                return JSONResponse(
+                    status_code=403,
+                    content={"success": False, "detail": "Only customers can reject orders"}
+                )
+        except jwt.ExpiredSignatureError:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Token expired"}
+            )
+        except jwt.JWTError as e:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": f"Invalid token: {str(e)}"}
+            )
+        except Exception as e:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": f"Authentication error: {str(e)}"}
+            )
     
+    # ✅ Fallback: проверка через cookies (для обратной совместимости)
     if not user_id:
         user_id = request.cookies.get("user_id")
     
     if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Not authenticated"}
+        )
     
-    data = await request.json()
-    reason = data.get("reason", "Не указана")
-    
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.user_id == int(user_id)
-    ).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    if order.status != OrderStatus.OUT_FOR_DELIVERY:
-        raise HTTPException(status_code=400, detail="Cannot reject order at this stage")
-    
-    # Создаем запрос на возврат
-    order.refund_requested_by_customer = True
-    order.refund_requested_at = datetime.utcnow()
-    order.refund_reason = reason
-    order.refund_status = "requested"
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": "Refund requested. Admin will process.",
-        "refund_request_id": order.id
-    }
-
-
+    try:
+        data = await request.json()
+        reason = data.get("reason", "Не указана")
+        
+        from datetime import datetime
+        
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.user_id == int(user_id)
+        ).first()
+        
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: проверка статуса как строка (БЕЗ ENUM)
+        if order.status != "out_for_delivery":
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Cannot reject order at this stage. Current status: {order.status}"}
+            )
+        
+        # Создаем запрос на возврат
+        order.refund_requested_by_customer = True
+        order.refund_requested_at = datetime.utcnow()
+        order.refund_reason = reason
+        order.refund_status = "requested"
+        
+        db.commit()
+        
+        print(f"📝 Клиент запросил возврат для заказа #{order.order_number}: {reason}")
+        
+        return {
+            "success": True,
+            "message": "Refund requested. Admin will process.",
+            "refund_request_id": order.id,
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "refund_requested_at": order.refund_requested_at.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 @app.post("/api/courier/force-clear-order")
 async def force_clear_courier_order(request: Request, db: Session = Depends(get_db)):
@@ -4145,98 +4585,113 @@ async def admin_get_password_reset_requests(
             })
     
     return {"success": True, "requests": requests_list}
+
+# backend/main.py - ИСПРАВЛЕННЫЙ ЛОГИН КУРЬЕРА
+
 @app.post("/api/courier/login")
 async def courier_login(request: Request, db: Session = Depends(get_db)):
     """Логин для курьеров с JWT токеном"""
-    data = await request.json()
-    phone = format_phone_number(data.get("phone"))
-    password = data.get("password")
-    
-    print(f"🔐 Попытка входа курьера: {phone}")
-    
-    # Ищем пользователя с ролью курьера
-    user = db.query(User).filter(
-        User.phone == phone,
-        User.role == UserRole.COURIER
-    ).first()
-    
-    if not user:
-        print(f"❌ Курьер не найден: {phone}")
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "detail": "Неверный телефон или пароль"}
-        )
-    
-    if not verify_password(password, user.password):
-        print(f"❌ Неверный пароль для: {phone}")
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "detail": "Неверный телефон или пароль"}
-        )
-    
-    # Проверяем верификацию
-    courier = db.query(CourierProfile).filter(CourierProfile.user_id == user.id).first()
-    
-    if not courier:
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "detail": "Профиль курьера не найден"}
-        )
-    
-    if not courier.is_verified:
-        print(f"⏳ Курьер не верифицирован: {phone}")
-        return JSONResponse(
-            status_code=403,
-            content={"success": False, "detail": "Ваша заявка на рассмотрении"}
-        )
-    
-    if not user.is_active:
-        return JSONResponse(
-            status_code=403,
-            content={"success": False, "detail": "Аккаунт не активирован"}
-        )
-    
-    print(f"✅ Успешный вход курьера: {phone}")
-    
-    # Создаем JWT токен
-    access_token = create_access_token(data={"sub": str(user.id), "role": "courier"})
-    
-    response = JSONResponse({
-        "success": True,
-        "message": "Вход выполнен успешно",
-        "token": access_token,
-        "courier": {
-            "id": user.id,
+    try:
+        data = await request.json()
+        phone = data.get("phone", "").strip()
+        password = data.get("password", "")
+        
+        print(f"🔐 Попытка входа курьера: {phone}")
+        
+        if not phone or not password:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Заполните все поля"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: role = 'courier' (строка, БЕЗ ENUM)
+        user = db.query(User).filter(
+            User.phone == phone,
+            User.role == "courier"  # ✅ СТРОКА, БЕЗ ENUM
+        ).first()
+        
+        if not user:
+            print(f"❌ Курьер не найден: {phone}")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Неверный телефон или пароль"}
+            )
+        
+        # Проверка пароля
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        if user.password != password_hash:
+            print(f"❌ Неверный пароль для: {phone}")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Неверный телефон или пароль"}
+            )
+        
+        # Проверяем профиль курьера
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == user.id).first()
+        
+        if not courier:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Профиль курьера не найден"}
+            )
+        
+        if not courier.is_verified:
+            print(f"⏳ Курьер не верифицирован: {phone}")
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Ваша заявка на рассмотрении"}
+            )
+        
+        if not user.is_active:
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Аккаунт не активирован"}
+            )
+        
+        print(f"✅ Успешный вход курьера: {phone}")
+        
+        # Создаем JWT токен
+        from jose import jwt
+        import datetime
+        
+        token_data = {
+            "sub": str(user.id),
+            "role": "courier",
+            "courier_id": courier.id,
+            "phone": user.phone,
             "first_name": courier.first_name,
             "last_name": courier.last_name,
-            "phone": user.phone,
-            "is_verified": courier.is_verified,
-            "courier_type": courier.courier_type
+            "exp": datetime.utcnow() + timedelta(days=30)
         }
-    })
-    
-    # Устанавливаем cookie
-    response.set_cookie(
-        key="user_id",
-        value=str(user.id),
-        httponly=True,
-        samesite="lax",
-        secure=True,
-        max_age=60*60*24*30,
-        path="/"
-    )
-    
-    response.set_cookie(
-        key="courier_id",
-        value=str(courier.id),
-        httponly=True,
-        samesite="lax",
-        secure=True,
-        max_age=60*60*24*30,
-        path="/"
-    )
-    
-    return response
+        
+        access_token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+        
+        return {
+            "success": True,
+            "message": "Вход выполнен успешно",
+            "token": access_token,
+            "courier": {
+                "id": user.id,
+                "first_name": courier.first_name,
+                "last_name": courier.last_name,
+                "phone": user.phone,
+                "is_verified": courier.is_verified,
+                "courier_type": courier.courier_type,
+                "car_model": courier.car_model,
+                "car_number": courier.car_number,
+                "rating": courier.rating,
+                "total_deliveries": courier.total_deliveries
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка логина курьера: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 @app.post("/api/couriers/find-nearest")
 async def find_nearest_courier(request: Request, db: Session = Depends(get_db)):
@@ -4535,6 +4990,7 @@ def verify_supplier_token(credentials: HTTPAuthorizationCredentials = Depends(se
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.JWTError as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.post("/api/supplier/auto-assign-courier/{order_id}")
 async def auto_assign_courier(
@@ -4543,64 +4999,146 @@ async def auto_assign_courier(
     db: Session = Depends(get_db)
 ):
     """Автоматически назначает лучшего курьера на заказ"""
-    supplier_id = request.cookies.get("supplier_id")
-    if not supplier_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.supplier_id == int(supplier_id)
-    ).first()
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем что это поставщик
+        if payload.get("role") != "supplier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Not a supplier"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    if order.status != OrderStatus.CONFIRMED:
-        raise HTTPException(status_code=400, detail="Order not confirmed yet")
-    
-    best_courier_data = find_best_courier(int(supplier_id), db)
-    
-    if not best_courier_data:
+    try:
+        from datetime import datetime, timedelta
+        
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.supplier_id == int(supplier_id)
+        ).first()
+        
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: проверка статуса как строка (БЕЗ ENUM)
+        if order.status != "confirmed":
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Order not confirmed yet. Current status: {order.status}"}
+            )
+        
+        # Находим лучшего курьера
+        best_courier_data = find_best_courier(int(supplier_id), db)
+        
+        if not best_courier_data:
+            return {
+                "success": False,
+                "message": "Нет доступных курьеров. Добавьте курьера в разделе 'Курьеры'"
+            }
+        
+        best_courier = best_courier_data["profile"]
+        courier_user = best_courier_data["user"]
+        
+        # Создаем назначение
+        assignment = AssignedOrder(
+            order_id=order_id,
+            courier_id=best_courier.user_id,
+            status="assigned",
+            assigned_at=datetime.utcnow()
+        )
+        db.add(assignment)
+        
+        # ✅ ИСПРАВЛЕНО: status = 'out_for_delivery' (строка, БЕЗ ENUM)
+        order.status = "out_for_delivery"
+        order.delivery_started_at = datetime.utcnow()
+        order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
+        order.assigned_courier_id = best_courier.user_id
+        
+        # Обновляем профиль курьера
+        best_courier.current_order_id = order_id
+        best_courier.current_order_status = "out_for_delivery"
+        best_courier.is_available = False
+        best_courier.total_deliveries = (best_courier.total_deliveries or 0) + 1
+        
+        db.commit()
+        
+        print(f"✅ Автоматически назначен курьер {courier_user.full_name} на заказ #{order.order_number}")
+        
+        # Уведомляем через WebSocket
+        try:
+            await manager.broadcast({
+                "type": "order_assigned",
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "courier_id": best_courier.id,
+                "courier_name": f"{courier_user.full_name}"
+            }, channel="orders")
+        except Exception as e:
+            print(f"⚠️ Ошибка отправки WebSocket: {e}")
+        
         return {
-            "success": False,
-            "message": "Нет доступных курьеров. Добавьте курьера в разделе 'Курьеры'"
+            "success": True,
+            "message": f"Курьер {courier_user.full_name} автоматически назначен",
+            "courier": {
+                "id": best_courier.id,
+                "name": courier_user.full_name,
+                "phone": courier_user.phone,
+                "car_model": best_courier.car_model,
+                "car_number": best_courier.car_number,
+                "rating": best_courier.rating,
+                "total_deliveries": best_courier.total_deliveries
+            },
+            "order": {
+                "id": order.id,
+                "order_number": order.order_number,
+                "status": order.status,
+                "delivery_deadline": order.delivery_deadline.isoformat()
+            }
         }
-    
-    best_courier = best_courier_data["profile"]
-    courier_user = best_courier_data["user"]
-    
-    # Создаем назначение
-    assignment = AssignedOrder(
-        order_id=order_id,
-        courier_id=best_courier.user_id,
-        status="assigned",
-        assigned_at=datetime.utcnow()
-    )
-    db.add(assignment)
-    
-    # Обновляем статус заказа
-    order.status = OrderStatus.OUT_FOR_DELIVERY
-    order.delivery_started_at = datetime.utcnow()
-    order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
-    order.assigned_courier_id = best_courier.user_id
-    
-    # Увеличиваем счетчик доставок курьера
-    best_courier.total_deliveries = (best_courier.total_deliveries or 0) + 1
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Курьер {courier_user.full_name} автоматически назначен",
-        "courier": {
-            "id": best_courier.id,
-            "name": courier_user.full_name,
-            "phone": courier_user.phone,
-            "car_model": best_courier.car_model,
-            "car_number": best_courier.car_number,
-            "rating": best_courier.rating
-        }
-    }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 
 @app.get("/api/supplier/available-couriers")
@@ -4638,69 +5176,137 @@ async def get_available_couriers(request: Request, db: Session = Depends(get_db)
     return {"couriers": result}
 
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/supplier/assign-courier")
 async def assign_courier_to_order(request: Request, db: Session = Depends(get_db)):
     """Ручное назначение курьера на заказ"""
-    supplier_id = request.cookies.get("supplier_id")
-    if not supplier_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    data = await request.json()
-    order_id = data.get("order_id")
-    courier_profile_id = data.get("courier_profile_id")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.supplier_id == int(supplier_id)
-    ).first()
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
     
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    if order.status != OrderStatus.CONFIRMED:
-        raise HTTPException(status_code=400, detail="Order not confirmed yet")
-    
-    courier_profile = db.query(CourierProfile).filter(
-        CourierProfile.id == courier_profile_id,
-        CourierProfile.supplier_id == int(supplier_id)
-    ).first()
-    
-    if not courier_profile:
-        raise HTTPException(status_code=404, detail="Courier not found")
-    
-    user = db.query(User).filter(User.id == courier_profile.user_id).first()
-    if not user or not user.is_active:
-        raise HTTPException(status_code=400, detail="Courier not active")
-    
-    # Создаем назначение
-    assignment = AssignedOrder(
-        order_id=order_id,
-        courier_id=courier_profile.user_id,
-        status="assigned",
-        assigned_at=datetime.utcnow()
-    )
-    db.add(assignment)
-    
-    # Обновляем статус заказа
-    order.status = OrderStatus.OUT_FOR_DELIVERY
-    order.delivery_started_at = datetime.utcnow()
-    order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
-    order.assigned_courier_id = courier_profile.user_id
-    
-    # Увеличиваем счетчик доставок курьера
-    courier_profile.total_deliveries = (courier_profile.total_deliveries or 0) + 1
-    
-    db.commit()
-    
-    return {
-        "success": True, 
-        "message": f"Курьер {user.full_name} назначен на заказ {order.order_number}",
-        "courier": {
-            "name": user.full_name,
-            "phone": user.phone
+    try:
+        data = await request.json()
+        order_id = data.get("order_id")
+        courier_profile_id = data.get("courier_profile_id")
+        
+        if not order_id or not courier_profile_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "order_id and courier_profile_id required"}
+            )
+        
+        # Находим заказ
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.supplier_id == int(supplier_id)
+        ).first()
+        
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: status = 'confirmed' (строка, БЕЗ ENUM)
+        if order.status != "confirmed":
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Order not confirmed yet. Current status: {order.status}"}
+            )
+        
+        # Находим курьера
+        courier_profile = db.query(CourierProfile).filter(
+            CourierProfile.id == courier_profile_id,
+            CourierProfile.supplier_id == int(supplier_id)
+        ).first()
+        
+        if not courier_profile:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Courier not found"}
+            )
+        
+        user = db.query(User).filter(User.id == courier_profile.user_id).first()
+        if not user or not user.is_active:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Courier not active"}
+        )
+        
+        from datetime import datetime, timedelta
+        
+        # Создаем назначение
+        assignment = AssignedOrder(
+            order_id=order_id,
+            courier_id=courier_profile.user_id,
+            status="assigned",
+            assigned_at=datetime.utcnow()
+        )
+        db.add(assignment)
+        
+        # ✅ ИСПРАВЛЕНО: status = 'out_for_delivery' (строка, БЕЗ ENUM)
+        order.status = "out_for_delivery"
+        order.delivery_started_at = datetime.utcnow()
+        order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
+        order.assigned_courier_id = courier_profile.user_id
+        
+        # Обновляем профиль курьера
+        courier_profile.current_order_id = order_id
+        courier_profile.current_order_status = "out_for_delivery"
+        courier_profile.is_available = False
+        courier_profile.total_deliveries = (courier_profile.total_deliveries or 0) + 1
+        
+        db.commit()
+        
+        print(f"✅ Курьер {user.full_name} назначен на заказ #{order.order_number}")
+        
+        return {
+            "success": True,
+            "message": f"Курьер {user.full_name} назначен на заказ {order.order_number}",
+            "courier": {
+                "id": courier_profile.id,
+                "name": user.full_name,
+                "phone": user.phone,
+                "car_model": courier_profile.car_model,
+                "car_number": courier_profile.car_number
+            },
+            "order": {
+                "id": order.id,
+                "order_number": order.order_number,
+                "status": order.status,
+                "delivery_deadline": order.delivery_deadline.isoformat()
+            }
         }
-    }
-
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 @app.get("/api/order/{order_id}/delivery-status")
 async def get_delivery_status(order_id: int, db: Session = Depends(get_db)):
@@ -4780,6 +5386,8 @@ async def get_delivery_info(order_id: int, db: Session = Depends(get_db)):
 
 
 # ============ АДМИН: ПОДТВЕРЖДЕНИЕ ОПЛАТЫ ============
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/admin/api/order/{order_id}/confirm-payment")
 async def admin_confirm_payment(
     order_id: int,
@@ -4787,33 +5395,76 @@ async def admin_confirm_payment(
     db: Session = Depends(get_db)
 ):
     """Админ подтверждает оплату и запускает доставку"""
-    admin = get_current_admin(request)
-    if not admin:
-        raise HTTPException(status_code=401, detail="Unauthorized")
     
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    if order.payment_status != "paid":
-        raise HTTPException(status_code=400, detail="Order not paid yet")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
     
-    # Подтверждаем и запускаем доставку
-    now = datetime.utcnow()
-    order.status = OrderStatus.CONFIRMED
-    order.delivery_started_at = now
-    order.delivery_deadline = now + timedelta(minutes=30)
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": "Payment confirmed, delivery started",
-        "delivery_deadline": order.delivery_deadline.isoformat()
-    }
-
+    try:
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        if order.payment_status != "paid":
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Order not paid yet. Current status: {order.payment_status}"}
+            )
+        
+        from datetime import datetime, timedelta
+        
+        # ✅ ИСПРАВЛЕНО: status = 'confirmed' (строка, БЕЗ ENUM)
+        order.status = "confirmed"
+        order.confirmed_at = datetime.utcnow()
+        order.delivery_started_at = datetime.utcnow()
+        order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
+        
+        db.commit()
+        
+        print(f"✅ Админ подтвердил оплату заказа #{order.order_number}")
+        
+        return {
+            "success": True,
+            "message": "Payment confirmed, delivery started",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "status": order.status,
+            "delivery_deadline": order.delivery_deadline.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 # ============ КЛИЕНТ: ПОЛУЧИЛ ЗАКАЗ ============
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/order/{order_id}/receive")
 async def customer_receive_order(
     order_id: int,
@@ -4821,36 +5472,117 @@ async def customer_receive_order(
     db: Session = Depends(get_db)
 ):
     """Клиент подтверждает, что получил заказ → статус меняется на DELIVERED"""
-    user_id = request.cookies.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.user_id == int(user_id)
-    ).first()
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем что это клиент (customer)
+        role = payload.get("role")
+        if role != "customer":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Only customers can receive orders"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    # Проверяем, что заказ в доставке
-    if order.status != OrderStatus.OUT_FOR_DELIVERY:
-        raise HTTPException(status_code=400, detail="Order is not in delivery")
-    
-    # Проверяем, не истек ли дедлайн
-    if order.delivery_deadline and datetime.utcnow() > order.delivery_deadline:
-        raise HTTPException(status_code=400, detail="Delivery deadline expired. Auto-refund initiated.")
-    
-    # Автоматически завершаем заказ
-    order.status = OrderStatus.DELIVERED
-    
-    order.delivered_at = datetime.utcnow()
-    db.commit()
-    
-    return {"success": True, "message": "Order received successfully"}
-
+    try:
+        from datetime import datetime
+        
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.user_id == int(user_id)
+        ).first()
+        
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: status = 'out_for_delivery' (строка, БЕЗ ENUM)
+        if order.status != "out_for_delivery":
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Order is not in delivery. Current status: {order.status}"}
+            )
+        
+        # Проверяем, не истек ли дедлайн
+        if order.delivery_deadline and datetime.utcnow() > order.delivery_deadline:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Delivery deadline expired. Auto-refund initiated."}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: status = 'delivered' (строка, БЕЗ ENUM)
+        order.status = "delivered"
+        order.delivered_at = datetime.utcnow()
+        
+        # Освобождаем курьера
+        if order.assigned_courier_id:
+            db.query(CourierProfile).filter(
+                CourierProfile.user_id == order.assigned_courier_id
+            ).update({
+                "current_order_id": None,
+                "current_order_status": None,
+                "is_available": True,
+                "is_online": True
+            })
+        
+        db.commit()
+        
+        print(f"✅ Клиент получил заказ #{order.order_number}")
+        
+        return {
+            "success": True,
+            "message": "Order received successfully",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "status": order.status,
+            "delivered_at": order.delivered_at.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 # ============ КЛИЕНТ: ОТКАЗ ОТ ЗАКАЗА ============
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/order/{order_id}/reject")
 async def customer_reject_order(
     order_id: int,
@@ -4858,38 +5590,100 @@ async def customer_reject_order(
     db: Session = Depends(get_db)
 ):
     """Клиент отказывается от заказа → отправляет запрос админу на возврат"""
-    user_id = request.cookies.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    data = await request.json()
-    reason = data.get("reason", "Не указана")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.user_id == int(user_id)
-    ).first()
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем что это клиент (customer)
+        role = payload.get("role")
+        if role != "customer":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Only customers can reject orders"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Проверяем, что заказ в доставке
-    if order.status != OrderStatus.OUT_FOR_DELIVERY:
-        raise HTTPException(status_code=400, detail="Cannot reject order at this stage")
-    
-    # Создаем запрос на возврат
-    order.refund_requested_by_customer = True
-    order.refund_requested_at = datetime.utcnow()
-    order.refund_reason = reason
-    order.refund_status = "requested"
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": "Refund requested. Admin will process.",
-        "refund_request_id": order.id
-    }
+    try:
+        data = await request.json()
+        reason = data.get("reason", "Не указана")
+        
+        from datetime import datetime
+        
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.user_id == int(user_id)
+        ).first()
+        
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: status = 'out_for_delivery' (строка, БЕЗ ENUM)
+        if order.status != "out_for_delivery":
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Cannot reject order at this stage. Current status: {order.status}"}
+            )
+        
+        # Создаем запрос на возврат
+        order.refund_requested_by_customer = True
+        order.refund_requested_at = datetime.utcnow()
+        order.refund_reason = reason
+        order.refund_status = "requested"
+        
+        db.commit()
+        
+        print(f"📝 Клиент запросил возврат для заказа #{order.order_number}: {reason}")
+        
+        return {
+            "success": True,
+            "message": "Refund requested. Admin will process.",
+            "refund_request_id": order.id,
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "refund_requested_at": order.refund_requested_at.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 @app.delete("/api/supplier/clear-inactive-bags")
 async def clear_inactive_surprise_bags(
     request: Request,
@@ -4967,7 +5761,8 @@ async def clear_inactive_surprise_bags(
         print(f"Error clearing inactive bags: {e}")
         db.rollback()
         return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
-        
+    # backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/admin/api/order/{order_id}/approve-refund")
 async def admin_approve_refund(
     order_id: int,
@@ -4975,33 +5770,110 @@ async def admin_approve_refund(
     db: Session = Depends(get_db)
 ):
     """Админ подтверждает возврат денег (деньги отправлены клиенту)"""
-    admin = get_current_admin(request)
-    if not admin:
-        raise HTTPException(status_code=401, detail="Unauthorized")
     
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    if order.refund_status != "requested":
-        raise HTTPException(status_code=400, detail="No refund request found")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    # Выполняем возврат (имитация)
-    order.refund_status = "completed"
-    order.refund_processed_at = datetime.utcnow()
-    order.refund_amount = order.amount_paid
-    order.payment_status = "refunded"
-    order.status = OrderStatus.CANCELLED
-    order.refund_transaction_id = f"REF-{secrets.token_hex(8).upper()}"
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Refund approved for order {order.order_number}",
-        "refund_amount": order.refund_amount
-    }
-
+    try:
+        import secrets
+        from datetime import datetime
+        
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        if order.refund_status != "requested":
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"No refund request found. Current status: {order.refund_status}"}
+            )
+        
+        # Выполняем возврат
+        order.refund_status = "completed"
+        order.refund_processed_at = datetime.utcnow()
+        order.refund_amount = order.amount_paid
+        order.payment_status = "refunded"
+        
+        # ✅ ИСПРАВЛЕНО: status = 'cancelled' (строка, БЕЗ ENUM)
+        order.status = "cancelled"
+        order.cancelled_at = datetime.utcnow()
+        order.refund_transaction_id = f"REF-{secrets.token_hex(8).upper()}"
+        
+        # ✅ ОСВОБОЖДАЕМ КУРЬЕРА (если был назначен)
+        if order.assigned_courier_id:
+            db.query(CourierProfile).filter(
+                CourierProfile.user_id == order.assigned_courier_id
+            ).update({
+                "current_order_id": None,
+                "current_order_status": None,
+                "is_available": True,
+                "is_online": True
+            })
+            print(f"✅ Курьер освобожден от заказа #{order_id}")
+        
+        # Возвращаем количество сюрприза
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        if bag:
+            bag.available_quantity += 1
+            if bag.available_quantity > 0:
+                bag.is_active = True
+            print(f"📦 Восстановлен товар '{bag.name}', теперь {bag.available_quantity} шт.")
+        
+        db.commit()
+        
+        print(f"✅ Админ одобрил возврат для заказа #{order.order_number}")
+        
+        return {
+            "success": True,
+            "message": f"Refund approved for order {order.order_number}",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "refund_amount": order.refund_amount,
+            "refund_transaction_id": order.refund_transaction_id,
+            "refund_processed_at": order.refund_processed_at.isoformat(),
+            "status": order.status
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 # ============ АДМИН: ОТКЛОНИТЬ ВОЗВРАТ ============
 @app.post("/admin/api/order/{order_id}/reject-refund")
@@ -5034,6 +5906,8 @@ async def admin_reject_refund(
 
 
 # ============ АВТОМАТИЧЕСКИЙ ВОЗВРАТ ПО ТАЙМЕРУ ============
+# backend/main.py - ИСПРАВЛЕННАЯ ФУНКЦИЯ
+
 async def auto_refund_on_deadline():
     """Каждую минуту проверяем: если 30 минут истекли и клиент не подтвердил получение → авто-возврат"""
     while True:
@@ -5043,41 +5917,76 @@ async def auto_refund_on_deadline():
             db = SessionLocal()
             now = datetime.utcnow()
             
-            # Заказы в доставке, у которых дедлайн истек
+            # ✅ ИСПРАВЛЕНО: status = 'out_for_delivery' (строка, БЕЗ ENUM)
             expired_orders = db.query(Order).filter(
-                Order.status == OrderStatus.OUT_FOR_DELIVERY,
+                Order.status == "out_for_delivery",
                 Order.delivery_deadline <= now,
                 Order.auto_refund_processed == False
             ).all()
             
+            if expired_orders:
+                print(f"⏰ Найдено {len(expired_orders)} заказов с истекшим дедлайном")
+            
             for order in expired_orders:
-                print(f"⏰ АВТО-ВОЗВРАТ: Заказ {order.order_number} не получен за 30 минут")
-                
-                order.auto_refund_processed = True
-                order.refund_status = "completed"
-                order.refund_processed_at = now
-                order.refund_amount = order.amount_paid
-                order.payment_status = "refunded"
-                order.status = OrderStatus.CANCELLED
-                order.refund_transaction_id = f"AUTO-REF-{secrets.token_hex(8).upper()}"
-                order.refund_reason = "Автоматический возврат: заказ не получен в течение 30 минут"
-                
-                db.commit()
-                
-                # Уведомление через WebSocket
-                await manager.broadcast({
-                    "type": "auto_refund",
-                    "order_id": order.id,
-                    "order_number": order.order_number,
-                    "amount": order.amount_paid,
-                    "message": "Заказ не получен вовремя. Деньги возвращены."
-                })
+                try:
+                    print(f"⏰ АВТО-ВОЗВРАТ: Заказ {order.order_number} не получен за 30 минут")
+                    
+                    # ✅ ИСПРАВЛЕНО: status = 'cancelled' (строка, БЕЗ ENUM)
+                    order.auto_refund_processed = True
+                    order.refund_status = "completed"
+                    order.refund_processed_at = now
+                    order.refund_amount = order.amount_paid
+                    order.payment_status = "refunded"
+                    order.status = "cancelled"
+                    order.cancelled_at = now
+                    order.refund_transaction_id = f"AUTO-REF-{secrets.token_hex(8).upper()}"
+                    order.refund_reason = "Автоматический возврат: заказ не получен в течение 30 минут"
+                    
+                    # ✅ ОСВОБОЖДАЕМ КУРЬЕРА (если был назначен)
+                    if order.assigned_courier_id:
+                        db.query(CourierProfile).filter(
+                            CourierProfile.user_id == order.assigned_courier_id
+                        ).update({
+                            "current_order_id": None,
+                            "current_order_status": None,
+                            "is_available": True,
+                            "is_online": True
+                        })
+                        print(f"✅ Курьер освобожден от заказа #{order.id}")
+                    
+                    # ✅ ВОЗВРАЩАЕМ ТОВАР
+                    bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+                    if bag:
+                        bag.available_quantity += 1
+                        if bag.available_quantity > 0:
+                            bag.is_active = True
+                        print(f"📦 Восстановлен товар '{bag.name}', теперь {bag.available_quantity} шт.")
+                    
+                    db.commit()
+                    
+                    # Уведомление через WebSocket
+                    try:
+                        await manager.broadcast({
+                            "type": "auto_refund",
+                            "order_id": order.id,
+                            "order_number": order.order_number,
+                            "amount": order.amount_paid,
+                            "message": "Заказ не получен вовремя. Деньги возвращены."
+                        })
+                    except Exception as e:
+                        print(f"⚠️ Ошибка отправки WebSocket: {e}")
+                    
+                except Exception as e:
+                    print(f"❌ Ошибка при обработке заказа {order.id}: {e}")
+                    db.rollback()
             
             db.close()
             
         except Exception as e:
             print(f"❌ Ошибка auto_refund: {e}")
-
+            import traceback
+            traceback.print_exc()
+            await asyncio.sleep(5)  # Пауза перед повторной попыткой
 # backend/main.py - добавьте фоновую задачу
 
 import asyncio
@@ -5251,51 +6160,130 @@ async def debug_bag(bag_id: int, db: Session = Depends(get_db)):
         "discounted_price": bag.discounted_price
     }
 # backend/main.py - при успешной оплате
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.post("/api/payment/confirm-reservation")
 async def confirm_reservation(request: Request, db: Session = Depends(get_db)):
     """Подтверждение резервации после успешной оплаты"""
-    data = await request.json()
-    reservation_id = data.get("reservation_id")
     
-    reservation = db.query(TemporaryReservation).filter(
-        TemporaryReservation.id == reservation_id
-    ).first()
+    # ✅ Проверяем авторизацию
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    if not reservation:
-        raise HTTPException(status_code=404, detail="Резервация не найдена")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    # Помечаем как оплаченную
-    reservation.is_paid = True
-    
-    # Создаем заказ
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == reservation.bag_id).first()
-    
-    order = Order(
-        user_id=reservation.user_id,
-        supplier_id=bag.supplier_id,
-        surprise_bag_id=bag.id,
-        order_number=f"ORD-{secrets.token_hex(4).upper()}",
-        status=OrderStatus.CONFIRMED,
-        amount_paid=bag.discounted_price * reservation.quantity,
-        created_at=datetime.utcnow()
-    )
-    db.add(order)
-    db.commit()
-    
-    # Удаляем из корзины
-    cart_item = db.query(CartItem).filter(
-        CartItem.user_id == reservation.user_id,
-        CartItem.surprise_bag_id == reservation.bag_id
-    ).first()
-    if cart_item:
-        db.delete(cart_item)
-    
-    db.commit()
-    
-    return {"success": True, "message": "Оплата подтверждена", "order_id": order.id}
-
-
+    try:
+        import secrets
+        from datetime import datetime
+        
+        data = await request.json()
+        reservation_id = data.get("reservation_id")
+        
+        if not reservation_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "reservation_id is required"}
+            )
+        
+        reservation = db.query(TemporaryReservation).filter(
+            TemporaryReservation.id == reservation_id,
+            TemporaryReservation.user_id == int(user_id)
+        ).first()
+        
+        if not reservation:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Резервация не найдена"}
+            )
+        
+        # Проверяем не истекла ли резервация
+        if reservation.expires_at < datetime.utcnow():
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Резервация истекла"}
+            )
+        
+        # Помечаем как оплаченную
+        reservation.is_paid = True
+        
+        # Получаем сюрприз
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == reservation.bag_id).first()
+        
+        if not bag:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Сюрприз не найден"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: status = 'confirmed' (строка, БЕЗ ENUM)
+        order = Order(
+            user_id=reservation.user_id,
+            supplier_id=bag.supplier_id,
+            surprise_bag_id=bag.id,
+            order_number=f"ORD-{secrets.token_hex(4).upper()}",
+            status="confirmed",
+            amount_paid=bag.discounted_price * reservation.quantity,
+            created_at=datetime.utcnow(),
+            confirmed_at=datetime.utcnow()
+        )
+        db.add(order)
+        db.flush()
+        
+        # Удаляем из корзины
+        cart_item = db.query(CartItem).filter(
+            CartItem.user_id == reservation.user_id,
+            CartItem.surprise_bag_id == reservation.bag_id
+        ).first()
+        if cart_item:
+            db.delete(cart_item)
+        
+        db.commit()
+        
+        print(f"✅ Оплата подтверждена для резервации #{reservation_id}, создан заказ #{order.order_number}")
+        
+        return {
+            "success": True,
+            "message": "Оплата подтверждена",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "status": order.status
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 # # Запускаем фоновую задачу при старте приложения
 # backend/main.py - добавьте в конец файла
 
@@ -5418,46 +6406,121 @@ async def admin_get_refund_requests(
     return {"requests": result}
 
 # Админ обрабатывает возврат (подтверждает)
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/admin/api/refund/approve/{order_id}")
 async def admin_approve_refund(
     order_id: int,
     request: Request,
     db: Session = Depends(get_db)
 ):
-    admin = get_current_admin(request)
-    if not admin:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    """Админ одобряет возврат денег клиенту"""
     
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    if order.refund_status not in ["requested", "processing"]:
-        raise HTTPException(status_code=400, detail="Refund not requested or already processed")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    # ========== ИМИТАЦИЯ ВОЗВРАТА ДЕНЕГ ==========
-    # В реальном проекте здесь будет вызов API банка
-    # await bank_api.refund(order.payment_id, order.amount_paid)
-    
-    # Обновляем статус заказа
-    order.refund_status = "completed"
-    order.refund_processed_at = datetime.utcnow()
-    order.refund_amount = order.amount_paid
-    order.payment_status = "refunded"
-    order.status = OrderStatus.CANCELLED
-    
-    # Генерируем ID транзакции возврата
-    order.refund_transaction_id = f"REF-{secrets.token_hex(8).upper()}"
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Refund approved for order {order.order_number}",
-        "refund_amount": order.refund_amount,
-        "refund_transaction_id": order.refund_transaction_id
-    }
-
+    try:
+        import secrets
+        from datetime import datetime
+        
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        if order.refund_status not in ["requested", "processing"]:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Refund not requested or already processed. Current status: {order.refund_status}"}
+            )
+        
+        # ========== ИМИТАЦИЯ ВОЗВРАТА ДЕНЕГ ==========
+        # В реальном проекте здесь будет вызов API банка
+        # await bank_api.refund(order.payment_id, order.amount_paid)
+        
+        # ✅ ИСПРАВЛЕНО: status = 'cancelled' (строка, БЕЗ ENUM)
+        order.refund_status = "completed"
+        order.refund_processed_at = datetime.utcnow()
+        order.refund_amount = order.amount_paid
+        order.payment_status = "refunded"
+        order.status = "cancelled"
+        order.cancelled_at = datetime.utcnow()
+        order.refund_transaction_id = f"REF-{secrets.token_hex(8).upper()}"
+        
+        # ✅ ОСВОБОЖДАЕМ КУРЬЕРА (если был назначен)
+        if order.assigned_courier_id:
+            db.query(CourierProfile).filter(
+                CourierProfile.user_id == order.assigned_courier_id
+            ).update({
+                "current_order_id": None,
+                "current_order_status": None,
+                "is_available": True,
+                "is_online": True
+            })
+            print(f"✅ Курьер освобожден от заказа #{order_id}")
+        
+        # ✅ ВОЗВРАЩАЕМ ТОВАР
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+        if bag:
+            bag.available_quantity += 1
+            if bag.available_quantity > 0:
+                bag.is_active = True
+            print(f"📦 Восстановлен товар '{bag.name}', теперь {bag.available_quantity} шт.")
+        
+        db.commit()
+        
+        print(f"✅ Админ одобрил возврат для заказа #{order.order_number}")
+        
+        return {
+            "success": True,
+            "message": f"Refund approved for order {order.order_number}",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "refund_amount": order.refund_amount,
+            "refund_transaction_id": order.refund_transaction_id,
+            "refund_processed_at": order.refund_processed_at.isoformat(),
+            "status": order.status
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 # Админ отклоняет возврат
 @app.post("/admin/api/refund/reject/{order_id}")
 async def admin_reject_refund(
@@ -5616,30 +6679,134 @@ async def admin_logout():
     return response
 
 # ============ API ДЛЯ ОБНОВЛЕНИЯ ============
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/admin/api/order/{order_id}/payment-status")
 async def admin_update_payment_status(
     order_id: int,
     request: Request,
     db: Session = Depends(get_db)
 ):
-    admin = get_current_admin(request)
-    if not admin:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    """Админ обновляет статус оплаты заказа"""
     
-    data = await request.json()
-    new_status = data.get("payment_status")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    order.payment_status = new_status
-    if new_status == "paid" and not order.paid_at:
-        order.paid_at = datetime.utcnow()
-        order.status = OrderStatus.CONFIRMED
-    
-    db.commit()
-    return {"success": True}
+    try:
+        from datetime import datetime
+        
+        data = await request.json()
+        new_status = data.get("payment_status")
+        
+        if not new_status:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "payment_status is required"}
+            )
+        
+        # ✅ Валидные статусы оплаты
+        valid_payment_statuses = ["pending", "paid", "refunded", "failed", "cancelled"]
+        if new_status not in valid_payment_statuses:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Invalid payment status: {new_status}"}
+            )
+        
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        old_status = order.payment_status
+        order.payment_status = new_status
+        
+        # ✅ Если статус стал "paid" - обновляем время оплаты и статус заказа
+        if new_status == "paid" and not order.paid_at:
+            order.paid_at = datetime.utcnow()
+            # ✅ ИСПРАВЛЕНО: status = 'confirmed' (строка, БЕЗ ENUM)
+            if order.status == "pending":
+                order.status = "confirmed"
+                order.confirmed_at = datetime.utcnow()
+        
+        # ✅ Если статус стал "refunded" - обновляем статус заказа
+        if new_status == "refunded":
+            order.status = "cancelled"
+            order.cancelled_at = datetime.utcnow()
+            order.refund_status = "completed"
+            order.refund_processed_at = datetime.utcnow()
+            
+            # ✅ Освобождаем курьера
+            if order.assigned_courier_id:
+                db.query(CourierProfile).filter(
+                    CourierProfile.user_id == order.assigned_courier_id
+                ).update({
+                    "current_order_id": None,
+                    "current_order_status": None,
+                    "is_available": True,
+                    "is_online": True
+                })
+            
+            # ✅ Возвращаем товар
+            bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+            if bag:
+                bag.available_quantity += 1
+                if bag.available_quantity > 0:
+                    bag.is_active = True
+        
+        db.commit()
+        
+        print(f"✅ Админ обновил статус оплаты заказа #{order.order_number}: {old_status} -> {new_status}")
+        
+        return {
+            "success": True,
+            "message": f"Payment status updated to {new_status}",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "payment_status": order.payment_status,
+            "order_status": order.status,
+            "paid_at": order.paid_at.isoformat() if order.paid_at else None
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.post("/admin/api/order/{order_id}/status")
 async def admin_update_order_status(
@@ -5648,63 +6815,169 @@ async def admin_update_order_status(
     db: Session = Depends(get_db)
 ):
     """Админ меняет статус заказа (с проверками и триггерами)"""
-    admin = get_current_admin(request)
-    if not admin:
-        raise HTTPException(status_code=401, detail="Unauthorized")
     
-    data = await request.json()
-    new_status = data.get("status")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    old_status = order.status.value if order.status else "unknown"
-    
-    # ============ ЛОГИКА ПРИ СМЕНЕ СТАТУСА ============
-    
-    if new_status == "confirmed":
-        # Админ подтверждает оплату (но доставка еще не начата)
-        order.confirmed_at = datetime.utcnow()
+    try:
+        import secrets
+        from datetime import datetime, timedelta
         
-    elif new_status == "out_for_delivery":
-        # Админ запускает доставку → устанавливаем дедлайн 30 минут
-        if order.payment_status != "paid":
-            raise HTTPException(status_code=400, detail="Cannot start delivery: order not paid")
-        if order.status != OrderStatus.CONFIRMED:
-            raise HTTPException(status_code=400, detail="Cannot start delivery: order not confirmed")
+        data = await request.json()
+        new_status = data.get("status")
         
-        now = datetime.utcnow()
-        order.delivery_started_at = now
-        order.delivery_deadline = now + timedelta(minutes=30)
+        if not new_status:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "status is required"}
+            )
         
+        # ✅ Валидные статусы заказов
+        valid_statuses = [
+            "pending", "confirmed", "preparing", "ready_for_pickup",
+            "picked_up", "out_for_delivery", "nearby", "delivered", "cancelled"
+        ]
         
-    elif new_status == "delivered":
-        # Админ вручную отмечает доставку (если клиент не нажал кнопку)
-        order.delivered_at = datetime.utcnow()
+        if new_status not in valid_statuses:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Invalid status: {new_status}"}
+            )
         
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
         
-    elif new_status == "cancelled":
-        # Админ отменяет заказ (если есть основания)
-        if order.payment_status == "paid":
-            # Если оплачен, нужно вернуть деньги
-            order.refund_status = "completed"
-            order.refund_processed_at = datetime.utcnow()
-            order.refund_amount = order.amount_paid
-            order.payment_status = "refunded"
-            order.refund_reason = f"Отменено администратором. Причина: {data.get('reason', 'Не указана')}"
-            order.refund_transaction_id = f"ADMIN-REF-{secrets.token_hex(8).upper()}"
-    
-    # Обновляем статус
-    order.status = OrderStatus(new_status)
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Статус заказа {order.order_number} изменен с {old_status} на {new_status}",
-        "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None
-    }
-
+        old_status = order.status if order.status else "unknown"
+        
+        # ============ ЛОГИКА ПРИ СМЕНЕ СТАТУСА ============
+        
+        if new_status == "confirmed":
+            # Админ подтверждает оплату (но доставка еще не начата)
+            order.confirmed_at = datetime.utcnow()
+            
+        elif new_status == "out_for_delivery":
+            # Админ запускает доставку → устанавливаем дедлайн 30 минут
+            if order.payment_status != "paid":
+                return JSONResponse(
+                    status_code=400,
+                    content={"success": False, "detail": "Cannot start delivery: order not paid"}
+                )
+            # ✅ ИСПРАВЛЕНО: проверка статуса как строка
+            if order.status != "confirmed":
+                return JSONResponse(
+                    status_code=400,
+                    content={"success": False, "detail": f"Cannot start delivery: order not confirmed. Current status: {order.status}"}
+                )
+            
+            now = datetime.utcnow()
+            order.delivery_started_at = now
+            order.delivery_deadline = now + timedelta(minutes=30)
+            
+        elif new_status == "delivered":
+            # Админ вручную отмечает доставку (если клиент не нажал кнопку)
+            order.delivered_at = datetime.utcnow()
+            
+            # ✅ Освобождаем курьера
+            if order.assigned_courier_id:
+                db.query(CourierProfile).filter(
+                    CourierProfile.user_id == order.assigned_courier_id
+                ).update({
+                    "current_order_id": None,
+                    "current_order_status": None,
+                    "is_available": True,
+                    "is_online": True
+                })
+            
+        elif new_status == "cancelled":
+            # Админ отменяет заказ (если есть основания)
+            reason = data.get("reason", "Отменено администратором")
+            
+            if order.payment_status == "paid":
+                # Если оплачен, нужно вернуть деньги
+                order.refund_status = "completed"
+                order.refund_processed_at = datetime.utcnow()
+                order.refund_amount = order.amount_paid
+                order.payment_status = "refunded"
+                order.refund_reason = f"Отменено администратором. Причина: {reason}"
+                order.refund_transaction_id = f"ADMIN-REF-{secrets.token_hex(8).upper()}"
+            
+            order.cancelled_at = datetime.utcnow()
+            
+            # ✅ Освобождаем курьера
+            if order.assigned_courier_id:
+                db.query(CourierProfile).filter(
+                    CourierProfile.user_id == order.assigned_courier_id
+                ).update({
+                    "current_order_id": None,
+                    "current_order_status": None,
+                    "is_available": True,
+                    "is_online": True
+                })
+            
+            # ✅ Возвращаем товар
+            bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+            if bag:
+                bag.available_quantity += 1
+                if bag.available_quantity > 0:
+                    bag.is_active = True
+        
+        # ✅ ИСПРАВЛЕНО: обновляем статус как строку (БЕЗ ENUM)
+        order.status = new_status
+        db.commit()
+        
+        print(f"✅ Админ изменил статус заказа #{order.order_number}: {old_status} -> {new_status}")
+        
+        return {
+            "success": True,
+            "message": f"Статус заказа {order.order_number} изменен с {old_status} на {new_status}",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "old_status": old_status,
+            "new_status": new_status,
+            "delivery_deadline": order.delivery_deadline.isoformat() if order.delivery_deadline else None
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 # Добавьте эти эндпоинты в ваш backend/main.py
 
 from datetime import datetime, timedelta
@@ -5720,79 +6993,143 @@ class BookingResponse(BaseModel):
     remaining_seconds: int = 0
     message: str
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/bookings/create")
 async def create_booking(
     request: Request,
-    booking_data: BookingRequest,
     db: Session = Depends(get_db)
 ):
     """Забронировать сюрприз-пакет на 15 минут"""
     
-    # Get user from cookie
-    user_id = request.cookies.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    # Check if bag exists and is available
-    bag = db.query(SurpriseBag).filter(
-        SurpriseBag.id == booking_data.bag_id,
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
-    ).first()
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем что это клиент (customer)
+        if payload.get("role") != "customer":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Only customers can book"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    if not bag:
+    try:
+        import secrets
+        from datetime import datetime, timedelta
+        
+        data = await request.json()
+        bag_id = data.get("bag_id")
+        
+        if not bag_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "bag_id is required"}
+            )
+        
+        # Check if bag exists and is available
+        bag = db.query(SurpriseBag).filter(
+            SurpriseBag.id == bag_id,
+            SurpriseBag.is_active == True,
+            SurpriseBag.available_quantity > 0
+        ).first()
+        
+        if not bag:
+            return {
+                "success": False,
+                "message": "Пакет недоступен"
+            }
+        
+        # Check if there's an active booking (pending order less than 15 min old)
+        # ✅ ИСПРАВЛЕНО: статус как строка (БЕЗ ENUM)
+        existing_booking = db.query(Order).filter(
+            Order.surprise_bag_id == bag_id,
+            Order.status == "pending",
+            Order.payment_status == "pending",
+            Order.created_at > datetime.utcnow() - timedelta(minutes=15)
+        ).first()
+        
+        if existing_booking:
+            expires_at = existing_booking.created_at + timedelta(minutes=15)
+            remaining = int((expires_at - datetime.utcnow()).total_seconds())
+            return {
+                "success": False,
+                "message": "Этот пакет уже забронирован",
+                "remaining_seconds": remaining
+            }
+        
+        # Create booking (pending order)
+        expires_at = datetime.utcnow() + timedelta(minutes=15)
+        order_number = f"BOOK-{secrets.token_hex(4).upper()}"
+        
+        # ✅ ИСПРАВЛЕНО: статус как строка (БЕЗ ENUM)
+        order = Order(
+            user_id=int(user_id),
+            supplier_id=bag.supplier_id,
+            surprise_bag_id=bag.id,
+            order_number=order_number,
+            status="pending",
+            payment_status="pending",
+            amount_paid=bag.discounted_price,
+            created_at=datetime.utcnow()
+        )
+        
+        db.add(order)
+        
+        # Decrease available quantity
+        bag.available_quantity -= 1
+        
+        db.commit()
+        db.refresh(order)
+        
+        print(f"✅ Бронирование создано: {order_number} для пользователя {user_id}")
+        
         return {
-            "success": False,
-            "message": "Пакет недоступен"
+            "success": True,
+            "expires_at": expires_at.isoformat(),
+            "remaining_seconds": 15 * 60,
+            "message": f"Пакет '{bag.name}' забронирован на 15 минут",
+            "order_id": order.id,
+            "order_number": order.order_number
         }
-    
-    # Check if there's an active booking (pending order less than 15 min old)
-    existing_booking = db.query(Order).filter(
-        Order.surprise_bag_id == booking_data.bag_id,
-        Order.status == OrderStatus.PENDING,
-        Order.payment_status == "pending",
-        Order.created_at > datetime.utcnow() - timedelta(minutes=15)
-    ).first()
-    
-    if existing_booking:
-        expires_at = existing_booking.created_at + timedelta(minutes=15)
-        remaining = int((expires_at - datetime.utcnow()).total_seconds())
-        return {
-            "success": False,
-            "message": "Этот пакет уже забронирован",
-            "remaining_seconds": remaining
-        }
-    
-    # Create booking (pending order)
-    expires_at = datetime.utcnow() + timedelta(minutes=15)
-    order_number = f"BOOK-{secrets.token_hex(4).upper()}"
-    
-    order = Order(
-        user_id=int(user_id),
-        supplier_id=bag.supplier_id,
-        surprise_bag_id=bag.id,
-        order_number=order_number,
-        status=OrderStatus.PENDING,
-        payment_status="pending",
-        amount_paid=bag.discounted_price,
-        created_at=datetime.utcnow()
-    )
-    
-    db.add(order)
-    
-    # Decrease available quantity
-    bag.available_quantity -= 1
-    
-    db.commit()
-    db.refresh(order)
-    
-    return {
-        "success": True,
-        "expires_at": expires_at.isoformat(),
-        "remaining_seconds": 15 * 60,
-        "message": f"Пакет '{bag.name}' забронирован на 15 минут",
-        "order_id": order.id
-    }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 
 # backend/main.py - ДОБАВЛЯЕМ ФИЛЬТРАЦИЮ ПО ГОРОДУ
@@ -5963,36 +7300,71 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     c = 2 * atan2(sqrt(a), sqrt(1-a))
     return R * c
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.get("/api/bookings/check/{bag_id}")
 async def check_booking(
     bag_id: int,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """Проверить статус бронирования"""
     
-    booking = db.query(Order).filter(
-        Order.surprise_bag_id == bag_id,
-        Order.status == OrderStatus.PENDING,
-        Order.payment_status == "pending",
-        Order.created_at > datetime.utcnow() - timedelta(minutes=15)
-    ).first()
+    # ✅ Проверяем авторизацию (опционально, можно и без токена)
+    auth_header = request.headers.get("Authorization")
+    user_id = None
     
-    if not booking:
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+        except:
+            pass
+    
+    try:
+        from datetime import datetime, timedelta
+        
+        # ✅ ИСПРАВЛЕНО: статус как строка (БЕЗ ENUM)
+        booking = db.query(Order).filter(
+            Order.surprise_bag_id == bag_id,
+            Order.status == "pending",
+            Order.payment_status == "pending",
+            Order.created_at > datetime.utcnow() - timedelta(minutes=15)
+        ).first()
+        
+        if not booking:
+            return {
+                "is_booked": False,
+                "remaining_seconds": 0,
+                "is_my_booking": False
+            }
+        
+        expires_at = booking.created_at + timedelta(minutes=15)
+        remaining = int((expires_at - datetime.utcnow()).total_seconds())
+        
+        # ✅ Проверяем, принадлежит ли бронирование текущему пользователю
+        is_my_booking = user_id and booking.user_id == int(user_id)
+        
+        return {
+            "is_booked": True,
+            "remaining_seconds": max(0, remaining),
+            "expires_at": expires_at.isoformat(),
+            "order_id": booking.id,
+            "order_number": booking.order_number,
+            "is_my_booking": is_my_booking
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка проверки бронирования: {e}")
         return {
             "is_booked": False,
-            "remaining_seconds": 0
+            "remaining_seconds": 0,
+            "error": str(e)
         }
-    
-    expires_at = booking.created_at + timedelta(minutes=15)
-    remaining = int((expires_at - datetime.utcnow()).total_seconds())
-    
-    return {
-        "is_booked": True,
-        "remaining_seconds": max(0, remaining),
-        "expires_at": expires_at.isoformat(),
-        "order_id": booking.id
-    }
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.delete("/api/bookings/release/{bag_id}")
 async def release_booking(
@@ -6002,31 +7374,87 @@ async def release_booking(
 ):
     """Освободить бронь (если пользователь отменил)"""
     
-    user_id = request.cookies.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    # Find active booking
-    booking = db.query(Order).filter(
-        Order.surprise_bag_id == bag_id,
-        Order.user_id == int(user_id),
-        Order.status == OrderStatus.PENDING,
-        Order.payment_status == "pending"
-    ).first()
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    if booking:
-        # Return quantity to bag
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
-        if bag:
-            bag.available_quantity += 1
+    try:
+        from datetime import datetime
         
-        booking.status = OrderStatus.CANCELLED
-        db.commit()
+        # ✅ ИСПРАВЛЕНО: ищем активное бронирование (статус как строка)
+        booking = db.query(Order).filter(
+            Order.surprise_bag_id == bag_id,
+            Order.user_id == int(user_id),
+            Order.status == "pending",
+            Order.payment_status == "pending"
+        ).first()
         
-        return {"success": True, "message": "Бронирование отменено"}
-    
-    return {"success": False, "message": "Бронь не найдена"}
-
+        if booking:
+            # Return quantity to bag
+            bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+            if bag:
+                bag.available_quantity += 1
+                if bag.available_quantity > 0:
+                    bag.is_active = True
+                print(f"📦 Освобожден товар '{bag.name}', теперь {bag.available_quantity} шт.")
+            
+            # ✅ ИСПРАВЛЕНО: статус как строка (БЕЗ ENUM)
+            booking.status = "cancelled"
+            booking.cancelled_at = datetime.utcnow()
+            db.commit()
+            
+            print(f"✅ Бронирование #{booking.order_number} отменено пользователем {user_id}")
+            
+            return {
+                "success": True,
+                "message": "Бронирование отменено",
+                "order_id": booking.id,
+                "order_number": booking.order_number
+            }
+        
+        return {
+            "success": False,
+            "message": "Бронь не найдена или уже отменена"
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 # Обновите эндпоинт получения сюрприз-пакетов, чтобы исключить забронированные
 # backend/main.py - обновите эндпоинт получения сюрпризов
@@ -6943,123 +8371,205 @@ PAYMENT_CONFIG = {
     }
 }
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/payment/initiate")
-async def initiate_payment(request: Request, payment_data: PaymentRequest, db: Session = Depends(get_db)):
+async def initiate_payment(request: Request, db: Session = Depends(get_db)):
     """
     Initiate payment - IMITATION MODE
     When real APIs are available, switch PAYMENT_CONFIG["mode"] to "production"
     """
-    user_id = request.cookies.get("user_id")
     
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    # Verify order exists and belongs to user
-    order = db.query(Order).filter(
-        Order.id == payment_data.order_id,
-        Order.user_id == int(user_id)
-    ).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Check if order is already paid
-    if order.payment_status == "paid":
-        return PaymentResponse(
-            success=True,
-            payment_id=order.payment_id or f"PAY-{uuid.uuid4().hex[:12].upper()}",
-            transaction_id=order.transaction_id or f"TXN-{uuid.uuid4().hex[:16].upper()}",
-            amount=payment_data.amount,
-            status="completed",
-            message="Order already paid",
-            payment_method=payment_data.payment_method.value,
-            timestamp=datetime.utcnow().isoformat()
-        ).dict()
-    
-    # Generate unique IDs
-    payment_id = f"PAY-{uuid.uuid4().hex[:12].upper()}"
-    transaction_id = f"TXN-{uuid.uuid4().hex[:16].upper()}"
-    
-    # Simulate payment processing delay
-    await asyncio.sleep(1.5)
-    
-    # DEMO MODE: Simulate payment result
-    if PAYMENT_CONFIG["mode"] == "demo":
-        # 95% success rate for realistic testing
-        is_successful = random.random() < PAYMENT_CONFIG["demo_success_rate"]
-        
-        if is_successful:
-            # Update order with payment info
-            order.payment_id = payment_id
-            order.transaction_id = transaction_id
-            order.payment_status = "paid"
-            order.payment_method = payment_data.payment_method.value
-            order.paid_at = datetime.utcnow()
-            order.payment_amount = payment_data.amount
-            order.status = OrderStatus.CONFIRMED  # Auto-confirm after payment
-            order.confirmed_at = datetime.utcnow()
-            db.commit()
-            
-            # Create tracking record
-            tracking = OrderTracking(
-                order_id=order.id,
-                status=order.status,
-                delivery_status=order.delivery_status,
-                message=f"✅ Payment completed via {payment_data.payment_method.value} (Demo Mode)",
-                created_at=datetime.utcnow()
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
             )
-            db.add(tracking)
-            db.commit()
-            
-            # Store transaction for reference
-            payment_transactions[payment_id] = {
-                "order_id": order.id,
-                "order_number": order.order_number,
-                "amount": payment_data.amount,
-                "payment_method": payment_data.payment_method.value,
-                "card_last4": payment_data.card_number[-4:] if payment_data.card_number else "0000",
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
+    
+    try:
+        import uuid
+        import asyncio
+        import random
+        from datetime import datetime
+        
+        data = await request.json()
+        order_id = data.get("order_id")
+        amount = data.get("amount")
+        payment_method = data.get("payment_method", "kaspi")
+        card_number = data.get("card_number", "")
+        
+        if not order_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "order_id is required"}
+            )
+        
+        if not amount or amount <= 0:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Invalid amount"}
+            )
+        
+        # Verify order exists and belongs to user
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.user_id == int(user_id)
+        ).first()
+        
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # Check if order is already paid
+        if order.payment_status == "paid":
+            return {
+                "success": True,
+                "payment_id": order.payment_id or f"PAY-{uuid.uuid4().hex[:12].upper()}",
+                "transaction_id": order.transaction_id or f"TXN-{uuid.uuid4().hex[:16].upper()}",
+                "amount": amount,
                 "status": "completed",
+                "message": "Order already paid",
+                "payment_method": payment_method,
                 "timestamp": datetime.utcnow().isoformat()
             }
-            
-            result = PaymentResponse(
-                success=True,
-                payment_id=payment_id,
-                transaction_id=transaction_id,
-                amount=payment_data.amount,
-                status="completed",
-                message=f"✅ Payment successful via {payment_data.payment_method.value}",
-                payment_method=payment_data.payment_method.value,
-                timestamp=datetime.utcnow().isoformat()
-            )
-        else:
-            # Simulate payment failure
-            result = PaymentResponse(
-                success=False,
-                payment_id=payment_id,
-                transaction_id=transaction_id,
-                amount=payment_data.amount,
-                status="failed",
-                message="❌ Payment failed. Insufficient funds or card declined. Please try another card.",
-                payment_method=payment_data.payment_method.value,
-                timestamp=datetime.utcnow().isoformat()
-            )
         
-        return result.dict()
-    
-    # PRODUCTION MODE: Real API integration
-    else:
-        # This will be implemented when you get real API keys
-        if payment_data.payment_method == PaymentMethod.KASPI and PAYMENT_CONFIG["kaspi"]["enabled"]:
-            return await process_real_kaspi_payment(order, payment_data, payment_id, transaction_id, db)
-        elif payment_data.payment_method == PaymentMethod.HALYK and PAYMENT_CONFIG["halyk"]["enabled"]:
-            return await process_real_halyk_payment(order, payment_data, payment_id, transaction_id, db)
+        # Generate unique IDs
+        payment_id = f"PAY-{uuid.uuid4().hex[:12].upper()}"
+        transaction_id = f"TXN-{uuid.uuid4().hex[:16].upper()}"
+        
+        # Simulate payment processing delay
+        await asyncio.sleep(1.5)
+        
+        # DEMO MODE: Simulate payment result
+        PAYMENT_CONFIG = {
+            "mode": "demo",
+            "demo_success_rate": 0.95,
+            "kaspi": {"enabled": True},
+            "halyk": {"enabled": True}
+        }
+        
+        if PAYMENT_CONFIG.get("mode") == "demo":
+            # 95% success rate for realistic testing
+            is_successful = random.random() < PAYMENT_CONFIG.get("demo_success_rate", 0.95)
+            
+            if is_successful:
+                # ✅ ИСПРАВЛЕНО: статус как строка (БЕЗ ENUM)
+                order.payment_id = payment_id
+                order.transaction_id = transaction_id
+                order.payment_status = "paid"
+                order.payment_method = payment_method
+                order.paid_at = datetime.utcnow()
+                order.payment_amount = amount
+                order.status = "confirmed"
+                order.confirmed_at = datetime.utcnow()
+                db.commit()
+                
+                # Create tracking record
+                tracking = OrderTracking(
+                    order_id=order.id,
+                    status=order.status,
+                    message=f"✅ Payment completed via {payment_method} (Demo Mode)",
+                    created_at=datetime.utcnow()
+                )
+                db.add(tracking)
+                db.commit()
+                
+                # Store transaction for reference
+                payment_transactions = {}
+                payment_transactions[payment_id] = {
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "amount": amount,
+                    "payment_method": payment_method,
+                    "card_last4": card_number[-4:] if card_number else "0000",
+                    "status": "completed",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                
+                result = {
+                    "success": True,
+                    "payment_id": payment_id,
+                    "transaction_id": transaction_id,
+                    "amount": amount,
+                    "status": "completed",
+                    "message": f"✅ Payment successful via {payment_method}",
+                    "payment_method": payment_method,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            else:
+                # Simulate payment failure
+                result = {
+                    "success": False,
+                    "payment_id": payment_id,
+                    "transaction_id": transaction_id,
+                    "amount": amount,
+                    "status": "failed",
+                    "message": "❌ Payment failed. Insufficient funds or card declined. Please try another card.",
+                    "payment_method": payment_method,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            
+            return result
+        
+        # PRODUCTION MODE: Real API integration
         else:
-            # Fallback to demo if real API not configured
-            return {
-                "success": False,
-                "message": f"Real {payment_data.payment_method.value} API not configured yet. Please enable in production."
-            }
+            # This will be implemented when you get real API keys
+            if payment_method == "kaspi" and PAYMENT_CONFIG.get("kaspi", {}).get("enabled", False):
+                # return await process_real_kaspi_payment(order, data, payment_id, transaction_id, db)
+                return {
+                    "success": False,
+                    "message": "Real Kaspi API not configured yet. Please enable in production."
+                }
+            elif payment_method == "halyk" and PAYMENT_CONFIG.get("halyk", {}).get("enabled", False):
+                # return await process_real_halyk_payment(order, data, payment_id, transaction_id, db)
+                return {
+                    "success": False,
+                    "message": "Real Halyk API not configured yet. Please enable in production."
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": f"Real {payment_method} API not configured yet. Please enable in production."
+                }
+        
+    except Exception as e:
+        print(f"❌ Ошибка оплаты: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+    
 
 async def process_real_kaspi_payment(order: Order, payment_data: PaymentRequest, payment_id: str, transaction_id: str, db: Session):
     """Process real Kaspi payment (to be implemented when you have API keys)"""
@@ -7221,89 +8731,176 @@ async def set_payment_mode(request: Request):
     
     raise HTTPException(status_code=400, detail="Invalid mode. Use 'demo' or 'production'")
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/payment/initiate")
-async def initiate_payment(request: Request, payment_data: PaymentRequest, db: Session = Depends(get_db)):
+async def initiate_payment(request: Request, db: Session = Depends(get_db)):
     """Initiate payment - IMITATION MODE (ready for real API)"""
-    user_id = request.cookies.get("user_id")
     
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    # Verify order exists
-    order = db.query(Order).filter(
-        Order.id == payment_data.order_id,
-        Order.user_id == int(user_id)
-    ).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Generate unique IDs
-    payment_id = f"PAY-{uuid.uuid4().hex[:12].upper()}"
-    transaction_id = f"TXN-{uuid.uuid4().hex[:16].upper()}"
-    
-    # Simulate payment processing (2 seconds delay)
-    await asyncio.sleep(1)  # Simulate network delay
-    
-    # IMITATION: Always succeed (with 95% success rate for realism)
-    import random
-    is_successful = random.random() < 0.95  # 95% success rate
-    
-    if is_successful:
-        # Update order with payment info
-        order.payment_id = payment_id
-        order.payment_status = "paid"
-        order.payment_method = payment_data.payment_method.value
-        order.paid_at = datetime.utcnow()
-        order.status = OrderStatus.CONFIRMED
-        db.commit()
-        
-        # Create tracking record
-        tracking = OrderTracking(
-            order_id=order.id,
-            status=order.status,
-            delivery_status=order.delivery_status,
-            message=f"✅ Payment completed via {payment_data.payment_method.value} (Imitation)",
-            created_at=datetime.utcnow()
-        )
-        db.add(tracking)
-        db.commit()
-        
-        # Store transaction for reference
-        payment_transactions[payment_id] = {
-            "order_id": order.id,
-            "order_number": order.order_number,
-            "amount": payment_data.amount,
-            "payment_method": payment_data.payment_method.value,
-            "card_last4": payment_data.card_number[-4:] if payment_data.card_number else "0000",
-            "status": "completed",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        result = PaymentResponse(
-            success=True,
-            payment_id=payment_id,
-            transaction_id=transaction_id,
-            amount=payment_data.amount,
-            status="completed",
-            message=f"✅ Payment successful via {payment_data.payment_method.value}",
-            payment_method=payment_data.payment_method.value,
-            timestamp=datetime.utcnow().isoformat()
-        )
-    else:
-        # Simulate payment failure
-        result = PaymentResponse(
-            success=False,
-            payment_id=payment_id,
-            transaction_id=transaction_id,
-            amount=payment_data.amount,
-            status="failed",
-            message="❌ Payment failed. Insufficient funds or card declined.",
-            payment_method=payment_data.payment_method.value,
-            timestamp=datetime.utcnow().isoformat()
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
         )
     
-    return result.dict()
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
+    
+    try:
+        import uuid
+        import asyncio
+        import random
+        from datetime import datetime
+        
+        data = await request.json()
+        
+        order_id = data.get("order_id")
+        amount = data.get("amount")
+        payment_method = data.get("payment_method", "kaspi")
+        card_number = data.get("card_number", "")
+        
+        if not order_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "order_id is required"}
+            )
+        
+        if not amount or amount <= 0:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Invalid amount"}
+            )
+        
+        # Verify order exists and belongs to user
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.user_id == int(user_id)
+        ).first()
+        
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # Check if order is already paid
+        if order.payment_status == "paid":
+            return {
+                "success": True,
+                "payment_id": order.payment_id or f"PAY-{uuid.uuid4().hex[:12].upper()}",
+                "transaction_id": order.transaction_id or f"TXN-{uuid.uuid4().hex[:16].upper()}",
+                "amount": amount,
+                "status": "completed",
+                "message": "Order already paid",
+                "payment_method": payment_method,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        # Generate unique IDs
+        payment_id = f"PAY-{uuid.uuid4().hex[:12].upper()}"
+        transaction_id = f"TXN-{uuid.uuid4().hex[:16].upper()}"
+        
+        # Simulate payment processing (1 second delay)
+        await asyncio.sleep(1)
+        
+        # IMITATION: Always succeed (with 95% success rate for realism)
+        is_successful = random.random() < 0.95  # 95% success rate
+        
+        # Store transactions globally
+        if 'payment_transactions' not in globals():
+            global payment_transactions
+            payment_transactions = {}
+        
+        if is_successful:
+            # ✅ ИСПРАВЛЕНО: статус как строка (БЕЗ ENUM)
+            order.payment_id = payment_id
+            order.payment_status = "paid"
+            order.payment_method = payment_method
+            order.paid_at = datetime.utcnow()
+            order.status = "confirmed"
+            order.confirmed_at = datetime.utcnow()
+            db.commit()
+            
+            # Create tracking record
+            tracking = OrderTracking(
+                order_id=order.id,
+                status=order.status,
+                message=f"✅ Payment completed via {payment_method} (Imitation)",
+                created_at=datetime.utcnow()
+            )
+            db.add(tracking)
+            db.commit()
+            
+            # Store transaction for reference
+            payment_transactions[payment_id] = {
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "amount": amount,
+                "payment_method": payment_method,
+                "card_last4": card_number[-4:] if card_number else "0000",
+                "status": "completed",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            print(f"✅ Оплата успешна: {order.order_number} через {payment_method}")
+            
+            return {
+                "success": True,
+                "payment_id": payment_id,
+                "transaction_id": transaction_id,
+                "amount": amount,
+                "status": "completed",
+                "message": f"✅ Payment successful via {payment_method}",
+                "payment_method": payment_method,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            # Simulate payment failure
+            print(f"❌ Оплата отклонена: {order.order_number} через {payment_method}")
+            
+            return {
+                "success": False,
+                "payment_id": payment_id,
+                "transaction_id": transaction_id,
+                "amount": amount,
+                "status": "failed",
+                "message": "❌ Payment failed. Insufficient funds or card declined.",
+                "payment_method": payment_method,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+    except Exception as e:
+        print(f"❌ Ошибка оплаты: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 @app.get("/api/payment/status/{payment_id}")
 async def get_payment_status(payment_id: str):
@@ -7638,126 +9235,194 @@ async def clear_cart(request: Request, db: Session = Depends(get_db)):
     return {"success": True, "message": "Cart cleared"}
 
 # backend/main.py - обнови create_orders_from_cart
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/orders/create-from-cart")
 async def create_orders_from_cart(request: Request, db: Session = Depends(get_db)):
     """Create orders from all items in cart"""
     
-    user_id = get_user_id_from_request(request)
-    
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    data = await request.json()
-    customer_lat = data.get("lat")
-    customer_lon = data.get("lon")
-    customer_address = data.get("address")
-    delivery_type = data.get("delivery_type", "delivery")
-    
-    cart_items = db.query(CartItem).filter(CartItem.user_id == user_id).all()
-    
-    if not cart_items:
-        raise HTTPException(status_code=400, detail="Cart is empty")
-    
-    orders_created = []
-    total_amount = 0
-    
-    for cart_item in cart_items:
-        bag = db.query(SurpriseBag).filter(
-            SurpriseBag.id == cart_item.surprise_bag_id,
-            SurpriseBag.is_active == True,
-            SurpriseBag.available_quantity >= cart_item.quantity
-        ).first()
-        
-        if not bag:
-            continue
-        
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        
-        order_number = f"ORD-{secrets.token_hex(4).upper()}"
-        amount = bag.discounted_price * cart_item.quantity
-        
-        # ✅ УБРАЛИ delivery_deadline ОТСЮДА!
-        order = Order(
-            user_id=int(user_id),
-            supplier_id=bag.supplier_id,
-            surprise_bag_id=bag.id,
-            order_number=order_number,
-            status=OrderStatus.PENDING,
-            delivery_type=delivery_type,
-            customer_lat=customer_lat if delivery_type == "delivery" else None,
-            customer_lon=customer_lon if delivery_type == "delivery" else None,
-            customer_address=customer_address,
-            amount_paid=amount,
-            total_amount=amount,
-            items=json.dumps([{
-                "bag_id": bag.id,
-                "name": bag.name,
-                "price": bag.discounted_price,
-                "quantity": cart_item.quantity,
-                "original_price": bag.original_price,
-                "image_url": bag.image_url
-            }]),
-            pickup_time=f"{bag.pickup_start_time} - {bag.pickup_end_time}" if bag.pickup_start_time else None,
-            created_at=datetime.utcnow()
-            # ❌ НЕТ delivery_deadline ЗДЕСЬ!
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
         )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
         
-        db.add(order)
+        # Проверяем что это клиент
+        if payload.get("role") != "customer":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Only customers can create orders"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
+    
+    try:
+        import secrets
+        import json
+        from datetime import datetime
         
-        bag.available_quantity -= cart_item.quantity
-        total_amount += amount
-        orders_created.append(order)
-    
-    for cart_item in cart_items:
-        db.delete(cart_item)
-    
-    db.commit()
-    
-    # Отправляем уведомления курьерам ТОЛЬКО для доставки
-    if delivery_type == "delivery":
-        for order in orders_created:
-            try:
-                supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
-                supplier_name = supplier.business_name if supplier else "Ресторан"
-                
-                await manager.broadcast({
-                    "type": "new_order_for_courier",
-                    "data": {
-                        "order_id": order.id,
-                        "order_number": order.order_number,
-                        "supplier_name": supplier_name,
-                        "amount": order.amount_paid,
-                        "bag_name": "Заказ из корзины",
-                        "customer_address": order.customer_address,
-                        "supplier_lat": supplier.lat if supplier else None,
-                        "supplier_lon": supplier.lon if supplier else None,
-                        "customer_lat": order.customer_lat,
-                        "customer_lon": order.customer_lon
-                    }
-                }, channel="couriers")
-                print(f"📢 Уведомление о заказе #{order.id} отправлено курьерам")
-            except Exception as e:
-                print(f"❌ Ошибка отправки уведомления для заказа #{order.id}: {e}")
-    
-    await manager.broadcast({
-        "type": "order_created",
-        "user_id": int(user_id),
-        "order_count": len(orders_created),
-        "total_amount": total_amount
-    })
-    
-    return {
-        "success": True,
-        "orders": [
-            {
-                "order_id": order.id,
-                "order_number": order.order_number,
-                "amount": order.amount_paid
-            } for order in orders_created
-        ],
-        "total_amount": total_amount,
-        "message": f"Created {len(orders_created)} order(s)"
-    }
+        data = await request.json()
+        customer_lat = data.get("lat")
+        customer_lon = data.get("lon")
+        customer_address = data.get("address")
+        delivery_type = data.get("delivery_type", "delivery")
+        
+        if delivery_type == "delivery" and (not customer_lat or not customer_lon or not customer_address):
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Delivery address is required for delivery"}
+            )
+        
+        cart_items = db.query(CartItem).filter(CartItem.user_id == int(user_id)).all()
+        
+        if not cart_items:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Cart is empty"}
+            )
+        
+        orders_created = []
+        total_amount = 0
+        
+        for cart_item in cart_items:
+            bag = db.query(SurpriseBag).filter(
+                SurpriseBag.id == cart_item.surprise_bag_id,
+                SurpriseBag.is_active == True,
+                SurpriseBag.available_quantity >= cart_item.quantity
+            ).first()
+            
+            if not bag:
+                continue
+            
+            supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+            
+            order_number = f"ORD-{secrets.token_hex(4).upper()}"
+            amount = bag.discounted_price * cart_item.quantity
+            
+            # ✅ ИСПРАВЛЕНО: статус как строка (БЕЗ ENUM)
+            order = Order(
+                user_id=int(user_id),
+                supplier_id=bag.supplier_id,
+                surprise_bag_id=bag.id,
+                order_number=order_number,
+                status="pending",
+                delivery_type=delivery_type,
+                customer_lat=customer_lat if delivery_type == "delivery" else None,
+                customer_lon=customer_lon if delivery_type == "delivery" else None,
+                customer_address=customer_address,
+                amount_paid=amount,
+                total_amount=amount,
+                items=json.dumps([{
+                    "bag_id": bag.id,
+                    "name": bag.name,
+                    "price": bag.discounted_price,
+                    "quantity": cart_item.quantity,
+                    "original_price": bag.original_price,
+                    "image_url": bag.image_url
+                }]),
+                pickup_time=f"{bag.pickup_start_time} - {bag.pickup_end_time}" if bag.pickup_start_time else None,
+                created_at=datetime.utcnow()
+            )
+            
+            db.add(order)
+            db.flush()
+            
+            bag.available_quantity -= cart_item.quantity
+            if bag.available_quantity <= 0:
+                bag.is_active = False
+            
+            total_amount += amount
+            orders_created.append(order)
+        
+        # Удаляем все товары из корзины
+        for cart_item in cart_items:
+            db.delete(cart_item)
+        
+        db.commit()
+        
+        # Отправляем уведомления курьерам ТОЛЬКО для доставки
+        if delivery_type == "delivery":
+            for order in orders_created:
+                try:
+                    supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+                    supplier_name = supplier.business_name if supplier else "Ресторан"
+                    
+                    await manager.broadcast({
+                        "type": "new_order_for_courier",
+                        "data": {
+                            "order_id": order.id,
+                            "order_number": order.order_number,
+                            "supplier_name": supplier_name,
+                            "amount": order.amount_paid,
+                            "bag_name": "Заказ из корзины",
+                            "customer_address": order.customer_address,
+                            "supplier_lat": supplier.lat if supplier else None,
+                            "supplier_lon": supplier.lon if supplier else None,
+                            "customer_lat": order.customer_lat,
+                            "customer_lon": order.customer_lon
+                        }
+                    }, channel="couriers")
+                    print(f"📢 Уведомление о заказе #{order.id} отправлено курьерам")
+                except Exception as e:
+                    print(f"❌ Ошибка отправки уведомления для заказа #{order.id}: {e}")
+        
+        await manager.broadcast({
+            "type": "order_created",
+            "user_id": int(user_id),
+            "order_count": len(orders_created),
+            "total_amount": total_amount
+        })
+        
+        return {
+            "success": True,
+            "orders": [
+                {
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "amount": order.amount_paid,
+                    "status": order.status
+                } for order in orders_created
+            ],
+            "total_amount": total_amount,
+            "message": f"Created {len(orders_created)} order(s)"
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.put("/api/supplier/orders/{order_id}/confirm")
 async def confirm_order_by_supplier(
@@ -7767,58 +9432,113 @@ async def confirm_order_by_supplier(
 ):
     """Ресторан подтверждает заказ"""
     
-    # Получаем user_id из токена или cookies
-    user_id = request.cookies.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    # Проверяем, что пользователь - владелец ресторана
-    supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
-    if not supplier:
-        raise HTTPException(status_code=403, detail="Not a supplier")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем что это поставщик
+        if payload.get("role") != "supplier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Not a supplier"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    # Получаем заказ
-    order = db.query(Order).filter(
-        Order.id == order_id,
-        Order.supplier_id == supplier.id
-    ).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Меняем статус
-    order.status = OrderStatus.CONFIRMED
-    db.commit()
-    
-    # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРАМ
-    if not order.assigned_courier_id:
-        try:
-            await manager.broadcast({
-                "type": "new_order_for_courier",
-                "data": {
-                    "order_id": order.id,
-                    "order_number": order.order_number,
-                    "supplier_name": supplier.business_name,
-                    "amount": order.amount_paid,
-                    "bag_name": "Заказ подтвержден",
-                    "customer_address": order.customer_address,
-                    "supplier_lat": supplier.lat,
-                    "supplier_lon": supplier.lon,
-                    "customer_lat": order.customer_lat,
-                    "customer_lon": order.customer_lon
-                }
-            }, channel="courier_notifications")
-            print(f"📢 Уведомление о подтверждении заказа #{order.id} отправлено курьерам")
-        except Exception as e:
-            print(f"❌ Ошибка отправки уведомления: {e}")
-    
-    return {
-        "success": True,
-        "message": "Order confirmed",
-        "order_id": order.id
-    }
-
-
+    try:
+        # Проверяем, что пользователь - владелец ресторана
+        supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
+        if not supplier:
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Supplier profile not found"}
+            )
+        
+        # Получаем заказ
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.supplier_id == supplier.id
+        ).first()
+        
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: статус как строка (БЕЗ ENUM)
+        order.status = "confirmed"
+        order.confirmed_at = datetime.utcnow()
+        db.commit()
+        
+        print(f"✅ Поставщик {supplier.business_name} подтвердил заказ #{order.order_number}")
+        
+        # ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КУРЬЕРАМ
+        if not order.assigned_courier_id:
+            try:
+                await manager.broadcast({
+                    "type": "new_order_for_courier",
+                    "data": {
+                        "order_id": order.id,
+                        "order_number": order.order_number,
+                        "supplier_name": supplier.business_name,
+                        "amount": order.amount_paid,
+                        "bag_name": order.bag_name or "Заказ подтвержден",
+                        "customer_address": order.customer_address,
+                        "supplier_lat": supplier.lat,
+                        "supplier_lon": supplier.lon,
+                        "customer_lat": order.customer_lat,
+                        "customer_lon": order.customer_lon
+                    }
+                }, channel="courier_notifications")
+                print(f"📢 Уведомление о подтверждении заказа #{order.id} отправлено курьерам")
+            except Exception as e:
+                print(f"❌ Ошибка отправки уведомления: {e}")
+        
+        return {
+            "success": True,
+            "message": "Order confirmed",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "status": order.status
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 @app.get("/api/orders/my")
 async def get_my_orders(request: Request, db: Session = Depends(get_db)):
@@ -8818,44 +10538,158 @@ async def logout():
 
 # ============ DELIVERY TRACKING ROUTES ============
 @app.post("/api/delivery/{order_id}/start")
-async def start_real_delivery(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+async def start_real_delivery(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Начать реальную доставку заказа"""
     
-    supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
-    if not supplier:
-        raise HTTPException(status_code=404, detail="Supplier not found")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    if not order.customer_lat or not order.customer_lon:
-        raise HTTPException(status_code=400, detail="Customer location not available")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем что это курьер
+        if payload.get("role") != "courier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Not a courier"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    distance = calculate_distance(supplier.lat, supplier.lon, order.customer_lat, order.customer_lon)
-    eta_minutes = calculate_eta(distance, 40)
-    
-    waypoints = generate_waypoints(supplier.lat, supplier.lon, order.customer_lat, order.customer_lon, 100)
-    
-    delivery_cache[str(order_id)] = {
-        "waypoints": waypoints,
-        "current_index": 0,
-        "total_distance": distance,
-        "eta_minutes": eta_minutes,
-        "is_active": True,
-        "started_at": datetime.utcnow().isoformat()
-    }
-    
-    order.status = OrderStatus.OUT_FOR_DELIVERY
+    try:
+        from datetime import datetime
+        import math
+        
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # Проверяем что заказ назначен этому курьеру
+        if order.assigned_courier_id != int(user_id):
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Order not assigned to you"}
+            )
+        
+        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
+        if not supplier:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Supplier not found"}
+            )
+        
+        if not supplier.lat or not supplier.lon:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Supplier location not available"}
+            )
+        
+        if not order.customer_lat or not order.customer_lon:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Customer location not available"}
+            )
+        
+        # Расчет расстояния и ETA
+        distance = calculate_distance(supplier.lat, supplier.lon, order.customer_lat, order.customer_lon)
+        eta_minutes = calculate_eta(distance, 40)
+        
+        # Генерация промежуточных точек
+        waypoints = generate_waypoints(supplier.lat, supplier.lon, order.customer_lat, order.customer_lon, 100)
+        
+        # Сохраняем данные в кэш
+        if 'delivery_cache' not in globals():
+            global delivery_cache
+            delivery_cache = {}
+        
+        delivery_cache[str(order_id)] = {
+            "waypoints": waypoints,
+            "current_index": 0,
+            "total_distance": distance,
+            "eta_minutes": eta_minutes,
+            "is_active": True,
+            "started_at": datetime.utcnow().isoformat()
+        }
+        
+        # ✅ ИСПРАВЛЕНО: статус как строка (БЕЗ ENUM)
+        order.status = "out_for_delivery"
+        order.delivery_started_at = datetime.utcnow()
+        order.driver_lat = supplier.lat
+        order.driver_lon = supplier.lon
+        
+        # Обновляем статус курьера
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+        if courier:
+            courier.current_order_status = "out_for_delivery"
+            courier.is_available = False
+        
+        db.commit()
+        
+        print(f"✅ Курьер начал доставку заказа #{order.order_number}, ETA: {eta_minutes} мин")
+        
+        # Уведомляем клиента
+        try:
+            await manager.broadcast({
+                "type": "delivery_started",
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "eta_minutes": eta_minutes,
+                "distance_km": round(distance, 2)
+            }, channel=f"user_{order.user_id}")
+        except Exception as e:
+            print(f"⚠️ Ошибка отправки уведомления клиенту: {e}")
+        
+        return {
+            "success": True,
+            "order_id": order_id,
+            "order_number": order.order_number,
+            "distance_km": round(distance, 2),
+            "eta_minutes": eta_minutes,
+            "status": order.status
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
-    order.driver_lat = supplier.lat
-    order.driver_lon = supplier.lon
-    db.commit()
-    
-    return {
-        "success": True,
-        "order_id": order_id,
-        "distance_km": round(distance, 2),
-        "eta_minutes": eta_minutes
-    }
 @app.get("/api/delivery/{order_id}/position")
 async def get_delivery_position(order_id: int, request: Request):
     """Получить текущую позицию доставки - ЧИСТЫЙ SQL"""
@@ -9888,6 +11722,7 @@ async def delete_food(food_id: int, db: Session = Depends(get_db)):
         db.delete(food)
         db.commit()
     return RedirectResponse(url="/admin", status_code=303)
+# backend/main.py - ИСПРАВЛЕННАЯ РЕГИСТРАЦИЯ ПОСТАВЩИКА
 
 @app.post("/supplier/register", response_class=HTMLResponse)
 async def supplier_register_form_handler(
@@ -9900,7 +11735,7 @@ async def supplier_register_form_handler(
         # Получаем данные из формы
         form_data = await request.form()
         
-        print(f"📥 Form data received: {dict(form_data)}")  # Отладка
+        print(f"📥 Form data received: {dict(form_data)}")
         
         # Извлекаем данные
         business_name = form_data.get("business_name")
@@ -9969,13 +11804,16 @@ async def supplier_register_form_handler(
                 "lang": "ru"
             })
         
-        # Создаем пользователя
+        # ✅ ИСПРАВЛЕНО: создаем пользователя с role = 'supplier' (строка, БЕЗ ENUM)
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
         user = User(
             email=email,
             phone=phone,
-            password=hash_password(password),
+            password=password_hash,
             full_name=business_name,
-            role=UserRole.SUPPLIER,
+            role="supplier",  # ✅ СТРОКА, БЕЗ ENUM
             is_active=True,
             created_at=datetime.utcnow()
         )
@@ -10004,18 +11842,21 @@ async def supplier_register_form_handler(
         print(f"✅ Supplier registered: {email}")
         
         # Создаем JWT токен
-        token = create_access_token(data={
+        from jose import jwt
+        import datetime
+        
+        token_data = {
             "sub": str(user.id),
             "role": "supplier",
             "supplier_id": supplier.id,
-            "email": user.email
-        })
+            "email": user.email,
+            "exp": datetime.utcnow() + timedelta(days=30)
+        }
+        
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
         
         # Редирект на дашборд с токеном
         response = RedirectResponse(url=f"/supplier/dashboard?token={token}", status_code=303)
-        
-        # Опционально: установить токен в cookie (если нужно)
-        # response.set_cookie(key="supplier_token", value=token, httponly=True, max_age=60*60*24*30)
         
         return response
         
@@ -10028,6 +11869,7 @@ async def supplier_register_form_handler(
             "error": f"Ошибка регистрации: {str(e)}",
             "lang": "ru"
         })
+    
 @app.get("/supplier/register")
 async def supplier_register_page(request: Request, lang: str = "ru"):
     """Страница регистрации поставщика"""
@@ -10321,49 +12163,110 @@ async def supplier_login_page(request: Request, lang: str = "ru"):
     """Страница логина поставщика"""
     return templates.TemplateResponse("supplier_login.html", {"request": request, "lang": lang})
 # backend/main.py - добавьте
+# backend/main.py - ИСПРАВЛЕННЫЙ ЛОГИН ПОСТАВЩИКА
+
 @app.post("/supplier/api/login")
 async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
     try:
         data = await request.json()
-        email = data.get("email")
-        password = data.get("password")
+        email = data.get("email", "").strip()
+        password = data.get("password", "")
         
-        print(f"🔐 LOGIN: email={email}, password={password}")
+        print(f"🔐 LOGIN: email={email}")
         
+        if not email or not password:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Email и пароль обязательны"}
+            )
+        
+        # ✅ ИСПРАВЛЕНО: role = 'supplier' (строка, БЕЗ ENUM)
         user = db.query(User).filter(
             User.email == email,
-            User.role == UserRole.SUPPLIER
+            User.role == "supplier"  # ✅ СТРОКА, БЕЗ ENUM
         ).first()
         
         if not user:
             print(f"❌ User not found: {email}")
-            return JSONResponse(status_code=401, content={"success": False, "message": "Invalid credentials"})
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "Invalid credentials"}
+            )
         
-        print(f"✅ User found: {user.id}, stored hash: {user.password[:20]}...")
+        if not user.is_active:
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "message": "Account is deactivated"}
+            )
         
-        if not verify_password(password, user.password):
+        print(f"✅ User found: {user.id}")
+        
+        # Проверка пароля
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        if user.password != password_hash:
             print(f"❌ Password mismatch")
-            return JSONResponse(status_code=401, content={"success": False, "message": "Invalid credentials"})
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "Invalid credentials"}
+            )
         
         print(f"✅ Password verified")
         
+        # Получаем профиль поставщика
         supplier = db.query(Supplier).filter(Supplier.user_id == user.id).first()
         
-        token = create_access_token(data={
+        if not supplier:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Supplier profile not found"}
+            )
+        
+        if not supplier.is_active:
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "message": "Supplier is not active"}
+            )
+        
+        # Создаем JWT токен
+        from jose import jwt
+        import datetime
+        
+        token_data = {
             "sub": str(user.id),
             "role": "supplier",
             "supplier_id": supplier.id,
-            "email": user.email
-        })
+            "email": user.email,
+            "exp": datetime.utcnow() + timedelta(days=30)
+        }
         
-        return {"success": True, "token": token, "supplier": {"id": supplier.id, "business_name": supplier.business_name, "email": user.email}}
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+        
+        print(f"✅ Login successful: {email}")
+        
+        return {
+            "success": True,
+            "token": token,
+            "supplier": {
+                "id": supplier.id,
+                "business_name": supplier.business_name,
+                "business_type": supplier.business_type,
+                "email": user.email,
+                "phone": supplier.phone,
+                "city": supplier.city,
+                "address": supplier.address
+            }
+        }
         
     except Exception as e:
         print(f"❌ Login error: {e}")
         import traceback
         traceback.print_exc()
-        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
-
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
 # backend/main.py - ЭНДПОИНТ ЛОГИНА
 
 @app.post("/supplier/login")
@@ -11059,6 +12962,7 @@ async def debug_bags(request: Request):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.delete("/api/supplier/clear-all-bags")
 async def clear_all_surprise_bags(
@@ -11067,10 +12971,13 @@ async def clear_all_surprise_bags(
 ):
     """Удаление ВСЕХ сюрприз-пакетов поставщика с очисткой связей"""
     
-    # Проверяем токен поставщика
+    # ✅ Проверяем токен поставщика
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"success": False, "message": "Unauthorized"})
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": "Bearer token required"}
+        )
     
     token = auth_header.split(" ")[1]
     
@@ -11078,43 +12985,80 @@ async def clear_all_surprise_bags(
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "message": "Invalid token"}
+            )
         
-        # Импортируем модели
-        from backend.models import Supplier, SurpriseBag, CartItem, Order, TemporaryReservation
+        # Проверяем что это поставщик
+        if payload.get("role") != "supplier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "message": "Not a supplier"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": f"Authentication error: {str(e)}"}
+        )
+    
+    try:
+        from backend.models import Supplier, SurpriseBag, CartItem, Order, TemporaryReservation, SurpriseBagItem
         
         # Находим поставщика
         supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
         if not supplier:
-            return JSONResponse(status_code=404, content={"success": False, "message": "Supplier not found"})
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Supplier not found"}
+            )
         
         # Находим ВСЕ сюрпризы поставщика
         all_bags = db.query(SurpriseBag).filter(SurpriseBag.supplier_id == supplier.id).all()
         
         if not all_bags:
-            return JSONResponse(status_code=200, content={
-                "success": True, 
-                "message": "Нет сюрпризов для удаления", 
+            return {
+                "success": True,
+                "message": "Нет сюрпризов для удаления",
                 "deleted_count": 0
-            })
+            }
         
         # Получаем ID всех сюрпризов
         bag_ids = [bag.id for bag in all_bags]
         
-        # 1. Удаляем временные резервации (temporary_reservations)
+        print(f"🗑️ Найдено {len(bag_ids)} сюрпризов для удаления")
+        
+        # 1. Удаляем элементы сюрпризов (surprise_bag_items)
+        deleted_items = db.query(SurpriseBagItem).filter(SurpriseBagItem.surprise_bag_id.in_(bag_ids)).delete(synchronize_session=False)
+        print(f"🗑️ Удалено {deleted_items} элементов сюрпризов")
+        
+        # 2. Удаляем временные резервации (temporary_reservations)
         deleted_temp_res = db.query(TemporaryReservation).filter(TemporaryReservation.bag_id.in_(bag_ids)).delete(synchronize_session=False)
         print(f"🗑️ Удалено {deleted_temp_res} временных резерваций")
         
-        # 2. Удаляем записи из корзины (cart_items)
+        # 3. Удаляем записи из корзины (cart_items)
         deleted_cart_items = db.query(CartItem).filter(CartItem.surprise_bag_id.in_(bag_ids)).delete(synchronize_session=False)
         print(f"🗑️ Удалено {deleted_cart_items} записей из корзины")
         
-        # 3. Обновляем заказы (устанавливаем NULL)
+        # 4. Обновляем заказы (устанавливаем NULL)
         db.query(Order).filter(Order.surprise_bag_id.in_(bag_ids)).update(
-            {Order.surprise_bag_id: None}, 
+            {Order.surprise_bag_id: None},
             synchronize_session=False
         )
         
-        # 4. Теперь удаляем сами сюрпризы
+        # 5. Теперь удаляем сами сюрпризы
         deleted_count = 0
         for bag in all_bags:
             db.delete(bag)
@@ -11122,18 +13066,28 @@ async def clear_all_surprise_bags(
         
         db.commit()
         
+        print(f"✅ Удалено {deleted_count} сюрпризов поставщика {supplier.business_name}")
+        
         return {
             "success": True,
-            "message": f"Удалено {deleted_count} сюрприз-пакетов, {deleted_cart_items} из корзины, {deleted_temp_res} резерваций",
+            "message": f"Удалено {deleted_count} сюрприз-пакетов, {deleted_cart_items} из корзины, {deleted_temp_res} резерваций, {deleted_items} элементов",
             "deleted_count": deleted_count,
             "deleted_cart_items": deleted_cart_items,
-            "deleted_temp_res": deleted_temp_res
+            "deleted_temp_res": deleted_temp_res,
+            "deleted_items": deleted_items
         }
         
     except Exception as e:
-        print(f"Error clearing all bags: {e}")
+        print(f"❌ Ошибка удаления: {e}")
         db.rollback()
-        return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": f"Error: {str(e)}"}
+        )
+
+        
+# backend/main.py - ИСПРАВЛЕННАЯ ФУНКЦИЯ
+
 async def auto_cleanup_cancelled_orders():
     """Автоматическая очистка отмененных заказов каждые 30 минут"""
     while True:
@@ -11141,28 +13095,47 @@ async def auto_cleanup_cancelled_orders():
             await asyncio.sleep(1800)  # 30 минут
             
             db = SessionLocal()
+            from datetime import datetime, timedelta
+            
             one_hour_ago = datetime.utcnow() - timedelta(hours=1)
             
+            # ✅ ИСПРАВЛЕНО: статус как строка (БЕЗ ENUM)
             cancelled_orders = db.query(Order).filter(
-                Order.status == OrderStatus.CANCELLED,
+                Order.status == "cancelled",
                 Order.cancelled_at < one_hour_ago
             ).all()
             
             deleted_count = 0
             for order in cancelled_orders:
-                # Освобождаем курьера
-                if order.assigned_courier_id:
-                    courier = db.query(CourierProfile).filter(
-                        CourierProfile.user_id == order.assigned_courier_id,
-                        CourierProfile.current_order_id == order.id
-                    ).first()
-                    if courier:
-                        courier.current_order_id = None
-                        courier.current_order_status = None
-                        courier.is_available = True
-                
-                db.delete(order)
-                deleted_count += 1
+                try:
+                    # Освобождаем курьера
+                    if order.assigned_courier_id:
+                        courier = db.query(CourierProfile).filter(
+                            CourierProfile.user_id == order.assigned_courier_id,
+                            CourierProfile.current_order_id == order.id
+                        ).first()
+                        if courier:
+                            courier.current_order_id = None
+                            courier.current_order_status = None
+                            courier.is_available = True
+                            courier.is_online = True
+                            print(f"✅ Курьер освобожден от заказа #{order.id}")
+                    
+                    # ✅ ВОЗВРАЩАЕМ ТОВАР (если еще не возвращен)
+                    if order.surprise_bag_id:
+                        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+                        if bag and not bag.is_active:
+                            bag.available_quantity += 1
+                            if bag.available_quantity > 0:
+                                bag.is_active = True
+                            print(f"📦 Восстановлен товар '{bag.name}' при очистке")
+                    
+                    db.delete(order)
+                    deleted_count += 1
+                    
+                except Exception as e:
+                    print(f"❌ Ошибка при удалении заказа #{order.id}: {e}")
+                    db.rollback()
             
             db.commit()
             db.close()
@@ -11172,7 +13145,9 @@ async def auto_cleanup_cancelled_orders():
                 
         except Exception as e:
             print(f"❌ Ошибка автоочистки: {e}")
-
+            import traceback
+            traceback.print_exc()
+            await asyncio.sleep(60)  # Пауза перед повторной попыткой
 
 @app.get("/api/suppliers/{supplier_id}/orders")
 async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
@@ -11498,53 +13473,105 @@ async def force_delete_all_bags(db: Session = Depends(get_db)):
 
 
 
-
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.get("/api/supplier/stats")
 async def get_supplier_stats(request: Request, db: Session = Depends(get_db)):
     """Get statistics for the authenticated supplier"""
-    supplier_id = request.cookies.get("supplier_id")
     
-    if not supplier_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    # Get all orders
-    orders = db.query(Order).filter(Order.supplier_id == int(supplier_id)).all()
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем роль
+        if payload.get("role") != "supplier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Not a supplier"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    total_orders = len(orders)
-    pending_orders = len([o for o in orders if o.status == OrderStatus.PENDING])
-    confirmed_orders = len([o for o in orders if o.status == OrderStatus.CONFIRMED])
-    completed_orders = len([o for o in orders if o.status == OrderStatus.DELIVERED])
-    
-    total_revenue = sum([o.amount_paid or 0 for o in orders])
-    
-    # Today's orders
-    today = datetime.utcnow().date()
-    today_orders = len([o for o in orders if o.created_at and o.created_at.date() == today])
-    
-    # Get active bags count
-    active_bags = db.query(SurpriseBag).filter(
-        SurpriseBag.supplier_id == int(supplier_id),
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
-    ).count()
-    
-    return {
-        "stats": {
-            "total_orders": total_orders,
-            "pending_orders": pending_orders,
-            "confirmed_orders": confirmed_orders,
-            "completed_orders": completed_orders,
-            "today_orders": today_orders,
-            "total_revenue": total_revenue,
-            "active_bags": active_bags
+    try:
+        from datetime import datetime
+        
+        # Get all orders
+        orders = db.query(Order).filter(Order.supplier_id == int(supplier_id)).all()
+        
+        total_orders = len(orders)
+        
+        # ✅ ИСПРАВЛЕНО: проверка статусов как строки (БЕЗ ENUM)
+        pending_orders = len([o for o in orders if o.status == "pending"])
+        confirmed_orders = len([o for o in orders if o.status == "confirmed"])
+        completed_orders = len([o for o in orders if o.status == "delivered"])
+        cancelled_orders = len([o for o in orders if o.status == "cancelled"])
+        
+        total_revenue = sum([o.amount_paid or 0 for o in orders if o.status == "delivered"])
+        
+        # Today's orders
+        today = datetime.utcnow().date()
+        today_orders = len([o for o in orders if o.created_at and o.created_at.date() == today])
+        
+        # Active bags count
+        active_bags = db.query(SurpriseBag).filter(
+            SurpriseBag.supplier_id == int(supplier_id),
+            SurpriseBag.is_active == True,
+            SurpriseBag.available_quantity > 0
+        ).count()
+        
+        return {
+            "success": True,
+            "stats": {
+                "total_orders": total_orders,
+                "pending_orders": pending_orders,
+                "confirmed_orders": confirmed_orders,
+                "completed_orders": completed_orders,
+                "cancelled_orders": cancelled_orders,
+                "today_orders": today_orders,
+                "total_revenue": total_revenue,
+                "active_bags": active_bags
+            }
         }
-    }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 
 
-
-
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.put("/api/supplier/orders/{order_id}/status")
 async def update_order_status(
@@ -11553,6 +13580,43 @@ async def update_order_status(
     db: Session = Depends(get_db)
 ):
     """Update order status (for supplier dashboard)"""
+    
+    # ✅ Проверяем авторизацию
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # Проверяем что это поставщик
+        if payload.get("role") != "supplier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "error": "Not a supplier"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": f"Authentication error: {str(e)}"}
+        )
+    
     try:
         # Get JSON data
         data = await request.json()
@@ -11563,6 +13627,15 @@ async def update_order_status(
         if not new_status:
             return {"success": False, "error": "Status is required"}
         
+        # ✅ Валидные статусы
+        valid_statuses = [
+            "pending", "confirmed", "preparing", "ready_for_pickup",
+            "picked_up", "out_for_delivery", "nearby", "delivered", "cancelled"
+        ]
+        
+        if new_status not in valid_statuses:
+            return {"success": False, "error": f"Invalid status: {new_status}"}
+        
         # Find the order
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
@@ -11570,28 +13643,52 @@ async def update_order_status(
         
         print(f"📦 Found order: {order.order_number}, current status: {order.status}")
         
-        # Update status
-        old_status = order.status.value if order.status else "unknown"
-        order.status = OrderStatus(new_status)
+        # ✅ ИСПРАВЛЕНО: старый статус - строка (без .value)
+        old_status = order.status if order.status else "unknown"
+        
+        # ✅ ИСПРАВЛЕНО: новый статус - строка (БЕЗ ENUM)
+        order.status = new_status
+        
+        from datetime import datetime
         
         # Update delivery status based on order status
         if new_status == "out_for_delivery":
-            order.delivery_status = "en_route"
+            order.delivery_started_at = datetime.utcnow()
+            order.delivery_deadline = datetime.utcnow() + timedelta(minutes=30)
         elif new_status == "nearby":
-            order.delivery_status = "nearby"
+            order.driver_lat = data.get("lat")
+            order.driver_lon = data.get("lon")
+            order.last_location_update = datetime.utcnow()
         elif new_status == "delivered":
-            order.delivery_status = "arrived"
             order.delivered_at = datetime.utcnow()
+            # ✅ Освобождаем курьера
+            if order.assigned_courier_id:
+                db.query(CourierProfile).filter(
+                    CourierProfile.user_id == order.assigned_courier_id
+                ).update({
+                    "current_order_id": None,
+                    "current_order_status": None,
+                    "is_available": True,
+                    "is_online": True
+                })
         elif new_status == "confirmed":
             order.confirmed_at = datetime.utcnow()
         elif new_status == "ready_for_pickup":
             order.ready_at = datetime.utcnow()
+        elif new_status == "cancelled":
+            order.cancelled_at = datetime.utcnow()
+            # ✅ Возвращаем товар
+            if order.surprise_bag_id:
+                bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
+                if bag:
+                    bag.available_quantity += 1
+                    if bag.available_quantity > 0:
+                        bag.is_active = True
         
         # Add tracking record
         tracking = OrderTracking(
             order_id=order.id,
             status=order.status,
-            delivery_status=order.delivery_status,
             message=f"Status changed from {old_status} to {new_status}",
             created_at=datetime.utcnow()
         )
@@ -11604,13 +13701,15 @@ async def update_order_status(
             "success": True,
             "message": f"Status updated to {new_status}",
             "order_id": order.id,
+            "order_number": order.order_number,
+            "old_status": old_status,
             "new_status": new_status
         }
         
     except Exception as e:
         print(f"❌ Error updating status: {e}")
+        db.rollback()
         return {"success": False, "error": str(e)}
-
 
 @app.delete("/api/supplier/surprise-bags/{bag_id}")
 async def delete_surprise_bag(bag_id: int, request: Request, db: Session = Depends(get_db)):
@@ -11830,58 +13929,114 @@ async def remove_courier(courier_id: int, request: Request, db: Session = Depend
     
     return {"success": True, "message": "Курьер удален"}
 
+# backend/main.py - ИСПРАВЛЕННАЯ ФУНКЦИЯ
+
 @app.post("/supplier/couriers/add")
 async def add_courier(request: Request, db: Session = Depends(get_db)):
-    supplier_id = request.cookies.get("supplier_id")
-    if not supplier_id:
+    """Добавление курьера поставщиком"""
+    
+    # Получаем supplier_id из токена
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(status_code=401, content={"error": "Not authenticated"})
     
-    data = await request.json()
-    phone = format_phone_number(data.get("phone"))
-    full_name = data.get("full_name")
-    password = data.get("password")
-    car_model = data.get("car_model")
-    car_number = data.get("car_number")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            return JSONResponse(status_code=401, content={"error": "Invalid token"})
+    except:
+        return JSONResponse(status_code=401, content={"error": "Invalid token"})
     
-    # Проверяем, нет ли уже такого пользователя
-    existing_user = db.query(User).filter(User.phone == phone).first()
-    
-    if existing_user:
-        # Если пользователь уже есть, просто привязываем к поставщику
-        courier_profile = db.query(CourierProfile).filter(CourierProfile.user_id == existing_user.id).first()
-        if courier_profile:
-            courier_profile.supplier_id = int(supplier_id)
+    try:
+        data = await request.json()
+        phone = data.get("phone", "").strip()
+        full_name = data.get("full_name", "").strip()
+        password = data.get("password", "")
+        car_model = data.get("car_model", "").strip()
+        car_number = data.get("car_number", "").strip()
+        
+        # ======== ВАЛИДАЦИЯ ========
+        if not phone:
+            return JSONResponse(status_code=400, content={"error": "Телефон обязателен"})
+        if not full_name:
+            return JSONResponse(status_code=400, content={"error": "ФИО обязательно"})
+        if not password or len(password) < 6:
+            return JSONResponse(status_code=400, content={"error": "Пароль минимум 6 символов"})
+        
+        # ======== ПРОВЕРКА СУЩЕСТВОВАНИЯ ========
+        existing_user = db.query(User).filter(User.phone == phone).first()
+        
+        if existing_user:
+            # Если пользователь уже есть
+            courier_profile = db.query(CourierProfile).filter(CourierProfile.user_id == existing_user.id).first()
+            if courier_profile:
+                courier_profile.car_model = car_model
+                courier_profile.car_number = car_number
+                courier_profile.is_active = True
+            else:
+                # ✅ ИСПРАВЛЕНО: role = 'courier' (строка, БЕЗ ENUM)
+                if existing_user.role != "courier":
+                    existing_user.role = "courier"
+                
+                courier_profile = CourierProfile(
+                    user_id=existing_user.id,
+                    first_name=full_name.split()[0] if full_name.split() else full_name,
+                    last_name=full_name.split()[1] if len(full_name.split()) > 1 else "",
+                    phone=phone,
+                    car_model=car_model,
+                    car_number=car_number,
+                    courier_type="driver" if car_model else "pedestrian",
+                    is_available=True,
+                    is_active=True
+                )
+                db.add(courier_profile)
         else:
+            # Создаем нового пользователя
+            import hashlib
+            password_hash = hashlib.sha256(password.encode()).hexdigest()
+            
+            name_parts = full_name.split()
+            first_name = name_parts[0] if name_parts else full_name
+            last_name = name_parts[1] if len(name_parts) > 1 else ""
+            
+            # ✅ ИСПРАВЛЕНО: role = 'courier' (строка, БЕЗ ENUM)
+            new_user = User(
+                phone=phone,
+                full_name=full_name,
+                first_name=first_name,
+                last_name=last_name,
+                password=password_hash,
+                role="courier",  # ✅ СТРОКА, БЕЗ ENUM
+                is_active=True,
+                created_at=datetime.utcnow()
+            )
+            db.add(new_user)
+            db.flush()
+            
             courier_profile = CourierProfile(
-                user_id=existing_user.id,
-                supplier_id=int(supplier_id),
+                user_id=new_user.id,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone,
                 car_model=car_model,
-                car_number=car_number
+                car_number=car_number,
+                courier_type="driver" if car_model else "pedestrian",
+                is_available=True,
+                is_active=True,
+                created_at=datetime.utcnow()
             )
             db.add(courier_profile)
-    else:
-        # Создаем нового пользователя
-        new_user = User(
-            phone=phone,
-            full_name=full_name,
-            password=hash_password(password),
-            role=UserRole.COURIER,
-            is_active=True,
-            created_at=datetime.utcnow()
-        )
-        db.add(new_user)
-        db.flush()
         
-        courier_profile = CourierProfile(
-            user_id=new_user.id,
-            supplier_id=int(supplier_id),
-            car_model=car_model,
-            car_number=car_number
-        )
-        db.add(courier_profile)
-    
-    db.commit()
-    return {"success": True}
+        db.commit()
+        return {"success": True, "message": "Курьер добавлен"}
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.get("/api/courier/orders")
@@ -11926,6 +14081,8 @@ async def get_courier_orders(request: Request, db: Session = Depends(get_db)):
 
 
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/courier/orders/{order_id}/status")
 async def update_courier_order_status(
     order_id: int,
@@ -11933,28 +14090,138 @@ async def update_courier_order_status(
     db: Session = Depends(get_db)
 ):
     """Курьер обновляет статус заказа"""
-    token = request.cookies.get("courier_token")
-    if not token or token not in courier_sessions:
-        raise HTTPException(status_code=401, detail="Not authenticated")
     
-    data = await request.json()
-    new_status = data.get("status")
+    # ✅ ИСПРАВЛЕНО: проверка через Bearer токен (не cookies)
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем что это курьер
+        if payload.get("role") != "courier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Not a courier"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
     
-    if new_status == "picked_up":
-        order.status = OrderStatus.OUT_FOR_DELIVERY
-    elif new_status == "delivered":
-        order.status = OrderStatus.DELIVERED
-        order.delivered_at = datetime.utcnow()
-    
-    db.commit()
-    
-    return {"success": True, "message": f"Status updated to {new_status}"}
-
-
+    try:
+        data = await request.json()
+        new_status = data.get("status")
+        
+        if not new_status:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Status is required"}
+            )
+        
+        # ✅ Проверяем что статус валидный
+        valid_statuses = [
+            "pending", "confirmed", "preparing", "ready_for_pickup",
+            "picked_up", "out_for_delivery", "nearby", "delivered", "cancelled"
+        ]
+        
+        if new_status not in valid_statuses:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Invalid status: {new_status}"}
+            )
+        
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Order not found"}
+            )
+        
+        # Проверяем что заказ назначен этому курьеру
+        if order.assigned_courier_id != int(user_id):
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Order not assigned to you"}
+            )
+        
+        from datetime import datetime
+        
+        # ✅ ИСПРАВЛЕНО: обновление статуса как строка (БЕЗ ENUM)
+        if new_status == "picked_up":
+            order.status = "picked_up"
+        elif new_status == "out_for_delivery":
+            order.status = "out_for_delivery"
+        elif new_status == "nearby":
+            order.status = "nearby"
+        elif new_status == "delivered":
+            order.status = "delivered"
+            order.delivered_at = datetime.utcnow()
+        elif new_status == "ready_for_pickup":
+            order.status = "ready_for_pickup"
+        elif new_status == "confirmed":
+            order.status = "confirmed"
+        elif new_status == "preparing":
+            order.status = "preparing"
+        else:
+            order.status = new_status
+        
+        # Обновляем статус курьера
+        courier = db.query(CourierProfile).filter(CourierProfile.user_id == int(user_id)).first()
+        if courier:
+            courier.current_order_status = order.status
+            
+            # Если заказ доставлен - освобождаем курьера
+            if order.status == "delivered":
+                courier.current_order_id = None
+                courier.current_order_status = None
+                courier.is_available = True
+                courier.is_online = True
+        
+        db.commit()
+        
+        print(f"✅ Курьер обновил статус заказа #{order.order_number}: {new_status}")
+        
+        return {
+            "success": True,
+            "message": f"Status updated to {new_status}",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "status": order.status,
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 
 
