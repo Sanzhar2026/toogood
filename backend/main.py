@@ -52,11 +52,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "https://toogood-2ncf.onrender.com","https://sarqyn-mobile.onrender.com","https://*.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ============ CATEGORIES ============
 categories = [
@@ -8584,7 +8585,6 @@ async def options_handler():
 # 1. РЕГИСТРАЦИЯ
 @app.post("/api/auth/register")
 async def register_user(request: Request):
-    """Регистрация нового клиента"""
     try:
         data = await request.json()
         
@@ -8607,14 +8607,12 @@ async def register_user(request: Request):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Проверка телефона
         cur.execute("SELECT id FROM users WHERE phone = %s", (phone,))
         if cur.fetchone():
             cur.close()
             conn.close()
             return {"success": False, "detail": "Пользователь с таким телефоном уже существует"}
         
-        # Создание пользователя
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         
         cur.execute("""
@@ -8630,14 +8628,14 @@ async def register_user(request: Request):
         
         print(f"✅ Зарегистрирован новый клиент: {first_name} {last_name}")
         
-        # Создание токена
+        # ✅ ИСПРАВЛЕНО: datetime.utcnow() ВМЕСТО datetime.datetime.utcnow()
         token_data = {
             "sub": str(user_id),
             "role": "customer",
             "phone": phone,
             "first_name": first_name,
             "last_name": last_name,
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
+            "exp": datetime.utcnow() + timedelta(days=30)
         }
         
         token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
@@ -8658,6 +8656,7 @@ async def register_user(request: Request):
         print(f"❌ Ошибка регистрации: {e}")
         traceback.print_exc()
         return {"success": False, "detail": str(e)}
+
 
 
 # 2. ЛОГИН
