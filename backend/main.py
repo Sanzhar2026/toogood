@@ -11699,7 +11699,7 @@ async def get_order_statuses():
     }
 
 # backend/main.py - ЗАМЕНИТЕ ваш существующий check-auth
-# backend/main.py
+# backend/main.py - ИСПРАВЛЕННЫЙ check-auth
 
 @app.get("/api/check-auth")
 async def check_auth(request: Request, db: Session = Depends(get_db)):
@@ -11721,18 +11721,7 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
         if not user:
             return {"authenticated": False}
         
-        # ✅ role - это VARCHAR (или ENUM, но мы преобразуем)
-        role_value = user.role
-        if role_value:
-            # Если ENUM - берем значение
-            if hasattr(role_value, 'value'):
-                role_value = role_value.value
-            # Если строка - приводим к нижнему регистру
-            else:
-                role_value = role_value.lower()
-        else:
-            role_value = "customer"
-        
+        # ✅ role УЖЕ СТРОКА (VARCHAR)
         return {
             "authenticated": True,
             "user_id": user.id,
@@ -11742,12 +11731,12 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
                 "full_name": user.full_name,
                 "first_name": user.first_name,
                 "last_name": user.last_name,
-                "role": role_value
+                "role": user.role or "customer"
             }
         }
     except jwt.ExpiredSignatureError:
         return {"authenticated": False, "error": "Token expired"}
-    except jwt.JWTError as e:
+    except jwt.JWTError:
         return {"authenticated": False, "error": "Invalid token"}
     except Exception as e:
         print(f"❌ Error: {e}")
