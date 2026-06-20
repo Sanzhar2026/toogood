@@ -8660,9 +8660,12 @@ async def register_user(request: Request):
 
 
 # 2. ЛОГИН
+# backend/main.py - ИСПРАВЛЕННЫЙ ЛОГИН
+
+from datetime import datetime, timedelta  # ✅ В САМОМ НАЧАЛЕ
+
 @app.post("/api/auth/login")
 async def login_user(request: Request):
-    """Логин клиента"""
     try:
         data = await request.json()
         
@@ -8693,20 +8696,19 @@ async def login_user(request: Request):
         if not user.get("is_active"):
             return {"success": False, "detail": "Аккаунт деактивирован"}
         
-        # Проверка пароля
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         
         if user.get("password") != password_hash:
             return {"success": False, "detail": "Неверный телефон или пароль"}
         
-        # Создание токена
+        # ✅ ИСПРАВЛЕНО: datetime.utcnow() + timedelta(days=30)
         token_data = {
             "sub": str(user["id"]),
             "role": user["role"] or "customer",
             "phone": user["phone"],
             "first_name": user["first_name"],
             "last_name": user["last_name"],
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
+            "exp": datetime.utcnow() + timedelta(days=30)
         }
         
         token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
@@ -8725,8 +8727,9 @@ async def login_user(request: Request):
         
     except Exception as e:
         print(f"❌ Ошибка логина: {e}")
+        import traceback
+        traceback.print_exc()
         return {"success": False, "detail": str(e)}
-
 
 # 3. ПОЛУЧЕНИЕ ПРОФИЛЯ
 @app.get("/api/auth/me")
