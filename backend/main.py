@@ -695,7 +695,7 @@ async def register_user(request: Request):
         return {"success": False, "detail": str(e)}
     
 
-    @app.post("/api/auth/login")
+@app.post("/api/auth/login")
 async def login_user(request: Request):
     """Логин клиента"""
     try:
@@ -769,7 +769,7 @@ async def login_user(request: Request):
         return {"success": False, "detail": str(e)}
 
 
-        
+
 
 @app.get("/avatar/{user_id}")
 async def get_avatar(user_id: int):
