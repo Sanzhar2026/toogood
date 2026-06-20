@@ -620,155 +620,6 @@ async def courier_pickup_order(order_id: int, request: Request):
 import traceback
 # backend/main.py
 
-@app.post("/api/auth/register")
-async def register_user(request: Request):
-    try:
-        data = await request.json()
-        
-        # ✅ ИМЯ И ФАМИЛИЯ ОТДЕЛЬНО
-        first_name = data.get("first_name", "").strip()
-        last_name = data.get("last_name", "").strip()
-        phone = data.get("phone", "").strip()
-        password = data.get("password", "")
-        
-        if not first_name or not last_name:
-            return {"success": False, "detail": "Введите имя и фамилию"}
-        
-        if not phone:
-            return {"success": False, "detail": "Введите номер телефона"}
-        
-        if not password or len(password) < 6:
-            return {"success": False, "detail": "Пароль должен быть минимум 6 символов"}
-        
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        cur.execute("SELECT id FROM users WHERE phone = %s", (phone,))
-        if cur.fetchone():
-            cur.close()
-            conn.close()
-            return {"success": False, "detail": "Пользователь с таким телефоном уже существует"}
-        
-        import hashlib
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        
-        # ✅ СОХРАНЯЕМ ОТДЕЛЬНО
-        cur.execute("""
-            INSERT INTO users (first_name, last_name, phone, password, role, is_active, created_at)
-            VALUES (%s, %s, %s, %s, 'customer', true, NOW())
-            RETURNING id
-        """, (first_name, last_name, phone, password_hash))
-        
-        user_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        conn.close()
-        
-        from jose import jwt
-        import datetime
-        
-        token_data = {
-            "sub": str(user_id),
-            "role": "customer",
-            "phone": phone,
-            "first_name": first_name,
-            "last_name": last_name,
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
-        }
-        
-        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-        
-        return {
-            "success": True,
-            "token": token,
-            "user": {
-                "id": user_id,
-                "first_name": first_name,
-                "last_name": last_name,
-                "phone": phone,
-                "role": "customer"
-            }
-        }
-        
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
-        return {"success": False, "detail": str(e)}
-    
-
-@app.post("/api/auth/login")
-async def login_user(request: Request):
-    """Логин клиента"""
-    try:
-        data = await request.json()
-        
-        phone = data.get("phone", "").strip()
-        password = data.get("password", "")
-        
-        print(f"📥 Логин: {phone}")
-        
-        if not phone or not password:
-            return {"success": False, "detail": "Заполните все поля"}
-        
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        cur.execute("""
-            SELECT id, first_name, last_name, phone, password, role, is_active
-            FROM users
-            WHERE phone = %s
-        """, (phone,))
-        
-        user = cur.fetchone()
-        cur.close()
-        conn.close()
-        
-        if not user:
-            return {"success": False, "detail": "Неверный телефон или пароль"}
-        
-        if not user.get("is_active"):
-            return {"success": False, "detail": "Аккаунт деактивирован"}
-        
-        # Проверка пароля
-        import hashlib
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        
-        if user.get("password") != password_hash:
-            return {"success": False, "detail": "Неверный телефон или пароль"}
-        
-        # Создание токена
-        from jose import jwt
-        import datetime
-        
-        token_data = {
-            "sub": str(user["id"]),
-            "role": user["role"] or "customer",
-            "phone": user["phone"],
-            "first_name": user["first_name"],
-            "last_name": user["last_name"],
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
-        }
-        
-        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-        
-        return {
-            "success": True,
-            "token": token,
-            "user": {
-                "id": user["id"],
-                "first_name": user["first_name"],
-                "last_name": user["last_name"],
-                "phone": user["phone"],
-                "role": user["role"] or "customer"
-            }
-        }
-        
-    except Exception as e:
-        print(f"❌ Ошибка логина: {e}")
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "detail": str(e)}
-
-
 
 
 @app.get("/avatar/{user_id}")
@@ -8711,7 +8562,173 @@ async def api_login(request: Request, db: Session = Depends(get_db)):
         )
 
 # backend/main.py - добавьте этот эндпоинт
+@app.options("/{path:path}")
+async def options_handler():
+    return JSONResponse(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "86400"
+        },
+        content={}
+    )
 
+# ============================================================
+# ЭНДПОИНТЫ АУТЕНТИФИКАЦИИ
+# ============================================================
+
+# 1. РЕГИСТРАЦИЯ
+@app.post("/api/auth/register")
+async def register_user(request: Request):
+    """Регистрация нового клиента"""
+    try:
+        data = await request.json()
+        
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+        phone = data.get("phone", "").strip()
+        password = data.get("password", "")
+        
+        print(f"📥 Регистрация: {first_name} {last_name}, {phone}")
+        
+        if not first_name or not last_name:
+            return {"success": False, "detail": "Введите имя и фамилию"}
+        
+        if not phone:
+            return {"success": False, "detail": "Введите номер телефона"}
+        
+        if not password or len(password) < 6:
+            return {"success": False, "detail": "Пароль должен быть минимум 6 символов"}
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Проверка телефона
+        cur.execute("SELECT id FROM users WHERE phone = %s", (phone,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return {"success": False, "detail": "Пользователь с таким телефоном уже существует"}
+        
+        # Создание пользователя
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        cur.execute("""
+            INSERT INTO users (first_name, last_name, phone, password, role, is_active, created_at)
+            VALUES (%s, %s, %s, %s, 'customer', true, NOW())
+            RETURNING id
+        """, (first_name, last_name, phone, password_hash))
+        
+        user_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        print(f"✅ Зарегистрирован новый клиент: {first_name} {last_name}")
+        
+        # Создание токена
+        token_data = {
+            "sub": str(user_id),
+            "role": "customer",
+            "phone": phone,
+            "first_name": first_name,
+            "last_name": last_name,
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
+        }
+        
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+        
+        return {
+            "success": True,
+            "token": token,
+            "user": {
+                "id": user_id,
+                "first_name": first_name,
+                "last_name": last_name,
+                "phone": phone,
+                "role": "customer"
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка регистрации: {e}")
+        traceback.print_exc()
+        return {"success": False, "detail": str(e)}
+
+
+# 2. ЛОГИН
+@app.post("/api/auth/login")
+async def login_user(request: Request):
+    """Логин клиента"""
+    try:
+        data = await request.json()
+        
+        phone = data.get("phone", "").strip()
+        password = data.get("password", "")
+        
+        print(f"📥 Логин: {phone}")
+        
+        if not phone or not password:
+            return {"success": False, "detail": "Заполните все поля"}
+        
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT id, first_name, last_name, phone, password, role, is_active
+            FROM users
+            WHERE phone = %s
+        """, (phone,))
+        
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if not user:
+            return {"success": False, "detail": "Неверный телефон или пароль"}
+        
+        if not user.get("is_active"):
+            return {"success": False, "detail": "Аккаунт деактивирован"}
+        
+        # Проверка пароля
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        if user.get("password") != password_hash:
+            return {"success": False, "detail": "Неверный телефон или пароль"}
+        
+        # Создание токена
+        token_data = {
+            "sub": str(user["id"]),
+            "role": user["role"] or "customer",
+            "phone": user["phone"],
+            "first_name": user["first_name"],
+            "last_name": user["last_name"],
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
+        }
+        
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+        
+        return {
+            "success": True,
+            "token": token,
+            "user": {
+                "id": user["id"],
+                "first_name": user["first_name"],
+                "last_name": user["last_name"],
+                "phone": user["phone"],
+                "role": user["role"] or "customer"
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка логина: {e}")
+        return {"success": False, "detail": str(e)}
+
+
+# 3. ПОЛУЧЕНИЕ ПРОФИЛЯ
 @app.get("/api/auth/me")
 async def get_current_user(request: Request):
     """Получение текущего пользователя"""
@@ -8729,7 +8746,7 @@ async def get_current_user(request: Request):
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         cur.execute("""
-            SELECT id, first_name, last_name, full_name, phone, role, is_active
+            SELECT id, first_name, last_name, phone, role, is_active
             FROM users
             WHERE id = %s
         """, (user_id,))
@@ -8747,7 +8764,6 @@ async def get_current_user(request: Request):
                 "id": user["id"],
                 "first_name": user["first_name"],
                 "last_name": user["last_name"],
-                "full_name": user["full_name"],
                 "phone": user["phone"],
                 "role": user["role"] or "customer"
             }
@@ -8755,7 +8771,14 @@ async def get_current_user(request: Request):
         
     except Exception as e:
         return {"success": False, "detail": str(e)}
-            
+
+
+# 4. ВЫХОД
+@app.post("/api/auth/logout")
+async def logout_user():
+    """Выход пользователя"""
+    return {"success": True, "message": "Logged out"}
+
 @app.get("/logout")
 async def logout():
     response = RedirectResponse(url="/", status_code=303)
