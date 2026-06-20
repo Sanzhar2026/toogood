@@ -11699,12 +11699,10 @@ async def get_order_statuses():
     }
 
 # backend/main.py - ЗАМЕНИТЕ ваш существующий check-auth
-# backend/main.py - ВЕСЬ ЭНДПОИНТ
+# backend/main.py
 
 @app.get("/api/check-auth")
 async def check_auth(request: Request, db: Session = Depends(get_db)):
-    """Проверка авторизации через JWT токен"""
-    
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return {"authenticated": False, "error": "No token provided"}
@@ -11723,7 +11721,18 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
         if not user:
             return {"authenticated": False}
         
-        # ✅ role - это VARCHAR, просто строка
+        # ✅ role - это VARCHAR (или ENUM, но мы преобразуем)
+        role_value = user.role
+        if role_value:
+            # Если ENUM - берем значение
+            if hasattr(role_value, 'value'):
+                role_value = role_value.value
+            # Если строка - приводим к нижнему регистру
+            else:
+                role_value = role_value.lower()
+        else:
+            role_value = "customer"
+        
         return {
             "authenticated": True,
             "user_id": user.id,
@@ -11733,13 +11742,12 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
                 "full_name": user.full_name,
                 "first_name": user.first_name,
                 "last_name": user.last_name,
-                "role": user.role if user.role else "customer"
+                "role": role_value
             }
         }
     except jwt.ExpiredSignatureError:
         return {"authenticated": False, "error": "Token expired"}
     except jwt.JWTError as e:
-        print(f"❌ JWT Error: {e}")
         return {"authenticated": False, "error": "Invalid token"}
     except Exception as e:
         print(f"❌ Error: {e}")
