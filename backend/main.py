@@ -52,11 +52,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://toogood-2ncf.onrender.com", "https://sarqyn-mobile.onrender.com","https://sarqyn-mobile.onrender.com","https://*.onrender.com"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # ============ CATEGORIES ============
 categories = [
     {"id": "all", "name_kz": "Барлығы", "name_ru": "Все", "emoji": "🍽️"},
