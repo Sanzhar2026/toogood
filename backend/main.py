@@ -1553,7 +1553,7 @@ async def admin_bulk_update_status(
 # backend/main.py - добавить
 @app.post("/api/orders")
 async def create_order(request: Request):
-    """Создание заказа - БЕЗ delivery_status"""
+    """Создание заказа"""
     
     # Проверка токена
     auth_header = request.headers.get("Authorization")
@@ -1610,12 +1610,11 @@ async def create_order(request: Request):
         bag_price = bag[2]
         bag_name = bag[3]
         
-        import secrets
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         now = datetime.utcnow()
         
         if reservation:
-            # Создаем заказ из резервации - БЕЗ delivery_status!
+            # Создаем заказ из резервации
             cur.execute("""
                 INSERT INTO orders (
                     user_id, supplier_id, surprise_bag_id, 
@@ -1671,7 +1670,7 @@ async def create_order(request: Request):
             if available < 1 or not is_active:
                 cur.close()
                 conn.close()
-                raise HTTPException(status_code=400, detail=f"Товар недоступен")
+                raise HTTPException(status_code=400, detail="Товар недоступен")
             
             cur.execute("""
                 UPDATE surprise_bags 
@@ -1695,7 +1694,7 @@ async def create_order(request: Request):
                 now + timedelta(minutes=15)
             ))
             
-            # Создаем заказ - БЕЗ delivery_status!
+            # Создаем заказ
             cur.execute("""
                 INSERT INTO orders (
                     user_id, supplier_id, surprise_bag_id, 
@@ -1743,7 +1742,6 @@ async def create_order(request: Request):
         conn.close()
         print(f"❌ Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
         
 @app.get("/api/surprise-bags/{bag_id}/rating")
@@ -11655,7 +11653,7 @@ async def get_orders(request: Request):
         print(f"❌ Ошибка получения заказов: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
-    
+
 @app.get("/api/orders/{order_id}")
 async def get_order_by_id(order_id: int, request: Request):
     """Получить заказ по ID - ЧИСТЫЙ SQL БЕЗ delivery_status"""
