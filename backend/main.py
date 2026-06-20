@@ -330,6 +330,11 @@ async def get_supplier_id_from_token(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+    
+
+
+
+
 def get_current_user_from_token(
     request: Request,
     db: Session = Depends(get_db)
@@ -612,8 +617,97 @@ async def courier_pickup_order(order_id: int, request: Request):
         print(f"❌ Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
+import traceback
+@app.post("/api/auth/register")
+async def register_user(request: Request):
+    """Регистрация нового клиента"""
+    try:
+        data = await request.json()
+        
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+        phone = data.get("phone", "").strip()
+        password = data.get("password", "")
+        
+        print(f"📥 Регистрация: {first_name} {last_name}, {phone}")
+        
+        if not first_name or not last_name:
+            return {"success": False, "detail": "Введите имя и фамилию"}
+        
+        if not phone:
+            return {"success": False, "detail": "Введите номер телефона"}
+        
+        if not password or len(password) < 6:
+            return {"success": False, "detail": "Пароль должен быть минимум 6 символов"}
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Проверка телефона
+        cur.execute("SELECT id FROM users WHERE phone = %s", (phone,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return {"success": False, "detail": "Пользователь с таким телефоном уже существует"}
+        
+        # Создание пользователя (role = 'customer' - VARCHAR, БЕЗ ENUM)
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        full_name = f"{first_name} {last_name}"
+        
+        cur.execute("""
+            INSERT INTO users (
+                first_name,
+                last_name,
+                full_name,
+                phone,
+                password,
+                role,
+                is_active,
+                created_at
+            )
+            VALUES (%s, %s, %s, %s, %s, 'customer', true, NOW())
+            RETURNING id
+        """, (first_name, last_name, full_name, phone, password_hash))
+        
+        user_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        print(f"✅ Зарегистрирован новый клиент: {full_name}")
+        
+        # Создание токена
+        token_data = {
+            "sub": str(user_id),
+            "role": "customer",
+            "phone": phone,
+            "first_name": first_name,
+            "last_name": last_name,
+            "full_name": full_name,
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
+        }
+        
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+        
+        return {
+            "success": True,
+            "message": "Регистрация успешна",
+            "user_id": user_id,
+            "token": token,
+            "user": {
+                "id": user_id,
+                "first_name": first_name,
+                "last_name": last_name,
+                "full_name": full_name,
+                "phone": phone,
+                "role": "customer"
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка регистрации: {e}")
+        traceback.print_exc()
+        return {"success": False, "detail": str(e)}
         
 @app.get("/avatar/{user_id}")
 async def get_avatar(user_id: int):
