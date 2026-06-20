@@ -9907,7 +9907,7 @@ async def supplier_api_register(request: Request):
 
 # backend/main.py - РЕГИСТРАЦИЯ КЛИЕНТА
 
-@app.post("/api/auth/register")
+@app.post("/api/auth/login")
 async def register_user(request: Request):
     """Регистрация нового клиента"""
     try:
