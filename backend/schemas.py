@@ -1,13 +1,19 @@
-# backend/schemas.py - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
+# backend/schemas.py - ПОЛНАЯ ВЕРСИЯ БЕЗ ENUM
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List
 from enum import Enum
 
+# ============================================================
+# ВНИМАНИЕ: ЭТИ ENUM ОСТАВЛЕНЫ ТОЛЬКО ДЛЯ PYDANTIC ВАЛИДАЦИИ
+# НО В БАЗЕ ДАННЫХ ИХ НЕТ - ТАМ ТОЛЬКО VARCHAR!
+# ============================================================
+
 class UserRole(str, Enum):
     CUSTOMER = "customer"
     SUPPLIER = "supplier"
+    COURIER = "courier"
     ADMIN = "admin"
 
 class OrderStatus(str, Enum):
@@ -15,21 +21,41 @@ class OrderStatus(str, Enum):
     CONFIRMED = "confirmed"
     PREPARING = "preparing"
     READY_FOR_PICKUP = "ready_for_pickup"
+    PICKED_UP = "picked_up"
     OUT_FOR_DELIVERY = "out_for_delivery"
+    NEARBY = "nearby"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
-class DeliveryStatus(str, Enum):
-    AT_SUPPLIER = "at_supplier"
-    EN_ROUTE = "en_route"
-    NEARBY = "nearby"
-    ARRIVED = "arrived"
+class PaymentMethod(str, Enum):
+    KASPI = "kaspi"
+    HALYK = "halyk"
+    MASTERCARD = "mastercard"
+    VISA = "visa"
+    CASH = "cash"
 
-# ============ USER SCHEMAS ============
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    PAID = "paid"
+    FAILED = "failed"
+    REFUNDED = "refunded"
+    CANCELLED = "cancelled"
+
+class CourierType(str, Enum):
+    PEDESTRIAN = "pedestrian"
+    DRIVER = "driver"
+
+
+# ============================================================
+# USER SCHEMAS
+# ============================================================
+
 class UserCreate(BaseModel):
     email: Optional[str] = None
     phone: str
     password: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     full_name: Optional[str] = None
     role: UserRole = UserRole.CUSTOMER
 
@@ -37,13 +63,23 @@ class UserResponse(BaseModel):
     id: int
     email: Optional[str]
     phone: str
+    first_name: Optional[str]
+    last_name: Optional[str]
     full_name: Optional[str]
     phone_verified: bool
-    role: UserRole
+    role: str
     is_active: bool
     created_at: datetime
+    avatar_url: Optional[str] = None
 
-# ============ PHONE VERIFICATION SCHEMAS ============
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# PHONE VERIFICATION SCHEMAS
+# ============================================================
+
 class PhoneVerificationRequest(BaseModel):
     phone_number: str
 
@@ -62,7 +98,11 @@ class PhoneLoginRequest(BaseModel):
     phone_number: str
     password: str
 
-# ============ SUPPLIER SCHEMAS ============
+
+# ============================================================
+# SUPPLIER SCHEMAS
+# ============================================================
+
 class SupplierCreate(BaseModel):
     business_name: str
     business_type: Optional[str] = None
@@ -95,7 +135,14 @@ class SupplierResponse(BaseModel):
     pickup_end_time: Optional[str]
     created_at: Optional[datetime]
 
-# ============ SURPRISE BAG SCHEMAS ============
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# SURPRISE BAG SCHEMAS
+# ============================================================
+
 class SurpriseBagCreate(BaseModel):
     name: str
     description: Optional[str] = None
@@ -103,11 +150,12 @@ class SurpriseBagCreate(BaseModel):
     discounted_price: float
     image_url: Optional[str] = None
     available_quantity: int = 1
+    total_quantity: Optional[int] = 1
     pickup_start_time: Optional[str] = None
     pickup_end_time: Optional[str] = None
     possible_items: Optional[str] = None
-    hide_contents: bool = False  # ✅ ДОБАВЛЕНО!
-    city: Optional[str] = None   # ✅ ДОБАВЛЕНО!
+    hide_contents: bool = False
+    city: Optional[str] = None
 
 class SurpriseBagResponse(BaseModel):
     id: int
@@ -125,10 +173,17 @@ class SurpriseBagResponse(BaseModel):
     pickup_end_time: Optional[str]
     is_active: bool
     created_at: Optional[datetime]
-    hide_contents: bool = False  # ✅ ДОБАВЛЕНО!
-    city: Optional[str] = None   # ✅ ДОБАВЛЕНО!
+    hide_contents: bool = False
+    city: Optional[str] = None
 
-# ============ ORDER SCHEMAS ============
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# ORDER SCHEMAS
+# ============================================================
+
 class OrderCreate(BaseModel):
     bag_id: int
     lat: float = 0
@@ -141,28 +196,37 @@ class OrderCreate(BaseModel):
 class OrderResponse(BaseModel):
     id: int
     order_number: str
-    status: OrderStatus
-    delivery_status: Optional[str]
-    customer_address: str
+    status: str
+    delivery_type: Optional[str] = None
+    customer_address: Optional[str]
     amount_paid: float
     created_at: datetime
-    supplier: Optional[SupplierResponse]
-    surprise_bag: Optional[SurpriseBagResponse]
-    delivery_type: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_id: Optional[int] = None
+    surprise_bag_name: Optional[str] = None
     payment_status: Optional[str] = None
     payment_method: Optional[str] = None
     paid_at: Optional[datetime] = None
     delivery_deadline: Optional[datetime] = None
+    assigned_courier_id: Optional[int] = None
+    assigned_courier_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 
 class OrderTrackingUpdate(BaseModel):
     order_id: int
-    status: OrderStatus
-    delivery_status: str
+    status: str
     lat: Optional[float] = None
     lon: Optional[float] = None
     message: str
 
-# ============ DELIVERY SCHEMAS ============
+
+# ============================================================
+# DELIVERY SCHEMAS
+# ============================================================
+
 class DeliveryPosition(BaseModel):
     lat: float
     lon: float
@@ -183,7 +247,11 @@ class DeliveryInfo(BaseModel):
     status: str
     progress: Optional[float] = 0
 
-# ============ API RESPONSE SCHEMAS ============
+
+# ============================================================
+# API RESPONSE SCHEMAS
+# ============================================================
+
 class APIResponse(BaseModel):
     success: bool
     message: str
@@ -194,23 +262,14 @@ class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
 
-# ============ PAYMENT SCHEMAS ============
 
-class PaymentMethod(str, Enum):
-    KASPI = "kaspi"
-    HALYK = "halyk"
-    MASTERCARD = "mastercard"
-    VISA = "visa"
-
-class PaymentStatus(str, Enum):
-    PENDING = "pending"
-    PAID = "paid"
-    FAILED = "failed"
-    REFUNDED = "refunded"
+# ============================================================
+# PAYMENT SCHEMAS
+# ============================================================
 
 class PaymentRequest(BaseModel):
     order_id: int
-    payment_method: PaymentMethod
+    payment_method: str
     amount: float
     card_number: Optional[str] = None
     card_expiry: Optional[str] = None
@@ -249,7 +308,11 @@ class PaymentHistoryItem(BaseModel):
 class PaymentHistoryResponse(BaseModel):
     history: List[PaymentHistoryItem]
 
-# ============ ADMIN SCHEMAS ============
+
+# ============================================================
+# ADMIN SCHEMAS
+# ============================================================
+
 class AdminCreate(BaseModel):
     username: str
     password: str
@@ -267,18 +330,17 @@ class AdminUpdatePassword(BaseModel):
     old_password: str
     new_password: str
 
-# ============ COURIER SCHEMAS ============
 
-class CourierType(str, Enum):
-    PEDESTRIAN = "pedestrian"
-    DRIVER = "driver"
+# ============================================================
+# COURIER SCHEMAS
+# ============================================================
 
 class CourierRegisterRequest(BaseModel):
     first_name: str
     last_name: str
     phone: str
     password: str
-    courier_type: CourierType = CourierType.PEDESTRIAN
+    courier_type: str = "pedestrian"
     car_model: Optional[str] = None
     car_number: Optional[str] = None
 
@@ -294,6 +356,8 @@ class CourierStatusResponse(BaseModel):
     total_deliveries: int
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    car_model: Optional[str] = None
+    car_number: Optional[str] = None
 
 class CourierLocationUpdate(BaseModel):
     lat: float
@@ -315,3 +379,60 @@ class CourierResponse(BaseModel):
     current_lat: Optional[float]
     current_lon: Optional[float]
     current_order_status: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# CART SCHEMAS
+# ============================================================
+
+class CartItemResponse(BaseModel):
+    id: int
+    surprise_bag_id: int
+    name: str
+    price: float
+    original_price: float
+    image_url: Optional[str]
+    quantity: int
+    supplier_name: str
+    supplier_id: int
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# BOOKING SCHEMAS
+# ============================================================
+
+class BookingRequest(BaseModel):
+    bag_id: int
+
+class BookingResponse(BaseModel):
+    success: bool
+    message: str
+    expires_at: Optional[str] = None
+    remaining_seconds: Optional[int] = None
+    order_id: Optional[int] = None
+
+
+# ============================================================
+# REVIEW SCHEMAS
+# ============================================================
+
+class ReviewCreate(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    comment: Optional[str] = None
+
+class ReviewResponse(BaseModel):
+    id: int
+    user_id: int
+    user_name: str
+    rating: int
+    comment: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
