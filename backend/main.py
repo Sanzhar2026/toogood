@@ -11636,91 +11636,148 @@ async def geocode(lat: float, lon: float):
         data = response.json()
         city = data.get('address', {}).get('city', 'Не определен')
         return {"city": city}
-
-@app.get("/api/orders")
-async def get_orders(request: Request):
-    """Получить все заказы пользователя"""
+@app.post("/api/orders")
+async def create_order(request: Request, db: Session = Depends(get_db)):
+    """Создание заказа - ИСПРАВЛЕННАЯ ВЕРСИЯ (КАК /api/cart/add)"""
     
-    # Проверка токена
+    # ✅ ТОЧНО КАК В /api/cart/add
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token required")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
     token = auth_header.split(" ")[1]
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
-    except:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Token error: {str(e)}"}
+        )
     
     try:
-        # Получаем все заказы пользователя
-        cur.execute("""
-            SELECT 
-                o.id,
-                o.order_number,
-                o.status,
-                o.delivery_type,
-                o.customer_address,
-                o.amount_paid,
-                o.created_at,
-                o.payment_status,
-                o.payment_method,
-                o.paid_at,
-                o.delivery_deadline,
-                o.assigned_courier_id,
-                s.business_name as supplier_name,
-                sb.name as surprise_bag_name,
-                u.first_name || ' ' || u.last_name as courier_name
-            FROM orders o
-            LEFT JOIN suppliers s ON o.supplier_id = s.id
-            LEFT JOIN surprise_bags sb ON o.surprise_bag_id = sb.id
-            LEFT JOIN users u ON o.assigned_courier_id = u.id
-            WHERE o.user_id = %s
-            ORDER BY o.created_at DESC
-        """, (int(user_id),))
+        data = await request.json()
+        bag_id = data.get("bag_id")
+        delivery_type = data.get("delivery_type", "pickup")
+        customer_address = data.get("address", "Самовывоз")
+        customer_lat = data.get("lat")
+        customer_lon = data.get("lon")
         
-        orders = cur.fetchall()
+        if not bag_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "bag_id is required"}
+            )
         
-        result = []
-        for order in orders:
-            result.append({
-                "id": order[0],
-                "order_number": order[1],
-                "status": order[2],
-                "delivery_type": order[3],
-                "customer_address": order[4],
-                "amount_paid": float(order[5]) if order[5] else 0,
-                "created_at": order[6].isoformat() if order[6] else None,
-                "payment_status": order[7],
-                "payment_method": order[8],
-                "paid_at": order[9].isoformat() if order[9] else None,
-                "delivery_deadline": order[10].isoformat() if order[10] else None,
-                "assigned_courier_id": order[11],
-                "supplier_name": order[12],
-                "surprise_bag_name": order[13],
-                "courier_name": order[14]
-            })
+        # Проверяем сюрприз
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+        if not bag:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Товар не найден"}
+            )
         
-        cur.close()
-        conn.close()
+        if bag.available_quantity < 1 or not bag.is_active:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Товар недоступен"}
+            )
         
-        return {
+        import secrets
+        order_number = f"ORD-{secrets.token_hex(4).upper()}"
+        now = datetime.utcnow()
+        
+        # Проверяем есть ли резервация
+        reservation = db.query(TemporaryReservation).filter(
+            TemporaryReservation.user_id == int(user_id),
+            TemporaryReservation.bag_id == bag_id,
+            TemporaryReservation.is_paid == False,
+            TemporaryReservation.expires_at > now
+        ).order_by(TemporaryReservation.reserved_at.desc()).first()
+        
+        if reservation:
+            # Создаем заказ из резервации
+            order = Order(
+                user_id=int(user_id),
+                supplier_id=bag.supplier_id,
+                surprise_bag_id=bag.id,
+                order_number=order_number,
+                status="pending",
+                payment_status="pending",
+                customer_address=customer_address if customer_address else "Самовывоз",
+                customer_lat=customer_lat if delivery_type == "delivery" else None,
+                customer_lon=customer_lon if delivery_type == "delivery" else None,
+                amount_paid=bag.discounted_price,
+                delivery_type=delivery_type,
+                created_at=now
+            )
+            db.add(order)
+            db.flush()
+            
+            # Помечаем резервацию как оплаченную
+            reservation.is_paid = True
+            
+        else:
+            # Уменьшаем количество
+            bag.available_quantity -= 1
+            if bag.available_quantity <= 0:
+                bag.is_active = False
+            
+            # Создаем резервацию
+            new_reservation = TemporaryReservation(
+                bag_id=bag_id,
+                user_id=int(user_id),
+                quantity=1,
+                reserved_at=now,
+                expires_at=now + timedelta(minutes=15),
+                is_paid=False
+            )
+            db.add(new_reservation)
+            db.flush()
+            
+            # Создаем заказ
+            order = Order(
+                user_id=int(user_id),
+                supplier_id=bag.supplier_id,
+                surprise_bag_id=bag.id,
+                order_number=order_number,
+                status="pending",
+                payment_status="pending",
+                customer_address=customer_address if customer_address else "Самовывоз",
+                customer_lat=customer_lat if delivery_type == "delivery" else None,
+                customer_lon=customer_lon if delivery_type == "delivery" else None,
+                amount_paid=bag.discounted_price,
+                delivery_type=delivery_type,
+                created_at=now
+            )
+            db.add(order)
+        
+        db.commit()
+        
+        return JSONResponse(content={
             "success": True,
-            "orders": result,
-            "count": len(result)
-        }
+            "order_id": order.id,
+            "order_number": order_number,
+            "status": "pending",
+            "message": "Order created successfully"
+        })
         
     except Exception as e:
-        cur.close()
-        conn.close()
-        print(f"❌ Ошибка получения заказов: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": f"Ошибка сервера: {str(e)}"}
+        )
 
 @app.get("/api/orders/{order_id}")
 async def get_order_by_id(order_id: int, request: Request):
