@@ -8071,6 +8071,11 @@ async def create_surprise_bag(
             status_code=500,
             content={"success": False, "error": str(e)}
         )    # ============================================================
+
+
+
+
+
 @app.get("/api/supplier/categories")
 async def get_supplier_categories(
     supplier_id: int = Depends(get_supplier_id_from_token)
@@ -13547,10 +13552,13 @@ async def upload_avatar(
 ):
     """Загрузка аватара пользователя"""
     
-    # Проверяем авторизацию
+    # ✅ Проверяем авторизацию
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token required")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
     
     token = auth_header.split(" ")[1]
     try:
@@ -13559,41 +13567,90 @@ async def upload_avatar(
         token_user_id = payload.get("sub")
         
         if int(token_user_id) != user_id:
-            raise HTTPException(status_code=403, detail="Cannot change another user's avatar")
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Cannot change another user's avatar"}
+            )
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
     
-    # Проверяем пользователя
+    # ✅ Проверяем пользователя
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "detail": "User not found"}
+        )
     
-    # Проверяем тип файла
+    # ✅ Проверяем тип файла
     if not avatar.content_type or not avatar.content_type.startswith('image/'):
-        raise HTTPException(status_code=400, detail="File must be an image")
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "detail": "File must be an image"}
+        )
     
-    # Удаляем старые аватары
-    old_avatars = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
-    for old in old_avatars:
-        try:
-            old.unlink()
-        except:
-            pass
-    
-    # Сохраняем новый аватар
-    filename = f"avatar_{user_id}_{uuid.uuid4().hex[:8]}.webp"
-    file_path = AVATAR_DIR / filename
-    
+    # ✅ Проверяем размер файла (максимум 5MB)
     content = await avatar.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
+    if len(content) > 5 * 1024 * 1024:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "detail": "File too large. Max 5MB"}
+        )
     
-    return {
-        "success": True, 
-        "avatar_url": f"/uploads/avatars/{filename}", 
-        "filename": filename
-    }
-
+    try:
+        # ✅ Удаляем старые аватары
+        old_avatars = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
+        for old in old_avatars:
+            try:
+                old.unlink()
+                print(f"🗑️ Удален старый аватар: {old.name}")
+            except Exception as e:
+                print(f"⚠️ Не удалось удалить {old.name}: {e}")
+        
+        # ✅ Сохраняем новый аватар
+        filename = f"avatar_{user_id}_{uuid.uuid4().hex[:8]}.webp"
+        file_path = AVATAR_DIR / filename
+        
+        # Конвертируем в WebP (если нужно)
+        from PIL import Image
+        import io
+        
+        image = Image.open(io.BytesIO(content))
+        
+        # Обрезаем до квадрата (центрируем)
+        width, height = image.size
+        if width != height:
+            size = min(width, height)
+            left = (width - size) // 2
+            top = (height - size) // 2
+            image = image.crop((left, top, left + size, top + size))
+        
+        # Ресайзим до 200x200
+        image = image.resize((200, 200), Image.LANCZOS)
+        
+        # Сохраняем как WebP
+        image.save(file_path, 'WEBP', quality=85, optimize=True)
+        
+        print(f"✅ Аватар сохранен: {filename} ({len(content)} bytes)")
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Avatar uploaded successfully",
+            "avatar_url": f"/uploads/avatars/{filename}",
+            "filename": filename
+        })
+        
+    except Exception as e:
+        print(f"❌ Ошибка сохранения аватара: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": f"Error saving avatar: {str(e)}"}
+        )
 @app.get("/users/avatar-file/{user_id}")
 async def get_avatar_file(user_id: int):
     """Получить файл аватара напрямую"""
