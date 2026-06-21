@@ -1497,6 +1497,193 @@ async def admin_bulk_update_status(
 # ВРЕМЕННОЕ ДУБЛИРОВАНИЕ /api/orders
 # ============================================================
 
+@app.post("/api/orders")
+async def create_order_duplicate(request: Request):
+    """Создание заказа - ДУБЛИКАТ"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    data = await request.json()
+    bag_id = data.get("bag_id")
+    delivery_type = data.get("delivery_type", "pickup")
+    customer_address = data.get("address", "Самовывоз")
+    customer_lat = data.get("lat")
+    customer_lon = data.get("lon")
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            SELECT id, bag_id, user_id, quantity, is_paid
+            FROM temporary_reservations 
+            WHERE user_id = %s 
+              AND bag_id = %s 
+              AND is_paid = false 
+              AND expires_at > NOW()
+            ORDER BY reserved_at DESC
+            LIMIT 1
+        """, (int(user_id), bag_id))
+        
+        reservation = cur.fetchone()
+        
+        cur.execute("""
+            SELECT id, supplier_id, discounted_price, name
+            FROM surprise_bags 
+            WHERE id = %s
+        """, (bag_id,))
+        
+        bag = cur.fetchone()
+        if not bag:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Bag not found")
+        
+        bag_supplier_id = bag[1]
+        bag_price = bag[2]
+        bag_name = bag[3]
+        
+        import secrets
+        order_number = f"ORD-{secrets.token_hex(4).upper()}"
+        now = datetime.utcnow()
+        
+        if reservation:
+            cur.execute("""
+                INSERT INTO orders (
+                    user_id, supplier_id, surprise_bag_id, 
+                    order_number, status,
+                    payment_status, customer_address, 
+                    customer_lat, customer_lon,
+                    amount_paid, delivery_type, created_at
+                ) VALUES (
+                    %s, %s, %s,
+                    %s, 'pending',
+                    'pending', %s,
+                    %s, %s,
+                    %s, %s, %s
+                ) RETURNING id
+            """, (
+                int(user_id),
+                bag_supplier_id,
+                bag_id,
+                order_number,
+                customer_address if customer_address else "Самовывоз",
+                customer_lat if delivery_type == "delivery" else None,
+                customer_lon if delivery_type == "delivery" else None,
+                bag_price,
+                delivery_type,
+                now
+            ))
+            
+            order_id = cur.fetchone()[0]
+            
+            cur.execute("""
+                UPDATE temporary_reservations 
+                SET is_paid = true 
+                WHERE id = %s
+            """, (reservation[0],))
+            
+        else:
+            cur.execute("""
+                SELECT available_quantity, is_active 
+                FROM surprise_bags 
+                WHERE id = %s
+            """, (bag_id,))
+            
+            bag_status = cur.fetchone()
+            if not bag_status:
+                cur.close()
+                conn.close()
+                raise HTTPException(status_code=404, detail="Bag not found")
+            
+            available = bag_status[0]
+            is_active = bag_status[1]
+            
+            if available < 1 or not is_active:
+                cur.close()
+                conn.close()
+                raise HTTPException(status_code=400, detail="Товар недоступен")
+            
+            cur.execute("""
+                UPDATE surprise_bags 
+                SET available_quantity = available_quantity - 1,
+                    is_active = CASE WHEN available_quantity - 1 <= 0 THEN false ELSE true END
+                WHERE id = %s
+            """, (bag_id,))
+            
+            cur.execute("""
+                INSERT INTO temporary_reservations (
+                    bag_id, user_id, quantity, 
+                    reserved_at, expires_at, is_paid
+                ) VALUES (
+                    %s, %s, 1,
+                    %s, %s, false
+                )
+            """, (
+                bag_id,
+                int(user_id),
+                now,
+                now + timedelta(minutes=15)
+            ))
+            
+            cur.execute("""
+                INSERT INTO orders (
+                    user_id, supplier_id, surprise_bag_id, 
+                    order_number, status,
+                    payment_status, customer_address, 
+                    customer_lat, customer_lon,
+                    amount_paid, delivery_type, created_at
+                ) VALUES (
+                    %s, %s, %s,
+                    %s, 'pending',
+                    'pending', %s,
+                    %s, %s,
+                    %s, %s, %s
+                ) RETURNING id
+            """, (
+                int(user_id),
+                bag_supplier_id,
+                bag_id,
+                order_number,
+                customer_address if customer_address else "Самовывоз",
+                customer_lat if delivery_type == "delivery" else None,
+                customer_lon if delivery_type == "delivery" else None,
+                bag_price,
+                delivery_type,
+                now
+            ))
+            
+            order_id = cur.fetchone()[0]
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "order_id": order_id,
+            "order_number": order_number,
+            "status": "pending",
+            "message": "Order created successfully"
+        }
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        print(f"❌ Ошибка: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+        
                 
 @app.get("/api/surprise-bags/{bag_id}/rating")
 async def get_surprise_bag_rating(
@@ -11456,196 +11643,6 @@ async def geocode(lat: float, lon: float):
         city = data.get('address', {}).get('city', 'Не определен')
         return {"city": city}
 
-
-
-@app.post("/api/orders")
-async def create_order_duplicate(request: Request):
-    """Создание заказа - ДУБЛИКАТ"""
-    
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Bearer token required")
-    
-    token = auth_header.split(" ")[1]
-    try:
-        from jose import jwt
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-    except:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    data = await request.json()
-    bag_id = data.get("bag_id")
-    delivery_type = data.get("delivery_type", "pickup")
-    customer_address = data.get("address", "Самовывоз")
-    customer_lat = data.get("lat")
-    customer_lon = data.get("lon")
-    
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        cur.execute("""
-            SELECT id, bag_id, user_id, quantity, is_paid
-            FROM temporary_reservations 
-            WHERE user_id = %s 
-              AND bag_id = %s 
-              AND is_paid = false 
-              AND expires_at > NOW()
-            ORDER BY reserved_at DESC
-            LIMIT 1
-        """, (int(user_id), bag_id))
-        
-        reservation = cur.fetchone()
-        
-        cur.execute("""
-            SELECT id, supplier_id, discounted_price, name
-            FROM surprise_bags 
-            WHERE id = %s
-        """, (bag_id,))
-        
-        bag = cur.fetchone()
-        if not bag:
-            cur.close()
-            conn.close()
-            raise HTTPException(status_code=404, detail="Bag not found")
-        
-        bag_supplier_id = bag[1]
-        bag_price = bag[2]
-        bag_name = bag[3]
-        
-        import secrets
-        order_number = f"ORD-{secrets.token_hex(4).upper()}"
-        now = datetime.utcnow()
-        
-        if reservation:
-            cur.execute("""
-                INSERT INTO orders (
-                    user_id, supplier_id, surprise_bag_id, 
-                    order_number, status,
-                    payment_status, customer_address, 
-                    customer_lat, customer_lon,
-                    amount_paid, delivery_type, created_at
-                ) VALUES (
-                    %s, %s, %s,
-                    %s, 'pending',
-                    'pending', %s,
-                    %s, %s,
-                    %s, %s, %s
-                ) RETURNING id
-            """, (
-                int(user_id),
-                bag_supplier_id,
-                bag_id,
-                order_number,
-                customer_address if customer_address else "Самовывоз",
-                customer_lat if delivery_type == "delivery" else None,
-                customer_lon if delivery_type == "delivery" else None,
-                bag_price,
-                delivery_type,
-                now
-            ))
-            
-            order_id = cur.fetchone()[0]
-            
-            cur.execute("""
-                UPDATE temporary_reservations 
-                SET is_paid = true 
-                WHERE id = %s
-            """, (reservation[0],))
-            
-        else:
-            cur.execute("""
-                SELECT available_quantity, is_active 
-                FROM surprise_bags 
-                WHERE id = %s
-            """, (bag_id,))
-            
-            bag_status = cur.fetchone()
-            if not bag_status:
-                cur.close()
-                conn.close()
-                raise HTTPException(status_code=404, detail="Bag not found")
-            
-            available = bag_status[0]
-            is_active = bag_status[1]
-            
-            if available < 1 or not is_active:
-                cur.close()
-                conn.close()
-                raise HTTPException(status_code=400, detail="Товар недоступен")
-            
-            cur.execute("""
-                UPDATE surprise_bags 
-                SET available_quantity = available_quantity - 1,
-                    is_active = CASE WHEN available_quantity - 1 <= 0 THEN false ELSE true END
-                WHERE id = %s
-            """, (bag_id,))
-            
-            cur.execute("""
-                INSERT INTO temporary_reservations (
-                    bag_id, user_id, quantity, 
-                    reserved_at, expires_at, is_paid
-                ) VALUES (
-                    %s, %s, 1,
-                    %s, %s, false
-                )
-            """, (
-                bag_id,
-                int(user_id),
-                now,
-                now + timedelta(minutes=15)
-            ))
-            
-            cur.execute("""
-                INSERT INTO orders (
-                    user_id, supplier_id, surprise_bag_id, 
-                    order_number, status,
-                    payment_status, customer_address, 
-                    customer_lat, customer_lon,
-                    amount_paid, delivery_type, created_at
-                ) VALUES (
-                    %s, %s, %s,
-                    %s, 'pending',
-                    'pending', %s,
-                    %s, %s,
-                    %s, %s, %s
-                ) RETURNING id
-            """, (
-                int(user_id),
-                bag_supplier_id,
-                bag_id,
-                order_number,
-                customer_address if customer_address else "Самовывоз",
-                customer_lat if delivery_type == "delivery" else None,
-                customer_lon if delivery_type == "delivery" else None,
-                bag_price,
-                delivery_type,
-                now
-            ))
-            
-            order_id = cur.fetchone()[0]
-        
-        conn.commit()
-        cur.close()
-        conn.close()
-        
-        return {
-            "success": True,
-            "order_id": order_id,
-            "order_number": order_number,
-            "status": "pending",
-            "message": "Order created successfully"
-        }
-        
-    except Exception as e:
-        conn.rollback()
-        cur.close()
-        conn.close()
-        print(f"❌ Ошибка: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-        
-
 @app.get("/api/orders")
 async def get_orders(request: Request):
     """Получить все заказы пользователя"""
@@ -14617,6 +14614,193 @@ async def update_courier_order_status(
 
 
 
+@app.post("/api/orders")
+async def create_order_duplicate(request: Request):
+    """Создание заказа - ДУБЛИКАТ"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    data = await request.json()
+    bag_id = data.get("bag_id")
+    delivery_type = data.get("delivery_type", "pickup")
+    customer_address = data.get("address", "Самовывоз")
+    customer_lat = data.get("lat")
+    customer_lon = data.get("lon")
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            SELECT id, bag_id, user_id, quantity, is_paid
+            FROM temporary_reservations 
+            WHERE user_id = %s 
+              AND bag_id = %s 
+              AND is_paid = false 
+              AND expires_at > NOW()
+            ORDER BY reserved_at DESC
+            LIMIT 1
+        """, (int(user_id), bag_id))
+        
+        reservation = cur.fetchone()
+        
+        cur.execute("""
+            SELECT id, supplier_id, discounted_price, name
+            FROM surprise_bags 
+            WHERE id = %s
+        """, (bag_id,))
+        
+        bag = cur.fetchone()
+        if not bag:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Bag not found")
+        
+        bag_supplier_id = bag[1]
+        bag_price = bag[2]
+        bag_name = bag[3]
+        
+        import secrets
+        order_number = f"ORD-{secrets.token_hex(4).upper()}"
+        now = datetime.utcnow()
+        
+        if reservation:
+            cur.execute("""
+                INSERT INTO orders (
+                    user_id, supplier_id, surprise_bag_id, 
+                    order_number, status,
+                    payment_status, customer_address, 
+                    customer_lat, customer_lon,
+                    amount_paid, delivery_type, created_at
+                ) VALUES (
+                    %s, %s, %s,
+                    %s, 'pending',
+                    'pending', %s,
+                    %s, %s,
+                    %s, %s, %s
+                ) RETURNING id
+            """, (
+                int(user_id),
+                bag_supplier_id,
+                bag_id,
+                order_number,
+                customer_address if customer_address else "Самовывоз",
+                customer_lat if delivery_type == "delivery" else None,
+                customer_lon if delivery_type == "delivery" else None,
+                bag_price,
+                delivery_type,
+                now
+            ))
+            
+            order_id = cur.fetchone()[0]
+            
+            cur.execute("""
+                UPDATE temporary_reservations 
+                SET is_paid = true 
+                WHERE id = %s
+            """, (reservation[0],))
+            
+        else:
+            cur.execute("""
+                SELECT available_quantity, is_active 
+                FROM surprise_bags 
+                WHERE id = %s
+            """, (bag_id,))
+            
+            bag_status = cur.fetchone()
+            if not bag_status:
+                cur.close()
+                conn.close()
+                raise HTTPException(status_code=404, detail="Bag not found")
+            
+            available = bag_status[0]
+            is_active = bag_status[1]
+            
+            if available < 1 or not is_active:
+                cur.close()
+                conn.close()
+                raise HTTPException(status_code=400, detail="Товар недоступен")
+            
+            cur.execute("""
+                UPDATE surprise_bags 
+                SET available_quantity = available_quantity - 1,
+                    is_active = CASE WHEN available_quantity - 1 <= 0 THEN false ELSE true END
+                WHERE id = %s
+            """, (bag_id,))
+            
+            cur.execute("""
+                INSERT INTO temporary_reservations (
+                    bag_id, user_id, quantity, 
+                    reserved_at, expires_at, is_paid
+                ) VALUES (
+                    %s, %s, 1,
+                    %s, %s, false
+                )
+            """, (
+                bag_id,
+                int(user_id),
+                now,
+                now + timedelta(minutes=15)
+            ))
+            
+            cur.execute("""
+                INSERT INTO orders (
+                    user_id, supplier_id, surprise_bag_id, 
+                    order_number, status,
+                    payment_status, customer_address, 
+                    customer_lat, customer_lon,
+                    amount_paid, delivery_type, created_at
+                ) VALUES (
+                    %s, %s, %s,
+                    %s, 'pending',
+                    'pending', %s,
+                    %s, %s,
+                    %s, %s, %s
+                ) RETURNING id
+            """, (
+                int(user_id),
+                bag_supplier_id,
+                bag_id,
+                order_number,
+                customer_address if customer_address else "Самовывоз",
+                customer_lat if delivery_type == "delivery" else None,
+                customer_lon if delivery_type == "delivery" else None,
+                bag_price,
+                delivery_type,
+                now
+            ))
+            
+            order_id = cur.fetchone()[0]
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "order_id": order_id,
+            "order_number": order_number,
+            "status": "pending",
+            "message": "Order created successfully"
+        }
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        print(f"❌ Ошибка: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+        
 
 
 @app.post("/api/courier/location")
