@@ -153,6 +153,9 @@ def get_city_from_coords(lat: float, lon: float) -> str:
 
 
 
+
+
+
 # backend/main.py - ДОБАВЬ В НАЧАЛО ФАЙЛА
 
 from fastapi import Depends, HTTPException, status
@@ -385,6 +388,7 @@ uploads_dir = Path("uploads")
 uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 def get_db_connection():
@@ -489,10 +493,24 @@ def get_user_id_from_request(request: Request) -> int | None:
     return None
 
 
-@app.get("/admin/login")
-async def admin_login_page(request: Request):
-    """Страница входа"""
-    return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
+
+
+def create_admin_if_not_exists(db: Session):
+    """Создает админа при первом запуске"""
+    admin = db.query(Admin).first()
+    if not admin:
+        MY_LOGIN = "ACCOUNTA@#$26"
+        MY_PASSWORD = "CEVONICQW%&%y*"
+        
+        new_admin = Admin(
+            username=MY_LOGIN,
+            password_hash=hash_password(MY_PASSWORD)
+        )
+        db.add(new_admin)
+        db.commit()
+        print(f"✅ Админ создан: {MY_LOGIN}")
+        return True
+    return False
 
 
 
@@ -833,98 +851,6 @@ async def get_current_admin_from_token(request: Request, db: Session = Depends(g
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 # backend/main.py - ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ
 
-@app.get("/admin")
-async def admin_panel(request: Request):
-    token = request.query_params.get("token")
-    if not token:
-        # ❌ НАЙДИТЕ ЭТО
-        # return RedirectResponse(url="/login", status_code=303)
-        
-        # ✅ ИСПРАВЬТЕ НА ЭТО
-        return RedirectResponse(url="/admin/login", status_code=303) 
-@app.post("/admin/api/login")
-async def admin_api_login(request: Request, db: Session = Depends(get_db)):
-    """API логин для админа - возвращает JWT токен"""
-    
-    try:
-        data = await request.json()
-        username = data.get("username")
-        password = data.get("password")
-        
-        print(f"🔐 Admin login attempt: {username}")
-        
-        # Ищем админа
-        admin = db.query(Admin).filter(Admin.username == username).first()
-        
-        if not admin:
-            print(f"❌ Admin not found: {username}")
-            return JSONResponse(
-                status_code=401,
-                content={"success": False, "detail": "Invalid credentials"}
-            )
-        
-        # Проверяем пароль
-        if not verify_password(password, admin.password_hash):
-            print(f"❌ Wrong password for: {username}")
-            return JSONResponse(
-                status_code=401,
-                content={"success": False, "detail": "Invalid credentials"}
-            )
-        
-        # Создаем JWT токен
-        access_token = create_access_token(data={
-            "sub": str(admin.id),
-            "role": "admin",
-            "username": admin.username
-        })
-        
-        print(f"✅ Admin logged in: {username}, token created")
-        
-        return {
-            "success": True,
-            "token": access_token,
-            "admin": {
-                "id": admin.id,
-                "username": admin.username
-            }
-        }
-        
-    except Exception as e:
-        print(f"❌ Login error: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "detail": str(e)}
-        )
-
-@app.get("/api/admin/stats")
-async def get_admin_stats(request: Request):
-    """Получить статистику - чистый SQL"""
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        cur.execute("""
-            SELECT 
-                (SELECT COUNT(*) FROM users) as total_users,
-                (SELECT COUNT(*) FROM orders) as total_orders,
-                (SELECT COUNT(*) FROM suppliers) as total_suppliers,
-                (SELECT COUNT(*) FROM surprise_bags) as total_bags,
-                (SELECT COUNT(*) FROM courier_profiles WHERE is_verified = false) as pending_couriers,
-                COALESCE(SUM(amount_paid), 0) as total_revenue
-            FROM orders
-            WHERE payment_status = 'paid'
-        """)
-        
-        stats = cur.fetchone()
-        cur.close()
-        conn.close()
-        
-        return stats
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
-# backend/main.py - ИСПРАВЛЕННЫЙ админ логин (API, не HTML форма)
 
 
     # backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
@@ -5161,6 +5087,179 @@ async def auto_assign_courier(
             content={"success": False, "detail": str(e)}
         )
 
+@app.get("/admin/login")
+async def admin_login_page(request: Request):
+    """Страница входа в админ-панель"""
+    return templates.TemplateResponse("admin_login.html", {"request": request, "error": None})
+
+# ============ ЭНДПОИНТ: API ЛОГИНА (POST) ============
+@app.post("/admin/api/login")
+async def admin_api_login(request: Request, db: Session = Depends(get_db)):
+    """API логин для админа - возвращает JWT токен"""
+    
+    try:
+        data = await request.json()
+        username = data.get("username")
+        password = data.get("password")
+        
+        print(f"🔐 Admin login attempt: {username}")
+        
+        # Ищем админа
+        admin = db.query(Admin).filter(Admin.username == username).first()
+        
+        if not admin:
+            print(f"❌ Admin not found: {username}")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid credentials"}
+            )
+        
+        # Проверяем пароль
+        if not verify_password(password, admin.password_hash):
+            print(f"❌ Wrong password for: {username}")
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid credentials"}
+            )
+        
+        # Создаем JWT токен
+        access_token = create_access_token(data={
+            "sub": str(admin.id),
+            "role": "admin",
+            "username": admin.username
+        })
+        
+        print(f"✅ Admin logged in: {username}, token created")
+        
+        return {
+            "success": True,
+            "token": access_token,
+            "admin": {
+                "id": admin.id,
+                "username": admin.username
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Login error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+
+# ============ ЭНДПОИНТ: АДМИН-ПАНЕЛЬ (GET) ============
+@app.get("/admin")
+async def admin_panel(request: Request):
+    """Админ-панель - проверяет токен из URL или sessionStorage"""
+    
+    token = request.query_params.get("token")
+    
+    if not token:
+        return RedirectResponse(url="/admin/login", status_code=303)
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return RedirectResponse(url="/admin/login", status_code=303)
+        
+        return templates.TemplateResponse("admin.html", {"request": request})
+        
+    except Exception:
+        return RedirectResponse(url="/admin/login", status_code=303)
+
+# ============ ЭНДПОИНТ: ДАШБОРД (GET) ============
+@app.get("/admin/dashboard")
+async def admin_dashboard_page(request: Request):
+    """Панель администратора - проверяет токен из URL"""
+    
+    token = request.query_params.get("token")
+    
+    if not token:
+        return RedirectResponse(url="/admin/login", status_code=303)
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return RedirectResponse(url="/admin/login", status_code=303)
+        
+        return templates.TemplateResponse("admin.html", {"request": request})
+        
+    except Exception:
+        return RedirectResponse(url="/admin/login", status_code=303)
+
+# ============ ЭНДПОИНТ: ВЫХОД ============
+@app.get("/admin/logout")
+async def admin_logout():
+    """Выход из админ-панели"""
+    response = RedirectResponse(url="/admin/login", status_code=303)
+    response.delete_cookie("admin_id")
+    return response
+
+# ============ ЭНДПОИНТ: СТАТИСТИКА (GET) ============
+@app.get("/api/admin/stats")
+async def get_admin_stats(request: Request, db: Session = Depends(get_db)):
+    """Получить статистику для админ-панели"""
+    
+    # Проверка токена
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
+    except:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Invalid token"}
+        )
+    
+    try:
+        # Считаем статистику
+        total_users = db.query(User).count()
+        total_suppliers = db.query(Supplier).count()
+        total_orders = db.query(Order).count()
+        total_bags = db.query(SurpriseBag).count()
+        pending_couriers = db.query(CourierProfile).filter(CourierProfile.is_verified == False).count()
+        
+        # Выручка
+        from sqlalchemy import func
+        total_revenue = db.query(func.sum(Order.amount_paid)).filter(Order.payment_status == "paid").scalar() or 0
+        
+        return {
+            "total_users": total_users,
+            "total_suppliers": total_suppliers,
+            "total_orders": total_orders,
+            "total_bags": total_bags,
+            "pending_couriers": pending_couriers,
+            "total_revenue": float(total_revenue)
+        }
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+# ============ ЭНДПОИНТ: РЕДИРЕКТ С /login ============
+@app.get("/login")
+async def redirect_to_admin_login():
+    """Редирект с /login на /admin/login"""
+    return RedirectResponse(url="/admin/login", status_code=302)
+
+@app.post("/login")
+async def redirect_post_login():
+    """Редирект POST запросов с /login на /admin/login"""
+    return RedirectResponse(url="/admin/login", status_code=302)
 
 @app.get("/api/supplier/available-couriers")
 async def get_available_couriers(request: Request, db: Session = Depends(get_db)):
@@ -6665,33 +6764,6 @@ def verify_admin_token(request: Request):
 
 
 
-@app.get("/admin/dashboard")
-async def admin_dashboard_page(request: Request):
-    """Панель администратора - проверяет токен из URL"""
-    
-    token = request.query_params.get("token")
-    
-    if not token:
-        return RedirectResponse(url="/admin/login", status_code=303)
-    
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        if payload.get("role") != "admin":
-            return RedirectResponse(url="/admin/login", status_code=303)
-        
-        return templates.TemplateResponse("admin_dashboard.html", {"request": request})
-        
-    except Exception:
-        return RedirectResponse(url="/admin/login", status_code=303)
-
-
-
-@app.get("/admin/logout")
-async def admin_logout():
-    """Выход из админ-панели"""
-    response = RedirectResponse(url="/admin/login", status_code=303)
-    response.delete_cookie("admin_id")
-    return response
 
 # ============ API ДЛЯ ОБНОВЛЕНИЯ ============
 # backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
@@ -10271,12 +10343,7 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)):
             "is_active": user.is_active
         }
     }
-@app.get("/login")
-async def phone_login_page(request: Request, lang: str = "kz"):
-    return templates.TemplateResponse("phone_login.html", {
-        "request": request,
-        "lang": lang
-    })
+
 from fastapi.responses import JSONResponse
 
 from fastapi.responses import JSONResponse
@@ -11790,15 +11857,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 def calculate_eta(distance_km, speed_kmh=40):
     return int((distance_km / speed_kmh) * 60)
 # ============ ADMIN ROUTES ============
-@app.get("/admin")
-async def admin_panel(request: Request, db: Session = Depends(get_db)):
-    foods = db.query(Food).all()
-    orders = db.query(Order).all()
-    return templates.TemplateResponse("admin.html", {
-        "request": request,
-        "foods": foods,
-        "orders": orders
-    })
+
 
 @app.post("/admin/add-food")
 async def add_food(
