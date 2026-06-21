@@ -1493,11 +1493,14 @@ async def admin_bulk_update_status(
         )
 
 # backend/main.py - добавить
+# ============================================================
+# ВРЕМЕННОЕ ДУБЛИРОВАНИЕ /api/orders
+# ============================================================
+
 @app.post("/api/orders")
-async def create_order(request: Request):
-    """Создание заказа"""
+async def create_order_duplicate(request: Request):
+    """Создание заказа - ДУБЛИКАТ"""
     
-    # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -1521,7 +1524,6 @@ async def create_order(request: Request):
     cur = conn.cursor()
     
     try:
-        # Проверяем резервацию
         cur.execute("""
             SELECT id, bag_id, user_id, quantity, is_paid
             FROM temporary_reservations 
@@ -1535,7 +1537,6 @@ async def create_order(request: Request):
         
         reservation = cur.fetchone()
         
-        # Получаем сюрприз
         cur.execute("""
             SELECT id, supplier_id, discounted_price, name
             FROM surprise_bags 
@@ -1552,11 +1553,11 @@ async def create_order(request: Request):
         bag_price = bag[2]
         bag_name = bag[3]
         
+        import secrets
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         now = datetime.utcnow()
         
         if reservation:
-            # Создаем заказ из резервации
             cur.execute("""
                 INSERT INTO orders (
                     user_id, supplier_id, surprise_bag_id, 
@@ -1593,7 +1594,6 @@ async def create_order(request: Request):
             """, (reservation[0],))
             
         else:
-            # Проверяем наличие
             cur.execute("""
                 SELECT available_quantity, is_active 
                 FROM surprise_bags 
@@ -1636,7 +1636,6 @@ async def create_order(request: Request):
                 now + timedelta(minutes=15)
             ))
             
-            # Создаем заказ
             cur.execute("""
                 INSERT INTO orders (
                     user_id, supplier_id, surprise_bag_id, 
@@ -1684,8 +1683,8 @@ async def create_order(request: Request):
         conn.close()
         print(f"❌ Ошибка: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
         
+                
 @app.get("/api/surprise-bags/{bag_id}/rating")
 async def get_surprise_bag_rating(
     bag_id: int,
