@@ -1918,6 +1918,125 @@ async def admin_mark_reservation_paid(
 
 manager = ConnectionManager()
 
+
+
+# backend/main.py - добавь этот эндпоинт
+
+# backend/main.py - ОСТАВЬ ТОЛЬКО ЭТОТ
+
+@app.post("/api/courier/register")
+async def courier_api_register(request: Request, db: Session = Depends(get_db)):
+    """API регистрация курьера"""
+    
+    try:
+        data = await request.json()
+        
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+        phone = data.get("phone", "").strip()
+        password = data.get("password", "")
+        courier_type = data.get("courier_type", "pedestrian")
+        car_model = data.get("car_model", "").strip()
+        car_number = data.get("car_number", "").strip()
+        
+        print(f"📥 Регистрация курьера: {first_name} {last_name}, {phone}")
+        
+        # ======== ВАЛИДАЦИЯ ========
+        if not first_name or not last_name:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Введите имя и фамилию"}
+            )
+        
+        if not phone:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Введите номер телефона"}
+            )
+        
+        if not password or len(password) < 6:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Пароль должен быть минимум 6 символов"}
+            )
+        
+        if courier_type == "driver" and not car_model:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Укажите модель автомобиля"}
+            )
+        
+        # ======== ПРОВЕРКА СУЩЕСТВОВАНИЯ ========
+        existing = db.query(User).filter(User.phone == phone).first()
+        if existing:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Пользователь с таким номером уже существует"}
+            )
+        
+        # ======== СОЗДАЕМ ПОЛЬЗОВАТЕЛЯ ========
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        full_name = f"{first_name} {last_name}"
+        
+        new_user = User(
+            phone=phone,
+            first_name=first_name,
+            last_name=last_name,
+            full_name=full_name,
+            password=password_hash,
+            role="courier",
+            is_active=False,
+            created_at=datetime.utcnow()
+        )
+        db.add(new_user)
+        db.flush()
+        
+        # ======== СОЗДАЕМ ПРОФИЛЬ КУРЬЕРА ========
+        speed = 5.0 if courier_type == "pedestrian" else 40.0
+        radius = 3.0 if courier_type == "pedestrian" else 15.0
+        
+        courier_profile = CourierProfile(
+            user_id=new_user.id,
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone,
+            courier_type=courier_type,
+            car_model=car_model if courier_type == "driver" else None,
+            car_number=car_number if courier_type == "driver" else None,
+            speed_kmh=speed,
+            delivery_radius_km=radius,
+            is_verified=False,
+            is_active=True,
+            is_available=True,
+            rating=5.0,
+            total_deliveries=0,
+            created_at=datetime.utcnow()
+        )
+        db.add(courier_profile)
+        db.commit()
+        
+        print(f"✅ Курьер зарегистрирован: {full_name}")
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Заявка отправлена на рассмотрение администратору",
+            "courier_id": new_user.id
+        })
+        
+    except Exception as e:
+        print(f"❌ Ошибка регистрации курьера: {e}")
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": f"Ошибка: {str(e)}"}
+        )
+
+
+
+
 @app.post("/api/courier/arrived/{order_id}")
 async def courier_arrived(order_id: int, request: Request):
     """Курьер прибыл к клиенту - МЕНЯЕМ СТАТУС ЗАКАЗА НА 'nearby'"""
@@ -3445,113 +3564,6 @@ def get_user_id_from_token(request: Request):
 
 # backend/main.py - исправленный эндпоинт
 # backend/main.py - ИСПРАВЛЕННАЯ РЕГИСТРАЦИЯ КУРЬЕРА
-
-@app.post("/courier/register")
-async def courier_register(request: Request, db: Session = Depends(get_db)):
-    """Регистрация курьера"""
-    try:
-        data = await request.json()
-        
-        first_name = data.get("first_name", "").strip()
-        last_name = data.get("last_name", "").strip()
-        phone = data.get("phone", "").strip()
-        password = data.get("password", "")
-        courier_type = data.get("courier_type", "pedestrian")
-        car_model = data.get("car_model", "").strip()
-        car_number = data.get("car_number", "").strip()
-        
-        # ======== ВАЛИДАЦИЯ ========
-        if not first_name or not last_name:
-            return {
-                "success": False, 
-                "detail": "Введите имя и фамилию"
-            }
-        
-        if not phone:
-            return {
-                "success": False, 
-                "detail": "Введите номер телефона"
-            }
-        
-        if not password or len(password) < 6:
-            return {
-                "success": False, 
-                "detail": "Пароль должен быть минимум 6 символов"
-            }
-        
-        if courier_type == "driver" and not car_model:
-            return {
-                "success": False, 
-                "detail": "Укажите модель автомобиля"
-            }
-        
-        # ======== ПРОВЕРКА СУЩЕСТВОВАНИЯ ========
-        existing = db.query(User).filter(User.phone == phone).first()
-        if existing:
-            return {
-                "success": False, 
-                "detail": "Пользователь с таким номером уже существует"
-            }
-        
-        # ======== СОЗДАЕМ ПОЛЬЗОВАТЕЛЯ ========
-        import hashlib
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        full_name = f"{first_name} {last_name}"
-        
-        # ✅ ИСПРАВЛЕНО: role = 'courier' (строка, БЕЗ ENUM)
-        new_user = User(
-            phone=phone,
-            first_name=first_name,
-            last_name=last_name,
-            full_name=full_name,
-            password=password_hash,
-            role="courier",  # ✅ СТРОКА, БЕЗ ENUM
-            is_active=False,
-            created_at=datetime.utcnow()
-        )
-        db.add(new_user)
-        db.flush()
-        
-        # ======== СОЗДАЕМ ПРОФИЛЬ КУРЬЕРА ========
-        speed = 5.0 if courier_type == "pedestrian" else 40.0
-        radius = 3.0 if courier_type == "pedestrian" else 15.0
-        
-        # ✅ ИСПРАВЛЕНО: courier_type = строка, БЕЗ ENUM
-        courier_profile = CourierProfile(
-            user_id=new_user.id,
-            first_name=first_name,
-            last_name=last_name,
-            phone=phone,
-            courier_type=courier_type,  # "pedestrian" или "driver"
-            car_model=car_model if courier_type == "driver" else None,
-            car_number=car_number if courier_type == "driver" else None,
-            speed_kmh=speed,
-            delivery_radius_km=radius,
-            is_verified=False,
-            is_active=True,
-            is_available=True,
-            rating=5.0,
-            total_deliveries=0,
-            created_at=datetime.utcnow()
-        )
-        db.add(courier_profile)
-        db.commit()
-        
-        print(f"✅ Зарегистрирован новый курьер: {full_name} (тип: {courier_type})")
-        
-        return {
-            "success": True,
-            "message": "Заявка отправлена на рассмотрение",
-            "courier_id": new_user.id
-        }
-        
-    except Exception as e:
-        print(f"❌ Ошибка регистрации курьера: {e}")
-        db.rollback()
-        return {
-            "success": False, 
-            "detail": str(e)
-        }
 
 @app.post("/api/courier/go-online")
 async def courier_go_online(request: Request):
