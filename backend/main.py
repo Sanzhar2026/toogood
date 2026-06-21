@@ -7910,6 +7910,67 @@ async def get_products_for_bag(
 # ============================================================
 # ЭНДПОИНТЫ ДЛЯ УПРАВЛЕНИЯ СЮРПРИЗАМИ (ОБНОВЛЕНЫ)
 # ============================================================
+# ============================================================
+# ПОЛУЧИТЬ СЮРПРИЗ ПО ID
+# ============================================================
+
+@app.get("/api/surprise-bags/{bag_id}")
+async def get_surprise_bag_by_id(
+    bag_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Получить конкретный сюрприз по ID"""
+    
+    print(f"🔍 Запрос сюрприза #{bag_id}")
+    
+    # Находим сюрприз
+    bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+    
+    if not bag:
+        print(f"❌ Сюрприз #{bag_id} не найден")
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "message": "Сюрприз не найден"}
+        )
+    
+    # Получаем поставщика
+    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+    
+    # Получаем товары в сюрпризе (если они есть)
+    items = db.query(SurpriseBagItem).filter(
+        SurpriseBagItem.surprise_bag_id == bag.id
+    ).all()
+    
+    items_list = []
+    for item in items:
+        items_list.append({
+            "product_id": item.product_id or 0,
+            "name": item.product_name or "",
+            "price": float(item.product_price) if item.product_price else 0,
+            "quantity": int(item.quantity) if item.quantity else 1
+        })
+    
+    result = {
+        "id": bag.id,
+        "supplier_id": bag.supplier_id,
+        "supplier_name": supplier.business_name if supplier else "Неизвестно",
+        "name": bag.name,
+        "description": bag.description,
+        "original_price": float(bag.original_price) if bag.original_price else 0,
+        "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
+        "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
+        "image_url": bag.image_url or "",
+        "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
+        "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
+        "city": bag.city or "",
+        "is_active": bool(bag.is_active) if bag.is_active is not None else False,
+        "items": items_list
+    }
+    
+    print(f"✅ Сюрприз #{bag_id} найден: {bag.name}")
+    
+    return JSONResponse(content=result)
 
 @app.post("/api/supplier/surprise-bags")
 async def create_surprise_bag(
@@ -7939,21 +8000,34 @@ async def create_surprise_bag(
         if not products_data or len(products_data) == 0:
             return {"success": False, "error": "Добавьте хотя бы один товар"}
         
+        # ✅ ПОЛУЧАЕМ ГОРОД ПОСТАВЩИКА
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # 1. Создаем сюрприз
+        cur.execute("""
+            SELECT city FROM suppliers 
+            WHERE id = %s
+        """, (supplier_id,))
+        
+        supplier = cur.fetchone()
+        supplier_city = supplier[0] if supplier and supplier[0] else "Ақтөбе"  # ← ГОРОД ПОСТАВЩИКА!
+        
+        print(f"🏙️ Город поставщика: {supplier_city}")
+        
+        # 1. Создаем сюрприз с городом поставщика
         cur.execute("""
             INSERT INTO surprise_bags (
                 supplier_id, name, description, original_price, discounted_price,
                 discount_percentage, image_url, available_quantity, total_quantity,
-                pickup_start_time, pickup_end_time, hide_contents, is_active, created_at
+                pickup_start_time, pickup_end_time, hide_contents, 
+                city,  # ← ДОБАВЛЯЕМ ГОРОД
+                is_active, created_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, true, NOW())
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, true, NOW())
             RETURNING id
         """, (supplier_id, name, description, original_price, discounted_price,
               discount_percentage, image_url, available_quantity, total_quantity,
-              pickup_start, pickup_end, hide_contents))
+              pickup_start, pickup_end, hide_contents, supplier_city))  # ← ПЕРЕДАЕМ ГОРОД!
         
         bag_id = cur.fetchone()[0]
         
@@ -7964,7 +8038,6 @@ async def create_surprise_bag(
             product_price = item.get("price", 0)
             quantity = item.get("quantity", 1)
             
-            # Проверяем, что товар принадлежит поставщику
             cur.execute("""
                 SELECT id, name_ru, price 
                 FROM supplier_products 
@@ -7992,10 +8065,13 @@ async def create_surprise_bag(
         cur.close()
         conn.close()
         
+        print(f"✅ Создан сюрприз в городе: {supplier_city}")
+        
         return {
             "success": True,
-            "message": "Сюрприз создан",
-            "bag_id": bag_id
+            "message": f"Сюрприз создан в городе {supplier_city}",
+            "bag_id": bag_id,
+            "city": supplier_city
         }
         
     except Exception as e:
@@ -8003,7 +8079,7 @@ async def create_surprise_bag(
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
-# ============================================================
+    # ============================================================
 @app.get("/api/supplier/categories")
 async def get_supplier_categories(
     supplier_id: int = Depends(get_supplier_id_from_token)
