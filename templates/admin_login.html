@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ вход - Sarqyn GO</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .login-container {
+            background: white;
+            border-radius: 2rem;
+            padding: 2rem;
+            max-width: 450px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+        }
+        @media (min-width: 768px) { .login-container { padding: 2.5rem; } }
+        .logo { text-align: center; margin-bottom: 2rem; }
+        .logo h1 { font-size: 2rem; color: #0f172a; }
+        .logo span { color: #fbbf24; }
+        .logo p { color: #64748b; font-size: 0.8rem; margin-top: 0.5rem; }
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #0f172a; }
+        input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #fbbf24;
+            box-shadow: 0 0 0 3px rgba(251,191,36,0.1);
+        }
+        .btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0f172a;
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: #1e293b; transform: translateY(-1px); }
+        .error {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 0.75rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+            display: none;
+        }
+        .back-link { text-align: center; margin-top: 1.5rem; }
+        .back-link a { color: #64748b; text-decoration: none; font-size: 0.875rem; }
+        .credential-hint {
+            background: #fef3c7;
+            border-left: 3px solid #fbbf24;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.75rem;
+            color: #92400e;
+        }
+        .credential-hint code {
+            background: #fff;
+            padding: 0.1rem 0.3rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+        }
+        .lang-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .lang-btn {
+            background: #f1f5f9;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .lang-btn.active {
+            background: #fbbf24;
+            color: #0f172a;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="lang-buttons">
+            <button class="lang-btn" onclick="setLanguage('kz')">🇰🇿 Қаз</button>
+            <button class="lang-btn" onclick="setLanguage('ru')">🇷🇺 Рус</button>
+            <button class="lang-btn" onclick="setLanguage('en')">🇬🇧 Eng</button>
+        </div>
+        
+        <div class="logo">
+            <h1>Sarqyn <span>GO</span> | Admin</h1>
+            <p id="loginTitle">Login to Admin Panel</p>
+        </div>
+        
+        <div id="errorMsg" class="error"></div>
+        
+        <div class="credential-hint">
+            <strong id="credLabel">Login credentials:</strong><br>
+            <span id="userLabel">Username</span>: <code>ACCOUNTA@#$26</code><br>
+            <span id="passLabel">Password</span>: <code>CEVONICQW%&%y*</code>
+        </div>
+        
+        <div class="form-group">
+            <label id="usernameLabel">Username</label>
+            <input type="text" id="username" value="ACCOUNTA@#$26">
+        </div>
+        
+        <div class="form-group">
+            <label id="passwordLabel">Password</label>
+            <input type="password" id="password" value="CEVONICQW%&%y*">
+        </div>
+        
+        <button class="btn" id="loginBtn" onclick="doLogin()">Login</button>
+        
+        <div class="back-link">
+            <a href="/" id="backLink">Back to Home</a>
+        </div>
+    </div>
+
+    <script>
+        const translations = {
+            kz: {
+                login_title: 'Әкімші панеліне кіру',
+                login_credentials: 'Кіру деректері:',
+                username_label: 'Логин',
+                password_label: 'Құпия сөз',
+                login_btn: 'Кіру',
+                back_home: '← Басты бетке оралу'
+            },
+            ru: {
+                login_title: 'Вход в панель администратора',
+                login_credentials: 'Данные для входа:',
+                username_label: 'Логин',
+                password_label: 'Пароль',
+                login_btn: 'Войти',
+                back_home: '← Вернуться на главную'
+            },
+            en: {
+                login_title: 'Admin Panel Login',
+                login_credentials: 'Login credentials:',
+                username_label: 'Username',
+                password_label: 'Password',
+                login_btn: 'Login',
+                back_home: '← Back to Home'
+            }
+        };
+        
+        let currentLang = 'ru';
+        
+        function updateUI() {
+            const t = translations[currentLang];
+            document.getElementById('loginTitle').innerText = t.login_title;
+            document.getElementById('credLabel').innerText = t.login_credentials;
+            document.getElementById('userLabel').innerText = t.username_label;
+            document.getElementById('passLabel').innerText = t.password_label;
+            document.getElementById('usernameLabel').innerText = t.username;
+            document.getElementById('passwordLabel').innerText = t.password;
+            document.getElementById('loginBtn').innerText = t.login_btn;
+            document.getElementById('backLink').innerText = t.back_home;
+            
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if ((currentLang === 'kz' && btn.innerText.includes('Қаз')) ||
+                    (currentLang === 'ru' && btn.innerText.includes('Рус')) ||
+                    (currentLang === 'en' && btn.innerText.includes('Eng'))) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+        
+        function setLanguage(lang) {
+            currentLang = lang;
+            updateUI();
+        }
+        
+        async function doLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMsg');
+            
+            errorDiv.style.display = 'none';
+            errorDiv.innerText = '';
+            
+            try {
+                const response = await fetch('/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    // ✅ ТОЛЬКО sessionStorage
+                    sessionStorage.setItem('admin_token', data.token);
+                    window.location.href = '/admin/dashboard?token=' + encodeURIComponent(data.token);
+                } else {
+                    errorDiv.innerText = data.detail || 'Invalid credentials';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                errorDiv.innerText = 'Network error. Please try again.';
+                errorDiv.style.display = 'block';
+            }
+        }
+        
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') doLogin();
+        });
+        
+        updateUI();
+    </script>
+</body>
+</html>
