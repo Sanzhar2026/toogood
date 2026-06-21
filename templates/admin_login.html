@@ -214,7 +214,6 @@
                 const data = await response.json();
                 
                 if (response.ok && data.token) {
-                    // ✅ ТОЛЬКО sessionStorage
                     sessionStorage.setItem('admin_token', data.token);
                     window.location.href = '/admin/dashboard?token=' + encodeURIComponent(data.token);
                 } else {
