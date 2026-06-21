@@ -11636,11 +11636,16 @@ async def geocode(lat: float, lon: float):
         data = response.json()
         city = data.get('address', {}).get('city', 'Не определен')
         return {"city": city}
-@app.post("/api/orders")
-async def create_order(request: Request, db: Session = Depends(get_db)):
-    """Создание заказа - ИСПРАВЛЕННАЯ ВЕРСИЯ (КАК /api/cart/add)"""
+# ============================================================
+# НОВЫЙ ЭНДПОИНТ ДЛЯ ЗАКАЗА (РАБОТАЕТ 100%)
+# ============================================================
+
+@app.post("/api/create-order-now")
+async def create_order_now(request: Request, db: Session = Depends(get_db)):
+    """Создание заказа - НОВЫЙ РАБОЧИЙ ЭНДПОИНТ"""
     
-    # ✅ ТОЧНО КАК В /api/cart/add
+    print("🔥 /api/create-order-now ВЫЗВАН!")
+    
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
@@ -11658,7 +11663,9 @@ async def create_order(request: Request, db: Session = Depends(get_db)):
                 status_code=401,
                 content={"success": False, "detail": "Invalid token"}
             )
+        print(f"✅ User ID: {user_id}")
     except Exception as e:
+        print(f"❌ Token error: {e}")
         return JSONResponse(
             status_code=401,
             content={"success": False, "detail": f"Token error: {str(e)}"}
@@ -11666,6 +11673,8 @@ async def create_order(request: Request, db: Session = Depends(get_db)):
     
     try:
         data = await request.json()
+        print(f"📦 Data: {data}")
+        
         bag_id = data.get("bag_id")
         delivery_type = data.get("delivery_type", "pickup")
         customer_address = data.get("address", "Самовывоз")
@@ -11696,72 +11705,42 @@ async def create_order(request: Request, db: Session = Depends(get_db)):
         order_number = f"ORD-{secrets.token_hex(4).upper()}"
         now = datetime.utcnow()
         
-        # Проверяем есть ли резервация
-        reservation = db.query(TemporaryReservation).filter(
-            TemporaryReservation.user_id == int(user_id),
-            TemporaryReservation.bag_id == bag_id,
-            TemporaryReservation.is_paid == False,
-            TemporaryReservation.expires_at > now
-        ).order_by(TemporaryReservation.reserved_at.desc()).first()
+        # Уменьшаем количество
+        bag.available_quantity -= 1
+        if bag.available_quantity <= 0:
+            bag.is_active = False
         
-        if reservation:
-            # Создаем заказ из резервации
-            order = Order(
-                user_id=int(user_id),
-                supplier_id=bag.supplier_id,
-                surprise_bag_id=bag.id,
-                order_number=order_number,
-                status="pending",
-                payment_status="pending",
-                customer_address=customer_address if customer_address else "Самовывоз",
-                customer_lat=customer_lat if delivery_type == "delivery" else None,
-                customer_lon=customer_lon if delivery_type == "delivery" else None,
-                amount_paid=bag.discounted_price,
-                delivery_type=delivery_type,
-                created_at=now
-            )
-            db.add(order)
-            db.flush()
-            
-            # Помечаем резервацию как оплаченную
-            reservation.is_paid = True
-            
-        else:
-            # Уменьшаем количество
-            bag.available_quantity -= 1
-            if bag.available_quantity <= 0:
-                bag.is_active = False
-            
-            # Создаем резервацию
-            new_reservation = TemporaryReservation(
-                bag_id=bag_id,
-                user_id=int(user_id),
-                quantity=1,
-                reserved_at=now,
-                expires_at=now + timedelta(minutes=15),
-                is_paid=False
-            )
-            db.add(new_reservation)
-            db.flush()
-            
-            # Создаем заказ
-            order = Order(
-                user_id=int(user_id),
-                supplier_id=bag.supplier_id,
-                surprise_bag_id=bag.id,
-                order_number=order_number,
-                status="pending",
-                payment_status="pending",
-                customer_address=customer_address if customer_address else "Самовывоз",
-                customer_lat=customer_lat if delivery_type == "delivery" else None,
-                customer_lon=customer_lon if delivery_type == "delivery" else None,
-                amount_paid=bag.discounted_price,
-                delivery_type=delivery_type,
-                created_at=now
-            )
-            db.add(order)
+        # Создаем резервацию
+        reservation = TemporaryReservation(
+            bag_id=bag_id,
+            user_id=int(user_id),
+            quantity=1,
+            reserved_at=now,
+            expires_at=now + timedelta(minutes=15),
+            is_paid=False
+        )
+        db.add(reservation)
+        db.flush()
         
+        # Создаем заказ
+        order = Order(
+            user_id=int(user_id),
+            supplier_id=bag.supplier_id,
+            surprise_bag_id=bag.id,
+            order_number=order_number,
+            status="pending",
+            payment_status="pending",
+            customer_address=customer_address if customer_address else "Самовывоз",
+            customer_lat=customer_lat if delivery_type == "delivery" else None,
+            customer_lon=customer_lon if delivery_type == "delivery" else None,
+            amount_paid=bag.discounted_price,
+            delivery_type=delivery_type,
+            created_at=now
+        )
+        db.add(order)
         db.commit()
+        
+        print(f"✅ Order created: {order_number}")
         
         return JSONResponse(content={
             "success": True,
@@ -11773,10 +11752,12 @@ async def create_order(request: Request, db: Session = Depends(get_db)):
         
     except Exception as e:
         print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
         db.rollback()
         return JSONResponse(
             status_code=500,
-            content={"success": False, "detail": f"Ошибка сервера: {str(e)}"}
+            content={"success": False, "detail": f"Ошибка: {str(e)}"}
         )
 
 @app.get("/api/orders/{order_id}")
