@@ -4539,6 +4539,7 @@ async def admin_get_password_reset_requests(
     return {"success": True, "requests": requests_list}
 
 # backend/main.py - ИСПРАВЛЕННЫЙ ЛОГИН КУРЬЕРА
+from datetime import datetime, timedelta, timezone  # ← ДОБАВЬ В НАЧАЛО
 
 @app.post("/api/courier/login")
 async def courier_login(request: Request, db: Session = Depends(get_db)):
@@ -4556,10 +4557,9 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "detail": "Заполните все поля"}
             )
         
-        # ✅ ИСПРАВЛЕНО: role = 'courier' (строка, БЕЗ ENUM)
         user = db.query(User).filter(
             User.phone == phone,
-            User.role == "courier"  # ✅ СТРОКА, БЕЗ ENUM
+            User.role == "courier"
         ).first()
         
         if not user:
@@ -4569,7 +4569,6 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "detail": "Неверный телефон или пароль"}
             )
         
-        # Проверка пароля
         import hashlib
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         
@@ -4580,7 +4579,6 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "detail": "Неверный телефон или пароль"}
             )
         
-        # Проверяем профиль курьера
         courier = db.query(CourierProfile).filter(CourierProfile.user_id == user.id).first()
         
         if not courier:
@@ -4604,10 +4602,9 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
         
         print(f"✅ Успешный вход курьера: {phone}")
         
-        # Создаем JWT токен
         from jose import jwt
-        import datetime
         
+        # ✅ ИСПРАВЛЕНО: datetime.now(timezone.utc) ВМЕСТО datetime.utcnow()
         token_data = {
             "sub": str(user.id),
             "role": "courier",
@@ -4615,7 +4612,7 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
             "phone": user.phone,
             "first_name": courier.first_name,
             "last_name": courier.last_name,
-            "exp": datetime.utcnow() + timedelta(days=30)
+            "exp": datetime.now(timezone.utc) + timedelta(days=30)
         }
         
         access_token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
@@ -4640,6 +4637,8 @@ async def courier_login(request: Request, db: Session = Depends(get_db)):
         
     except Exception as e:
         print(f"❌ Ошибка логина курьера: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"success": False, "detail": str(e)}
