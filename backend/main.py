@@ -833,6 +833,15 @@ async def get_current_admin_from_token(request: Request, db: Session = Depends(g
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 # backend/main.py - ДОБАВЬТЕ ЭТОТ ЭНДПОИНТ
 
+@app.get("/admin")
+async def admin_panel(request: Request):
+    token = request.query_params.get("token")
+    if not token:
+        # ❌ НАЙДИТЕ ЭТО
+        # return RedirectResponse(url="/login", status_code=303)
+        
+        # ✅ ИСПРАВЬТЕ НА ЭТО
+        return RedirectResponse(url="/admin/login", status_code=303) 
 @app.post("/admin/api/login")
 async def admin_api_login(request: Request, db: Session = Depends(get_db)):
     """API логин для админа - возвращает JWT токен"""
