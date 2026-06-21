@@ -381,7 +381,7 @@ def get_current_user_from_token(
         print(f"❌ Token error: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
 
-app.include_router(users_router)  # 👈 ВАЖНО!
+ # 👈 ВАЖНО!
 
 # Монтируем статику для аватаров
 uploads_dir = Path("uploads")
