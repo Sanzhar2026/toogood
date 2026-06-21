@@ -7971,7 +7971,6 @@ async def get_surprise_bag_by_id(
     print(f"✅ Сюрприз #{bag_id} найден: {bag.name}")
     
     return JSONResponse(content=result)
-
 @app.post("/api/supplier/surprise-bags")
 async def create_surprise_bag(
     request: Request,
@@ -7994,42 +7993,49 @@ async def create_surprise_bag(
         hide_contents = data.get("hide_contents", False)
         products_data = data.get("products", [])
         
+        print(f"📥 Создание сюрприза: {name}, поставщик: {supplier_id}")
+        
         if not name:
-            return {"success": False, "error": "Введите название сюрприза"}
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Введите название сюрприза"}
+            )
         
         if not products_data or len(products_data) == 0:
-            return {"success": False, "error": "Добавьте хотя бы один товар"}
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Добавьте хотя бы один товар"}
+            )
         
-        # ✅ ПОЛУЧАЕМ ГОРОД ПОСТАВЩИКА
         conn = get_db_connection()
         cur = conn.cursor()
         
+        # Получаем город поставщика
         cur.execute("""
-            SELECT city FROM suppliers 
-            WHERE id = %s
+            SELECT city FROM suppliers WHERE id = %s
         """, (supplier_id,))
         
         supplier = cur.fetchone()
-        supplier_city = supplier[0] if supplier and supplier[0] else "Ақтөбе"  # ← ГОРОД ПОСТАВЩИКА!
+        supplier_city = supplier[0] if supplier and supplier[0] else "Ақтөбе"
         
         print(f"🏙️ Город поставщика: {supplier_city}")
         
-        # 1. Создаем сюрприз с городом поставщика
+        # 1. Создаем сюрприз (БЕЗ КОММЕНТАРИЕВ В SQL!)
         cur.execute("""
             INSERT INTO surprise_bags (
                 supplier_id, name, description, original_price, discounted_price,
                 discount_percentage, image_url, available_quantity, total_quantity,
                 pickup_start_time, pickup_end_time, hide_contents, 
-                city,  # ← ДОБАВЛЯЕМ ГОРОД
-                is_active, created_at
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, true, NOW())
-            RETURNING id
+                city, is_active, created_at
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, true, NOW()
+            ) RETURNING id
         """, (supplier_id, name, description, original_price, discounted_price,
               discount_percentage, image_url, available_quantity, total_quantity,
-              pickup_start, pickup_end, hide_contents, supplier_city))  # ← ПЕРЕДАЕМ ГОРОД!
+              pickup_start, pickup_end, hide_contents, supplier_city))
         
         bag_id = cur.fetchone()[0]
+        print(f"✅ Создан сюрприз ID: {bag_id} в городе: {supplier_city}")
         
         # 2. Добавляем товары в сюрприз
         for item in products_data:
@@ -8039,47 +8045,32 @@ async def create_surprise_bag(
             quantity = item.get("quantity", 1)
             
             cur.execute("""
-                SELECT id, name_ru, price 
-                FROM supplier_products 
-                WHERE id = %s AND supplier_id = %s
-            """, (product_id, supplier_id))
-            
-            product = cur.fetchone()
-            if product:
-                cur.execute("""
-                    INSERT INTO surprise_bag_items (
-                        surprise_bag_id, supplier_product_id, 
-                        product_name, product_price, quantity
-                    )
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (bag_id, product_id, product_name, product_price, quantity))
-            else:
-                cur.execute("""
-                    INSERT INTO surprise_bag_items (
-                        surprise_bag_id, product_name, product_price, quantity
-                    )
-                    VALUES (%s, %s, %s, %s)
-                """, (bag_id, product_name, product_price, quantity))
+                INSERT INTO surprise_bag_items (
+                    surprise_bag_id, supplier_product_id, 
+                    product_name, product_price, quantity
+                )
+                VALUES (%s, %s, %s, %s, %s)
+            """, (bag_id, product_id, product_name, product_price, quantity))
         
         conn.commit()
         cur.close()
         conn.close()
         
-        print(f"✅ Создан сюрприз в городе: {supplier_city}")
-        
-        return {
+        return JSONResponse(content={
             "success": True,
             "message": f"Сюрприз создан в городе {supplier_city}",
             "bag_id": bag_id,
             "city": supplier_city
-        }
+        })
         
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"❌ Ошибка создания сюрприза: {e}")
         import traceback
         traceback.print_exc()
-        return {"success": False, "error": str(e)}
-    # ============================================================
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )    # ============================================================
 @app.get("/api/supplier/categories")
 async def get_supplier_categories(
     supplier_id: int = Depends(get_supplier_id_from_token)
