@@ -13543,134 +13543,6 @@ async def get_all_surprise_bags(
 #         return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
 # # backend/main.py - ИСПРАВЛЕННЫЕ ЭНДПОИНТЫ
 
-@app.post("/users/{user_id}/avatar")
-async def upload_avatar(
-    user_id: int,
-    request: Request,
-    avatar: UploadFile = File(...),
-    db: Session = Depends(get_db)
-):
-    """Загрузка аватара пользователя"""
-    
-    # ✅ Проверяем авторизацию
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "detail": "Bearer token required"}
-        )
-    
-    token = auth_header.split(" ")[1]
-    try:
-        from jose import jwt
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        token_user_id = payload.get("sub")
-        
-        if int(token_user_id) != user_id:
-            return JSONResponse(
-                status_code=403,
-                content={"success": False, "detail": "Cannot change another user's avatar"}
-            )
-    except Exception as e:
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "detail": f"Invalid token: {str(e)}"}
-        )
-    
-    # ✅ Проверяем пользователя
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "detail": "User not found"}
-        )
-    
-    # ✅ Проверяем тип файла
-    if not avatar.content_type or not avatar.content_type.startswith('image/'):
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "detail": "File must be an image"}
-        )
-    
-    # ✅ Проверяем размер файла (максимум 5MB)
-    content = await avatar.read()
-    if len(content) > 5 * 1024 * 1024:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "detail": "File too large. Max 5MB"}
-        )
-    
-    try:
-        # ✅ Удаляем старые аватары
-        old_avatars = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
-        for old in old_avatars:
-            try:
-                old.unlink()
-                print(f"🗑️ Удален старый аватар: {old.name}")
-            except Exception as e:
-                print(f"⚠️ Не удалось удалить {old.name}: {e}")
-        
-        # ✅ Сохраняем новый аватар
-        filename = f"avatar_{user_id}_{uuid.uuid4().hex[:8]}.webp"
-        file_path = AVATAR_DIR / filename
-        
-        # Конвертируем в WebP (если нужно)
-        from PIL import Image
-        import io
-        
-        image = Image.open(io.BytesIO(content))
-        
-        # Обрезаем до квадрата (центрируем)
-        width, height = image.size
-        if width != height:
-            size = min(width, height)
-            left = (width - size) // 2
-            top = (height - size) // 2
-            image = image.crop((left, top, left + size, top + size))
-        
-        # Ресайзим до 200x200
-        image = image.resize((200, 200), Image.LANCZOS)
-        
-        # Сохраняем как WebP
-        image.save(file_path, 'WEBP', quality=85, optimize=True)
-        
-        print(f"✅ Аватар сохранен: {filename} ({len(content)} bytes)")
-        
-        return JSONResponse(content={
-            "success": True,
-            "message": "Avatar uploaded successfully",
-            "avatar_url": f"/uploads/avatars/{filename}",
-            "filename": filename
-        })
-        
-    except Exception as e:
-        print(f"❌ Ошибка сохранения аватара: {e}")
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "detail": f"Error saving avatar: {str(e)}"}
-        )
-@app.get("/users/avatar-file/{user_id}")
-async def get_avatar_file(user_id: int):
-    """Получить файл аватара напрямую"""
-    
-    avatar_files = list(AVATAR_DIR.glob(f"avatar_{user_id}_*.webp"))
-    
-    if avatar_files:
-        file_path = avatar_files[0]
-        return FileResponse(
-            file_path, 
-            media_type="image/webp",
-            headers={
-                "Cache-Control": "public, max-age=86400",
-                "Content-Type": "image/webp"
-            }
-        )
-    
-    # Возвращаем 404 если аватара нет
-    raise HTTPException(status_code=404, detail="Avatar not found")
-
 
 
 @app.delete("/users/{user_id}/avatar")
@@ -13714,7 +13586,126 @@ async def delete_avatar(
     return {"success": True, "deleted": deleted}
 
 
+@app.post("/users/{user_id}/avatar")
+async def upload_avatar(
+    user_id: int,
+    request: Request,
+    avatar: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """Загрузка аватара пользователя"""
+    
+    print(f"📥 Загрузка аватара для пользователя {user_id}")
+    
+    # Проверяем токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        token_user_id = payload.get("sub")
+        if int(token_user_id) != user_id:
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Cannot change another user's avatar"}
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    
+    # Проверяем пользователя
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "detail": "User not found"}
+        )
+    
+    # Проверяем файл
+    if not avatar.content_type or not avatar.content_type.startswith('image/'):
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "detail": "File must be an image"}
+        )
+    
+    try:
+        # Читаем файл
+        content = await avatar.read()
+        
+        # Проверяем размер (макс 5MB)
+        if len(content) > 5 * 1024 * 1024:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "File too large (max 5MB)"}
+            )
+        
+        # Удаляем старые аватары
+        for old_file in AVATAR_DIR.glob(f"avatar_{user_id}_*"):
+            try:
+                old_file.unlink()
+                print(f"🗑️ Удален старый: {old_file.name}")
+            except:
+                pass
+        
+        # Сохраняем новый
+        ext = avatar.filename.split('.')[-1] if avatar.filename else 'png'
+        filename = f"avatar_{user_id}_{uuid.uuid4().hex[:8]}.{ext}"
+        file_path = AVATAR_DIR / filename
+        
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        print(f"✅ Аватар сохранен: {filename} ({len(content)} bytes)")
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Avatar uploaded successfully",
+            "filename": filename,
+            "url": f"/uploads/avatars/{filename}"
+        })
+        
+    except Exception as e:
+        print(f"❌ Ошибка сохранения: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": f"Error: {str(e)}"}
+        )
 
+
+@app.get("/users/avatar-file/{user_id}")
+async def get_avatar_file(user_id: int):
+    """Получить файл аватара"""
+    
+    print(f"🔍 Запрос аватара для {user_id}")
+    
+    avatar_files = list(AVATAR_DIR.glob(f"avatar_{user_id}_*"))
+    
+    if avatar_files:
+        file_path = avatar_files[0]
+        print(f"✅ Найден: {file_path.name}")
+        return FileResponse(
+            file_path,
+            media_type="image/webp" if file_path.suffix == '.webp' else "image/png",
+            headers={
+                "Cache-Control": "public, max-age=86400"
+            }
+        )
+    
+    print(f"❌ Аватар не найден для {user_id}")
+    return JSONResponse(
+        status_code=404,
+        content={"success": False, "detail": "Avatar not found"}
+    )
 
 @app.delete("/api/admin/force-delete-all")
 async def admin_force_delete_all(db: Session = Depends(get_db)):
