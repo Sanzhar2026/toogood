@@ -3960,6 +3960,7 @@ async def get_online_couriers(db: Session = Depends(get_db)):
         })
     
     return {"success": True, "couriers": result}
+from datetime import datetime, timezone  # ← ДОБАВЬ В НАЧАЛО
 
 @app.post("/api/courier/complete-order/{order_id}")
 async def complete_order(order_id: int, request: Request):
@@ -4051,7 +4052,7 @@ async def complete_order(order_id: int, request: Request):
             conn.close()
             raise HTTPException(status_code=403, detail="Order not assigned to you")
         
-        # 5. ✅ ПРОВЕРЯЕМ СТАТУС - если уже доставлен или отменен, возвращаем ошибку
+        # 5. ✅ ПРОВЕРЯЕМ СТАТУС
         if current_status == 'delivered':
             cur.close()
             conn.close()
@@ -4121,7 +4122,7 @@ async def complete_order(order_id: int, request: Request):
         
         print(f"✅ Заказ #{order_id} передан клиенту, статус: waiting_confirmation")
         
-        # 9. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КЛИЕНТУ
+        # 9. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КЛИЕНТУ (ИСПРАВЛЕНО!)
         try:
             if customer_user_id:
                 await manager.send_to_user(customer_user_id, {
@@ -4133,7 +4134,7 @@ async def complete_order(order_id: int, request: Request):
                         "status": "waiting_confirmation",
                         "message": f"📦 Курьер {courier_name} передал вам заказ! Подтвердите получение.",
                         "amount": float(amount_paid) if amount_paid else 0,
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()  # ✅ ИСПРАВЛЕНО!
                     }
                 })
                 print(f"📢 Уведомление отправлено клиенту {customer_user_id}")
@@ -4155,8 +4156,7 @@ async def complete_order(order_id: int, request: Request):
         print(f"❌ Ошибка: {e}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        raise HTTPException(status_code=500, detail=str(e))    
 
 
 # backend/main.py - ДОБАВИТЬ ЭТИ ЭНДПОИНТЫ
