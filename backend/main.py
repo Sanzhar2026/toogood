@@ -7611,8 +7611,6 @@ from backend.database import get_db
 from backend.models import Supplier, SupplierProduct, SurpriseBag, SurpriseBagItem
 import json
 
-app = FastAPI()
-templates = Jinja2Templates(directory="templates")
 
 
 # ============================================================
