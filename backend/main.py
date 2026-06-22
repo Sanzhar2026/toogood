@@ -4104,7 +4104,7 @@ async def complete_order(order_id: int, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
     
 
-    
+
 # backend/main.py - ДОБАВИТЬ ЭТИ ЭНДПОИНТЫ
 
 import random
@@ -11422,37 +11422,51 @@ async def logout(request: Request):
 
 # backend/main.py - add this endpoint
 @app.get("/api/my-orders")
-async def get_my_orders_json(request: Request, db: Session = Depends(get_db)):
-    """API endpoint для получения заказов в JSON формате"""
-    user_id = request.cookies.get("user_id")
+async def get_my_orders(request: Request):
+    """Получить заказы текущего пользователя"""
     
-    if not user_id:
-        return JSONResponse(
-            status_code=401,
-            content={"error": "Not authenticated", "orders": []}
-        )
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
     
-    user_id = int(user_id)
-    orders = db.query(Order).filter(Order.user_id == user_id).order_by(Order.created_at.desc()).all()
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
     
-    orders_list = []
-    for order in orders:
-        bag = db.query(SurpriseBag).filter(SurpriseBag.id == order.surprise_bag_id).first()
-        supplier = db.query(Supplier).filter(Supplier.id == order.supplier_id).first()
-        
-        orders_list.append({
-            "id": order.id,
-            "order_number": order.order_number or f"ORD-{order.id}",
-            "bag_name": bag.name if bag else "Surprise Bag",
-            "supplier_name": supplier.business_name if supplier else "Restaurant",
-            "amount_paid": order.amount_paid or 0,
-            "status": order.status.value if order.status else "pending",
-            "created_at": order.created_at.isoformat() if order.created_at else None,
-            "customer_address": order.customer_address or "Address not specified"
-        })
+    conn = get_db_connection()
+    cur = conn.cursor()
     
-    return {"orders": orders_list}
-
+    cur.execute("""
+        SELECT id, order_number, status, created_at, amount_paid,
+               assigned_courier_id, address, delivery_type
+        FROM orders 
+        WHERE user_id = %s
+        ORDER BY created_at DESC
+    """, (user_id,))
+    
+    orders = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    return {
+        "success": True,
+        "orders": [
+            {
+                "id": o[0],
+                "order_number": o[1],
+                "status": o[2],
+                "created_at": o[3].isoformat() if o[3] else None,
+                "amount": float(o[4]) if o[4] else 0,
+                "courier_id": o[5],
+                "address": o[6],
+                "delivery_type": o[7]
+            }
+            for o in orders
+        ]
+    }
 
 @app.get("/api/my_orders")
 async def get_my_orders_json(request: Request, db: Session = Depends(get_db)):
