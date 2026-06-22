@@ -14,7 +14,7 @@ from backend.schemas import (
     RatingStats,
     MyRatingResponse
 )
-from backend.auth import get_current_user
+from backend.main import get_current_user
 
 router = APIRouter(prefix="/api/surprise-bags", tags=["ratings"])
 

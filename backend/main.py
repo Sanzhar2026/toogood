@@ -2036,6 +2036,7 @@ async def courier_api_register(request: Request, db: Session = Depends(get_db)):
 
 
 
+from datetime import datetime, timezone  # ← ДОБАВЬ В НАЧАЛО
 
 @app.post("/api/courier/arrived/{order_id}")
 async def courier_arrived(order_id: int, request: Request):
@@ -2144,7 +2145,7 @@ async def courier_arrived(order_id: int, request: Request):
                         "courier_phone": courier_phone,
                         "status": "nearby",
                         "message": f"🚪 Курьер {courier_name} прибыл к вам! Выходите за заказом.",
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()  # ← ИСПРАВЛЕНО!
                     }
                 }, channel=f"user_{customer_user_id}")
                 print(f"📢 Уведомление о прибытии отправлено КЛИЕНТУ {customer_user_id}")
@@ -2156,7 +2157,7 @@ async def courier_arrived(order_id: int, request: Request):
             "message": "Уведомление о прибытии отправлено клиенту",
             "order_id": order_id,
             "order_number": order_number,
-            "status": "nearby"  # ← ВОЗВРАЩАЕМ 'nearby'
+            "status": "nearby"
         }
         
     except Exception as e:
@@ -2167,7 +2168,6 @@ async def courier_arrived(order_id: int, request: Request):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/api/customer/confirm-delivery/{order_id}")
 async def customer_confirm_delivery(
