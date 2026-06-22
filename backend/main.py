@@ -3992,23 +3992,7 @@ async def complete_order(order_id: int, request: Request):
     cur = conn.cursor()
     
     try:
-        # 1. ✅ ДОБАВЛЯЕМ ЗНАЧЕНИЕ В ENUM (если нет)
-        cur.execute("""
-            DO $$ 
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_enum 
-                    WHERE enumtypid = 'orderstatus'::regtype 
-                    AND enumlabel = 'waiting_confirmation'
-                ) THEN
-                    ALTER TYPE orderstatus ADD VALUE 'waiting_confirmation';
-                END IF;
-            END $$;
-        """)
-        conn.commit()
-        print("✅ ENUM обновлен (waiting_confirmation добавлен)")
-        
-        # 2. Проверяем курьера
+        # 1. Проверяем курьера
         cur.execute("""
             SELECT id, first_name, last_name 
             FROM courier_profiles 
@@ -4025,7 +4009,7 @@ async def complete_order(order_id: int, request: Request):
         courier_last_name = courier[2]
         courier_name = f"{courier_first_name} {courier_last_name}"
         
-        # 3. Проверяем заказ
+        # 2. Проверяем заказ
         cur.execute("""
             SELECT id, assigned_courier_id, user_id, order_number, amount_paid, status
             FROM orders 
@@ -4046,13 +4030,13 @@ async def complete_order(order_id: int, request: Request):
         
         print(f"📋 Заказ #{order_id}: статус={current_status}, курьер={assigned_courier}")
         
-        # 4. Проверяем, что заказ назначен этому курьеру
+        # 3. Проверяем, что заказ назначен этому курьеру
         if assigned_courier != int(user_id):
             cur.close()
             conn.close()
             raise HTTPException(status_code=403, detail="Order not assigned to you")
         
-        # 5. ✅ ПРОВЕРЯЕМ СТАТУС
+        # 4. Проверяем статус
         if current_status == 'delivered':
             cur.close()
             conn.close()
@@ -4089,7 +4073,7 @@ async def complete_order(order_id: int, request: Request):
                 }
             )
         
-        # 6. ✅ Проверяем, что заказ в статусе 'nearby'
+        # 5. Проверяем, что заказ в статусе 'nearby'
         if current_status != 'nearby':
             cur.close()
             conn.close()
@@ -4102,14 +4086,14 @@ async def complete_order(order_id: int, request: Request):
                 }
             )
         
-        # 7. ✅ МЕНЯЕМ СТАТУС НА 'waiting_confirmation'
+        # 6. ✅ МЕНЯЕМ СТАТУС НА 'waiting_confirmation' (БЕЗ CREATE ENUM!)
         cur.execute("""
             UPDATE orders 
             SET status = 'waiting_confirmation'
             WHERE id = %s
         """, (order_id,))
         
-        # 8. Добавляем в трекинг
+        # 7. Добавляем в трекинг
         cur.execute("""
             INSERT INTO order_tracking 
             (order_id, status, message, created_at)
@@ -4122,7 +4106,7 @@ async def complete_order(order_id: int, request: Request):
         
         print(f"✅ Заказ #{order_id} передан клиенту, статус: waiting_confirmation")
         
-        # 9. ✅ ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ КЛИЕНТУ (ИСПРАВЛЕНО!)
+        # 8. Отправляем уведомление клиенту
         try:
             if customer_user_id:
                 await manager.send_to_user(customer_user_id, {
@@ -4134,7 +4118,7 @@ async def complete_order(order_id: int, request: Request):
                         "status": "waiting_confirmation",
                         "message": f"📦 Курьер {courier_name} передал вам заказ! Подтвердите получение.",
                         "amount": float(amount_paid) if amount_paid else 0,
-                        "timestamp": datetime.now(timezone.utc).isoformat()  # ✅ ИСПРАВЛЕНО!
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     }
                 })
                 print(f"📢 Уведомление отправлено клиенту {customer_user_id}")
@@ -4156,8 +4140,7 @@ async def complete_order(order_id: int, request: Request):
         print(f"❌ Ошибка: {e}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))    
-
+        raise HTTPException(status_code=500, detail=str(e))
 
 # backend/main.py - ДОБАВИТЬ ЭТИ ЭНДПОИНТЫ
 
