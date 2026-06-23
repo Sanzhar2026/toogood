@@ -1,4 +1,5 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ РАБОЧАЯ ВЕРСИЯ -->
+<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С ФИЛЬТРАЦИЕЙ ШАБЛОНОВ ПО ТИПУ ПОСТАВЩИКА -->
+
 {% extends "supplier_base.html" %}
 
 {% block title %}Dashboard - {{ supplier.business_name }}{% endblock %}
@@ -11,7 +12,7 @@ html, body { margin: 0; padding: 0; min-height: 100vh; background: #f1f5f9; }
 .admin-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; color: white; position: sticky; top: 0; z-index: 100; margin-bottom: 0; }
 .business-info h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
 .business-info p { color: #94a3b8; font-size: 0.8rem; }
-.header-actions { display: flex; align-items: center; gap: 1rem; }
+.header-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .rating-badge { background: rgba(251, 191, 36, 0.2); padding: 0.3rem 0.8rem; border-radius: 2rem; font-size: 0.8rem; }
 .logout-btn { background: #dc2626; color: white; padding: 0.4rem 1rem; border: none; border-radius: 0.5rem; cursor: pointer; transition: background 0.2s; font-size: 0.8rem; }
 .logout-btn:hover { background: #b91c1c; }
@@ -55,8 +56,9 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
 .status-delivered { background: #d1fae5; color: #065f46; }
 .status-cancelled { background: #fee2e2; color: #991b1b; }
 .btn { padding: 0.3rem 0.6rem; border: none; border-radius: 0.4rem; cursor: pointer; font-size: 0.7rem; transition: all 0.2s; }
-.toggle-type-btn { background: #8b5cf6; color: white; margin-top: 0.3rem; }
+.toggle-type-btn { background: #8b5cf6; color: white; margin-top: 0.3rem; width: 100%; }
 .toggle-type-btn:hover { background: #7c3aed; }
+.toggle-bag-btn { color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 0.4rem; cursor: pointer; margin-bottom: 0.3rem; width: 100%; }
 .auto-assign-btn { background: #10b981; color: white; }
 .auto-assign-btn:hover { background: #059669; }
 .manual-assign-btn { background: #3b82f6; color: white; }
@@ -351,8 +353,8 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
             <h3 id="formTitle" style="margin-bottom: 1rem; font-size: 1rem;">Добавить сюрприз</h3>
             <form id="createBagForm">
                 <div class="form-group full-width">
-                    <label id="labelTemplate">Готовый сюрприз</label>
-                    <select id="surpriseTemplate">
+                    <label id="labelTemplate">🎁 Готовые сюрпризы (только для вашего типа заведения)</label>
+                    <select id="surpriseTemplate" style="padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #e2e8f0; font-size: 0.8rem;">
                         <option value="">-- Выберите готовый сюрприз --</option>
                     </select>
                     <small id="selectedHint" style="color: #64748b;">Выберите готовый сюрприз для автозаполнения</small>
@@ -532,7 +534,7 @@ async function authFetch(url, options = {}) {
 }
 
 // ============================================================
-// ПЕРЕВОДЫ (СОКРАЩЕНЫ)
+// ПЕРЕВОДЫ
 // ============================================================
 const translations = {
     kz: {
@@ -768,6 +770,283 @@ function getImageByTitle(title) {
 }
 
 // ============================================================
+// БОГАТЫЙ ВЫБОР ШАБЛОНОВ (ТОЛЬКО ДЛЯ КОНКРЕТНОГО ТИПА)
+// ============================================================
+function getRichTemplatesByType(type) {
+    var allTemplates = {
+        'restaurant': {
+            icon: '🍽️',
+            name: {'en': 'Restaurant', 'ru': 'Ресторан', 'kz': 'Ресторан'},
+            templates: {
+                'dinner_romantic': {
+                    name: {'en': 'Romantic Dinner', 'ru': 'Романтический ужин', 'kz': 'Романтикалық кешкі ас'},
+                    items: [{'id': 103, 'qty': 2}, {'id': 107, 'qty': 1}, {'id': 108, 'qty': 2}],
+                    price: 6500,
+                    description: {'en': 'Perfect dinner for two', 'ru': 'Идеальный ужин на двоих', 'kz': 'Екеуге арналған тамаша кешкі ас'},
+                    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&h=400&fit=crop'
+                },
+                'family_lunch': {
+                    name: {'en': 'Family Lunch', 'ru': 'Семейный обед', 'kz': 'Отбасылық түскі ас'},
+                    items: [{'id': 101, 'qty': 2}, {'id': 102, 'qty': 1}, {'id': 105, 'qty': 1}],
+                    price: 5200,
+                    description: {'en': 'Lunch for the whole family', 'ru': 'Обед для всей семьи', 'kz': 'Бүкіл отбасыға арналған түскі ас'},
+                    image: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=600&h=400&fit=crop'
+                },
+                'business_lunch': {
+                    name: {'en': 'Business Lunch', 'ru': 'Бизнес-ланч', 'kz': 'Бизнес-түскі ас'},
+                    items: [{'id': 101, 'qty': 1}, {'id': 102, 'qty': 1}, {'id': 106, 'qty': 1}],
+                    price: 3800,
+                    description: {'en': 'Quick and tasty business lunch', 'ru': 'Быстрый и вкусный бизнес-ланч', 'kz': 'Жылдам және дәмді бизнес-түскі ас'},
+                    image: 'https://images.unsplash.com/photo-1547573854-74d2a71d0826?w=600&h=400&fit=crop'
+                },
+                'pizza_party': {
+                    name: {'en': 'Pizza Party', 'ru': 'Пицца-вечеринка', 'kz': 'Пицца кеші'},
+                    items: [{'id': 105, 'qty': 2}, {'id': 108, 'qty': 2}, {'id': 102, 'qty': 1}],
+                    price: 4600,
+                    description: {'en': 'Pizza party for friends', 'ru': 'Пицца-вечеринка для друзей', 'kz': 'Достарға арналған пицца кеші'},
+                    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&h=400&fit=crop'
+                },
+                'gourmet_experience': {
+                    name: {'en': 'Gourmet Experience', 'ru': 'Гурман-сет', 'kz': 'Гурман жинағы'},
+                    items: [{'id': 103, 'qty': 1}, {'id': 107, 'qty': 1}, {'id': 108, 'qty': 1}],
+                    price: 5200,
+                    description: {'en': 'For true gourmets', 'ru': 'Для настоящих гурманов', 'kz': 'Нағыз гурмандар үшін'},
+                    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&h=400&fit=crop'
+                },
+                'vegetarian_healthy': {
+                    name: {'en': 'Vegetarian Set', 'ru': 'Вегетарианский сет', 'kz': 'Вегетариандық жинақ'},
+                    items: [{'id': 102, 'qty': 2}, {'id': 104, 'qty': 1}, {'id': 108, 'qty': 2}],
+                    price: 3400,
+                    description: {'en': 'Healthy vegetarian dishes', 'ru': 'Полезные вегетарианские блюда', 'kz': 'Пайдалы вегетариандық тағамдар'},
+                    image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&h=400&fit=crop'
+                },
+                'kids_set': {
+                    name: {'en': "Kids' Set", 'ru': 'Детский сет', 'kz': 'Балалар жинағы'},
+                    items: [{'id': 106, 'qty': 2}, {'id': 107, 'qty': 1}, {'id': 108, 'qty': 1}],
+                    price: 2800,
+                    description: {'en': 'Fun kids meal', 'ru': 'Веселый детский обед', 'kz': 'Балаларға арналған көңілді түскі ас'},
+                    image: 'https://images.unsplash.com/photo-1551782450-a2132b4ba21d?w=600&h=400&fit=crop'
+                },
+                'italian_classic': {
+                    name: {'en': 'Italian Classic', 'ru': 'Итальянская классика', 'kz': 'Итальян классикасы'},
+                    items: [{'id': 105, 'qty': 1}, {'id': 104, 'qty': 1}, {'id': 107, 'qty': 1}],
+                    price: 4800,
+                    description: {'en': 'Classic Italian cuisine', 'ru': 'Классическая итальянская кухня', 'kz': 'Классикалық итальян асханасы'},
+                    image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&h=400&fit=crop'
+                },
+                'asian_wok': {
+                    name: {'en': 'Asian Wok', 'ru': 'Азиатский вок', 'kz': 'Азиялық вок'},
+                    items: [{'id': 101, 'qty': 1}, {'id': 104, 'qty': 1}, {'id': 108, 'qty': 2}],
+                    price: 3900,
+                    description: {'en': 'Asian cuisine with wok', 'ru': 'Азиатская кухня с воком', 'kz': 'Вокпен азиялық асхана'},
+                    image: 'https://images.unsplash.com/photo-1559314809-0d155014e29e?w=600&h=400&fit=crop'
+                },
+                'seafood_delight': {
+                    name: {'en': 'Seafood Delight', 'ru': 'Морской деликатес', 'kz': 'Теңіз деликатесі'},
+                    items: [{'id': 109, 'qty': 2}, {'id': 102, 'qty': 1}, {'id': 110, 'qty': 1}],
+                    price: 7800,
+                    description: {'en': 'Fresh seafood selection', 'ru': 'Ассорти из свежих морепродуктов', 'kz': 'Жаңа теңіз өнімдерінің ассортиі'},
+                    image: 'https://images.unsplash.com/photo-1565688534245-05d6b5be184a?w=600&h=400&fit=crop'
+                },
+                'grill_master': {
+                    name: {'en': 'Grill Master', 'ru': 'Гриль-мастер', 'kz': 'Гриль-мастер'},
+                    items: [{'id': 103, 'qty': 2}, {'id': 111, 'qty': 1}, {'id': 108, 'qty': 2}],
+                    price: 8500,
+                    description: {'en': 'Grilled meat selection', 'ru': 'Ассорти из мяса на гриле', 'kz': 'Грильдегі ет ассортиі'},
+                    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&h=400&fit=crop'
+                }
+            }
+        },
+        'cafe': {
+            icon: '☕',
+            name: {'en': 'Cafe', 'ru': 'Кафе', 'kz': 'Кафе'},
+            templates: {
+                'coffee_deluxe': {
+                    name: {'en': 'Coffee Deluxe', 'ru': 'Кофе-делюкс', 'kz': 'Кофе-делюкс'},
+                    items: [{'id': 201, 'qty': 2}, {'id': 203, 'qty': 1}, {'id': 204, 'qty': 1}],
+                    price: 3200,
+                    description: {'en': 'Premium coffee with dessert', 'ru': 'Премиальный кофе с десертом', 'kz': 'Десерті бар премиум кофе'},
+                    image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=600&h=400&fit=crop'
+                },
+                'breakfast_royal': {
+                    name: {'en': 'Royal Breakfast', 'ru': 'Королевский завтрак', 'kz': 'Патша таңғы асы'},
+                    items: [{'id': 208, 'qty': 1}, {'id': 204, 'qty': 2}, {'id': 201, 'qty': 2}],
+                    price: 4500,
+                    description: {'en': 'Royal breakfast set', 'ru': 'Королевский завтрак', 'kz': 'Патша таңғы асы'},
+                    image: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?w=600&h=400&fit=crop'
+                },
+                'tea_garden': {
+                    name: {'en': 'Tea Garden', 'ru': 'Чайный сад', 'kz': 'Шай бақшасы'},
+                    items: [{'id': 202, 'qty': 2}, {'id': 204, 'qty': 2}, {'id': 203, 'qty': 1}],
+                    price: 2800,
+                    description: {'en': 'Assorted teas with pastries', 'ru': 'Ассорти чая с выпечкой', 'kz': 'Тоқаштармен шай ассортиі'},
+                    image: 'https://images.unsplash.com/photo-1556881286-fc6915169721?w=600&h=400&fit=crop'
+                },
+                'smoothie_bowl': {
+                    name: {'en': 'Smoothie Bowl', 'ru': 'Смузи-боул', 'kz': 'Смузи ыдысы'},
+                    items: [{'id': 207, 'qty': 2}, {'id': 206, 'qty': 1}, {'id': 205, 'qty': 1}],
+                    price: 3200,
+                    description: {'en': 'Healthy smoothie bowl', 'ru': 'Полезный смузи-боул', 'kz': 'Пайдалы смузи ыдысы'},
+                    image: 'https://images.unsplash.com/photo-1547592180-85f173990554?w=600&h=400&fit=crop'
+                },
+                'pastry_assortment': {
+                    name: {'en': 'Pastry Assortment', 'ru': 'Ассорти выпечки', 'kz': 'Тоқаштар ассортиі'},
+                    items: [{'id': 204, 'qty': 3}, {'id': 203, 'qty': 2}, {'id': 202, 'qty': 1}],
+                    price: 3800,
+                    description: {'en': 'Assorted fresh pastries', 'ru': 'Ассорти свежей выпечки', 'kz': 'Жаңа тоқаштар ассортиі'},
+                    image: 'https://images.unsplash.com/photo-1550617931-e17a7b70dce2?w=600&h=400&fit=crop'
+                }
+            }
+        },
+        'fastfood': {
+            icon: '🍔',
+            name: {'en': 'Fast Food', 'ru': 'Фастфуд', 'kz': 'Фастфуд'},
+            templates: {
+                'burger_mega': {
+                    name: {'en': 'Mega Burger', 'ru': 'Мега-бургер', 'kz': 'Мега-бургер'},
+                    items: [{'id': 301, 'qty': 2}, {'id': 304, 'qty': 2}, {'id': 306, 'qty': 2}],
+                    price: 4200,
+                    description: {'en': 'Mega burger with fries', 'ru': 'Мега-бургер с картошкой', 'kz': 'Картоппен мега-бургер'},
+                    image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&h=400&fit=crop'
+                },
+                'pizza_max': {
+                    name: {'en': 'Pizza Max', 'ru': 'Пицца Макс', 'kz': 'Пицца Макс'},
+                    items: [{'id': 302, 'qty': 2}, {'id': 306, 'qty': 2}, {'id': 305, 'qty': 1}],
+                    price: 4900,
+                    description: {'en': 'Large pizza with drinks', 'ru': 'Большая пицца с напитками', 'kz': 'Сусындармен үлкен пицца'},
+                    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&h=400&fit=crop'
+                },
+                'chicken_feast': {
+                    name: {'en': 'Chicken Feast', 'ru': 'Куриный пир', 'kz': 'Тауық мейрамы'},
+                    items: [{'id': 303, 'qty': 2}, {'id': 304, 'qty': 2}, {'id': 307, 'qty': 2}],
+                    price: 4500,
+                    description: {'en': 'Chicken with sides', 'ru': 'Курица с гарнирами', 'kz': 'Гарнирлермен тауық еті'},
+                    image: 'https://images.unsplash.com/photo-1562967914-608f82629710?w=600&h=400&fit=crop'
+                },
+                'snack_box': {
+                    name: {'en': 'Snack Box', 'ru': 'Снэк-бокс', 'kz': 'Снэк-бокс'},
+                    items: [{'id': 305, 'qty': 3}, {'id': 304, 'qty': 2}, {'id': 308, 'qty': 2}],
+                    price: 2800,
+                    description: {'en': 'Perfect snack box', 'ru': 'Идеальный снэк-бокс', 'kz': 'Тамаша снэк-бокс'},
+                    image: 'https://images.unsplash.com/photo-1625938144755-5f7c0d9a1f38?w=600&h=400&fit=crop'
+                }
+            }
+        },
+        'supermarket': {
+            icon: '🛒',
+            name: {'en': 'Supermarket', 'ru': 'Супермаркет', 'kz': 'Супермаркет'},
+            templates: {
+                'weekend_bbq': {
+                    name: {'en': 'Weekend BBQ', 'ru': 'Выходной BBQ', 'kz': 'Демалыс BBQ'},
+                    items: [{'id': 403, 'qty': 1}, {'id': 404, 'qty': 1}, {'id': 406, 'qty': 2}],
+                    price: 4500,
+                    description: {'en': 'Everything for BBQ', 'ru': 'Все для BBQ', 'kz': 'BBQ үшін бәрі'},
+                    image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&h=400&fit=crop'
+                },
+                'healthy_box': {
+                    name: {'en': 'Healthy Box', 'ru': 'Здоровый бокс', 'kz': 'Пайдалы бокс'},
+                    items: [{'id': 406, 'qty': 2}, {'id': 407, 'qty': 2}, {'id': 409, 'qty': 1}],
+                    price: 3200,
+                    description: {'en': 'Healthy food box', 'ru': 'Бокс здорового питания', 'kz': 'Пайдалы тағам боксы'},
+                    image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&h=400&fit=crop'
+                },
+                'party_pack': {
+                    name: {'en': 'Party Pack', 'ru': 'Пати-пак', 'kz': 'Кеш пакеті'},
+                    items: [{'id': 411, 'qty': 2}, {'id': 412, 'qty': 2}, {'id': 413, 'qty': 2}],
+                    price: 2600,
+                    description: {'en': 'Party snacks and drinks', 'ru': 'Снэки и напитки для вечеринки', 'kz': 'Кешке арналған снэктер мен сусындар'},
+                    image: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=600&h=400&fit=crop'
+                },
+                'dairy_box': {
+                    name: {'en': 'Dairy Box', 'ru': 'Молочный бокс', 'kz': 'Сүт боксы'},
+                    items: [{'id': 401, 'qty': 2}, {'id': 402, 'qty': 1}, {'id': 415, 'qty': 1}],
+                    price: 2400,
+                    description: {'en': 'Assorted dairy products', 'ru': 'Ассорти молочных продуктов', 'kz': 'Сүт өнімдерінің ассортиі'},
+                    image: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=600&h=400&fit=crop'
+                }
+            }
+        },
+        'bakery': {
+            icon: '🥖',
+            name: {'en': 'Bakery', 'ru': 'Пекарня', 'kz': 'Наубайхана'},
+            templates: {
+                'bread_basket': {
+                    name: {'en': 'Bread Basket', 'ru': 'Хлебная корзина', 'kz': 'Нан себеті'},
+                    items: [{'id': 501, 'qty': 2}, {'id': 502, 'qty': 1}, {'id': 503, 'qty': 2}],
+                    price: 2200,
+                    description: {'en': 'Fresh bread assortment', 'ru': 'Ассорти свежего хлеба', 'kz': 'Жаңа нан ассортиі'},
+                    image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=600&h=400&fit=crop'
+                },
+                'sweet_treats': {
+                    name: {'en': 'Sweet Treats', 'ru': 'Сладкие угощения', 'kz': 'Тәтті тағамдар'},
+                    items: [{'id': 505, 'qty': 2}, {'id': 506, 'qty': 2}, {'id': 511, 'qty': 1}],
+                    price: 2800,
+                    description: {'en': 'Sweet pastries', 'ru': 'Сладкая выпечка', 'kz': 'Тәтті тоқаштар'},
+                    image: 'https://images.unsplash.com/photo-1550617931-e17a7b70dce2?w=600&h=400&fit=crop'
+                },
+                'pie_heaven': {
+                    name: {'en': 'Pie Heaven', 'ru': 'Пироговое рае', 'kz': 'Пирогтар жәннаты'},
+                    items: [{'id': 507, 'qty': 2}, {'id': 508, 'qty': 2}, {'id': 514, 'qty': 2}],
+                    price: 3200,
+                    description: {'en': 'Pies and pastries', 'ru': 'Пироги и пирожки', 'kz': 'Пирогтер мен тоқаштар'},
+                    image: 'https://images.unsplash.com/photo-1587668178277-295251f900ce?w=600&h=400&fit=crop'
+                },
+                'cake_celebration': {
+                    name: {'en': 'Celebration Cake', 'ru': 'Праздничный торт', 'kz': 'Мерекелік торт'},
+                    items: [{'id': 509, 'qty': 1}, {'id': 510, 'qty': 1}, {'id': 513, 'qty': 2}],
+                    price: 4800,
+                    description: {'en': 'Celebration cakes', 'ru': 'Праздничные торты', 'kz': 'Мерекелік торттар'},
+                    image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&h=400&fit=crop'
+                }
+            }
+        },
+        'hotel': {
+            icon: '🏨',
+            name: {'en': 'Hotel', 'ru': 'Гостиница', 'kz': 'Қонақ үй'},
+            templates: {
+                'room_service': {
+                    name: {'en': 'Room Service', 'ru': 'Обслуживание в номер', 'kz': 'Бөлмеге қызмет көрсету'},
+                    items: [{'id': 601, 'qty': 1}, {'id': 614, 'qty': 2}, {'id': 615, 'qty': 1}],
+                    price: 3500,
+                    description: {'en': 'Room service breakfast', 'ru': 'Завтрак в номер', 'kz': 'Бөлмеге таңғы ас'},
+                    image: 'https://images.unsplash.com/photo-1533777324565-a040eb52facd?w=600&h=400&fit=crop'
+                },
+                'romantic_dinner': {
+                    name: {'en': 'Romantic Dinner', 'ru': 'Романтический ужин', 'kz': 'Романтикалық кешкі ас'},
+                    items: [{'id': 604, 'qty': 1}, {'id': 607, 'qty': 1}, {'id': 611, 'qty': 1}],
+                    price: 6500,
+                    description: {'en': 'Romantic dinner for two', 'ru': 'Романтический ужин на двоих', 'kz': 'Екеуге романтикалық кешкі ас'},
+                    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&h=400&fit=crop'
+                },
+                'business_meeting': {
+                    name: {'en': 'Business Meeting', 'ru': 'Деловая встреча', 'kz': 'Іскерлік кездесу'},
+                    items: [{'id': 603, 'qty': 1}, {'id': 607, 'qty': 1}, {'id': 614, 'qty': 2}],
+                    price: 4500,
+                    description: {'en': 'Business meeting set', 'ru': 'Сет для деловой встречи', 'kz': 'Іскерлік кездесуге арналған жинақ'},
+                    image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=600&h=400&fit=crop'
+                },
+                'buffet_deluxe': {
+                    name: {'en': 'Buffet Deluxe', 'ru': 'Шведский стол Deluxe', 'kz': 'Deluxe швед үстелі'},
+                    items: [{'id': 605, 'qty': 1}, {'id': 612, 'qty': 1}, {'id': 616, 'qty': 2}],
+                    price: 7500,
+                    description: {'en': 'Luxury buffet', 'ru': 'Люкс шведский стол', 'kz': 'Люкс швед үстелі'},
+                    image: 'https://images.unsplash.com/photo-1544148103-0773bf10d330?w=600&h=400&fit=crop'
+                }
+            }
+        }
+    };
+    
+    // ✅ ВОЗВРАЩАЕМ ТОЛЬКО ШАБЛОНЫ ДЛЯ КОНКРЕТНОГО ТИПА
+    var result = allTemplates[type];
+    if (!result) {
+        // Если тип не найден - возвращаем ресторан как fallback
+        console.warn('⚠️ Тип "' + type + '" не найден, используем restaurant');
+        result = allTemplates['restaurant'];
+    }
+    return result;
+}
+
+// ============================================================
 // КАТЕГОРИИ ПО ТИПУ ПОСТАВЩИКА
 // ============================================================
 function getCategoriesByType(type) {
@@ -851,7 +1130,7 @@ function getCategoriesByType(type) {
 }
 
 // ============================================================
-// ТЕСТОВЫЕ ДАННЫЕ (СОКРАЩЕНЫ)
+// ТЕСТОВЫЕ ТОВАРЫ ПО ТИПУ
 // ============================================================
 function getTestProductsByType(type) {
     var allProducts = {
@@ -863,7 +1142,10 @@ function getTestProductsByType(type) {
             {id: 105, name_ru: 'Маргарита Пицца', name_kz: 'Маргарита Пицца', price: 2500, category: 'pizza'},
             {id: 106, name_ru: 'Гамбургер', name_kz: 'Гамбургер', price: 1800, category: 'burger'},
             {id: 107, name_ru: 'Тирамису', name_kz: 'Тирамису', price: 1400, category: 'dessert'},
-            {id: 108, name_ru: 'Лимонад', name_kz: 'Лимонад', price: 800, category: 'drink'}
+            {id: 108, name_ru: 'Лимонад', name_kz: 'Лимонад', price: 800, category: 'drink'},
+            {id: 109, name_ru: 'Семга на гриле', name_kz: 'Семга грильде', price: 3800, category: 'hot_dish'},
+            {id: 110, name_ru: 'Греческий салат', name_kz: 'Грек салаты', price: 1500, category: 'salad'},
+            {id: 111, name_ru: 'Стейк из говядины', name_kz: 'Сиыр етінің стейкі', price: 4200, category: 'hot_dish'}
         ],
         'cafe': [
             {id: 201, name_ru: 'Капучино', name_kz: 'Капучино', price: 800, category: 'coffee'},
@@ -944,135 +1226,6 @@ function getTestProductsByType(type) {
 }
 
 // ============================================================
-// ТЕСТОВЫЕ ШАБЛОНЫ
-// ============================================================
-function getTestTemplatesByType(type) {
-    var allTemplates = {
-        'restaurant': {
-            icon: '🍽️',
-            name: {'en': 'Restaurant', 'ru': 'Ресторан', 'kz': 'Ресторан'},
-            templates: {
-                'dinner_set': {
-                    name: {'en': 'Dinner Set', 'ru': 'Ужин на двоих', 'kz': 'Кешкі ас'},
-                    items: [{'id': 101, 'qty': 2}, {'id': 104, 'qty': 1}, {'id': 108, 'qty': 2}],
-                    price: 5500,
-                    description: {'en': 'Romantic dinner', 'ru': 'Романтический ужин', 'kz': 'Романтикалық кешкі ас'}
-                },
-                'family_set': {
-                    name: {'en': 'Family Set', 'ru': 'Семейный обед', 'kz': 'Отбасылық түскі ас'},
-                    items: [{'id': 105, 'qty': 2}, {'id': 102, 'qty': 1}, {'id': 103, 'qty': 1}],
-                    price: 7200,
-                    description: {'en': 'Family lunch', 'ru': 'Семейный обед', 'kz': 'Отбасылық түскі ас'}
-                }
-            }
-        },
-        'cafe': {
-            icon: '☕',
-            name: {'en': 'Cafe', 'ru': 'Кафе', 'kz': 'Кафе'},
-            templates: {
-                'coffee_set': {
-                    name: {'en': 'Coffee Set', 'ru': 'Кофе с десертом', 'kz': 'Кофе десертпен'},
-                    items: [{'id': 201, 'qty': 2}, {'id': 203, 'qty': 1}, {'id': 202, 'qty': 1}],
-                    price: 2300,
-                    description: {'en': 'Coffee and dessert', 'ru': 'Кофе и десерт', 'kz': 'Кофе және десерт'}
-                },
-                'breakfast_set': {
-                    name: {'en': 'Breakfast Set', 'ru': 'Завтрак', 'kz': 'Таңғы ас'},
-                    items: [{'id': 204, 'qty': 2}, {'id': 205, 'qty': 1}, {'id': 201, 'qty': 2}],
-                    price: 2800,
-                    description: {'en': 'Healthy breakfast', 'ru': 'Полезный завтрак', 'kz': 'Пайдалы таңғы ас'}
-                }
-            }
-        },
-        'fastfood': {
-            icon: '🍔',
-            name: {'en': 'Fast Food', 'ru': 'Фастфуд', 'kz': 'Фастфуд'},
-            templates: {
-                'burger_set': {
-                    name: {'en': 'Burger Set', 'ru': 'Бургер с картошкой', 'kz': 'Бургер картоппен'},
-                    items: [{'id': 301, 'qty': 2}, {'id': 304, 'qty': 2}, {'id': 306, 'qty': 2}],
-                    price: 3400,
-                    description: {'en': 'Burger and fries', 'ru': 'Бургер и картошка фри', 'kz': 'Бургер және картоп фри'}
-                },
-                'pizza_set': {
-                    name: {'en': 'Pizza Set', 'ru': 'Пицца с напитками', 'kz': 'Пицца сусындармен'},
-                    items: [{'id': 302, 'qty': 1}, {'id': 306, 'qty': 2}, {'id': 305, 'qty': 1}],
-                    price: 3900,
-                    description: {'en': 'Pizza and drinks', 'ru': 'Пицца и напитки', 'kz': 'Пицца және сусындар'}
-                }
-            }
-        },
-        'supermarket': {
-            icon: '🛒',
-            name: {'en': 'Supermarket', 'ru': 'Супермаркет', 'kz': 'Супермаркет'},
-            templates: {
-                'snack_set': {
-                    name: {'en': 'Snack Set', 'ru': 'Снэк-набор', 'kz': 'Снэк жинағы'},
-                    items: [{'id': 401, 'qty': 1}, {'id': 406, 'qty': 1}, {'id': 412, 'qty': 2}],
-                    price: 2600,
-                    description: {'en': 'Snacks for party', 'ru': 'Снэки для вечеринки', 'kz': 'Кешке арналған снэктер'}
-                },
-                'drink_set': {
-                    name: {'en': 'Drink Set', 'ru': 'Напитки', 'kz': 'Сусындар'},
-                    items: [{'id': 413, 'qty': 2}, {'id': 414, 'qty': 2}, {'id': 405, 'qty': 1}],
-                    price: 1900,
-                    description: {'en': 'Assorted drinks', 'ru': 'Ассорти напитков', 'kz': 'Сусындар ассорти'}
-                }
-            }
-        },
-        'bakery': {
-            icon: '🥖',
-            name: {'en': 'Bakery', 'ru': 'Пекарня', 'kz': 'Наубайхана'},
-            templates: {
-                'bread_set': {
-                    name: {'en': 'Bread Set', 'ru': 'Хлебный набор', 'kz': 'Нан жинағы'},
-                    items: [{'id': 501, 'qty': 2}, {'id': 502, 'qty': 1}, {'id': 504, 'qty': 2}],
-                    price: 3200,
-                    description: {'en': 'Fresh bread', 'ru': 'Свежий хлеб', 'kz': 'Жаңа нан'}
-                },
-                'sweet_set': {
-                    name: {'en': 'Sweet Set', 'ru': 'Сладкая выпечка', 'kz': 'Тәтті тоқаштар'},
-                    items: [{'id': 505, 'qty': 2}, {'id': 506, 'qty': 2}, {'id': 511, 'qty': 1}],
-                    price: 2800,
-                    description: {'en': 'Sweet pastries', 'ru': 'Сладкая выпечка', 'kz': 'Тәтті тоқаштар'}
-                },
-                'pie_set': {
-                    name: {'en': 'Pie Set', 'ru': 'Пирожки', 'kz': 'Пирожки'},
-                    items: [{'id': 507, 'qty': 2}, {'id': 508, 'qty': 2}, {'id': 514, 'qty': 2}],
-                    price: 2500,
-                    description: {'en': 'Assorted pies', 'ru': 'Ассорти пирожков', 'kz': 'Пирожки ассорти'}
-                }
-            }
-        },
-        'hotel': {
-            icon: '🏨',
-            name: {'en': 'Hotel', 'ru': 'Гостиница', 'kz': 'Қонақ үй'},
-            templates: {
-                'breakfast_set': {
-                    name: {'en': 'Breakfast Set', 'ru': 'Завтрак в номер', 'kz': 'Бөлмеге таңғы ас'},
-                    items: [{'id': 601, 'qty': 1}, {'id': 614, 'qty': 2}, {'id': 615, 'qty': 1}],
-                    price: 3500,
-                    description: {'en': 'Breakfast in room', 'ru': 'Завтрак в номер', 'kz': 'Бөлмеге таңғы ас'}
-                },
-                'dinner_set': {
-                    name: {'en': 'Dinner Set', 'ru': 'Ужин для двоих', 'kz': 'Екеуге арналған кешкі ас'},
-                    items: [{'id': 604, 'qty': 1}, {'id': 607, 'qty': 1}, {'id': 611, 'qty': 1}],
-                    price: 5500,
-                    description: {'en': 'Romantic dinner', 'ru': 'Романтический ужин', 'kz': 'Романтикалық кешкі ас'}
-                },
-                'buffet_set': {
-                    name: {'en': 'Buffet Set', 'ru': 'Шведский стол', 'kz': 'Швед үстелі'},
-                    items: [{'id': 605, 'qty': 1}, {'id': 612, 'qty': 1}, {'id': 616, 'qty': 2}],
-                    price: 6500,
-                    description: {'en': 'Buffet for event', 'ru': 'Шведский стол для мероприятия', 'kz': 'Іс-шараға арналған швед үстелі'}
-                }
-            }
-        }
-    };
-    return allTemplates[type] || allTemplates['restaurant'];
-}
-
-// ============================================================
 // ТИП СЮРПРИЗА
 // ============================================================
 function toggleBagTypeFields() {
@@ -1147,26 +1300,24 @@ function updateCategorySelect() {
     emptyOption.textContent = '-- Выберите категорию --';
     categorySelect.appendChild(emptyOption);
     
-    // ✅ СТАНДАРТНЫЕ КАТЕГОРИИ - ИСПОЛЬЗУЕМ value КАК СТРОКУ
     if (standardCategories.length > 0) {
         var optGroup = document.createElement('optgroup');
         optGroup.label = '📋 Стандартные категории';
         standardCategories.forEach(function(cat) {
             var option = document.createElement('option');
-            option.value = cat.value;  // "soup", "salad", etc.
+            option.value = cat.value;
             option.textContent = cat.label;
             optGroup.appendChild(option);
         });
         categorySelect.appendChild(optGroup);
     }
     
-    // ✅ СВОИ КАТЕГОРИИ - ИСПОЛЬЗУЕМ ID
     if (customCategories && customCategories.length > 0) {
         var optGroup2 = document.createElement('optgroup');
         optGroup2.label = '✨ Мои категории';
         customCategories.forEach(function(cat) {
             var option = document.createElement('option');
-            option.value = cat.id;  // число
+            option.value = cat.id;
             option.textContent = (cat.icon || '📦') + ' ' + cat.name_ru;
             optGroup2.appendChild(option);
         });
@@ -1289,7 +1440,7 @@ async function loadSupplierProducts() {
 }
 
 // ============================================================
-// ОБНОВЛЕНИЕ ВЫПАДАЮЩЕГО СПИСКА ШАБЛОНОВ
+// ОБНОВЛЕНИЕ ВЫПАДАЮЩЕГО СПИСКА ШАБЛОНОВ (ТОЛЬКО ДЛЯ ТИПА)
 // ============================================================
 function updateTemplateSelect() {
     var templateSelect = document.getElementById('surpriseTemplate');
@@ -1299,20 +1450,43 @@ function updateTemplateSelect() {
     
     templateSelect.innerHTML = '<option value="">-- ' + (translations[currentLang].selectTemplate || 'Выберите готовый сюрприз') + ' --</option>';
     
-    if (window.templatesData && window.templatesData.templates) {
-        var templates = window.templatesData.templates || {};
-        for (var key in templates) {
-            if (templates.hasOwnProperty(key)) {
-                var template = templates[key];
-                var option = document.createElement('option');
-                option.value = key;
-                var name = template.name[currentLang] || template.name.ru || template.name.en || 'Сюрприз';
-                var price = template.price || 0;
-                option.textContent = (window.templatesData.icon || '🎁') + ' ' + name + ' - ' + price + ' ₸';
-                templateSelect.appendChild(option);
-            }
+    // ✅ ПОЛУЧАЕМ ШАБЛОНЫ ТОЛЬКО ДЛЯ ТЕКУЩЕГО ТИПА
+    var richTemplates = getRichTemplatesByType(businessType);
+    
+    if (richTemplates && richTemplates.templates) {
+        var templates = richTemplates.templates;
+        var templateKeys = Object.keys(templates);
+        
+        if (templateKeys.length === 0) {
+            var noOption = document.createElement('option');
+            noOption.value = '';
+            noOption.textContent = '❌ Нет шаблонов для этого типа';
+            templateSelect.appendChild(noOption);
+            return;
         }
-        console.log('✅ Шаблоны обновлены:', templateSelect.options.length);
+        
+        // Создаем группу с названием типа
+        var group = document.createElement('optgroup');
+        var typeName = richTemplates.name[currentLang] || richTemplates.name.ru || 'Шаблоны';
+        group.label = richTemplates.icon + ' ' + typeName + ' (' + templateKeys.length + ' шаблонов)';
+        templateSelect.appendChild(group);
+        
+        templateKeys.forEach(function(key) {
+            var template = templates[key];
+            var option = document.createElement('option');
+            option.value = key;
+            var name = template.name[currentLang] || template.name.ru || template.name.en || 'Сюрприз';
+            var price = template.price || 0;
+            option.textContent = name + ' - ' + price + ' ₸';
+            group.appendChild(option);
+        });
+        
+        console.log('✅ Шаблоны для типа "' + businessType + '":', templateKeys.length);
+    } else {
+        var noOption = document.createElement('option');
+        noOption.value = '';
+        noOption.textContent = '❌ Нет шаблонов для этого типа';
+        templateSelect.appendChild(noOption);
     }
     
     if (currentValue) {
@@ -1430,7 +1604,8 @@ function loadSurpriseTemplate() {
         return; 
     }
     
-    var templates = window.templatesData && window.templatesData.templates ? window.templatesData.templates : {};
+    var richTemplates = getRichTemplatesByType(businessType);
+    var templates = richTemplates && richTemplates.templates ? richTemplates.templates : {};
     var template = templates[templateKey];
     if (!template) return;
     
@@ -1552,12 +1727,79 @@ async function submitBagForm() {
 }
 
 // ============================================================
-// УСТАНОВКА ЯЗЫКА (СОКРАЩЕНА)
+// УСТАНОВКА ЯЗЫКА
 // ============================================================
 function setLanguage(lang) {
     currentLang = lang || 'ru';
     var t = translations[lang] || {};
-    // ... полная версия setLanguage ...
+    
+    document.querySelectorAll('[id]').forEach(function(el) {
+        var id = el.id;
+        if (t[id]) {
+            el.textContent = t[id];
+        }
+    });
+    
+    document.querySelectorAll('[placeholder]').forEach(function(el) {
+        var id = el.id + 'Placeholder';
+        if (t[id]) {
+            el.placeholder = t[id];
+        }
+    });
+    
+    document.querySelectorAll('.lang-btn').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+    });
+    
+    localStorage.setItem('supplier_lang', lang);
+}
+
+// ============================================================
+// ПЕРЕКЛЮЧЕНИЕ АКТИВНОСТИ СЮРПРИЗА (Вкл/Выкл) - РАБОТАЕТ!
+// ============================================================
+async function toggleBagActive(bagId) {
+    if (!confirm('Изменить статус сюрприза?')) return;
+    
+    try {
+        var response = await authFetch('/api/supplier/surprise-bags/' + bagId + '/toggle', {
+            method: 'PUT'
+        });
+        var data = await response.json();
+        if (data.success) {
+            showNotification(data.message || 'Статус изменен', 'success');
+            refreshBags();
+        } else {
+            showNotification('❌ ' + (data.error || 'Ошибка'), 'error');
+        }
+    } catch(error) {
+        showNotification('❌ Ошибка: ' + error.message, 'error');
+    }
+}
+
+// ============================================================
+// ПЕРЕКЛЮЧЕНИЕ ТИПА СЮРПРИЗА (Открытый/Скрытый) - РАБОТАЕТ!
+// ============================================================
+async function toggleBagType(bagId, currentHideContents) {
+    var newHideContents = !currentHideContents;
+    var newTypeText = newHideContents ? 'Скрытый' : 'Открытый';
+    
+    if (!confirm('Сделать сюрприз ' + newTypeText + '?')) return;
+    
+    try {
+        var response = await authFetch('/api/supplier/surprise-bags/' + bagId + '/toggle-type', {
+            method: 'PUT',
+            body: JSON.stringify({ hide_contents: newHideContents })
+        });
+        var data = await response.json();
+        if (data.success) {
+            showNotification('✅ Тип изменен на ' + newTypeText, 'success');
+            refreshBags();
+        } else {
+            showNotification('❌ ' + (data.error || 'Ошибка'), 'error');
+        }
+    } catch(error) {
+        showNotification('❌ Ошибка: ' + error.message, 'error');
+    }
 }
 
 // ============================================================
@@ -1591,7 +1833,7 @@ async function deleteProduct(productId) {
 }
 
 // ============================================================
-// ЗАКАЗЫ (СОКРАЩЕНЫ)
+// ЗАКАЗЫ
 // ============================================================
 async function refreshOrders() {
     try {
@@ -1674,7 +1916,6 @@ function attachOrderHandlers() {
         btn._handler = function() { window.location.href = '/track-order/' + this.getAttribute('data-order-id'); };
         btn.addEventListener('click', btn._handler);
     }
-    // ... attach auto-assign и manual-assign
 }
 
 async function updateOrderStatus(orderId, newStatus) {
@@ -1691,7 +1932,7 @@ async function updateOrderStatus(orderId, newStatus) {
 }
 
 // ============================================================
-// СЮРПРИЗЫ
+// СЮРПРИЗЫ (ОБНОВЛЕННАЯ ВЕРСИЯ С КНОПКАМИ)
 // ============================================================
 async function refreshBags() {
     try {
@@ -1707,24 +1948,32 @@ async function refreshBags() {
             var typeIcon = isHidden ? '🔒' : '🔓';
             var typeText = isHidden ? 'Скрытый' : 'Открытый';
             var typeColor = isHidden ? '#f59e0b' : '#10b981';
-            var row = '<tr data-bag-id="' + bag.id + '">' +
-                '<td><strong>' + escapeHtml(bag.name) + '</strong></td>' +
-                '<td>' + escapeHtml(bag.description || '-') + '</td>' +
-                '<td>' + bag.original_price + ' ₸</td>' +
-                '<td><strong style="color: #ef4444;">' + bag.discounted_price + ' ₸</strong></td>' +
-                '<td><span style="background: #ef4444; color: white; padding: 0.2rem 0.4rem; border-radius: 1rem; font-size: 0.65rem;">-' + (bag.discount_percentage || 0) + '%</span></td>' +
-                '<td>' + bag.available_quantity + '/' + bag.total_quantity + '</td>' +
-                '<td><span style="color: ' + typeColor + '; font-weight: bold;">' + typeIcon + ' ' + typeText + '</span></td>' +
-                '<td>' + (bag.is_active ? '<span style="color: #10b981;">Активен</span>' : '<span style="color: #ef4444;">Неактивен</span>') + '</td>' +
-                '<td>' +
-                    '<button class="btn btn-primary toggle-bag-btn" data-bag-id="' + bag.id + '">Вкл/Выкл</button>' +
-                    '<button class="btn toggle-type-btn" data-bag-id="' + bag.id + '" style="margin-top: 0.3rem;">' + (isHidden ? '🔓 Сделать открытым' : '🔒 Сделать скрытым') + '</button>' +
-                '</td>' +
-                '</tr>';
-            tbody.innerHTML += row;
+            
+            var row = document.createElement('tr');
+            row.setAttribute('data-bag-id', bag.id);
+            row.innerHTML = `
+                <td><strong>${escapeHtml(bag.name)}</strong></td>
+                <td>${escapeHtml(bag.description || '-')}</td>
+                <td>${bag.original_price} ₸</td>
+                <td><strong style="color: #ef4444;">${bag.discounted_price} ₸</strong></td>
+                <td><span style="background: #ef4444; color: white; padding: 0.2rem 0.4rem; border-radius: 1rem; font-size: 0.65rem;">-${bag.discount_percentage || 0}%</span></td>
+                <td>${bag.available_quantity}/${bag.total_quantity}</td>
+                <td><span style="color: ${typeColor}; font-weight: bold;">${typeIcon} ${typeText}</span></td>
+                <td>${bag.is_active ? '<span style="color: #10b981;">Активен</span>' : '<span style="color: #ef4444;">Неактивен</span>'}</td>
+                <td>
+                    <button class="toggle-bag-btn" onclick="toggleBagActive(${bag.id})" style="background: ${bag.is_active ? '#10b981' : '#ef4444'}; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 0.4rem; cursor: pointer; margin-bottom: 0.3rem; width: 100%;">
+                        ${bag.is_active ? '🟢 Выключить' : '🔴 Включить'}
+                    </button>
+                    <button class="toggle-type-btn" onclick="toggleBagType(${bag.id}, ${isHidden})" style="background: #8b5cf6; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 0.4rem; cursor: pointer; width: 100%;">
+                        ${isHidden ? '🔓 Сделать открытым' : '🔒 Сделать скрытым'}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
         }
-        // ... attach handlers
-    } catch(error) { console.error('Refresh bags error:', error); }
+    } catch(error) {
+        console.error('Refresh bags error:', error);
+    }
 }
 
 async function clearInactiveBags() {
@@ -1821,6 +2070,7 @@ function initWebSocket() {
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Загрузка дашборда...');
+    console.log('🏢 Тип поставщика:', businessType);
     
     var savedLang = localStorage.getItem('supplier_lang') || 'ru';
     setLanguage(savedLang);
@@ -1831,16 +2081,10 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('✅ Товары загружены');
     });
     
-    if (!window.productsData || window.productsData.length === 0) {
-        window.productsData = getTestProductsByType(businessType);
-        updateProductsTable();
-        updateProductSelect();
-    }
-    
-    if (!window.templatesData || !window.templatesData.templates || Object.keys(window.templatesData.templates).length === 0) {
-        window.templatesData = getTestTemplatesByType(businessType);
-        updateTemplateSelect();
-    }
+    // ✅ ИСПОЛЬЗУЕМ ШАБЛОНЫ ТОЛЬКО ДЛЯ КОНКРЕТНОГО ТИПА
+    window.templatesData = getRichTemplatesByType(businessType);
+    updateTemplateSelect();
+    console.log('✅ Шаблоны загружены для типа "' + businessType + '"');
     
     refreshOrders();
     refreshBags();
@@ -1965,7 +2209,7 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshOrders();
         refreshBags();
     }, 30000);
-    
+     
     console.log('✅ Дашборд загружен!');
 });
 </script>
