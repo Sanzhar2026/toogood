@@ -4195,6 +4195,7 @@ async def request_password_reset(request: Request, db: Session = Depends(get_db)
             )
         
         # Генерируем 6-значный код
+        import random
         code = str(random.randint(100000, 999999))
         
         # Сохраняем запрос
