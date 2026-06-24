@@ -4195,10 +4195,9 @@ async def request_password_reset(request: Request, db: Session = Depends(get_db)
             )
         
         # Генерируем 6-значный код
-        import random
         code = str(random.randint(100000, 999999))
         
-        # Сохраняем запрос
+        # Сохраняем запрос (НЕ ОДОБРЕН)
         password_reset_requests[formatted_phone] = {
             "code": code,
             "user_id": user.id,
@@ -4207,7 +4206,7 @@ async def request_password_reset(request: Request, db: Session = Depends(get_db)
             "admin_approved": False
         }
         
-        print(f"Запрос на восстановление для {formatted_phone}, код: {code}")
+        print(f"🔐 Запрос на восстановление для {formatted_phone}, код: {code}")
         
         return JSONResponse(content={
             "success": True,
@@ -4216,11 +4215,12 @@ async def request_password_reset(request: Request, db: Session = Depends(get_db)
         })
         
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print(f"❌ Ошибка: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": str(e)}
         )
+
 
 
 # ✅ 2. АДМИН ПОДТВЕРЖДАЕТ ЗАПРОС НА ВОССТАНОВЛЕНИЕ
