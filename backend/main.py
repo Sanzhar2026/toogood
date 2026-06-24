@@ -4206,7 +4206,7 @@ async def request_password_reset(request: Request, db: Session = Depends(get_db)
             "admin_approved": False
         }
         
-        print(f"🔐 Запрос на восстановление для {formatted_phone}, код: {code}")
+        print(f"Запрос на восстановление для {formatted_phone}, код: {code}")
         
         return JSONResponse(content={
             "success": True,
@@ -4215,11 +4215,12 @@ async def request_password_reset(request: Request, db: Session = Depends(get_db)
         })
         
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"Ошибка: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": str(e)}
         )
+
 
 # ✅ 2. АДМИН ПОДТВЕРЖДАЕТ ЗАПРОС НА ВОССТАНОВЛЕНИЕ
 @app.post("/api/admin/approve-password-reset")
@@ -4301,7 +4302,7 @@ async def admin_approve_password_reset(
             })
         
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"Ошибка: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": str(e)}
@@ -4332,7 +4333,6 @@ async def verify_reset_code(request: Request, db: Session = Depends(get_db)):
         
         request_data = password_reset_requests[formatted_phone]
         
-        # Проверяем, истек ли запрос
         if request_data["expires"] < datetime.utcnow():
             del password_reset_requests[formatted_phone]
             return JSONResponse(
@@ -4340,14 +4340,12 @@ async def verify_reset_code(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "message": "Код истек"}
             )
         
-        # Проверяем, одобрил ли админ
         if not request_data["admin_approved"]:
             return JSONResponse(
                 status_code=403,
                 content={"success": False, "message": "Запрос еще не одобрен администратором"}
             )
         
-        # Проверяем код
         if request_data["code"] != code:
             return JSONResponse(
                 status_code=400,
@@ -4361,11 +4359,12 @@ async def verify_reset_code(request: Request, db: Session = Depends(get_db)):
         })
         
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"Ошибка: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": str(e)}
         )
+
 
 
 # ✅ 4. СБРОС ПАРОЛЯ
@@ -4448,11 +4447,12 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
         })
         
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"Ошибка: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": str(e)}
         )
+
 
 # ✅ 5. АДМИН ПОЛУЧАЕТ ВСЕ ЗАПРОСЫ НА ВОССТАНОВЛЕНИЕ
 @app.get("/api/admin/password-reset-requests")
@@ -4486,6 +4486,7 @@ async def admin_get_password_reset_requests(
             content={"success": False, "message": f"Invalid token: {str(e)}"}
         )
     
+    # Формируем список запросов
     requests_list = []
     for phone, data in password_reset_requests.items():
         if data["expires"] > datetime.utcnow():
@@ -4500,6 +4501,7 @@ async def admin_get_password_reset_requests(
             })
     
     return JSONResponse(content={"success": True, "requests": requests_list})
+
 
 
 # backend/main.py - ИСПРАВЛЕННЫЙ ЛОГИН КУРЬЕРА
