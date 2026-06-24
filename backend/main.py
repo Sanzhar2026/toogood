@@ -10531,6 +10531,7 @@ async def register_user(request: Request):
             content={"success": False, "detail": str(e)}
         )
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.post("/api/auth/verify-code")
 async def verify_code(request: Request):
@@ -10577,12 +10578,12 @@ async def verify_code(request: Request):
                 content={"success": False, "detail": f"Неверный код. Осталось попыток: {5 - stored_data['attempts']}"}
             )
         
+        # ✅ ПРОСТО ОБНОВЛЯЕМ phone_verified (БЕЗ verified_at)
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("""
             UPDATE users 
-            SET phone_verified = true, 
-                verified_at = NOW() 
+            SET phone_verified = true
             WHERE id = %s
         """, (user_id,))
         conn.commit()
@@ -10630,7 +10631,6 @@ async def verify_code(request: Request):
             status_code=500,
             content={"success": False, "detail": str(e)}
         )
-
 
 
 @app.post("/api/auth/resend-code")
