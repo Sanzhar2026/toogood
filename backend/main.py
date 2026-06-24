@@ -4229,7 +4229,7 @@ async def admin_approve_password_reset(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Админ подтверждает или отклоняет запрос на восстановление пароля"""
+    """Админ одобряет или отклоняет запрос"""
     
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -4242,9 +4242,7 @@ async def admin_approve_password_reset(
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        role = payload.get("role")
-        
-        if role != "admin":
+        if payload.get("role") != "admin":
             return JSONResponse(
                 status_code=403,
                 content={"success": False, "message": "Admin only"}
@@ -4271,7 +4269,7 @@ async def admin_approve_password_reset(
         if formatted_phone not in password_reset_requests:
             return JSONResponse(
                 status_code=404,
-                content={"success": False, "message": "Запрос на восстановление не найден"}
+                content={"success": False, "message": "Запрос не найден"}
             )
         
         request_data = password_reset_requests[formatted_phone]
@@ -4284,16 +4282,15 @@ async def admin_approve_password_reset(
             )
         
         if approve:
+            import secrets
             request_data["admin_approved"] = True
             request_data["status"] = "approved"
-            reset_token = secrets.token_urlsafe(32)
-            request_data["reset_token"] = reset_token
+            request_data["reset_token"] = secrets.token_urlsafe(32)
             password_reset_requests[formatted_phone] = request_data
             
             return JSONResponse(content={
                 "success": True,
-                "message": "Запрос одобрен",
-                "reset_token": reset_token
+                "message": "Запрос одобрен"
             })
         else:
             del password_reset_requests[formatted_phone]
@@ -4303,7 +4300,7 @@ async def admin_approve_password_reset(
             })
         
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print(f"❌ Ошибка: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": str(e)}
@@ -4360,19 +4357,17 @@ async def verify_reset_code(request: Request, db: Session = Depends(get_db)):
         })
         
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print(f"❌ Ошибка: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": str(e)}
         )
 
 
-
 # ✅ 4. СБРОС ПАРОЛЯ
 @app.post("/api/auth/reset-password")
 async def reset_password(request: Request, db: Session = Depends(get_db)):
-    """Сброс пароля после одобрения админа и подтверждения кода"""
-    
+    """Сброс пароля после одобрения админа"""
     try:
         data = await request.json()
         phone = data.get("phone")
@@ -4448,11 +4443,12 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
         })
         
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print(f"❌ Ошибка: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "message": str(e)}
         )
+
 
 
 # ✅ 5. АДМИН ПОЛУЧАЕТ ВСЕ ЗАПРОСЫ НА ВОССТАНОВЛЕНИЕ
@@ -4461,7 +4457,7 @@ async def admin_get_password_reset_requests(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Админ получает список запросов на восстановление"""
+    """Админ получает список запросов"""
     
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -4474,9 +4470,7 @@ async def admin_get_password_reset_requests(
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        role = payload.get("role")
-        
-        if role != "admin":
+        if payload.get("role") != "admin":
             return JSONResponse(
                 status_code=403,
                 content={"success": False, "message": "Admin only"}
@@ -4487,7 +4481,6 @@ async def admin_get_password_reset_requests(
             content={"success": False, "message": f"Invalid token: {str(e)}"}
         )
     
-    # Формируем список запросов
     requests_list = []
     for phone, data in password_reset_requests.items():
         if data["expires"] > datetime.utcnow():
@@ -4495,14 +4488,12 @@ async def admin_get_password_reset_requests(
                 "phone": phone,
                 "user_id": data["user_id"],
                 "code": data["code"],
-                "expires": data["expires"].isoformat(),
                 "admin_approved": data["admin_approved"],
                 "status": data["status"],
                 "time_left": int((data["expires"] - datetime.utcnow()).total_seconds() / 60)
             })
     
     return JSONResponse(content={"success": True, "requests": requests_list})
-
 
 
 # backend/main.py - ИСПРАВЛЕННЫЙ ЛОГИН КУРЬЕРА
