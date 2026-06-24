@@ -4174,53 +4174,52 @@ password_reset_requests = {}
 @app.post("/api/auth/request-password-reset")
 async def request_password_reset(request: Request, db: Session = Depends(get_db)):
     """Клиент запрашивает восстановление пароля"""
-    
-    data = await request.json()
-    phone = data.get("phone")
-    
-    if not phone:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Телефон обязателен"}
-        )
-    
-    formatted_phone = format_phone_number(phone)
-    
-    # Проверяем, существует ли пользователь
-    user = db.query(User).filter(User.phone == formatted_phone).first()
-    if not user:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Пользователь с таким номером не найден"}
-        )
-    
-    # Генерируем 6-значный код
-    code = str(random.randint(100000, 999999))
-    
-    # Сохраняем запрос
-    password_reset_requests[formatted_phone] = {
-        "code": code,
-        "user_id": user.id,
-        "expires": datetime.utcnow() + timedelta(minutes=15),
-        "status": "pending",  # pending, approved, rejected
-        "admin_approved": False
-    }
-    
-    print(f"🔐 Запрос на восстановление для {formatted_phone}, код: {code}")
-    
-    # Отправляем SMS (заглушка)
     try:
-        # await send_sms(formatted_phone, f"Ваш код восстановления: {code}")
-        pass
+        data = await request.json()
+        phone = data.get("phone")
+        
+        if not phone:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Телефон обязателен"}
+            )
+        
+        formatted_phone = format_phone_number(phone)
+        
+        # Проверяем, существует ли пользователь
+        user = db.query(User).filter(User.phone == formatted_phone).first()
+        if not user:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Пользователь с таким номером не найден"}
+            )
+        
+        # Генерируем 6-значный код
+        code = str(random.randint(100000, 999999))
+        
+        # Сохраняем запрос
+        password_reset_requests[formatted_phone] = {
+            "code": code,
+            "user_id": user.id,
+            "expires": datetime.utcnow() + timedelta(minutes=15),
+            "status": "pending",
+            "admin_approved": False
+        }
+        
+        print(f"🔐 Запрос на восстановление для {formatted_phone}, код: {code}")
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Код отправлен на ваш номер",
+            "debug_code": code
+        })
+        
     except Exception as e:
-        print(f"Ошибка отправки SMS: {e}")
-    
-    return {
-        "success": True,
-        "message": "Код отправлен на ваш номер",
-        "debug_code": code  # Для тестирования (убрать в production)
-    }
-
+        print(f"❌ Ошибка: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
 
 # ✅ 2. АДМИН ПОДТВЕРЖДАЕТ ЗАПРОС НА ВОССТАНОВЛЕНИЕ
 @app.post("/api/admin/approve-password-reset")
@@ -4228,9 +4227,8 @@ async def admin_approve_password_reset(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """Админ подтверждает запрос на восстановление пароля"""
+    """Админ подтверждает или отклоняет запрос на восстановление пароля"""
     
-    # Проверяем админ-токен
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
@@ -4255,185 +4253,206 @@ async def admin_approve_password_reset(
             content={"success": False, "message": f"Invalid token: {str(e)}"}
         )
     
-    data = await request.json()
-    phone = data.get("phone")
-    approve = data.get("approve", True)  # True = одобрить, False = отклонить
-    
-    if not phone:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Телефон обязателен"}
-        )
-    
-    formatted_phone = format_phone_number(phone)
-    
-    if formatted_phone not in password_reset_requests:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Запрос на восстановление не найден"}
-        )
-    
-    request_data = password_reset_requests[formatted_phone]
-    
-    # Проверяем, не истек ли запрос
-    if request_data["expires"] < datetime.utcnow():
-        del password_reset_requests[formatted_phone]
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Запрос истек"}
-        )
-    
-    if approve:
-        request_data["admin_approved"] = True
-        request_data["status"] = "approved"
-        password_reset_requests[formatted_phone] = request_data
+    try:
+        data = await request.json()
+        phone = data.get("phone")
+        approve = data.get("approve", True)
         
-        # Генерируем временный токен для сброса пароля
-        reset_token = secrets.token_urlsafe(32)
-        request_data["reset_token"] = reset_token
-        password_reset_requests[formatted_phone] = request_data
+        if not phone:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Телефон обязателен"}
+            )
         
-        return {
-            "success": True,
-            "message": "Запрос одобрен",
-            "reset_token": reset_token
-        }
-    else:
-        del password_reset_requests[formatted_phone]
-        return {
-            "success": True,
-            "message": "Запрос отклонен"
-        }
-
+        formatted_phone = format_phone_number(phone)
+        
+        if formatted_phone not in password_reset_requests:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Запрос на восстановление не найден"}
+            )
+        
+        request_data = password_reset_requests[formatted_phone]
+        
+        if request_data["expires"] < datetime.utcnow():
+            del password_reset_requests[formatted_phone]
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Запрос истек"}
+            )
+        
+        if approve:
+            request_data["admin_approved"] = True
+            request_data["status"] = "approved"
+            reset_token = secrets.token_urlsafe(32)
+            request_data["reset_token"] = reset_token
+            password_reset_requests[formatted_phone] = request_data
+            
+            return JSONResponse(content={
+                "success": True,
+                "message": "Запрос одобрен",
+                "reset_token": reset_token
+            })
+        else:
+            del password_reset_requests[formatted_phone]
+            return JSONResponse(content={
+                "success": True,
+                "message": "Запрос отклонен"
+            })
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
 
 # ✅ 3. КЛИЕНТ ПОДТВЕРЖДАЕТ КОД
 @app.post("/api/auth/verify-reset-code")
 async def verify_reset_code(request: Request, db: Session = Depends(get_db)):
     """Клиент подтверждает код восстановления"""
-    
-    data = await request.json()
-    phone = data.get("phone")
-    code = data.get("code")
-    
-    if not phone or not code:
+    try:
+        data = await request.json()
+        phone = data.get("phone")
+        code = data.get("code")
+        
+        if not phone or not code:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Телефон и код обязательны"}
+            )
+        
+        formatted_phone = format_phone_number(phone)
+        
+        if formatted_phone not in password_reset_requests:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Запрос на восстановление не найден"}
+            )
+        
+        request_data = password_reset_requests[formatted_phone]
+        
+        # Проверяем, истек ли запрос
+        if request_data["expires"] < datetime.utcnow():
+            del password_reset_requests[formatted_phone]
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Код истек"}
+            )
+        
+        # Проверяем, одобрил ли админ
+        if not request_data["admin_approved"]:
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "message": "Запрос еще не одобрен администратором"}
+            )
+        
+        # Проверяем код
+        if request_data["code"] != code:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Неверный код"}
+            )
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Код подтвержден",
+            "reset_token": request_data.get("reset_token")
+        })
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
         return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Телефон и код обязательны"}
+            status_code=500,
+            content={"success": False, "message": str(e)}
         )
-    
-    formatted_phone = format_phone_number(phone)
-    
-    if formatted_phone not in password_reset_requests:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Запрос на восстановление не найден"}
-        )
-    
-    request_data = password_reset_requests[formatted_phone]
-    
-    # Проверяем, истек ли запрос
-    if request_data["expires"] < datetime.utcnow():
-        del password_reset_requests[formatted_phone]
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Код истек"}
-        )
-    
-    # Проверяем, одобрил ли админ
-    if not request_data["admin_approved"]:
-        return JSONResponse(
-            status_code=403,
-            content={"success": False, "message": "Запрос еще не одобрен администратором"}
-        )
-    
-    # Проверяем код
-    if request_data["code"] != code:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Неверный код"}
-        )
-    
-    return {
-        "success": True,
-        "message": "Код подтвержден",
-        "reset_token": request_data.get("reset_token")
-    }
 
 
 # ✅ 4. СБРОС ПАРОЛЯ
 @app.post("/api/auth/reset-password")
 async def reset_password(request: Request, db: Session = Depends(get_db)):
-    """Сброс пароля после подтверждения кода"""
+    """Сброс пароля после одобрения админа и подтверждения кода"""
     
-    data = await request.json()
-    phone = data.get("phone")
-    code = data.get("code")
-    new_password = data.get("new_password")
-    reset_token = data.get("reset_token")
-    
-    if not phone or not code or not new_password:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Все поля обязательны"}
-        )
-    
-    if len(new_password) < 6:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Пароль должен быть минимум 6 символов"}
-        )
-    
-    formatted_phone = format_phone_number(phone)
-    
-    if formatted_phone not in password_reset_requests:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Запрос на восстановление не найден"}
-        )
-    
-    request_data = password_reset_requests[formatted_phone]
-    
-    # Проверяем, истек ли запрос
-    if request_data["expires"] < datetime.utcnow():
+    try:
+        data = await request.json()
+        phone = data.get("phone")
+        code = data.get("code")
+        new_password = data.get("new_password")
+        reset_token = data.get("reset_token")
+        
+        if not phone or not code or not new_password:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Все поля обязательны"}
+            )
+        
+        if len(new_password) < 6:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Пароль должен быть минимум 6 символов"}
+            )
+        
+        formatted_phone = format_phone_number(phone)
+        
+        if formatted_phone not in password_reset_requests:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Запрос на восстановление не найден"}
+            )
+        
+        request_data = password_reset_requests[formatted_phone]
+        
+        if request_data["expires"] < datetime.utcnow():
+            del password_reset_requests[formatted_phone]
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Запрос истек"}
+            )
+        
+        if not request_data["admin_approved"]:
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "message": "Запрос еще не одобрен администратором"}
+            )
+        
+        if request_data["code"] != code:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Неверный код"}
+            )
+        
+        if reset_token != request_data.get("reset_token"):
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Неверный токен"}
+            )
+        
+        import hashlib
+        password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+        
+        user = db.query(User).filter(User.id == request_data["user_id"]).first()
+        if not user:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Пользователь не найден"}
+            )
+        
+        user.password = password_hash
+        db.commit()
+        
         del password_reset_requests[formatted_phone]
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Пароль успешно изменен"
+        })
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
         return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Запрос истек"}
+            status_code=500,
+            content={"success": False, "message": str(e)}
         )
-    
-    # Проверяем код
-    if request_data["code"] != code:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Неверный код"}
-        )
-    
-    # Проверяем токен
-    if reset_token != request_data.get("reset_token"):
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Неверный токен"}
-        )
-    
-    # Обновляем пароль
-    user = db.query(User).filter(User.id == request_data["user_id"]).first()
-    if not user:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Пользователь не найден"}
-        )
-    
-    user.password = hash_password(new_password)
-    db.commit()
-    
-    # Удаляем запрос
-    del password_reset_requests[formatted_phone]
-    
-    return {
-        "success": True,
-        "message": "Пароль успешно изменен"
-    }
-
 
 # ✅ 5. АДМИН ПОЛУЧАЕТ ВСЕ ЗАПРОСЫ НА ВОССТАНОВЛЕНИЕ
 @app.get("/api/admin/password-reset-requests")
@@ -4443,7 +4462,6 @@ async def admin_get_password_reset_requests(
 ):
     """Админ получает список запросов на восстановление"""
     
-    # Проверяем админ-токен
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
@@ -4468,7 +4486,6 @@ async def admin_get_password_reset_requests(
             content={"success": False, "message": f"Invalid token: {str(e)}"}
         )
     
-    # Формируем список запросов
     requests_list = []
     for phone, data in password_reset_requests.items():
         if data["expires"] > datetime.utcnow():
@@ -4482,7 +4499,8 @@ async def admin_get_password_reset_requests(
                 "time_left": int((data["expires"] - datetime.utcnow()).total_seconds() / 60)
             })
     
-    return {"success": True, "requests": requests_list}
+    return JSONResponse(content={"success": True, "requests": requests_list})
+
 
 # backend/main.py - ИСПРАВЛЕННЫЙ ЛОГИН КУРЬЕРА
 from datetime import datetime, timedelta, timezone  # ← ДОБАВЬ В НАЧАЛО
@@ -10429,7 +10447,7 @@ async def options_handler():
 # ============================================================
 # ЭНДПОИНТЫ АУТЕНТИФИКАЦИИ
 # ============================================================
-
+verification_codes = {}
 # 1. РЕГИСТРАЦИЯ
 @app.post("/api/auth/register")
 async def register_user(request: Request):
@@ -10441,16 +10459,23 @@ async def register_user(request: Request):
         phone = data.get("phone", "").strip()
         password = data.get("password", "")
         
-        print(f"📥 Регистрация: {first_name} {last_name}, {phone}")
-        
         if not first_name or not last_name:
-            return {"success": False, "detail": "Введите имя и фамилию"}
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Введите имя и фамилию"}
+            )
         
         if not phone:
-            return {"success": False, "detail": "Введите номер телефона"}
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Введите номер телефона"}
+            )
         
         if not password or len(password) < 6:
-            return {"success": False, "detail": "Пароль должен быть минимум 6 символов"}
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Пароль должен быть минимум 6 символов"}
+            )
         
         conn = get_db_connection()
         cur = conn.cursor()
@@ -10459,8 +10484,12 @@ async def register_user(request: Request):
         if cur.fetchone():
             cur.close()
             conn.close()
-            return {"success": False, "detail": "Пользователь с таким телефоном уже существует"}
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Пользователь с таким телефоном уже существует"}
+            )
         
+        import hashlib
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         
         cur.execute("""
@@ -10474,38 +10503,174 @@ async def register_user(request: Request):
         cur.close()
         conn.close()
         
-        print(f"✅ Зарегистрирован новый клиент: {first_name} {last_name}")
+        code = str(random.randint(100000, 999999))
         
-        # ✅ ИСПРАВЛЕНО: datetime.utcnow() ВМЕСТО datetime.datetime.utcnow()
+        verification_codes[phone] = {
+            "code": code,
+            "user_id": user_id,
+            "expires": datetime.utcnow() + timedelta(minutes=5),
+            "attempts": 0
+        }
+        
+        print(f"Код для {phone}: {code}")
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Регистрация успешна. Введите код подтверждения.",
+            "user_id": user_id,
+            "phone": phone,
+            "code": code,
+            "first_name": first_name,
+            "last_name": last_name
+        })
+        
+    except Exception as e:
+        print(f"Ошибка регистрации: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+
+
+@app.post("/api/auth/verify-code")
+async def verify_code(request: Request):
+    try:
+        data = await request.json()
+        
+        phone = data.get("phone")
+        code = data.get("code")
+        user_id = data.get("user_id")
+        
+        if not phone or not code:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Телефон и код обязательны"}
+            )
+        
+        if phone not in verification_codes:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Код не найден. Запросите новый."}
+            )
+        
+        stored_data = verification_codes[phone]
+        
+        if stored_data["expires"] < datetime.utcnow():
+            del verification_codes[phone]
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Код истек. Запросите новый."}
+            )
+        
+        if stored_data["attempts"] >= 5:
+            del verification_codes[phone]
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Слишком много попыток. Запросите новый код."}
+            )
+        
+        if stored_data["code"] != code:
+            stored_data["attempts"] += 1
+            verification_codes[phone] = stored_data
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": f"Неверный код. Осталось попыток: {5 - stored_data['attempts']}"}
+            )
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE users 
+            SET phone_verified = true, 
+                verified_at = NOW() 
+            WHERE id = %s
+        """, (user_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        del verification_codes[phone]
+        
+        from jose import jwt
         token_data = {
             "sub": str(user_id),
             "role": "customer",
             "phone": phone,
-            "first_name": first_name,
-            "last_name": last_name,
             "exp": datetime.utcnow() + timedelta(days=30)
         }
-        
         token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
         
-        return {
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id, first_name, last_name, phone, role
+            FROM users 
+            WHERE id = %s
+        """, (user_id,))
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        return JSONResponse(content={
             "success": True,
+            "message": "Код подтвержден успешно",
             "token": token,
             "user": {
-                "id": user_id,
-                "first_name": first_name,
-                "last_name": last_name,
-                "phone": phone,
-                "role": "customer"
+                "id": user["id"],
+                "first_name": user["first_name"],
+                "last_name": user["last_name"],
+                "phone": user["phone"],
+                "role": user["role"] or "customer"
             }
-        }
+        })
         
     except Exception as e:
-        print(f"❌ Ошибка регистрации: {e}")
-        traceback.print_exc()
-        return {"success": False, "detail": str(e)}
+        print(f"Ошибка верификации: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 
+
+@app.post("/api/auth/resend-code")
+async def resend_code(request: Request):
+    try:
+        data = await request.json()
+        phone = data.get("phone")
+        
+        if not phone:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Телефон обязателен"}
+            )
+        
+        if phone in verification_codes:
+            del verification_codes[phone]
+        
+        code = str(random.randint(100000, 999999))
+        
+        verification_codes[phone] = {
+            "code": code,
+            "expires": datetime.utcnow() + timedelta(minutes=5),
+            "attempts": 0
+        }
+        
+        print(f"Новый код для {phone}: {code}")
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Новый код отправлен",
+            "code": code,
+            "expires_in": 300
+        })
+        
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
 
 # 2. ЛОГИН
 # backend/main.py - ИСПРАВЛЕННЫЙ ЛОГИН
