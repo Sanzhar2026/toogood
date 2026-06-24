@@ -88,7 +88,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "sarqyn-super-secret-key-2024")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 30  # 30 дней
 
-
+password_reset_requests = {}
 # backend/main.py - в самое начало файла
 # backend/routers/users.py
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
@@ -4168,7 +4168,7 @@ import secrets
 from datetime import datetime, timedelta
 
 # Хранилище для запросов на восстановление
-password_reset_requests = {}
+
 
 # ✅ 1. КЛИЕНТ ЗАПРАШИВАЕТ ВОССТАНОВЛЕНИЕ ПАРОЛЯ
 @app.post("/api/auth/request-password-reset")
