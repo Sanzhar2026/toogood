@@ -14443,15 +14443,39 @@ async def delete_surprise_bag(bag_id: int, request: Request, db: Session = Depen
 @app.put("/api/supplier/surprise-bags/{bag_id}/toggle")
 async def toggle_bag_status(
     bag_id: int,
-    supplier: Supplier = Depends(verify_supplier_token),
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """Включить/выключить сюрприз-пакет"""
     
     try:
+        # Получаем токен
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "error": "Bearer token required"}
+            )
+        
+        token = auth_header.split(" ")[1]
+        
+        # Декодируем токен
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        # Находим поставщика
+        supplier = db.query(Supplier).filter(Supplier.user_id == int(user_id)).first()
+        if not supplier:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Supplier not found"}
+            )
+        
+        # Находим сюрприз
         bag = db.query(SurpriseBag).filter(
             SurpriseBag.id == bag_id,
-            SurpriseBag.supplier_id == supplier.id
+            SurpriseBag.supplier_id == supplier.id  # ✅ supplier.id РАБОТАЕТ
         ).first()
         
         if not bag:
@@ -14463,8 +14487,6 @@ async def toggle_bag_status(
         # Переключаем статус
         bag.is_active = not bag.is_active
         db.commit()
-        
-        print(f"✅ Сюрприз #{bag_id} статус изменен на: {bag.is_active}")
         
         return JSONResponse(content={
             "success": True,
@@ -14481,7 +14503,6 @@ async def toggle_bag_status(
             content={"success": False, "error": str(e)}
         )
 
-        
 @app.get("/api/test-websocket")
 async def test_websocket():
     """Test endpoint to broadcast a test message"""
