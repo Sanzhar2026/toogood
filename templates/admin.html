@@ -13,11 +13,11 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f1f5f9;
+            background: #f5f5f5;
         }
         
         .admin-header {
-            background: #0f172a;
+            background: #367666;
             color: white;
             padding: 1.5rem 2rem;
             display: flex;
@@ -30,24 +30,27 @@
         
         .admin-header h1 {
             font-size: 1.5rem;
+            font-weight: 600;
         }
         
-        .admin-header span {
-            color: #fbbf24;
+        .admin-header h1 span {
+            font-weight: 300;
         }
         
         .logout-btn {
-            background: #dc2626;
-            color: white;
-            padding: 0.5rem 1rem;
+            background: white;
+            color: #367666;
+            padding: 0.5rem 1.5rem;
             border: none;
             border-radius: 0.5rem;
             cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
             transition: background 0.2s;
         }
         
         .logout-btn:hover {
-            background: #b91c1c;
+            background: #e8f5e9;
         }
         
         .admin-container {
@@ -68,24 +71,24 @@
             padding: 1.5rem;
             border-radius: 1rem;
             text-align: center;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #e8f5e9;
         }
         
         .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(54, 118, 102, 0.15);
         }
         
         .stat-number {
             font-size: 2rem;
             font-weight: bold;
-            color: #0f172a;
+            color: #367666;
         }
         
         .stat-label {
-            color: #64748b;
+            color: #666;
             margin-top: 0.5rem;
+            font-size: 0.9rem;
         }
         
         .section {
@@ -93,7 +96,8 @@
             border-radius: 1rem;
             padding: 1.5rem;
             margin-bottom: 2rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #e8f5e9;
         }
         
         .section-header {
@@ -106,17 +110,18 @@
         }
         
         .section-title {
-            font-size: 1.3rem;
-            font-weight: bold;
-            border-left: 4px solid #fbbf24;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #367666;
+            border-left: 4px solid #367666;
             padding-left: 0.75rem;
         }
         
         .live-badge {
-            background: #10b981;
+            background: #367666;
             color: white;
-            font-size: 0.7rem;
-            padding: 0.2rem 0.6rem;
+            font-size: 0.65rem;
+            padding: 0.15rem 0.6rem;
             border-radius: 2rem;
             margin-left: 0.5rem;
             animation: pulse 2s infinite;
@@ -124,186 +129,243 @@
         
         @keyframes pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-        
-        .refresh-btn {
-            background: #f1f5f9;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            font-size: 0.8rem;
-            transition: background 0.2s;
-        }
-        
-        .refresh-btn:hover {
-            background: #e2e8f0;
-        }
-        
-        .btn-cleanup {
-            background: #8b5cf6;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            font-size: 0.85rem;
-            transition: background 0.2s;
-        }
-        
-        .btn-cleanup:hover {
-            background: #7c3aed;
-        }
-        
-        .btn-verify {
-            background: #10b981;
-            color: white;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            margin-right: 0.5rem;
-            transition: background 0.2s;
-        }
-        
-        .btn-verify:hover {
-            background: #059669;
-        }
-        
-        .btn-reject {
-            background: #ef4444;
-            color: white;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .btn-reject:hover {
-            background: #dc2626;
-        }
-        
-        .btn-paid {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .btn-paid:hover {
-            background: #2563eb;
-        }
-        
-        .btn-refund {
-            background: #f59e0b;
-            color: white;
-            border: none;
-            padding: 0.3rem 0.8rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .btn-refund:hover {
-            background: #d97706;
+            50% { opacity: 0.5; }
         }
         
         .badge-pending {
-            background: #f59e0b;
+            background: #367666;
             color: white;
-            padding: 0.2rem 0.5rem;
+            padding: 0.1rem 0.6rem;
             border-radius: 2rem;
             font-size: 0.7rem;
             margin-left: 0.5rem;
             display: none;
         }
         
-        .status-select {
-            padding: 0.3rem;
-            border-radius: 0.5rem;
-            border: 1px solid #e2e8f0;
-            background: white;
-            font-size: 0.75rem;
-            cursor: pointer;
-        }
-        
-        .lang-buttons {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .lang-btn {
-            background: #f1f5f9;
-            border: none;
-            padding: 0.3rem 0.8rem;
+        .refresh-btn {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            padding: 0.4rem 1rem;
             border-radius: 0.5rem;
             cursor: pointer;
             font-size: 0.8rem;
-            transition: all 0.2s;
+            color: #367666;
+            transition: background 0.2s;
         }
         
-        .lang-btn.active {
-            background: #fbbf24;
-            color: #0f172a;
+        .refresh-btn:hover {
+            background: #e8f5e9;
+        }
+        
+        .btn-cleanup {
+            background: #367666;
+            color: white;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: background 0.2s;
+        }
+        
+        .btn-cleanup:hover {
+            background: #2a5a4d;
+        }
+        
+        .btn-verify {
+            background: #367666;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            margin-right: 0.3rem;
+            font-size: 0.75rem;
+            transition: background 0.2s;
+        }
+        
+        .btn-verify:hover {
+            background: #2a5a4d;
+        }
+        
+        .btn-reject {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background 0.2s;
+        }
+        
+        .btn-reject:hover {
+            background: #c0392b;
+        }
+        
+        .btn-paid {
+            background: #367666;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background 0.2s;
+        }
+        
+        .btn-paid:hover {
+            background: #2a5a4d;
+        }
+        
+        .btn-refund {
+            background: #367666;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background 0.2s;
+        }
+        
+        .btn-refund:hover {
+            background: #2a5a4d;
+        }
+        
+        .status-select {
+            padding: 0.3rem;
+            border-radius: 0.4rem;
+            border: 1px solid #e0e0e0;
+            background: white;
+            font-size: 0.75rem;
+            cursor: pointer;
+            color: #333;
+        }
+        
+        .status-select:focus {
+            outline: 2px solid #367666;
+            border-color: transparent;
+        }
+        
+        .status-badge {
+            padding: 0.15rem 0.6rem;
+            border-radius: 2rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .font-mono {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            letter-spacing: 0.1rem;
         }
         
         .table-container {
             overflow-x: auto;
-            margin-top: 1rem;
+            margin-top: 0.5rem;
         }
         
         table {
             width: 100%;
             border-collapse: collapse;
             min-width: 600px;
-        }
-        
-        th, td {
-            padding: 0.75rem;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.9rem;
         }
         
         th {
-            background: #f8fafc;
+            background: #f8faf8;
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 2px solid #367666;
             font-weight: 600;
-            position: sticky;
-            top: 0;
+            color: #367666;
+        }
+        
+        td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e8f5e9;
+        }
+        
+        tr:hover td {
+            background: #f8faf8;
         }
         
         .timer-warning {
-            color: #dc2626;
+            color: #e74c3c;
             font-weight: bold;
             animation: blink 1s infinite;
         }
         
         @keyframes blink {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            50% { opacity: 0.4; }
         }
         
         .notification {
             position: fixed;
             top: 1rem;
             right: 1rem;
-            background: #0f172a;
+            background: #367666;
             color: white;
             padding: 0.75rem 1.25rem;
             border-radius: 0.75rem;
             z-index: 1000;
             animation: slideIn 0.3s ease;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .notification.error {
+            background: #e74c3c;
         }
         
         @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .lang-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .lang-btn {
+            background: white;
+            border: 1px solid #e0e0e0;
+            padding: 0.3rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: #367666;
+            transition: all 0.2s;
+        }
+        
+        .lang-btn:hover {
+            background: #e8f5e9;
+        }
+        
+        .lang-btn.active {
+            background: #367666;
+            color: white;
+            border-color: #367666;
+        }
+        
+        .empty-row td {
+            text-align: center;
+            color: #999;
+            padding: 2rem;
         }
         
         @media (max-width: 768px) {
@@ -318,23 +380,30 @@
                 flex-direction: column;
                 align-items: flex-start;
             }
+            .admin-header {
+                padding: 1rem;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .admin-header h1 {
+                font-size: 1.2rem;
+            }
         }
     </style>
 </head>
 <body>
     <div class="admin-header">
-        <h1>👑 Sarqyn <span>Admin</span></h1>
-        <button class="logout-btn" onclick="logout()">🚪 Выйти</button>
+        <h1>Sarqyn <span>Admin</span></h1>
+        <button class="logout-btn" onclick="logout()">Выйти</button>
     </div>
     
     <div class="admin-container">
         <div class="lang-buttons">
-            <button class="lang-btn" onclick="setLang('kz')">🇰🇿 Қаз</button>
-            <button class="lang-btn" onclick="setLang('ru')">🇷🇺 Рус</button>
-            <button class="lang-btn" onclick="setLang('en')">🇬🇧 Eng</button>
+            <button class="lang-btn" onclick="setLang('kz')">Қаз</button>
+            <button class="lang-btn active" onclick="setLang('ru')">Рус</button>
+            <button class="lang-btn" onclick="setLang('en')">Eng</button>
         </div>
         
-        <!-- Stats -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-number" id="totalUsers">0</div>
@@ -354,13 +423,35 @@
             </div>
         </div>
         
-        <!-- Заявки курьеров -->
         <div class="section">
             <div class="section-header">
-                <h2 class="section-title">👥 ЗАЯВКИ НА ПОДТВЕРЖДЕНИЕ КУРЬЕРОВ <span class="live-badge">● LIVE</span><span id="pendingBadge" class="badge-pending">0</span></h2>
+                <h2 class="section-title">Запросы на восстановление пароля <span class="live-badge">live</span><span id="resetBadge" class="badge-pending">0</span></h2>
+                <button class="refresh-btn" onclick="loadResetRequests()">Обновить</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Телефон</th>
+                            <th>Код</th>
+                            <th>Осталось</th>
+                            <th>Статус</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resetRequestsTable">
+                        <tr><td colspan="5" class="empty-row">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Заявки на подтверждение курьеров <span class="live-badge">live</span><span id="pendingBadge" class="badge-pending">0</span></h2>
                 <div>
-                    <button class="refresh-btn" onclick="loadPendingCouriers()">🔄 Обновить</button>
-                    <button class="btn-cleanup" onclick="cleanupCancelledOrders()">🧹 ОЧИСТИТЬ ОТМЕНЕННЫЕ ЗАКАЗЫ</button>
+                    <button class="refresh-btn" onclick="loadPendingCouriers()">Обновить</button>
+                    <button class="btn-cleanup" onclick="cleanupCancelledOrders()">Очистить отмененные заказы</button>
                 </div>
             </div>
             <div class="table-container">
@@ -368,7 +459,7 @@
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Имя и фамилия</th>
+                            <th>Имя</th>
                             <th>Телефон</th>
                             <th>Тип</th>
                             <th>Автомобиль</th>
@@ -378,17 +469,16 @@
                         </tr>
                     </thead>
                     <tbody id="pendingCouriersTable">
-                        <tr><td colspan="8">Загрузка...</td></tr>
+                        <tr><td colspan="8" class="empty-row">Загрузка...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
         
-        <!-- Активные бронирования -->
         <div class="section">
             <div class="section-header">
-                <h2 class="section-title">⏳ АКТИВНЫЕ БРОНИРОВАНИЯ (Ожидают оплаты) <span class="live-badge">● LIVE</span></h2>
-                <button class="refresh-btn" onclick="loadActiveReservations()">🔄 Обновить</button>
+                <h2 class="section-title">Активные бронирования <span class="live-badge">live</span></h2>
+                <button class="refresh-btn" onclick="loadActiveReservations()">Обновить</button>
             </div>
             <div class="table-container">
                 <table>
@@ -407,24 +497,23 @@
                         </tr>
                     </thead>
                     <tbody id="reservationsTable">
-                        <tr><td colspan="10">Загрузка...</td></tr>
+                        <tr><td colspan="10" class="empty-row">Загрузка...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
         
-        <!-- Заказы -->
         <div class="section">
             <div class="section-header">
-                <h2 class="section-title">📋 ЗАКАЗЫ</h2>
-                <button class="refresh-btn" onclick="loadOrders()">🔄 Обновить</button>
+                <h2 class="section-title">Заказы</h2>
+                <button class="refresh-btn" onclick="loadOrders()">Обновить</button>
             </div>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>№ заказа</th>
+                            <th>Номер заказа</th>
                             <th>Клиент</th>
                             <th>Телефон</th>
                             <th>Товар</th>
@@ -436,17 +525,16 @@
                         </tr>
                     </thead>
                     <tbody id="ordersTable">
-                        <tr><td colspan="10">Загрузка...</td></tr>
+                        <tr><td colspan="10" class="empty-row">Загрузка...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
         
-        <!-- Курьеры -->
         <div class="section">
             <div class="section-header">
-                <h2 class="section-title">🚚 ПОДТВЕРЖДЕННЫЕ КУРЬЕРЫ</h2>
-                <button class="refresh-btn" onclick="loadCouriers()">🔄 Обновить</button>
+                <h2 class="section-title">Подтвержденные курьеры</h2>
+                <button class="refresh-btn" onclick="loadCouriers()">Обновить</button>
             </div>
             <div class="table-container">
                 <table>
@@ -463,7 +551,7 @@
                         </tr>
                     </thead>
                     <tbody id="couriersTable">
-                        <tr><td colspan="8">Загрузка...</td></tr>
+                        <tr><td colspan="8" class="empty-row">Загрузка...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -471,7 +559,6 @@
     </div>
 
     <script>
-        // ============ ПРОВЕРКА ТОКЕНА ============
         let adminToken = sessionStorage.getItem('admin_token');
         if (!adminToken) {
             const urlParams = new URLSearchParams(window.location.search);
@@ -491,7 +578,7 @@
                 ...options,
                 headers: { 
                     'Content-Type': 'application/json', 
-                    'Authorization': `Bearer ${token}`, 
+                    'Authorization': 'Bearer ' + token, 
                     ...options.headers 
                 },
                 credentials: 'omit'
@@ -506,25 +593,25 @@
         
         function showNotification(message, isError = false) {
             const toast = document.createElement('div');
-            toast.className = 'notification';
-            toast.innerHTML = (isError ? '❌ ' : '✅ ') + message;
-            toast.style.background = isError ? '#dc2626' : '#0f172a';
+            toast.className = 'notification' + (isError ? ' error' : '');
+            toast.textContent = message;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
         }
         
         function escapeHtml(str) { 
             if (!str) return ''; 
-            return String(str).replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); 
+            return String(str).replace(/[&<>]/g, function(m) { 
+                return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'; 
+            }); 
         }
         
-        // ============ ОЧИСТКА ОТМЕНЕННЫХ ЗАКАЗОВ ============
         async function cleanupCancelledOrders() {
-            if (!confirm('🧹 Удалить ВСЕ отмененные заказы (без ограничения по времени)?\n\nЭто действие нельзя отменить!')) return;
+            if (!confirm('Очистить все отмененные заказы? Это действие нельзя отменить!')) return;
             
             const btn = event.target;
             const originalText = btn.innerHTML;
-            btn.innerHTML = '🔄 Очистка...';
+            btn.innerHTML = 'Очистка...';
             btn.disabled = true;
             
             try {
@@ -534,23 +621,22 @@
                 const data = await response.json();
                 
                 if (data.success) { 
-                    showNotification(`✅ ${data.message}`); 
+                    showNotification(data.message); 
                     loadStats(); 
                     loadOrders();
                     loadActiveReservations();
                 } else { 
-                    showNotification('❌ Ошибка: ' + (data.message || 'Неизвестная ошибка'), true); 
+                    showNotification('Ошибка: ' + (data.message || 'Неизвестная ошибка'), true); 
                 }
             } catch (error) { 
                 console.error('Cleanup error:', error); 
-                showNotification('❌ Ошибка при очистке заказов', true); 
+                showNotification('Ошибка при очистке заказов', true); 
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
         }
         
-        // ============ ЗАГРУЗКА СТАТИСТИКИ ============
         async function loadStats() {
             try {
                 const response = await authFetch('/api/admin/stats');
@@ -572,7 +658,6 @@
             }
         }
         
-        // ============ ЗАЯВКИ КУРЬЕРОВ ============
         async function loadPendingCouriers() {
             try {
                 const response = await authFetch('/api/admin/pending-couriers');
@@ -580,7 +665,7 @@
                 const tbody = document.getElementById('pendingCouriersTable');
                 
                 if (!data.couriers || data.couriers.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8">✅ Нет новых заявок</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">Нет новых заявок</td></tr>';
                     return;
                 }
                 
@@ -591,13 +676,13 @@
                             <td>#${c.id}</td>
                             <td><strong>${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)}</strong></td>
                             <td>${escapeHtml(c.phone)}</td>
-                            <td>${c.courier_type === 'driver' ? '🚗 На машине' : '🚶 Пеший'}</td>
+                            <td>${c.courier_type === 'driver' ? 'На машине' : 'Пеший'}</td>
                             <td>${escapeHtml(c.car_model || '-')}</td>
                             <td>${escapeHtml(c.car_number || '-')}</td>
                             <td>${c.created_at ? new Date(c.created_at).toLocaleString() : '-'}</td>
                             <td>
-                                <button class="btn-verify" onclick="verifyCourier(${c.id})">✅ Подтвердить</button>
-                                <button class="btn-reject" onclick="rejectCourier(${c.id})">❌ Отклонить</button>
+                                <button class="btn-verify" onclick="verifyCourier(${c.id})">Подтвердить</button>
+                                <button class="btn-reject" onclick="rejectCourier(${c.id})">Отклонить</button>
                             </td>
                         </tr>
                     `;
@@ -610,8 +695,8 @@
         async function verifyCourier(courierId) {
             if (!confirm('Подтвердить регистрацию курьера?')) return;
             try { 
-                await authFetch(`/api/admin/verify-courier/${courierId}`, { method: 'POST' }); 
-                showNotification('Курьер подтвержден!'); 
+                await authFetch('/api/admin/verify-courier/' + courierId, { method: 'POST' }); 
+                showNotification('Курьер подтвержден'); 
                 loadPendingCouriers(); 
                 loadCouriers(); 
                 loadStats(); 
@@ -623,7 +708,7 @@
         async function rejectCourier(courierId) {
             if (!confirm('Отклонить заявку курьера?')) return;
             try { 
-                await authFetch(`/api/admin/reject-courier/${courierId}`, { method: 'POST' }); 
+                await authFetch('/api/admin/reject-courier/' + courierId, { method: 'POST' }); 
                 showNotification('Заявка отклонена'); 
                 loadPendingCouriers(); 
                 loadStats(); 
@@ -632,7 +717,6 @@
             }
         }
         
-        // ============ АКТИВНЫЕ БРОНИРОВАНИЯ ============
         async function loadActiveReservations() {
             try {
                 const response = await authFetch('/api/admin/reservations');
@@ -640,7 +724,7 @@
                 const tbody = document.getElementById('reservationsTable');
                 
                 if (!data.reservations || data.reservations.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="10">✅ Нет активных бронирований</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="10" class="empty-row">Нет активных бронирований</td></tr>';
                     return;
                 }
                 
@@ -656,9 +740,9 @@
                             <td>${escapeHtml(res.supplier_name)}</td>
                             <td>${res.quantity}</td>
                             <td><strong>${res.total_amount.toLocaleString()} ₸</strong></td>
-                            <td class="${timeClass}">⏰ ${res.time_left_minutes} мин</td>
+                            <td class="${timeClass}">${res.time_left_minutes} мин</td>
                             <td>${new Date(res.reserved_at).toLocaleTimeString()}</td>
-                            <td><button class="btn-paid" onclick="markAsPaid(${res.id})">💰 Отметить оплаченным</button></td>
+                            <td><button class="btn-paid" onclick="markAsPaid(${res.id})">Отметить оплаченным</button></td>
                         </tr>
                     `;
                 }
@@ -670,10 +754,10 @@
         async function markAsPaid(reservationId) {
             if (!confirm('Подтвердить оплату и создать заказ?')) return;
             try {
-                const response = await authFetch(`/api/admin/mark-reservation-paid/${reservationId}`, { method: 'POST' });
+                const response = await authFetch('/api/admin/mark-reservation-paid/' + reservationId, { method: 'POST' });
                 const data = await response.json();
                 if (data.success) { 
-                    showNotification('Оплата подтверждена! Заказ создан.'); 
+                    showNotification('Оплата подтверждена. Заказ создан.'); 
                     loadActiveReservations(); 
                     loadOrders(); 
                     loadStats(); 
@@ -686,7 +770,6 @@
             }
         }
         
-        // ============ ЗАКАЗЫ ============
         async function loadOrders() {
             try {
                 const response = await authFetch('/api/admin/orders');
@@ -694,7 +777,7 @@
                 const tbody = document.getElementById('ordersTable');
                 
                 if (!data.orders || data.orders.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="10">📭 Нет заказов</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="10" class="empty-row">Нет заказов</td></tr>';
                     return;
                 }
                 
@@ -710,30 +793,30 @@
                             <td><strong>${order.amount.toLocaleString()} ₸</strong></td>
                             <td>
                                 <select class="status-select" data-order-id="${order.id}" data-field="payment_status">
-                                    <option value="pending" ${order.payment_status === 'pending' ? 'selected' : ''}>⏳ Ожидает</option>
-                                    <option value="paid" ${order.payment_status === 'paid' ? 'selected' : ''}>✅ Оплачен</option>
-                                    <option value="refunded" ${order.payment_status === 'refunded' ? 'selected' : ''}>💰 Возвращен</option>
+                                    <option value="pending" ${order.payment_status === 'pending' ? 'selected' : ''}>Ожидает</option>
+                                    <option value="paid" ${order.payment_status === 'paid' ? 'selected' : ''}>Оплачен</option>
+                                    <option value="refunded" ${order.payment_status === 'refunded' ? 'selected' : ''}>Возвращен</option>
                                 </select>
                             </td>
                             <td>
                                 <select class="status-select" data-order-id="${order.id}" data-field="order_status">
-                                    <option value="pending" ${order.status === 'pending' ? 'selected' : ''}>⏳ Ожидает</option>
-                                    <option value="confirmed" ${order.status === 'confirmed' ? 'selected' : ''}>✅ Подтвержден</option>
-                                    <option value="preparing" ${order.status === 'preparing' ? 'selected' : ''}>🍳 Готовится</option>
-                                    <option value="ready_for_pickup" ${order.status === 'ready_for_pickup' ? 'selected' : ''}>📦 Готов</option>
-                                    <option value="out_for_delivery" ${order.status === 'out_for_delivery' ? 'selected' : ''}>🚚 В пути</option>
-                                    <option value="nearby" ${order.status === 'nearby' ? 'selected' : ''}>📍 Рядом</option>
-                                    <option value="delivered" ${order.status === 'delivered' ? 'selected' : ''}>🏠 Доставлен</option>
-                                    <option value="cancelled" ${order.status === 'cancelled' ? 'selected' : ''}>❌ Отменен</option>
+                                    <option value="pending" ${order.status === 'pending' ? 'selected' : ''}>Ожидает</option>
+                                    <option value="confirmed" ${order.status === 'confirmed' ? 'selected' : ''}>Подтвержден</option>
+                                    <option value="preparing" ${order.status === 'preparing' ? 'selected' : ''}>Готовится</option>
+                                    <option value="ready_for_pickup" ${order.status === 'ready_for_pickup' ? 'selected' : ''}>Готов</option>
+                                    <option value="out_for_delivery" ${order.status === 'out_for_delivery' ? 'selected' : ''}>В пути</option>
+                                    <option value="nearby" ${order.status === 'nearby' ? 'selected' : ''}>Рядом</option>
+                                    <option value="delivered" ${order.status === 'delivered' ? 'selected' : ''}>Доставлен</option>
+                                    <option value="cancelled" ${order.status === 'cancelled' ? 'selected' : ''}>Отменен</option>
                                 </select>
                             </td>
                             <td>${new Date(order.created_at).toLocaleString()}</td>
-                            <td><button class="btn-refund" onclick="processRefund(${order.id})">💰 Возврат</button></td>
+                            <td><button class="btn-refund" onclick="processRefund(${order.id})">Возврат</button></td>
                         </tr>
                     `;
                 }
                 
-                document.querySelectorAll('.status-select').forEach(select => {
+                document.querySelectorAll('.status-select').forEach(function(select) {
                     select.addEventListener('change', function() { 
                         updateOrderStatus(this.dataset.orderId, this.dataset.field, this.value); 
                     });
@@ -745,13 +828,13 @@
         
         async function updateOrderStatus(orderId, field, value) {
             try {
-                const response = await authFetch(`/api/admin/update-order-status/${orderId}`, { 
+                const response = await authFetch('/api/admin/update-order-status/' + orderId, { 
                     method: 'PUT', 
-                    body: JSON.stringify({ field, value }) 
+                    body: JSON.stringify({ field: field, value: value }) 
                 });
                 const data = await response.json();
                 if (data.success) { 
-                    showNotification(`Заказ #${orderId}: ${data.message}`); 
+                    showNotification('Заказ #' + orderId + ': ' + data.message); 
                     loadOrders(); 
                     loadStats(); 
                 } else { 
@@ -768,11 +851,11 @@
             const reason = prompt('Причина возврата:');
             if (!reason) return;
             try {
-                await authFetch(`/api/admin/process-refund/${orderId}`, { 
+                await authFetch('/api/admin/process-refund/' + orderId, { 
                     method: 'POST', 
-                    body: JSON.stringify({ reason }) 
+                    body: JSON.stringify({ reason: reason }) 
                 });
-                showNotification('Возврат обработан!'); 
+                showNotification('Возврат обработан'); 
                 loadOrders(); 
                 loadStats();
             } catch (error) { 
@@ -780,7 +863,6 @@
             }
         }
         
-        // ============ ПОДТВЕРЖДЕННЫЕ КУРЬЕРЫ ============
         async function loadCouriers() {
             try {
                 const response = await authFetch('/api/admin/couriers');
@@ -788,7 +870,7 @@
                 const tbody = document.getElementById('couriersTable');
                 
                 if (!data.couriers || data.couriers.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8">🚚 Нет курьеров</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" class="empty-row">Нет курьеров</td></tr>';
                     return;
                 }
                 
@@ -799,11 +881,11 @@
                             <td>#${courier.id}</td>
                             <td>${escapeHtml(courier.first_name)} ${escapeHtml(courier.last_name)}</td>
                             <td>${escapeHtml(courier.phone)}</td>
-                            <td>${courier.courier_type === 'driver' ? '🚗 На машине' : '🚶 Пеший'}</td>
+                            <td>${courier.courier_type === 'driver' ? 'На машине' : 'Пеший'}</td>
                             <td>${escapeHtml(courier.car_model || '-')} ${escapeHtml(courier.car_number || '')}</td>
-                            <td>${courier.is_online ? '🟢 Онлайн' : '⚫ Офлайн'}</td>
+                            <td>${courier.is_online ? 'Онлайн' : 'Офлайн'}</td>
                             <td>${courier.total_deliveries || 0}</td>
-                            <td>⭐ ${courier.rating || 5.0}</td>
+                            <td>${courier.rating || 5.0}</td>
                         </tr>
                     `;
                 }
@@ -812,7 +894,97 @@
             }
         }
         
-        // ============ ЯЗЫКИ ============
+        async function loadResetRequests() {
+            try {
+                const response = await authFetch('/api/admin/password-reset-requests');
+                const data = await response.json();
+                const tbody = document.getElementById('resetRequestsTable');
+                const badge = document.getElementById('resetBadge');
+                
+                if (!data.requests || data.requests.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty-row">Нет запросов на восстановление</td></tr>';
+                    if (badge) badge.style.display = 'none';
+                    return;
+                }
+                
+                const pendingRequests = data.requests.filter(function(r) { return r.admin_approved === false; });
+                if (badge) {
+                    badge.style.display = pendingRequests.length > 0 ? 'inline-block' : 'none';
+                    badge.textContent = pendingRequests.length;
+                }
+                
+                tbody.innerHTML = '';
+                for (const req of data.requests) {
+                    const timeLeft = req.time_left || 0;
+                    const timeClass = timeLeft < 2 ? 'timer-warning' : '';
+                    const statusText = req.admin_approved ? 'Одобрен' : 'Ожидает';
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${escapeHtml(req.phone)}</strong></td>
+                            <td class="font-mono">${req.code}</td>
+                            <td class="${timeClass}">${timeLeft} мин</td>
+                            <td>
+                                <span class="status-badge ${req.admin_approved ? 'status-approved' : 'status-pending'}">
+                                    ${statusText}
+                                </span>
+                            </td>
+                            <td>
+                                ${!req.admin_approved ? `
+                                    <button class="btn-verify" onclick="approveResetRequest('${req.phone}')">Одобрить</button>
+                                    <button class="btn-reject" onclick="rejectResetRequest('${req.phone}')">Отклонить</button>
+                                ` : `
+                                    <span style="color: #367666; font-size: 0.85rem;">Обработан</span>
+                                `}
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (error) { 
+                console.error('Error loading reset requests:', error); 
+            }
+        }
+        
+        async function approveResetRequest(phone) {
+            if (!confirm('Одобрить запрос на восстановление для ' + phone + '?')) return;
+            try {
+                const response = await authFetch('/api/admin/approve-password-reset', {
+                    method: 'POST',
+                    body: JSON.stringify({ phone: phone, approve: true })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Запрос одобрен. Клиент может сменить пароль.');
+                    loadResetRequests();
+                } else {
+                    showNotification('Ошибка: ' + (data.message || 'Неизвестная ошибка'), true);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Ошибка при одобрении запроса', true);
+            }
+        }
+        
+        async function rejectResetRequest(phone) {
+            if (!confirm('Отклонить запрос на восстановление для ' + phone + '?')) return;
+            try {
+                const response = await authFetch('/api/admin/approve-password-reset', {
+                    method: 'POST',
+                    body: JSON.stringify({ phone: phone, approve: false })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Запрос отклонен');
+                    loadResetRequests();
+                } else {
+                    showNotification('Ошибка: ' + (data.message || 'Неизвестная ошибка'), true);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Ошибка при отклонении запроса', true);
+            }
+        }
+        
         let currentLang = 'ru';
         function setLang(lang) { 
             currentLang = lang; 
@@ -828,7 +1000,7 @@
             if (statLabels[2]) statLabels[2].innerText = t.couriers;
             if (statLabels[3]) statLabels[3].innerText = t.revenue;
             
-            document.querySelectorAll('.lang-btn').forEach(btn => {
+            document.querySelectorAll('.lang-btn').forEach(function(btn) {
                 btn.classList.remove('active');
                 if ((lang === 'kz' && btn.innerText.includes('Қаз')) ||
                     (lang === 'ru' && btn.innerText.includes('Рус')) ||
@@ -836,22 +1008,22 @@
             });
         }
         
-        // ============ ИНИЦИАЛИЗАЦИЯ ============
         setLang('ru');
         loadStats();
         loadPendingCouriers();
         loadActiveReservations();
         loadOrders();
         loadCouriers();
+        loadResetRequests();
         
-        // Автообновление каждые 30 секунд
-        setInterval(() => {
+        setInterval(function() {
             loadStats();
             loadPendingCouriers();
             loadActiveReservations();
             loadOrders();
             loadCouriers();
+            loadResetRequests();
         }, 30000);
-    </script>  
+    </script>
 </body>
 </html>
