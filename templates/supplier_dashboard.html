@@ -1,5 +1,3 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ С ФИЛЬТРАЦИЕЙ ШАБЛОНОВ ПО ТИПУ ПОСТАВЩИКА -->
-
 {% extends "supplier_base.html" %}
 
 {% block title %}Dashboard - {{ supplier.business_name }}{% endblock %}
@@ -9,44 +7,44 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { margin: 0; padding: 0; min-height: 100vh; background: #f1f5f9; }
 .dashboard-container { padding: 1rem 2rem 5rem 2rem; min-height: calc(100vh - 80px); }
-.admin-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; color: white; position: sticky; top: 0; z-index: 100; margin-bottom: 0; }
+.admin-header { background: #367666; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; color: white; position: sticky; top: 0; z-index: 100; margin-bottom: 0; }
 .business-info h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
-.business-info p { color: #94a3b8; font-size: 0.8rem; }
+.business-info p { color: #d4edda; font-size: 0.8rem; }
 .header-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.rating-badge { background: rgba(251, 191, 36, 0.2); padding: 0.3rem 0.8rem; border-radius: 2rem; font-size: 0.8rem; }
-.logout-btn { background: #dc2626; color: white; padding: 0.4rem 1rem; border: none; border-radius: 0.5rem; cursor: pointer; transition: background 0.2s; font-size: 0.8rem; }
-.logout-btn:hover { background: #b91c1c; }
+.rating-badge { background: rgba(255,255,255,0.2); padding: 0.3rem 0.8rem; border-radius: 2rem; font-size: 0.8rem; }
+.logout-btn { background: white; color: #367666; padding: 0.4rem 1rem; border: none; border-radius: 0.5rem; cursor: pointer; transition: background 0.2s; font-size: 0.8rem; font-weight: 600; }
+.logout-btn:hover { background: #e8f5e9; }
 .lang-selector { display: flex; gap: 0.3rem; background: rgba(255,255,255,0.1); padding: 0.2rem; border-radius: 2rem; }
 .lang-btn { background: transparent; border: none; color: rgba(255,255,255,0.6); padding: 0.3rem 0.8rem; border-radius: 1.5rem; cursor: pointer; font-size: 0.75rem; font-weight: 500; transition: all 0.2s; }
-.lang-btn.active { background: #fbbf24; color: #0f172a; }
+.lang-btn.active { background: white; color: #367666; }
 .lang-btn:hover:not(.active) { background: rgba(255,255,255,0.2); color: white; }
-.nav-links { background: white; border-bottom: 1px solid #e2e8f0; padding: 0 2rem; margin-bottom: 2rem; display: flex; gap: 2rem; overflow-x: auto; position: sticky; top: 70px; z-index: 99; }
+.nav-links { background: white; border-bottom: 1px solid #e8f5e9; padding: 0 2rem; margin-bottom: 2rem; display: flex; gap: 2rem; overflow-x: auto; position: sticky; top: 70px; z-index: 99; }
 .nav-links a { padding: 1rem 0; text-decoration: none; color: #64748b; font-weight: 500; transition: all 0.2s; font-size: 0.9rem; }
-.nav-links a:hover { color: #0f172a; }
-.nav-links a.active { color: #0f172a; border-bottom: 2px solid #fbbf24; }
+.nav-links a:hover { color: #367666; }
+.nav-links a.active { color: #367666; border-bottom: 2px solid #367666; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
-.stat-card { background: white; padding: 1rem; border-radius: 0.75rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: transform 0.2s; }
+.stat-card { background: white; padding: 1rem; border-radius: 0.75rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e8f5e9; }
 .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-.stat-number { font-size: 1.5rem; font-weight: bold; color: #0f172a; }
+.stat-number { font-size: 1.5rem; font-weight: bold; color: #367666; }
 .stat-label { color: #64748b; margin-top: 0.25rem; font-size: 0.75rem; }
-.orders-section, .bags-section, .products-section { background: white; border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.orders-section, .bags-section, .products-section { background: white; border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e8f5e9; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem; }
-.section-title { font-size: 1.1rem; font-weight: bold; color: #0f172a; border-left: 3px solid #fbbf24; padding-left: 0.75rem; }
-.live-badge { background: #10b981; color: white; font-size: 0.6rem; padding: 0.15rem 0.5rem; border-radius: 1rem; margin-left: 0.5rem; animation: pulse 2s infinite; }
+.section-title { font-size: 1.1rem; font-weight: bold; color: #367666; border-left: 3px solid #367666; padding-left: 0.75rem; }
+.live-badge { background: #367666; color: white; font-size: 0.6rem; padding: 0.15rem 0.5rem; border-radius: 1rem; margin-left: 0.5rem; animation: pulse 2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 .refresh-btn, .clear-btn { padding: 0.4rem 0.8rem; border-radius: 0.5rem; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; border: none; }
 .refresh-btn { background: #f1f5f9; color: #334155; }
-.refresh-btn:hover { background: #e2e8f0; }
-.clear-btn { background: #ef4444; color: white; }
-.clear-btn:hover { background: #dc2626; }
-.btn-primary { background: #fbbf24; color: #0f172a; padding: 0.4rem 0.8rem; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600; transition: all 0.2s; }
-.btn-primary:hover { background: #f59e0b; }
+.refresh-btn:hover { background: #e8f5e9; }
+.clear-btn { background: #e74c3c; color: white; }
+.clear-btn:hover { background: #c0392b; }
+.btn-primary { background: #367666; color: white; padding: 0.4rem 0.8rem; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+.btn-primary:hover { background: #2a5a4d; }
 .btn-purple { background: #8b5cf6; color: white; padding: 0.4rem 0.8rem; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600; transition: all 0.2s; }
 .btn-purple:hover { background: #7c3aed; }
 .table-container { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-th, td { padding: 0.6rem 0.5rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
-th { background: #f8fafc; font-weight: 600; color: #475569; }
+th, td { padding: 0.6rem 0.5rem; text-align: left; border-bottom: 1px solid #e8f5e9; }
+th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px solid #367666; }
 .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 1rem; font-size: 0.7rem; font-weight: 600; }
 .status-pending { background: #fef3c7; color: #92400e; }
 .status-confirmed { background: #dbeafe; color: #1e40af; }
@@ -62,39 +60,33 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
 .auto-assign-btn { background: #10b981; color: white; }
 .auto-assign-btn:hover { background: #059669; }
 .manual-assign-btn { background: #3b82f6; color: white; }
-.add-bag-form { background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-top: 1rem; }
+.add-bag-form { background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-top: 1rem; border: 1px solid #e8f5e9; }
 .form-group { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.8rem; }
 .form-group label { font-weight: 600; font-size: 0.75rem; color: #334155; }
 .form-group input, .form-group textarea, .form-group select { padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; font-size: 0.75rem; }
-.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #fbbf24; box-shadow: 0 0 0 2px rgba(251,191,36,0.1); }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #367666; box-shadow: 0 0 0 2px rgba(54,118,102,0.1); }
 .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.8rem; }
 .full-width { grid-column: span 2; }
 .discount-buttons { display: flex; gap: 0.3rem; flex-wrap: wrap; }
 .discount-preset { padding: 0.3rem 0.6rem; border: none; border-radius: 0.4rem; cursor: pointer; font-weight: bold; font-size: 0.7rem; background: #e2e8f0; transition: all 0.2s; }
-.discount-preset:hover { background: #fbbf24; }
+.discount-preset:hover { background: #367666; color: white; }
 .product-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .selected-products-list { max-height: 150px; overflow-y: auto; margin-top: 0.5rem; }
-.product-item { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem; background: white; border-radius: 0.4rem; margin-bottom: 0.3rem; border: 1px solid #e2e8f0; font-size: 0.7rem; }
-.remove-product { background: #ef4444; color: white; border: none; border-radius: 0.3rem; padding: 0.2rem 0.4rem; cursor: pointer; font-size: 0.6rem; }
+.product-item { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem; background: white; border-radius: 0.4rem; margin-bottom: 0.3rem; border: 1px solid #e8f5e9; font-size: 0.7rem; }
+.remove-product { background: #e74c3c; color: white; border: none; border-radius: 0.3rem; padding: 0.2rem 0.4rem; cursor: pointer; font-size: 0.6rem; }
 .quantity-input { width: 70px; padding: 0.4rem; border: 1px solid #e2e8f0; border-radius: 0.4rem; text-align: center; }
-.submit-btn { background: #0f172a; color: white; padding: 0.5rem 1rem; border: none; border-radius: 0.5rem; cursor: pointer; margin-top: 0.8rem; font-weight: 600; width: 100%; font-size: 0.8rem; }
-.submit-btn:hover { background: #1e293b; }
-.ws-indicator { position: fixed; bottom: 1rem; right: 1rem; background: #0f172a; padding: 0.3rem 0.8rem; border-radius: 2rem; color: white; font-size: 0.65rem; z-index: 100; display: flex; align-items: center; gap: 0.3rem; }
+.submit-btn { background: #367666; color: white; padding: 0.5rem 1rem; border: none; border-radius: 0.5rem; cursor: pointer; margin-top: 0.8rem; font-weight: 600; width: 100%; font-size: 0.8rem; }
+.submit-btn:hover { background: #2a5a4d; }
+.ws-indicator { position: fixed; bottom: 1rem; right: 1rem; background: #367666; padding: 0.3rem 0.8rem; border-radius: 2rem; color: white; font-size: 0.65rem; z-index: 100; display: flex; align-items: center; gap: 0.3rem; }
 .ws-dot { width: 6px; height: 6px; border-radius: 50%; }
 .ws-dot.connected { background: #10b981; animation: pulse 2s infinite; }
-.ws-dot.disconnected { background: #ef4444; }
+.ws-dot.disconnected { background: #e74c3c; }
 .notification { position: fixed; top: 1rem; right: 1rem; background: white; border-radius: 0.5rem; padding: 0.6rem 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000; animation: slideIn 0.3s ease; border-left: 3px solid #10b981; font-size: 0.8rem; }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 .type-badge-hidden { background: #fef3c7; color: #92400e; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.65rem; font-weight: bold; }
 .type-badge-visible { background: #d1fae5; color: #065f46; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.65rem; font-weight: bold; }
-.business-type-badge { display: inline-block; padding: 0.2rem 0.8rem; border-radius: 1rem; font-size: 0.65rem; font-weight: 600; }
-.business-type-restaurant { background: #fef3c7; color: #92400e; }
-.business-type-cafe { background: #dbeafe; color: #1e40af; }
-.business-type-fastfood { background: #fed7aa; color: #9a3412; }
-.business-type-supermarket { background: #d1fae5; color: #065f46; }
-.business-type-bakery { background: #fce7f3; color: #9d174d; }
-.business-type-hotel { background: #e0e7ff; color: #3730a3; }
+.business-type-badge { display: inline-block; padding: 0.2rem 0.8rem; border-radius: 1rem; font-size: 0.65rem; font-weight: 600; background: rgba(255,255,255,0.2); color: white; }
 @media (max-width: 768px) {
     .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 0.8rem; }
     .dashboard-container { padding: 1rem; }
@@ -109,7 +101,6 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
 {% endblock %}
 
 {% block content %}
-<!-- ДАННЫЕ -->
 <div id="supplierData" 
      data-supplier-id="{{ supplier.id }}" 
      data-token="{{ token or '' }}" 
@@ -129,24 +120,16 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
 
 <div class="admin-header">
     <div class="business-info">
-        <h1 id="supplierName">{{ supplier.business_name }}</h1>
-        <p id="locationText">{{ supplier.address or 'Адрес не указан' }} | {{ supplier.phone or '—' }}</p>
+        <h1>{{ supplier.business_name }}</h1>
+        <p>{{ supplier.address or 'Адрес не указан' }} | {{ supplier.phone or '—' }}</p>
     </div>
     <div class="header-actions">
-        <span class="rating-badge" id="ratingText">⭐ {{ supplier.rating or 0 }}</span>
-        <span class="business-type-badge business-type-{{ supplier.business_type or 'restaurant' }}" id="businessTypeBadge">
-            {% if supplier.business_type == 'restaurant' %}🍽️ Ресторан
-            {% elif supplier.business_type == 'cafe' %}☕ Кафе
-            {% elif supplier.business_type == 'fastfood' %}🍔 Фастфуд
-            {% elif supplier.business_type == 'supermarket' %}🛒 Супермаркет
-            {% elif supplier.business_type == 'bakery' %}🥖 Пекарня
-            {% elif supplier.business_type == 'hotel' %}🏨 Гостиница
-            {% else %}🏪 Магазин{% endif %}
-        </span>
+        <span class="rating-badge">⭐ {{ supplier.rating or 0 }}</span>
+        <span class="business-type-badge">{{ supplier.business_type or 'Ресторан' }}</span>
         <div class="lang-selector">
             <button class="lang-btn" data-lang="kz">Қаз</button>
-            <button class="lang-btn" data-lang="ru">Рус</button>
-            <button class="lang-btn active" data-lang="en">En</button>
+            <button class="lang-btn active" data-lang="ru">Рус</button>
+            <button class="lang-btn" data-lang="en">En</button>
         </div>
         <button onclick="logout()" class="logout-btn">Выйти</button>
     </div>
@@ -160,7 +143,6 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
         <a href="/supplier/surprise-bags" id="navBags">Сюрпризы</a>
     </div>
 
-    <!-- СТАТИСТИКА -->
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-number" id="totalOrders">{{ stats.total_orders }}</div>
@@ -180,7 +162,6 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
         </div>
     </div>
 
-    <!-- ЗАКАЗЫ -->
     <div class="orders-section">
         <div class="section-header">
             <div>
@@ -208,7 +189,6 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
         </div>
     </div>
 
-    <!-- УПРАВЛЕНИЕ ТОВАРАМИ И КАТЕГОРИЯМИ -->
     <div class="products-section">
         <div class="section-header">
             <span class="section-title">📦 Мои товары</span>
@@ -218,97 +198,65 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
             </div>
         </div>
         
-        <!-- ФОРМА ДОБАВЛЕНИЯ КАТЕГОРИИ -->
-        <div id="addCategoryForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem;">
-            <h4 style="margin-bottom: 1rem; color: #0f172a;">📂 Новая категория</h4>
+        <div id="addCategoryForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem; border: 1px solid #e8f5e9;">
+            <h4 style="margin-bottom: 1rem; color: #367666;">📂 Новая категория</h4>
             <form id="createCategoryForm">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Название (RU) *</label>
-                        <input type="text" id="categoryNameRu" required placeholder="Например: Здоровое питание">
+                        <label>Название *</label>
+                        <input type="text" id="categoryName" required placeholder="Название категории">
                     </div>
                     <div class="form-group">
-                        <label>Название (KZ) *</label>
-                        <input type="text" id="categoryNameKz" required placeholder="Мысалы: Денсаулық тағамы">
-                    </div>
-                </div>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Иконка (эмодзи)</label>
+                        <label>Иконка</label>
                         <select id="categoryIcon">
-                            <option value="📦">📦 Коробка</option>
-                            <option value="🍽️">🍽️ Еда</option>
-                            <option value="🥗">🥗 Салат</option>
-                            <option value="🍕">🍕 Пицца</option>
-                            <option value="🍔">🍔 Бургер</option>
-                            <option value="🍣">🍣 Суши</option>
-                            <option value="🥩">🥩 Мясо</option>
-                            <option value="🥬">🥬 Овощи</option>
-                            <option value="🍰">🍰 Десерт</option>
-                            <option value="🥤">🥤 Напиток</option>
-                            <option value="☕">☕ Кофе</option>
-                            <option value="🧃">🧃 Сок</option>
-                            <option value="🥖">🥖 Хлеб</option>
-                            <option value="🛒">🛒 Продукты</option>
-                            <option value="⭐">⭐ Специальное</option>
-                            <option value="🔥">🔥 Хит</option>
-                            <option value="💚">💚 Здоровое</option>
-                            <option value="🎯">🎯 Сезонное</option>
+                            <option value="📦">📦</option>
+                            <option value="🍽️">🍽️</option>
+                            <option value="🥗">🥗</option>
+                            <option value="🍕">🍕</option>
+                            <option value="🍔">🍔</option>
+                            <option value="☕">☕</option>
                         </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Название (EN)</label>
-                        <input type="text" id="categoryNameEn" placeholder="English name">
                     </div>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
-                    <button type="submit" class="submit-btn" style="width: auto; padding: 0.5rem 2rem; background: #8b5cf6;">✅ Добавить категорию</button>
-                    <button type="button" class="clear-btn" onclick="toggleCategoryForm()" style="padding: 0.5rem 1rem;">❌ Отмена</button>
+                    <button type="submit" class="submit-btn" style="width: auto; padding: 0.5rem 2rem; background: #8b5cf6;">Добавить</button>
+                    <button type="button" class="clear-btn" onclick="toggleCategoryForm()" style="padding: 0.5rem 1rem;">Отмена</button>
                 </div>
             </form>
         </div>
         
-        <!-- ФОРМА ДОБАВЛЕНИЯ ТОВАРА -->
-        <div id="addProductForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem;">
-            <h4 style="margin-bottom: 1rem; color: #0f172a;">Новый товар</h4>
+        <div id="addProductForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem; border: 1px solid #e8f5e9;">
+            <h4 style="margin-bottom: 1rem; color: #367666;">Новый товар</h4>
             <form id="createProductForm">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Название (RU) *</label>
-                        <input type="text" id="productNameRu" required placeholder="Например: Маргарита">
+                        <label>Название *</label>
+                        <input type="text" id="productName" required placeholder="Название товара">
                     </div>
                     <div class="form-group">
-                        <label>Название (KZ) *</label>
-                        <input type="text" id="productNameKz" required placeholder="Мысалы: Маргарита">
-                    </div>
-                </div>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Категория *</label>
-                        <select id="productCategory" required>
+                        <label>Категория</label>
+                        <select id="productCategory">
                             <option value="">-- Выберите категорию --</option>
                         </select>
                     </div>
+                </div>
+                <div class="form-grid">
                     <div class="form-group">
                         <label>Цена (₸) *</label>
                         <input type="number" id="productPrice" required min="1" placeholder="2500">
                     </div>
+                    <div class="form-group">
+                        <label>Время приготовления (мин)</label>
+                        <input type="number" id="productPrepTime" value="15" min="1">
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label>Время приготовления (мин)</label>
-                    <input type="number" id="productPrepTime" value="15" min="1">
-                </div>
-                <div class="form-group">
-                    <label>Описание (RU)</label>
-                    <textarea id="productDescRu" rows="2" placeholder="Описание блюда на русском"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Описание (KZ)</label>
-                    <textarea id="productDescKz" rows="2" placeholder="Тағамның сипаттамасы қазақша"></textarea>
+                    <label>Описание</label>
+                    <textarea id="productDesc" rows="2" placeholder="Описание товара"></textarea>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
-                    <button type="submit" class="submit-btn" style="width: auto; padding: 0.5rem 2rem;">✅ Сохранить</button>
-                    <button type="button" class="clear-btn" onclick="toggleProductForm()" style="padding: 0.5rem 1rem;">❌ Отмена</button>
+                    <button type="submit" class="submit-btn" style="width: auto; padding: 0.5rem 2rem;">Сохранить</button>
+                    <button type="button" class="clear-btn" onclick="toggleProductForm()" style="padding: 0.5rem 1rem;">Отмена</button>
                 </div>
             </form>
         </div>
@@ -326,72 +274,64 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
                     </tr>
                 </thead>
                 <tbody id="productsTableBody">
-                    <tr>
-                        <td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">
-                            ⏳ Загрузка товаров...
-                        </td>
-                    </tr>
+                    <tr><td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">Загрузка товаров...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- СЮРПРИЗЫ -->
     <div class="bags-section">
         <div class="section-header">
-            <span class="section-title" id="titleBags">Сюрпризы</span>
+            <span class="section-title">Сюрпризы</span>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                <button class="refresh-btn" id="toggleAddBagBtn" onclick="toggleAddBagForm()">
-                    <span id="btnAdd">➕ Добавить</span>
-                </button>
-                <button class="clear-btn" id="clearInactiveBagsBtn"><span id="btnClearInactive">🗑️ Удалить неактивные</span></button>
-                <button class="clear-btn" id="clearAllBagsBtn" style="background: #dc2626;"><span id="btnDeleteAll">💀 Удалить все</span></button>
+                <button class="btn-primary" onclick="toggleAddBagForm()">+ Добавить</button>
+                <button class="clear-btn" onclick="clearInactiveBags()">Удалить неактивные</button>
+                <button class="clear-btn" onclick="clearAllBags()" style="background: #c0392b;">Удалить все</button>
             </div>
         </div>
         
         <div class="add-bag-form" id="addBagForm" style="display: none;">
-            <h3 id="formTitle" style="margin-bottom: 1rem; font-size: 1rem;">Добавить сюрприз</h3>
+            <h3 style="margin-bottom: 1rem; font-size: 1rem; color: #367666;">Добавить сюрприз</h3>
             <form id="createBagForm">
                 <div class="form-group full-width">
-                    <label id="labelTemplate">🎁 Готовые сюрпризы (только для вашего типа заведения)</label>
+                    <label>Готовый шаблон</label>
                     <select id="surpriseTemplate" style="padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #e2e8f0; font-size: 0.8rem;">
-                        <option value="">-- Выберите готовый сюрприз --</option>
+                        <option value="">-- Выберите шаблон --</option>
                     </select>
-                    <small id="selectedHint" style="color: #64748b;">Выберите готовый сюрприз для автозаполнения</small>
                 </div>
 
                 <div class="form-group full-width">
-                    <label id="labelName">Название сюрприза *</label>
-                    <input type="text" id="bagName" required>
+                    <label>Название сюрприза *</label>
+                    <input type="text" id="bagName" required placeholder="Название">
                 </div>
 
                 <div class="form-group full-width">
-                    <label id="labelDesc">Описание</label>
-                    <textarea id="bagDescription" rows="2"></textarea>
+                    <label>Описание</label>
+                    <textarea id="bagDescription" rows="2" placeholder="Описание сюрприза"></textarea>
                 </div>
 
                 <div class="form-group full-width">
-                    <label id="labelProducts">Список товаров</label>
+                    <label>Список товаров</label>
                     <div class="product-row">
                         <select id="productSelect">
                             <option value="">-- Выберите товар --</option>
                         </select>
                         <input type="number" id="productQuantity" class="quantity-input" value="1" min="1">
-                        <button type="button" class="btn-primary" id="addProductBtn">+ Добавить</button>
+                        <button type="button" class="btn-primary" onclick="addProduct()">+ Добавить</button>
                     </div>
                     <div id="selectedProductsPreview" style="display: none;">
-                        <strong id="selectedTitle">Выбранные товары:</strong>
+                        <strong>Выбранные товары:</strong>
                         <div id="selectedProductsList" class="selected-products-list"></div>
                     </div>
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label id="labelOriginalPrice">Оригинальная цена (₸)</label>
+                        <label>Оригинальная цена (₸)</label>
                         <input type="number" id="originalPrice" readonly style="background: #f1f5f9;">
                     </div>
                     <div class="form-group">
-                        <label id="labelDiscount">Скидка</label>
+                        <label>Скидка</label>
                         <div class="discount-buttons">
                             <button type="button" class="discount-preset" data-percent="30">-30%</button>
                             <button type="button" class="discount-preset" data-percent="40">-40%</button>
@@ -404,49 +344,35 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label id="labelDiscountedPrice">Цена со скидкой (₸)</label>
-                        <input type="number" id="discountedPrice" required>
-                        <div id="discountInfo" style="font-size: 0.7rem; color: #10b981;"></div>
+                        <label>Цена со скидкой (₸)</label>
+                        <input type="number" id="discountedPrice" required placeholder="Цена после скидки">
                     </div>
                     <div class="form-group">
-                        <label id="labelQuantity">Количество</label>
+                        <label>Количество</label>
                         <input type="number" id="availableQuantity" value="5" min="1">
                     </div>
-                    <div class="form-group">
-                        <label id="labelPickupStart">Время выдачи (начало)</label>
-                        <input type="text" id="pickupStart" placeholder="19:30">
-                    </div>
-                    <div class="form-group">
-                        <label id="labelPickupEnd">Время выдачи (конец)</label>
-                        <input type="text" id="pickupEnd" placeholder="20:00">
-                    </div>
                 </div>
 
                 <div class="form-group full-width">
-                    <label id="labelBagType">📦 Тип сюрприза</label>
+                    <label>Тип сюрприза</label>
                     <div style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
                         <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 1rem; background: #f1f5f9; border-radius: 0.5rem;">
-                            <input type="radio" name="bag_type" value="visible" checked onchange="toggleBagTypeFields()">
-                            <span>🔓 Открытый</span>
-                            <small style="color: #64748b;">Клиент видит состав</small>
+                            <input type="radio" name="bag_type" value="visible" checked>
+                            🔓 Открытый (виден состав)
                         </label>
                         <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 1rem; background: #f1f5f9; border-radius: 0.5rem;">
-                            <input type="radio" name="bag_type" value="hidden" onchange="toggleBagTypeFields()">
-                            <span>🔒 Скрытый</span>
-                            <small style="color: #64748b;">Клиент НЕ видит состав</small>
+                            <input type="radio" name="bag_type" value="hidden">
+                            🔒 Скрытый (состав не виден)
                         </label>
-                    </div>
-                    <div id="hiddenHint" style="display: none; margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border-radius: 0.5rem; font-size: 0.7rem; color: #92400e;">
-                        🎁 Скрытый режим: клиент увидит только название и цену. Состав будет секретом до получения заказа.
                     </div>
                 </div>
 
                 <div class="form-group full-width">
-                    <label id="labelImage">URL изображения</label>
-                    <input type="text" id="imageUrl" placeholder="Автозаполняется из шаблона или по названию">
+                    <label>URL изображения</label>
+                    <input type="text" id="imageUrl" placeholder="Ссылка на картинку">
                 </div>
 
-                <button type="submit" class="submit-btn" id="submitBtn">Добавить сюрприз</button>
+                <button type="submit" class="submit-btn">Добавить сюрприз</button>
             </form>
         </div>
 
@@ -454,15 +380,15 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
             <table>
                 <thead>
                     <tr>
-                        <th id="thBagName">Название</th>
-                        <th id="thBagDesc">Описание</th>
-                        <th id="thBagPrice">Цена</th>
-                        <th id="thBagDiscounted">Со скидкой</th>
-                        <th id="thBagDiscount">Скидка</th>
-                        <th id="thBagQty">Кол-во</th>
-                        <th id="thBagType">Тип</th>
-                        <th id="thBagStatus">Статус</th>
-                        <th id="thBagAction">Действие</th>
+                        <th>Название</th>
+                        <th>Описание</th>
+                        <th>Цена</th>
+                        <th>Со скидкой</th>
+                        <th>Скидка</th>
+                        <th>Кол-во</th>
+                        <th>Тип</th>
+                        <th>Статус</th>
+                        <th>Действие</th>
                     </tr>
                 </thead>
                 <tbody id="bagsTableBody"></tbody>
@@ -473,77 +399,78 @@ th { background: #f8fafc; font-weight: 600; color: #475569; }
 
 <script>
 // ============================================================
-// ПОЛУЧАЕМ ТОКЕН ИЗ URL
+// ПОЛУЧАЕМ ТОКЕН
 // ============================================================
 (function() {
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
-    
     if (tokenFromUrl) {
         sessionStorage.setItem('supplier_token', tokenFromUrl);
         localStorage.setItem('supplier_token', tokenFromUrl);
         console.log('✅ Токен сохранен из URL');
     }
-    
-    const token = sessionStorage.getItem('supplier_token');
-    if (!token) {
-        console.warn('⚠️ Нет токена в sessionStorage');
-    } else {
-        console.log('🔑 Токен есть:', token.substring(0, 30) + '...');
-    }
 })();
 
-// ============================================================
-// authFetch
-// ============================================================
-async function authFetch(url, options = {}) {
+function getSupplierToken() {
     let token = sessionStorage.getItem('supplier_token');
-    if (!token) {
-        token = localStorage.getItem('supplier_token');
-    }
-    if (!token && window.supplierData) {
-        token = window.supplierData.token;
-    }
+    if (!token) token = localStorage.getItem('supplier_token');
+    if (!token && window.supplierData) token = window.supplierData.token;
+    return token;
+}
+
+function clearSupplierToken() { 
+    sessionStorage.removeItem('supplier_token');
+    localStorage.removeItem('supplier_token');
+}
+
+function logout() { 
+    clearSupplierToken(); 
+    window.location.href = '/supplier/login'; 
+}
+
+async function authFetch(url, options = {}) {
+    const token = getSupplierToken();
     if (!token) {
         console.error('❌ НЕТ ТОКЕНА!');
         window.location.href = '/supplier/login';
         throw new Error('No token');
     }
     
-    try {
-        const response = await fetch(url, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + token,
-                ...options.headers
-            }
-        });
-        
-        if (response.status === 401) {
-            sessionStorage.removeItem('supplier_token');
-            localStorage.removeItem('supplier_token');
-            window.location.href = '/supplier/login';
-            throw new Error('Unauthorized');
+    const response = await fetch(url, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+            ...options.headers
         }
-        return response;
-    } catch(error) {
-        console.error('❌ Ошибка:', error);
-        throw error;
+    });
+    
+    if (response.status === 401) {
+        clearSupplierToken();
+        window.location.href = '/supplier/login';
+        throw new Error('Unauthorized');
     }
+    return response;
+}
+
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.textContent = (type === 'success' ? '✅ ' : '❌ ') + message;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
+
+function escapeHtml(str) { 
+    if (!str) return ''; 
+    return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'); 
 }
 
 // ============================================================
-// ПЕРЕВОДЫ
+// ПЕРЕВОДЫ ДЛЯ ИНТЕРФЕЙСА
 // ============================================================
 const translations = {
     kz: {
-        chooseProduct: 'Тауарды таңдаңыз',
-        selectTemplate: 'Дайын сюрпризді таңдаңыз',
-        templateLoaded: 'Жүктелді:',
-        youCanEdit: 'Сіз өңдей аласыз',
-        location: '{address} | {phone}',
-        rating: '⭐ {rating}',
         navDashboard: 'Басты бет',
         navCouriers: 'Курьерлер',
         navOrders: 'Тапсырыстар',
@@ -561,43 +488,9 @@ const translations = {
         thStatus: 'Статус',
         thCourier: 'Курьер',
         thAction: 'Әрекет',
-        thMap: 'Карта',
-        titleBags: 'Сюрприздер',
-        btnAdd: 'Қосу',
-        btnClearInactive: 'Белсенді еместерді тазалау',
-        btnDeleteAll: 'Барлығын жою',
-        thBagName: 'Атауы',
-        thBagDesc: 'Сипаттама',
-        thBagPrice: 'Бағасы',
-        thBagDiscounted: 'Жеңілдікпен',
-        thBagDiscount: 'Жеңілдік',
-        thBagQty: 'Саны',
-        thBagType: 'Түрі',
-        thBagStatus: 'Күйі',
-        thBagAction: 'Әрекет',
-        formTitle: 'Сюрприз қосу',
-        labelTemplate: 'Дайын сюрприз',
-        labelName: 'Сюрприз атауы *',
-        labelDesc: 'Сипаттама',
-        labelProducts: 'Өнімдер тізімі',
-        selectedTitle: 'Таңдалған өнімдер:',
-        labelOriginalPrice: 'Бастапқы баға (₸)',
-        labelDiscount: 'Жеңілдік',
-        labelDiscountedPrice: 'Жеңілдікпен баға (₸)',
-        labelQuantity: 'Саны',
-        labelPickupStart: 'Алу уақыты (басталуы)',
-        labelPickupEnd: 'Алу уақыты (аяқталуы)',
-        labelImage: 'Сурет URL',
-        labelBagType: '📦 Сюрприз түрі',
-        submitBtn: 'Сюрприз қосу'
+        thMap: 'Карта'
     },
     ru: {
-        chooseProduct: 'Выберите товар',
-        selectTemplate: 'Выберите готовый сюрприз',
-        templateLoaded: 'Загружено:',
-        youCanEdit: 'Вы можете редактировать',
-        location: '{address} | {phone}',
-        rating: '⭐ {rating}',
         navDashboard: 'Главная',
         navCouriers: 'Курьеры',
         navOrders: 'Заказы',
@@ -615,43 +508,9 @@ const translations = {
         thStatus: 'Статус',
         thCourier: 'Курьер',
         thAction: 'Действие',
-        thMap: 'Карта',
-        titleBags: 'Сюрпризы',
-        btnAdd: 'Добавить',
-        btnClearInactive: 'Удалить неактивные',
-        btnDeleteAll: 'Удалить все',
-        thBagName: 'Название',
-        thBagDesc: 'Описание',
-        thBagPrice: 'Цена',
-        thBagDiscounted: 'Со скидкой',
-        thBagDiscount: 'Скидка',
-        thBagQty: 'Кол-во',
-        thBagType: 'Тип',
-        thBagStatus: 'Статус',
-        thBagAction: 'Действие',
-        formTitle: 'Добавить сюрприз',
-        labelTemplate: 'Готовый сюрприз',
-        labelName: 'Название сюрприза *',
-        labelDesc: 'Описание',
-        labelProducts: 'Список товаров',
-        selectedTitle: 'Выбранные товары:',
-        labelOriginalPrice: 'Оригинальная цена (₸)',
-        labelDiscount: 'Скидка',
-        labelDiscountedPrice: 'Цена со скидкой (₸)',
-        labelQuantity: 'Количество',
-        labelPickupStart: 'Время выдачи (начало)',
-        labelPickupEnd: 'Время выдачи (конец)',
-        labelImage: 'URL изображения',
-        labelBagType: '📦 Тип сюрприза',
-        submitBtn: 'Добавить сюрприз'
+        thMap: 'Карта'
     },
     en: {
-        chooseProduct: 'Choose product',
-        selectTemplate: 'Select ready surprise',
-        templateLoaded: 'Loaded:',
-        youCanEdit: 'You can edit',
-        location: '{address} | {phone}',
-        rating: '⭐ {rating}',
         navDashboard: 'Dashboard',
         navCouriers: 'Couriers',
         navOrders: 'Orders',
@@ -669,108 +528,648 @@ const translations = {
         thStatus: 'Status',
         thCourier: 'Courier',
         thAction: 'Action',
-        thMap: 'Map',
-        titleBags: 'Surprise Bags',
-        btnAdd: 'Add',
-        btnClearInactive: 'Clear Inactive',
-        btnDeleteAll: 'Delete All',
-        thBagName: 'Name',
-        thBagDesc: 'Description',
-        thBagPrice: 'Price',
-        thBagDiscounted: 'Discounted',
-        thBagDiscount: 'Discount',
-        thBagQty: 'Quantity',
-        thBagType: 'Type',
-        thBagStatus: 'Status',
-        thBagAction: 'Action',
-        formTitle: 'Add Surprise Bag',
-        labelTemplate: 'Ready Surprise Package',
-        labelName: 'Surprise Bag Name *',
-        labelDesc: 'Description',
-        labelProducts: 'Products List',
-        selectedTitle: 'Selected Products:',
-        labelOriginalPrice: 'Original Price (₸)',
-        labelDiscount: 'Discount',
-        labelDiscountedPrice: 'Discounted Price (₸)',
-        labelQuantity: 'Quantity',
-        labelPickupStart: 'Pickup Start Time',
-        labelPickupEnd: 'Pickup End Time',
-        labelImage: 'Image URL',
-        labelBagType: '📦 Surprise Type',
-        submitBtn: 'Add Surprise'
+        thMap: 'Map'
     }
 };
 
 // ============================================================
-// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+// ПЕРЕМЕННЫЕ
 // ============================================================
 let currentLang = 'ru';
 let selectedProducts = [];
-let ws = null;
 let supplierId = parseInt(document.getElementById('supplierData').getAttribute('data-supplier-id'));
-let tokenFromHtml = document.getElementById('supplierData').getAttribute('data-token');
-var businessType = document.getElementById('supplierData').getAttribute('data-business-type') || 'restaurant';
-var customCategories = [];
+let businessType = document.getElementById('supplierData').getAttribute('data-business-type') || 'restaurant';
 
 // ============================================================
-// HELPER FUNCTIONS
+// УСТАНОВКА ЯЗЫКА
 // ============================================================
-function getSupplierToken() {
-    let token = sessionStorage.getItem('supplier_token');
-    if (!token && tokenFromHtml && tokenFromHtml !== '' && tokenFromHtml !== 'None') {
-        token = tokenFromHtml;
-        sessionStorage.setItem('supplier_token', token);
-    }
-    return token;
-}
-
-function clearSupplierToken() { 
-    sessionStorage.removeItem('supplier_token');
-    localStorage.removeItem('supplier_token');
-}
-
-function logout() { 
-    clearSupplierToken(); 
-    window.location.href = '/supplier/login'; 
-}
-
-function showNotification(message, type) {
-    const notification = document.createElement('div');
-    notification.className = 'notification';
-    notification.innerHTML = (type === 'success' ? '✓' : '⚠') + ' ' + message;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.remove(), 3000);
-}
-
-function escapeHtml(str) { 
-    if (!str) return ''; 
-    return str.replace(/[&<>]/g, function(m) { 
-        return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'; 
-    }); 
-}
-
-function getImageByTitle(title) {
-    var lowerTitle = title.toLowerCase();
-    if (lowerTitle.indexOf('пицц') !== -1 || lowerTitle.indexOf('pizza') !== -1) {
-        return 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&h=400&fit=crop';
-    }
-    if (lowerTitle.indexOf('бургер') !== -1 || lowerTitle.indexOf('burger') !== -1) {
-        return 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&h=400&fit=crop';
-    }
-    if (lowerTitle.indexOf('суши') !== -1 || lowerTitle.indexOf('sushi') !== -1 || lowerTitle.indexOf('ролл') !== -1) {
-        return 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&h=400&fit=crop';
-    }
-    if (lowerTitle.indexOf('салат') !== -1 || lowerTitle.indexOf('salad') !== -1) {
-        return 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&h=400&fit=crop';
-    }
-    if (lowerTitle.indexOf('десерт') !== -1 || lowerTitle.indexOf('dessert') !== -1 || lowerTitle.indexOf('торт') !== -1) {
-        return 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&h=400&fit=crop';
-    }
-    return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=400&fit=crop';
+function setLanguage(lang) {
+    currentLang = lang;
+    const t = translations[lang] || translations.ru;
+    
+    document.querySelectorAll('.nav-links a').forEach(el => {
+        const id = el.id;
+        if (id && t[id]) el.textContent = t[id];
+    });
+    
+    document.querySelectorAll('.stat-label').forEach(el => {
+        const id = el.id;
+        if (id && t[id]) el.textContent = t[id];
+    });
+    
+    document.querySelectorAll('.section-title').forEach(el => {
+        const id = el.id;
+        if (id && t[id]) el.textContent = t[id];
+    });
+    
+    document.querySelectorAll('[id]').forEach(el => {
+        const id = el.id;
+        if (id && t[id]) {
+            if (el.tagName === 'BUTTON' || el.tagName === 'SPAN') {
+                el.textContent = t[id];
+            }
+        }
+    });
+    
+    document.querySelectorAll('th[id]').forEach(el => {
+        const id = el.id;
+        if (id && t[id]) el.textContent = t[id];
+    });
+    
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+    });
+    
+    localStorage.setItem('supplier_lang', lang);
 }
 
 // ============================================================
-// БОГАТЫЙ ВЫБОР ШАБЛОНОВ (ТОЛЬКО ДЛЯ КОНКРЕТНОГО ТИПА)
+// ГОТОВЫЕ КАТЕГОРИИ
+// ============================================================
+function getCategoriesByType(type) {
+    var categories = {
+        'restaurant': [
+            {value: 'soup', label: '🍲 Супы'},
+            {value: 'salad', label: '🥗 Салаты'},
+            {value: 'hot_dish', label: '🍖 Горячие блюда'},
+            {value: 'pasta', label: '🍝 Паста'},
+            {value: 'pizza', label: '🍕 Пицца'},
+            {value: 'burger', label: '🍔 Бургеры'},
+            {value: 'dessert', label: '🍰 Десерты'},
+            {value: 'drink', label: '🥤 Напитки'},
+            {value: 'sauce', label: '🧂 Соусы'},
+            {value: 'other', label: '📦 Другое'}
+        ],
+        'cafe': [
+            {value: 'coffee', label: '☕ Кофе'},
+            {value: 'tea', label: '🍵 Чай'},
+            {value: 'dessert', label: '🍰 Десерты'},
+            {value: 'pastry', label: '🥐 Выпечка'},
+            {value: 'sandwich', label: '🥪 Сэндвичи'},
+            {value: 'salad', label: '🥗 Салаты'},
+            {value: 'smoothie', label: '🥤 Смузи'},
+            {value: 'breakfast', label: '🍳 Завтрак'},
+            {value: 'other', label: '📦 Другое'}
+        ],
+        'fastfood': [
+            {value: 'burger', label: '🍔 Бургеры'},
+            {value: 'pizza', label: '🍕 Пицца'},
+            {value: 'chicken', label: '🍗 Курица'},
+            {value: 'fries', label: '🍟 Картошка'},
+            {value: 'snacks', label: '🥨 Снэки'},
+            {value: 'sauce', label: '🧂 Соусы'},
+            {value: 'drink', label: '🥤 Напитки'},
+            {value: 'dessert', label: '🍦 Десерты'},
+            {value: 'other', label: '📦 Другое'}
+        ],
+        'supermarket': [
+            {value: 'dairy', label: '🥛 Молочные продукты'},
+            {value: 'meat', label: '🥩 Мясо и птица'},
+            {value: 'fish', label: '🐟 Рыба и морепродукты'},
+            {value: 'vegetables', label: '🥬 Овощи и фрукты'},
+            {value: 'bakery', label: '🥖 Хлеб и выпечка'},
+            {value: 'groceries', label: '🥫 Бакалея'},
+            {value: 'sweets', label: '🍬 Сладости'},
+            {value: 'snacks', label: '🍿 Снэки'},
+            {value: 'drinks', label: '🥤 Напитки'},
+            {value: 'frozen', label: '❄️ Заморозка'},
+            {value: 'household', label: '🧹 Бытовая химия'},
+            {value: 'other', label: '📦 Другое'}
+        ],
+        'bakery': [
+            {value: 'bread', label: '🍞 Хлеб'},
+            {value: 'baguette', label: '🥖 Багеты'},
+            {value: 'pastry', label: '🥐 Сдобная выпечка'},
+            {value: 'buns', label: '🥯 Булочки'},
+            {value: 'pies', label: '🥧 Пироги и пирожки'},
+            {value: 'cake', label: '🎂 Торты'},
+            {value: 'dessert', label: '🍰 Десерты'},
+            {value: 'cookies', label: '🍪 Печенье'},
+            {value: 'yeast', label: '🧇 Дрожжевое тесто'},
+            {value: 'other', label: '📦 Другое'}
+        ],
+        'hotel': [
+            {value: 'breakfast', label: '🍳 Завтрак'},
+            {value: 'lunch', label: '🍽️ Обед'},
+            {value: 'dinner', label: '🍽️ Ужин'},
+            {value: 'buffet', label: '🍱 Шведский стол'},
+            {value: 'drinks', label: '🥤 Напитки'},
+            {value: 'dessert', label: '🍰 Десерты'},
+            {value: 'fruit', label: '🍎 Фрукты'},
+            {value: 'salad', label: '🥗 Салаты'},
+            {value: 'hot_dish', label: '🍖 Горячие блюда'},
+            {value: 'soup', label: '🍲 Супы'},
+            {value: 'snacks', label: '🥨 Снэки'},
+            {value: 'other', label: '📦 Другое'}
+        ]
+    };
+    return categories[type] || categories['restaurant'];
+}
+
+// ============================================================
+// ТЕСТОВЫЕ ТОВАРЫ
+// ============================================================
+function getTestProductsByType(type) {
+    var allProducts = {
+        'restaurant': [
+            {id: 101, name: 'Борщ', price: 1500, category: 'soup'},
+            {id: 102, name: 'Цезарь', price: 2200, category: 'salad'},
+            {id: 103, name: 'Стейк Рибай', price: 4500, category: 'hot_dish'},
+            {id: 104, name: 'Паста Карбонара', price: 2800, category: 'pasta'},
+            {id: 105, name: 'Маргарита Пицца', price: 2500, category: 'pizza'},
+            {id: 106, name: 'Гамбургер', price: 1800, category: 'burger'},
+            {id: 107, name: 'Тирамису', price: 1400, category: 'dessert'},
+            {id: 108, name: 'Лимонад', price: 800, category: 'drink'},
+            {id: 109, name: 'Семга на гриле', price: 3800, category: 'hot_dish'},
+            {id: 110, name: 'Греческий салат', price: 1500, category: 'salad'},
+            {id: 111, name: 'Стейк из говядины', price: 4200, category: 'hot_dish'}
+        ],
+        'cafe': [
+            {id: 201, name: 'Капучино', price: 800, category: 'coffee'},
+            {id: 202, name: 'Грин Чай', price: 600, category: 'tea'},
+            {id: 203, name: 'Чизкейк', price: 1200, category: 'dessert'},
+            {id: 204, name: 'Круассан', price: 600, category: 'pastry'},
+            {id: 205, name: 'Сэндвич', price: 1500, category: 'sandwich'},
+            {id: 206, name: 'Салат Греческий', price: 1500, category: 'salad'},
+            {id: 207, name: 'Смузи', price: 1000, category: 'smoothie'},
+            {id: 208, name: 'Завтрак', price: 2500, category: 'breakfast'}
+        ],
+        'fastfood': [
+            {id: 301, name: 'Бургер', price: 1800, category: 'burger'},
+            {id: 302, name: 'Пицца Маргарита', price: 2500, category: 'pizza'},
+            {id: 303, name: 'Курица', price: 2000, category: 'chicken'},
+            {id: 304, name: 'Картошка Фри', price: 800, category: 'fries'},
+            {id: 305, name: 'Наггетсы', price: 1500, category: 'snacks'},
+            {id: 306, name: 'Кола', price: 500, category: 'drink'},
+            {id: 307, name: 'Мороженое', price: 700, category: 'dessert'},
+            {id: 308, name: 'Чесночный соус', price: 200, category: 'sauce'}
+        ],
+        'supermarket': [
+            {id: 401, name: 'Молоко 1л', price: 500, category: 'dairy'},
+            {id: 402, name: 'Сметана 400г', price: 400, category: 'dairy'},
+            {id: 403, name: 'Курица 1кг', price: 1200, category: 'meat'},
+            {id: 404, name: 'Говядина 1кг', price: 2500, category: 'meat'},
+            {id: 405, name: 'Семга', price: 3500, category: 'fish'},
+            {id: 406, name: 'Картофель 1кг', price: 300, category: 'vegetables'},
+            {id: 407, name: 'Помидоры 1кг', price: 600, category: 'vegetables'},
+            {id: 408, name: 'Хлеб', price: 300, category: 'bakery'},
+            {id: 409, name: 'Рис 1кг', price: 500, category: 'groceries'},
+            {id: 410, name: 'Макароны', price: 400, category: 'groceries'},
+            {id: 411, name: 'Шоколад', price: 600, category: 'sweets'},
+            {id: 412, name: 'Чипсы', price: 400, category: 'snacks'},
+            {id: 413, name: 'Сок', price: 600, category: 'drinks'},
+            {id: 414, name: 'Вода', price: 300, category: 'drinks'},
+            {id: 415, name: 'Пельмени', price: 800, category: 'frozen'},
+            {id: 416, name: 'Мыло', price: 400, category: 'household'}
+        ],
+        'bakery': [
+            {id: 501, name: 'Белый хлеб', price: 400, category: 'bread'},
+            {id: 502, name: 'Бородинский хлеб', price: 450, category: 'bread'},
+            {id: 503, name: 'Багет', price: 350, category: 'baguette'},
+            {id: 504, name: 'Круассан', price: 600, category: 'pastry'},
+            {id: 505, name: 'Булочка с маком', price: 250, category: 'buns'},
+            {id: 506, name: 'Сдобная булочка', price: 300, category: 'buns'},
+            {id: 507, name: 'Пирожок с мясом', price: 350, category: 'pies'},
+            {id: 508, name: 'Пирожок с капустой', price: 300, category: 'pies'},
+            {id: 509, name: 'Торт Наполеон', price: 2000, category: 'cake'},
+            {id: 510, name: 'Медовик', price: 1800, category: 'cake'},
+            {id: 511, name: 'Чизкейк', price: 1500, category: 'dessert'},
+            {id: 512, name: 'Печенье', price: 300, category: 'cookies'},
+            {id: 513, name: 'Пряники', price: 250, category: 'cookies'},
+            {id: 514, name: 'Пончики', price: 400, category: 'yeast'},
+            {id: 515, name: 'Хлебцы', price: 200, category: 'other'}
+        ],
+        'hotel': [
+            {id: 601, name: 'Завтрак Европейский', price: 2500, category: 'breakfast'},
+            {id: 602, name: 'Завтрак Английский', price: 3000, category: 'breakfast'},
+            {id: 603, name: 'Обед бизнес-ланч', price: 3500, category: 'lunch'},
+            {id: 604, name: 'Ужин из 3 блюд', price: 4500, category: 'dinner'},
+            {id: 605, name: 'Шведский стол', price: 5000, category: 'buffet'},
+            {id: 606, name: 'Горячее блюдо', price: 2800, category: 'hot_dish'},
+            {id: 607, name: 'Салат Цезарь', price: 1500, category: 'salad'},
+            {id: 608, name: 'Салат Греческий', price: 1500, category: 'salad'},
+            {id: 609, name: 'Том Ям суп', price: 2000, category: 'soup'},
+            {id: 610, name: 'Борщ', price: 1500, category: 'soup'},
+            {id: 611, name: 'Десерт Тирамису', price: 1200, category: 'dessert'},
+            {id: 612, name: 'Фруктовая тарелка', price: 1800, category: 'fruit'},
+            {id: 613, name: 'Сок свежевыжатый', price: 800, category: 'drinks'},
+            {id: 614, name: 'Кофе эспрессо', price: 600, category: 'drinks'},
+            {id: 615, name: 'Чай ассорти', price: 500, category: 'drinks'},
+            {id: 616, name: 'Миндальные кексы', price: 400, category: 'snacks'},
+            {id: 617, name: 'Канапе', price: 600, category: 'snacks'}
+        ]
+    };
+    return allProducts[type] || allProducts['restaurant'];
+}
+
+// ============================================================
+// ТОВАРЫ
+// ============================================================
+function toggleProductForm() {
+    const form = document.getElementById('addProductForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleCategoryForm() {
+    const form = document.getElementById('addCategoryForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+async function loadSupplierProducts() {
+    try {
+        const response = await authFetch('/api/supplier/products');
+        const data = await response.json();
+        if (data.success) {
+            window.productsData = data.products;
+            updateProductsTable();
+            updateProductSelect();
+        }
+    } catch(error) {
+        console.error('❌ Ошибка загрузки товаров:', error);
+    }
+}
+
+function updateProductsTable() {
+    const tbody = document.getElementById('productsTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!window.productsData || window.productsData.length === 0) {
+        window.productsData = getTestProductsByType(businessType);
+    }
+    window.productsData.forEach(product => {
+        const row = `
+            <tr>
+                <td><strong>${escapeHtml(product.name)}</strong></td>
+                <td>${product.category_name || '-'}</td>
+                <td><strong>${product.price} ₸</strong></td>
+                <td>${product.preparation_time || 15} мин</td>
+                <td>${product.is_available ? '✅ Доступен' : '❌ Недоступен'}</td>
+                <td><button class="btn" onclick="deleteProduct(${product.id})" style="background: #e74c3c; color: white;">🗑️ Удалить</button></td>
+            </tr>
+        `;
+        tbody.innerHTML += row;
+    });
+}
+
+function updateProductSelect() {
+    const select = document.getElementById('productSelect');
+    if (!select) return;
+    select.innerHTML = '<option value="">-- Выберите товар --</option>';
+    if (window.productsData) {
+        window.productsData.forEach(p => {
+            select.innerHTML += `<option value="${p.id}">${p.name} - ${p.price} ₸</option>`;
+        });
+    }
+}
+
+function updateCategorySelect() {
+    const categorySelect = document.getElementById('productCategory');
+    if (!categorySelect) return;
+    const standardCategories = getCategoriesByType(businessType);
+    categorySelect.innerHTML = '<option value="">-- Выберите категорию --</option>';
+    standardCategories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat.value;
+        option.textContent = cat.label;
+        categorySelect.appendChild(option);
+    });
+}
+
+async function deleteProduct(productId) {
+    if (!confirm('Удалить этот товар?')) return;
+    try {
+        const response = await authFetch('/api/supplier/products/' + productId, { method: 'DELETE' });
+        const result = await response.json();
+        if (result.success) {
+            showNotification('Товар удален', 'success');
+            await loadSupplierProducts();
+        }
+    } catch(error) {
+        showNotification('Ошибка удаления', 'error');
+    }
+}
+
+// ============================================================
+// КАТЕГОРИИ
+// ============================================================
+async function loadCategories() {
+    try {
+        const response = await authFetch('/api/supplier/categories');
+        const data = await response.json();
+        if (data.success) {
+            updateCategorySelect();
+        }
+    } catch(error) {
+        console.error('❌ Ошибка загрузки категорий:', error);
+    }
+}
+
+// ============================================================
+// СЮРПРИЗЫ
+// ============================================================
+function toggleAddBagForm() {
+    const form = document.getElementById('addBagForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    if (form.style.display === 'block') {
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function addProduct() {
+    const select = document.getElementById('productSelect');
+    const productId = select.value;
+    const quantity = parseInt(document.getElementById('productQuantity').value) || 1;
+    if (!productId) { showNotification('Выберите товар!', 'error'); return; }
+    
+    const product = window.productsData.find(p => p.id == productId);
+    if (!product) { showNotification('Товар не найден!', 'error'); return; }
+    
+    const existing = selectedProducts.find(p => p.id == productId);
+    if (existing) {
+        existing.quantity += quantity;
+    } else {
+        selectedProducts.push({
+            id: productId,
+            name: product.name,
+            price: product.price,
+            quantity: quantity
+        });
+    }
+    
+    renderSelectedProducts();
+    updateTotalPrice();
+    select.value = '';
+    showNotification('Товар добавлен в сюрприз', 'success');
+}
+
+function renderSelectedProducts() {
+    const container = document.getElementById('selectedProductsList');
+    const preview = document.getElementById('selectedProductsPreview');
+    if (!container || !preview) return;
+    if (selectedProducts.length === 0) { preview.style.display = 'none'; return; }
+    preview.style.display = 'block';
+    container.innerHTML = '';
+    selectedProducts.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.className = 'product-item';
+        div.innerHTML = `
+            <div><strong>${escapeHtml(p.name)}</strong> x${p.quantity} = ${p.price * p.quantity} ₸</div>
+            <button class="remove-product" onclick="removeProduct(${i})">✖</button>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function removeProduct(index) { 
+    selectedProducts.splice(index, 1); 
+    renderSelectedProducts(); 
+    updateTotalPrice(); 
+}
+
+function updateTotalPrice() {
+    const total = selectedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+    document.getElementById('originalPrice').value = total;
+    return total;
+}
+
+function applyDiscount(percent) {
+    const original = parseFloat(document.getElementById('originalPrice').value);
+    if (!original || original <= 0) { showNotification('Сначала добавьте товары', 'error'); return; }
+    const discounted = percent === 0 ? original : original * (1 - percent / 100);
+    document.getElementById('discountedPrice').value = Math.round(discounted);
+    showNotification('Скидка ' + percent + '% применена', 'success');
+}
+
+async function submitBagForm(e) {
+    e.preventDefault();
+    const name = document.getElementById('bagName').value.trim();
+    const description = document.getElementById('bagDescription').value.trim();
+    const discountedPrice = parseFloat(document.getElementById('discountedPrice').value);
+    const quantity = parseInt(document.getElementById('availableQuantity').value) || 1;
+    const imageUrl = document.getElementById('imageUrl').value.trim();
+    const isHidden = document.querySelector('input[name="bag_type"]:checked').value === 'hidden';
+    
+    if (!name) { showNotification('Введите название сюрприза', 'error'); return; }
+    if (selectedProducts.length === 0) { showNotification('Добавьте хотя бы один товар', 'error'); return; }
+    
+    const originalPrice = selectedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+    const discount = originalPrice > 0 && discountedPrice < originalPrice 
+        ? Math.round((1 - discountedPrice / originalPrice) * 100) 
+        : 0;
+    
+    const data = {
+        name: name,
+        description: description,
+        original_price: originalPrice,
+        discounted_price: discountedPrice || originalPrice,
+        discount_percentage: discount,
+        available_quantity: quantity,
+        total_quantity: quantity,
+        image_url: imageUrl,
+        hide_contents: isHidden,
+        products: selectedProducts.map(p => ({ id: p.id, quantity: p.quantity }))
+    };
+    
+    try {
+        const response = await authFetch('/api/supplier/surprise-bags', { 
+            method: 'POST', 
+            body: JSON.stringify(data) 
+        });
+        if (response.ok) {
+            showNotification('Сюрприз добавлен!', 'success');
+            document.getElementById('createBagForm').reset();
+            selectedProducts = [];
+            renderSelectedProducts();
+            updateTotalPrice();
+            document.getElementById('addBagForm').style.display = 'none';
+            refreshBags();
+        } else {
+            const error = await response.json();
+            showNotification('Ошибка: ' + (error.detail || 'Неизвестная ошибка'), 'error');
+        }
+    } catch(error) {
+        showNotification('Ошибка сети', 'error');
+    }
+}
+
+async function refreshBags() {
+    try {
+        const response = await authFetch('/api/supplier/surprise-bags');
+        const data = await response.json();
+        if (!data.bags) return;
+        const tbody = document.getElementById('bagsTableBody');
+        tbody.innerHTML = '';
+        data.bags.forEach(bag => {
+            const isHidden = bag.hide_contents;
+            const statusText = bag.is_active ? 'Активен' : 'Неактивен';
+            const statusColor = bag.is_active ? '#10b981' : '#e74c3c';
+            const typeText = isHidden ? '🔒 Скрытый' : '🔓 Открытый';
+            const typeColor = isHidden ? '#f59e0b' : '#10b981';
+            
+            const row = `
+                <tr data-bag-id="${bag.id}">
+                    <td><strong>${escapeHtml(bag.name)}</strong></td>
+                    <td>${escapeHtml(bag.description || '-')}</td>
+                    <td>${bag.original_price} ₸</td>
+                    <td><strong style="color: #e74c3c;">${bag.discounted_price} ₸</strong></td>
+                    <td><span style="background: #e74c3c; color: white; padding: 0.2rem 0.4rem; border-radius: 1rem; font-size: 0.65rem;">-${bag.discount_percentage || 0}%</span></td>
+                    <td>${bag.available_quantity}/${bag.total_quantity}</td>
+                    <td><span style="color: ${typeColor}; font-weight: bold;">${typeText}</span></td>
+                    <td><span style="color: ${statusColor};">${statusText}</span></td>
+                    <td>
+                        <button class="toggle-bag-btn" onclick="toggleBagActive(${bag.id})" style="background: ${bag.is_active ? '#10b981' : '#e74c3c'};">
+                            ${bag.is_active ? '🔴 Выключить' : '🟢 Включить'}
+                        </button>
+                        <button class="toggle-type-btn" onclick="toggleBagType(${bag.id}, ${isHidden})">
+                            ${isHidden ? '🔓 Сделать открытым' : '🔒 Сделать скрытым'}
+                        </button>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    } catch(error) {
+        console.error('Refresh bags error:', error);
+    }
+}
+
+async function toggleBagActive(bagId) {
+    if (!confirm('Изменить статус сюрприза?')) return;
+    try {
+        const response = await authFetch('/api/supplier/surprise-bags/' + bagId + '/toggle', { method: 'PUT' });
+        const data = await response.json();
+        if (data.success) {
+            showNotification('Статус изменен', 'success');
+            refreshBags();
+        }
+    } catch(error) {
+        showNotification('Ошибка', 'error');
+    }
+}
+
+async function toggleBagType(bagId, currentHidden) {
+    const newHidden = !currentHidden;
+    const text = newHidden ? 'скрытым' : 'открытым';
+    if (!confirm('Сделать сюрприз ' + text + '?')) return;
+    try {
+        const response = await authFetch('/api/supplier/surprise-bags/' + bagId + '/toggle-type', {
+            method: 'PUT',
+            body: JSON.stringify({ hide_contents: newHidden })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showNotification('Тип изменен на ' + text, 'success');
+            refreshBags();
+        }
+    } catch(error) {
+        showNotification('Ошибка', 'error');
+    }
+}
+
+async function clearInactiveBags() {
+    if (!confirm('Удалить неактивные сюрпризы?')) return;
+    try {
+        const response = await authFetch('/api/supplier/clear-inactive-bags', { method: 'DELETE' });
+        const data = await response.json();
+        if (data.success) {
+            showNotification(data.message, 'success');
+            refreshBags();
+        }
+    } catch(error) {
+        showNotification('Ошибка удаления', 'error');
+    }
+}
+
+async function clearAllBags() {
+    if (!confirm('Удалить ВСЕ сюрпризы?')) return;
+    try {
+        const response = await authFetch('/api/supplier/clear-all-bags', { method: 'DELETE' });
+        const data = await response.json();
+        if (data.success) {
+            showNotification(data.message, 'success');
+            refreshBags();
+        }
+    } catch(error) {
+        showNotification('Ошибка удаления', 'error');
+    }
+}
+
+// ============================================================
+// ЗАКАЗЫ
+// ============================================================
+async function refreshOrders() {
+    try {
+        const response = await authFetch('/api/supplier/orders');
+        const data = await response.json();
+        if (!data.success) return;
+        const tbody = document.getElementById('ordersTableBody');
+        tbody.innerHTML = '';
+        const activeOrders = data.orders.filter(o => o.status !== 'cancelled');
+        if (activeOrders.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">Нет активных заказов</td></tr>';
+            return;
+        }
+        let pendingCount = 0;
+        activeOrders.forEach(order => {
+            if (order.status === 'pending') pendingCount++;
+            const statusText = {
+                pending: 'Ожидает', confirmed: 'Подтвержден', preparing: 'Готовится',
+                ready_for_pickup: 'Готов', out_for_delivery: 'В пути',
+                delivered: 'Доставлен', cancelled: 'Отменен'
+            }[order.status] || order.status;
+            
+            const row = `
+                <tr>
+                    <td><strong>${escapeHtml(order.order_number)}</strong></td>
+                    <td>${escapeHtml(order.customer_address || 'Адрес не указан')}</td>
+                    <td>${escapeHtml(order.bag_name)}</td>
+                    <td><strong>${order.amount_paid} ₸</strong></td>
+                    <td><span class="status-badge status-${order.status}">${statusText}</span></td>
+                    <td>${order.assigned_courier_name || '—'}</td>
+                    <td>
+                        <select class="status-select" data-order-id="${order.id}" onchange="updateOrderStatus(this)">
+                            <option value="">Изменить</option>
+                            <option value="confirmed">Подтвердить</option>
+                            <option value="preparing">Готовить</option>
+                            <option value="ready_for_pickup">Готов</option>
+                            <option value="out_for_delivery">Отправить</option>
+                            <option value="delivered">Доставлен</option>
+                            <option value="cancelled">Отменить</option>
+                        </select>
+                    </td>
+                    <td><button class="btn" onclick="window.location.href='/track-order/${order.id}'">Карта</button></td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+        document.getElementById('pendingOrders').innerText = pendingCount;
+        document.getElementById('totalOrders').innerText = activeOrders.length;
+    } catch(error) {
+        console.error('Refresh orders error:', error);
+    }
+}
+
+async function updateOrderStatus(select) {
+    const orderId = select.dataset.orderId;
+    const newStatus = select.value;
+    if (!newStatus) return;
+    try {
+        const response = await authFetch('/api/supplier/orders/' + orderId + '/status', {
+            method: 'PUT',
+            body: JSON.stringify({ status: newStatus })
+        });
+        if (response.ok) {
+            showNotification('Статус изменен', 'success');
+            refreshOrders();
+        }
+    } catch(error) {
+        showNotification('Ошибка', 'error');
+    }
+    select.value = '';
+}
+
+// ============================================================
+// БОГАТЫЕ ШАБЛОНЫ
 // ============================================================
 function getRichTemplatesByType(type) {
     var allTemplates = {
@@ -1036,1006 +1435,87 @@ function getRichTemplatesByType(type) {
         }
     };
     
-    // ✅ ВОЗВРАЩАЕМ ТОЛЬКО ШАБЛОНЫ ДЛЯ КОНКРЕТНОГО ТИПА
     var result = allTemplates[type];
     if (!result) {
-        // Если тип не найден - возвращаем ресторан как fallback
         console.warn('⚠️ Тип "' + type + '" не найден, используем restaurant');
         result = allTemplates['restaurant'];
     }
     return result;
 }
 
-// ============================================================
-// КАТЕГОРИИ ПО ТИПУ ПОСТАВЩИКА
-// ============================================================
-function getCategoriesByType(type) {
-    var categories = {
-        'restaurant': [
-            {value: 'soup', label: '🍲 Супы'},
-            {value: 'salad', label: '🥗 Салаты'},
-            {value: 'hot_dish', label: '🍖 Горячие блюда'},
-            {value: 'pasta', label: '🍝 Паста'},
-            {value: 'pizza', label: '🍕 Пицца'},
-            {value: 'burger', label: '🍔 Бургеры'},
-            {value: 'dessert', label: '🍰 Десерты'},
-            {value: 'drink', label: '🥤 Напитки'},
-            {value: 'sauce', label: '🧂 Соусы'},
-            {value: 'other', label: '📦 Другое'}
-        ],
-        'cafe': [
-            {value: 'coffee', label: '☕ Кофе'},
-            {value: 'tea', label: '🍵 Чай'},
-            {value: 'dessert', label: '🍰 Десерты'},
-            {value: 'pastry', label: '🥐 Выпечка'},
-            {value: 'sandwich', label: '🥪 Сэндвичи'},
-            {value: 'salad', label: '🥗 Салаты'},
-            {value: 'smoothie', label: '🥤 Смузи'},
-            {value: 'breakfast', label: '🍳 Завтрак'},
-            {value: 'other', label: '📦 Другое'}
-        ],
-        'fastfood': [
-            {value: 'burger', label: '🍔 Бургеры'},
-            {value: 'pizza', label: '🍕 Пицца'},
-            {value: 'chicken', label: '🍗 Курица'},
-            {value: 'fries', label: '🍟 Картошка'},
-            {value: 'snacks', label: '🥨 Снэки'},
-            {value: 'sauce', label: '🧂 Соусы'},
-            {value: 'drink', label: '🥤 Напитки'},
-            {value: 'dessert', label: '🍦 Десерты'},
-            {value: 'other', label: '📦 Другое'}
-        ],
-        'supermarket': [
-            {value: 'dairy', label: '🥛 Молочные продукты'},
-            {value: 'meat', label: '🥩 Мясо и птица'},
-            {value: 'fish', label: '🐟 Рыба и морепродукты'},
-            {value: 'vegetables', label: '🥬 Овощи и фрукты'},
-            {value: 'bakery', label: '🥖 Хлеб и выпечка'},
-            {value: 'groceries', label: '🥫 Бакалея'},
-            {value: 'sweets', label: '🍬 Сладости'},
-            {value: 'snacks', label: '🍿 Снэки'},
-            {value: 'drinks', label: '🥤 Напитки'},
-            {value: 'frozen', label: '❄️ Заморозка'},
-            {value: 'household', label: '🧹 Бытовая химия'},
-            {value: 'other', label: '📦 Другое'}
-        ],
-        'bakery': [
-            {value: 'bread', label: '🍞 Хлеб'},
-            {value: 'baguette', label: '🥖 Багеты'},
-            {value: 'pastry', label: '🥐 Сдобная выпечка'},
-            {value: 'buns', label: '🥯 Булочки'},
-            {value: 'pies', label: '🥧 Пироги и пирожки'},
-            {value: 'cake', label: '🎂 Торты'},
-            {value: 'dessert', label: '🍰 Десерты'},
-            {value: 'cookies', label: '🍪 Печенье'},
-            {value: 'yeast', label: '🧇 Дрожжевое тесто'},
-            {value: 'other', label: '📦 Другое'}
-        ],
-        'hotel': [
-            {value: 'breakfast', label: '🍳 Завтрак'},
-            {value: 'lunch', label: '🍽️ Обед'},
-            {value: 'dinner', label: '🍽️ Ужин'},
-            {value: 'buffet', label: '🍱 Шведский стол'},
-            {value: 'drinks', label: '🥤 Напитки'},
-            {value: 'dessert', label: '🍰 Десерты'},
-            {value: 'fruit', label: '🍎 Фрукты'},
-            {value: 'salad', label: '🥗 Салаты'},
-            {value: 'hot_dish', label: '🍖 Горячие блюда'},
-            {value: 'soup', label: '🍲 Супы'},
-            {value: 'snacks', label: '🥨 Снэки'},
-            {value: 'other', label: '📦 Другое'}
-        ]
-    };
-    return categories[type] || categories['restaurant'];
-}
-
-// ============================================================
-// ТЕСТОВЫЕ ТОВАРЫ ПО ТИПУ
-// ============================================================
-function getTestProductsByType(type) {
-    var allProducts = {
-        'restaurant': [
-            {id: 101, name_ru: 'Борщ', name_kz: 'Борщ', price: 1500, category: 'soup'},
-            {id: 102, name_ru: 'Цезарь', name_kz: 'Цезарь', price: 2200, category: 'salad'},
-            {id: 103, name_ru: 'Стейк Рибай', name_kz: 'Рибай стейк', price: 4500, category: 'hot_dish'},
-            {id: 104, name_ru: 'Паста Карбонара', name_kz: 'Паста Карбонара', price: 2800, category: 'pasta'},
-            {id: 105, name_ru: 'Маргарита Пицца', name_kz: 'Маргарита Пицца', price: 2500, category: 'pizza'},
-            {id: 106, name_ru: 'Гамбургер', name_kz: 'Гамбургер', price: 1800, category: 'burger'},
-            {id: 107, name_ru: 'Тирамису', name_kz: 'Тирамису', price: 1400, category: 'dessert'},
-            {id: 108, name_ru: 'Лимонад', name_kz: 'Лимонад', price: 800, category: 'drink'},
-            {id: 109, name_ru: 'Семга на гриле', name_kz: 'Семга грильде', price: 3800, category: 'hot_dish'},
-            {id: 110, name_ru: 'Греческий салат', name_kz: 'Грек салаты', price: 1500, category: 'salad'},
-            {id: 111, name_ru: 'Стейк из говядины', name_kz: 'Сиыр етінің стейкі', price: 4200, category: 'hot_dish'}
-        ],
-        'cafe': [
-            {id: 201, name_ru: 'Капучино', name_kz: 'Капучино', price: 800, category: 'coffee'},
-            {id: 202, name_ru: 'Грин Чай', name_kz: 'Жасыл Шай', price: 600, category: 'tea'},
-            {id: 203, name_ru: 'Чизкейк', name_kz: 'Чизкейк', price: 1200, category: 'dessert'},
-            {id: 204, name_ru: 'Круассан', name_kz: 'Круассан', price: 600, category: 'pastry'},
-            {id: 205, name_ru: 'Сэндвич', name_kz: 'Сэндвич', price: 1500, category: 'sandwich'},
-            {id: 206, name_ru: 'Салат Греческий', name_kz: 'Грек Салаты', price: 1500, category: 'salad'},
-            {id: 207, name_ru: 'Смузи', name_kz: 'Смузи', price: 1000, category: 'smoothie'},
-            {id: 208, name_ru: 'Завтрак', name_kz: 'Таңғы ас', price: 2500, category: 'breakfast'}
-        ],
-        'fastfood': [
-            {id: 301, name_ru: 'Бургер', name_kz: 'Бургер', price: 1800, category: 'burger'},
-            {id: 302, name_ru: 'Пицца Маргарита', name_kz: 'Маргарита Пицца', price: 2500, category: 'pizza'},
-            {id: 303, name_ru: 'Курица', name_kz: 'Тауық', price: 2000, category: 'chicken'},
-            {id: 304, name_ru: 'Картошка Фри', name_kz: 'Картоп Фри', price: 800, category: 'fries'},
-            {id: 305, name_ru: 'Наггетсы', name_kz: 'Наггетсы', price: 1500, category: 'snacks'},
-            {id: 306, name_ru: 'Кола', name_kz: 'Кола', price: 500, category: 'drink'},
-            {id: 307, name_ru: 'Мороженое', name_kz: 'Балмұздақ', price: 700, category: 'dessert'},
-            {id: 308, name_ru: 'Чесночный соус', name_kz: 'Сарымсақ соусы', price: 200, category: 'sauce'}
-        ],
-        'supermarket': [
-            {id: 401, name_ru: 'Молоко 1л', name_kz: 'Сүт 1л', price: 500, category: 'dairy'},
-            {id: 402, name_ru: 'Сметана 400г', name_kz: 'Қаймақ 400г', price: 400, category: 'dairy'},
-            {id: 403, name_ru: 'Курица 1кг', name_kz: 'Тауық 1кг', price: 1200, category: 'meat'},
-            {id: 404, name_ru: 'Говядина 1кг', name_kz: 'Сиыр еті 1кг', price: 2500, category: 'meat'},
-            {id: 405, name_ru: 'Семга', name_kz: 'Семга', price: 3500, category: 'fish'},
-            {id: 406, name_ru: 'Картофель 1кг', name_kz: 'Картоп 1кг', price: 300, category: 'vegetables'},
-            {id: 407, name_ru: 'Помидоры 1кг', name_kz: 'Қызанақ 1кг', price: 600, category: 'vegetables'},
-            {id: 408, name_ru: 'Хлеб', name_kz: 'Нан', price: 300, category: 'bakery'},
-            {id: 409, name_ru: 'Рис 1кг', name_kz: 'Күріш 1кг', price: 500, category: 'groceries'},
-            {id: 410, name_ru: 'Макароны', name_kz: 'Макарон', price: 400, category: 'groceries'},
-            {id: 411, name_ru: 'Шоколад', name_kz: 'Шоколад', price: 600, category: 'sweets'},
-            {id: 412, name_ru: 'Чипсы', name_kz: 'Чипсы', price: 400, category: 'snacks'},
-            {id: 413, name_ru: 'Сок', name_kz: 'Сок', price: 600, category: 'drinks'},
-            {id: 414, name_ru: 'Вода', name_kz: 'Су', price: 300, category: 'drinks'},
-            {id: 415, name_ru: 'Пельмени', name_kz: 'Пельмени', price: 800, category: 'frozen'},
-            {id: 416, name_ru: 'Мыло', name_kz: 'Сабын', price: 400, category: 'household'}
-        ],
-        'bakery': [
-            {id: 501, name_ru: 'Белый хлеб', name_kz: 'Ақ нан', price: 400, category: 'bread'},
-            {id: 502, name_ru: 'Бородинский хлеб', name_kz: 'Бородин наны', price: 450, category: 'bread'},
-            {id: 503, name_ru: 'Багет', name_kz: 'Багет', price: 350, category: 'baguette'},
-            {id: 504, name_ru: 'Круассан', name_kz: 'Круассан', price: 600, category: 'pastry'},
-            {id: 505, name_ru: 'Булочка с маком', name_kz: 'Көкнәрлі тоқаш', price: 250, category: 'buns'},
-            {id: 506, name_ru: 'Сдобная булочка', name_kz: 'Тәтті тоқаш', price: 300, category: 'buns'},
-            {id: 507, name_ru: 'Пирожок с мясом', name_kz: 'Етті пирожок', price: 350, category: 'pies'},
-            {id: 508, name_ru: 'Пирожок с капустой', name_kz: 'Қырыққабатты пирожок', price: 300, category: 'pies'},
-            {id: 509, name_ru: 'Торт Наполеон', name_kz: 'Наполеон торты', price: 2000, category: 'cake'},
-            {id: 510, name_ru: 'Медовик', name_kz: 'Бал торты', price: 1800, category: 'cake'},
-            {id: 511, name_ru: 'Чизкейк', name_kz: 'Чизкейк', price: 1500, category: 'dessert'},
-            {id: 512, name_ru: 'Печенье', name_kz: 'Печенье', price: 300, category: 'cookies'},
-            {id: 513, name_ru: 'Пряники', name_kz: 'Пряниктер', price: 250, category: 'cookies'},
-            {id: 514, name_ru: 'Пончики', name_kz: 'Пончиктер', price: 400, category: 'yeast'},
-            {id: 515, name_ru: 'Хлебцы', name_kz: 'Нан қыртыстары', price: 200, category: 'other'}
-        ],
-        'hotel': [
-            {id: 601, name_ru: 'Завтрак "Европейский"', name_kz: 'Еуропалық таңғы ас', price: 2500, category: 'breakfast'},
-            {id: 602, name_ru: 'Завтрак "Английский"', name_kz: 'Ағылшын таңғы асы', price: 3000, category: 'breakfast'},
-            {id: 603, name_ru: 'Обед бизнес-ланч', name_kz: 'Бизнес-түскі ас', price: 3500, category: 'lunch'},
-            {id: 604, name_ru: 'Ужин из 3 блюд', name_kz: '3 тағамнан тұратын кешкі ас', price: 4500, category: 'dinner'},
-            {id: 605, name_ru: 'Шведский стол', name_kz: 'Швед үстелі', price: 5000, category: 'buffet'},
-            {id: 606, name_ru: 'Горячее блюдо', name_kz: 'Ыстық тағам', price: 2800, category: 'hot_dish'},
-            {id: 607, name_ru: 'Салат "Цезарь"', name_kz: 'Цезарь салаты', price: 1500, category: 'salad'},
-            {id: 608, name_ru: 'Салат "Греческий"', name_kz: 'Грек салаты', price: 1500, category: 'salad'},
-            {id: 609, name_ru: 'Том Ям суп', name_kz: 'Том Ям супы', price: 2000, category: 'soup'},
-            {id: 610, name_ru: 'Борщ', name_kz: 'Борщ', price: 1500, category: 'soup'},
-            {id: 611, name_ru: 'Десерт "Тирамису"', name_kz: 'Тирамису десерті', price: 1200, category: 'dessert'},
-            {id: 612, name_ru: 'Фруктовая тарелка', name_kz: 'Жеміс тарелкасы', price: 1800, category: 'fruit'},
-            {id: 613, name_ru: 'Сок свежевыжатый', name_kz: 'Жаңа сығылған шырын', price: 800, category: 'drinks'},
-            {id: 614, name_ru: 'Кофе эспрессо', name_kz: 'Эспрессо кофе', price: 600, category: 'drinks'},
-            {id: 615, name_ru: 'Чай ассорти', name_kz: 'Шай ассорти', price: 500, category: 'drinks'},
-            {id: 616, name_ru: 'Миндальные кексы', name_kz: 'Бадам кекстері', price: 400, category: 'snacks'},
-            {id: 617, name_ru: 'Канапе', name_kz: 'Канапе', price: 600, category: 'snacks'}
-        ]
-    };
-    return allProducts[type] || allProducts['restaurant'];
-}
-
-// ============================================================
-// ТИП СЮРПРИЗА
-// ============================================================
-function toggleBagTypeFields() {
-    var isHidden = document.querySelector('input[name="bag_type"]:checked').value === 'hidden';
-    var hint = document.getElementById('hiddenHint');
-    var productsPreview = document.getElementById('selectedProductsPreview');
-    var productsLabel = document.getElementById('labelProducts');
-    
-    if (isHidden) {
-        if (hint) hint.style.display = 'block';
-        if (productsPreview) {
-            productsPreview.style.border = '2px dashed #f59e0b';
-            productsPreview.style.background = '#fffbeb';
-        }
-        if (productsLabel) {
-            productsLabel.innerHTML = currentLang === 'ru' ? '📦 Состав (скрыт от клиента)' : 
-                (currentLang === 'kz' ? '📦 Құрамы (клиенттен жасырылған)' : 
-                '📦 Contents (hidden from customer)');
-        }
-    } else {
-        if (hint) hint.style.display = 'none';
-        if (productsPreview) {
-            productsPreview.style.border = '';
-            productsPreview.style.background = '';
-        }
-        if (productsLabel) productsLabel.innerHTML = translations[currentLang].labelProducts || 'Список товаров';
-    }
-}
-
-// ============================================================
-// УПРАВЛЕНИЕ КАТЕГОРИЯМИ
-// ============================================================
-function toggleCategoryForm() {
-    var form = document.getElementById('addCategoryForm');
-    if (form) {
-        form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    }
-}
-
-// ============================================================
-// УПРАВЛЕНИЕ ФОРМОЙ СЮРПРИЗА
-// ============================================================
-function toggleAddBagForm() {
-    const form = document.getElementById('addBagForm');
-    if (!form) return;
-    
-    if (form.style.display === 'none' || form.style.display === '') {
-        form.style.display = 'block';
-        form.style.animation = 'slideDown 0.3s ease';
-        console.log('✅ Форма сюрприза показана');
-        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else {
-        form.style.display = 'none';
-        console.log('✅ Форма сюрприза скрыта');
-    }
-}
-
-// ============================================================
-// ОБНОВЛЕНИЕ КАТЕГОРИЙ
-// ============================================================
-function updateCategorySelect() {
-    var categorySelect = document.getElementById('productCategory');
-    if (!categorySelect) return;
-    
-    var currentValue = categorySelect.value;
-    var standardCategories = getCategoriesByType(businessType);
-    
-    categorySelect.innerHTML = '';
-    
-    var emptyOption = document.createElement('option');
-    emptyOption.value = '';
-    emptyOption.textContent = '-- Выберите категорию --';
-    categorySelect.appendChild(emptyOption);
-    
-    if (standardCategories.length > 0) {
-        var optGroup = document.createElement('optgroup');
-        optGroup.label = '📋 Стандартные категории';
-        standardCategories.forEach(function(cat) {
-            var option = document.createElement('option');
-            option.value = cat.value;
-            option.textContent = cat.label;
-            optGroup.appendChild(option);
-        });
-        categorySelect.appendChild(optGroup);
-    }
-    
-    if (customCategories && customCategories.length > 0) {
-        var optGroup2 = document.createElement('optgroup');
-        optGroup2.label = '✨ Мои категории';
-        customCategories.forEach(function(cat) {
-            var option = document.createElement('option');
-            option.value = cat.id;
-            option.textContent = (cat.icon || '📦') + ' ' + cat.name_ru;
-            optGroup2.appendChild(option);
-        });
-        categorySelect.appendChild(optGroup2);
-    }
-    
-    if (currentValue) {
-        categorySelect.value = currentValue;
-    }
-}
-
-// ============================================================
-// ЗАГРУЗКА КАТЕГОРИЙ
-// ============================================================
-async function loadCategories() {
-    try {
-        var response = await authFetch('/api/supplier/categories');
-        var data = await response.json();
-        
-        if (data.success) {
-            customCategories = data.categories;
-            updateCategorySelect();
-            console.log('✅ Категории загружены:', customCategories.length);
-        }
-    } catch(error) {
-        console.error('❌ Ошибка загрузки категорий:', error);
-    }
-}
-
-// ============================================================
-// ОБНОВЛЕНИЕ ВЫПАДАЮЩЕГО СПИСКА ТОВАРОВ
-// ============================================================
-function updateProductSelect() {
-    var productSelect = document.getElementById('productSelect');
-    if (!productSelect) return;
-    
-    var currentValue = productSelect.value;
-    
-    productSelect.innerHTML = '';
-    
-    var emptyOption = document.createElement('option');
-    emptyOption.value = '';
-    emptyOption.textContent = '-- ' + (translations[currentLang]?.chooseProduct || 'Выберите товар') + ' --';
-    productSelect.appendChild(emptyOption);
-    
-    if (window.productsData && window.productsData.length > 0) {
-        window.productsData.forEach(function(p) {
-            var option = document.createElement('option');
-            option.value = p.id;
-            var name = p['name_' + currentLang] || p.name_ru || 'Товар';
-            option.textContent = name + ' - ' + p.price + ' ₸';
-            productSelect.appendChild(option);
-        });
-        console.log('✅ Выпадающий список обновлен:', productSelect.options.length - 1, 'товаров');
-    }
-    
-    if (currentValue) {
-        productSelect.value = currentValue;
-    }
-}
-
-// ============================================================
-// ОБНОВЛЕНИЕ ТАБЛИЦЫ ТОВАРОВ
-// ============================================================
-function updateProductsTable() {
-    var tbody = document.getElementById('productsTableBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (!window.productsData || window.productsData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">📭 Нет добавленных товаров</td></tr>';
-        return;
-    }
-    
-    var categoryLabels = getCategoriesByType(businessType).reduce(function(acc, cat) {
-        acc[cat.value] = cat.label;
-        return acc;
-    }, {});
-    
-    window.productsData.forEach(function(product) {
-        var categoryName = categoryLabels[product.category] || product.category || '-';
-        var statusHtml = product.is_available 
-            ? '<span style="color: #10b981;">✅ Доступен</span>' 
-            : '<span style="color: #ef4444;">❌ Недоступен</span>';
-        
-        var row = document.createElement('tr');
-        row.innerHTML = `
-            <td><strong>${escapeHtml(product.name_ru)}</strong></td>
-            <td>${categoryName}</td>
-            <td><strong>${product.price} ₸</strong></td>
-            <td>${product.preparation_time || 15} мин</td>
-            <td>${statusHtml}</td>
-            <td>
-                <button class="btn" onclick="deleteProduct(${product.id})" style="background: #ef4444; color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 0.4rem; cursor: pointer;">🗑️</button>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-// ============================================================
-// ЗАГРУЗКА ТОВАРОВ ПОСТАВЩИКА
-// ============================================================
-async function loadSupplierProducts() {
-    try {
-        var response = await authFetch('/api/supplier/products');
-        var data = await response.json();
-        
-        if (data.success) {
-            window.productsData = data.products;
-            console.log('✅ Товары поставщика обновлены:', window.productsData.length);
-            
-            updateProductsTable();
-            updateProductSelect();
-        }
-    } catch(error) {
-        console.error('❌ Ошибка загрузки товаров:', error);
-    }
-}
-
-// ============================================================
-// ОБНОВЛЕНИЕ ВЫПАДАЮЩЕГО СПИСКА ШАБЛОНОВ (ТОЛЬКО ДЛЯ ТИПА)
-// ============================================================
 function updateTemplateSelect() {
-    var templateSelect = document.getElementById('surpriseTemplate');
+    const templateSelect = document.getElementById('surpriseTemplate');
     if (!templateSelect) return;
     
-    var currentValue = templateSelect.value;
-    
-    templateSelect.innerHTML = '<option value="">-- ' + (translations[currentLang].selectTemplate || 'Выберите готовый сюрприз') + ' --</option>';
-    
-    // ✅ ПОЛУЧАЕМ ШАБЛОНЫ ТОЛЬКО ДЛЯ ТЕКУЩЕГО ТИПА
-    var richTemplates = getRichTemplatesByType(businessType);
+    const richTemplates = getRichTemplatesByType(businessType);
+    templateSelect.innerHTML = '<option value="">-- Выберите шаблон --</option>';
     
     if (richTemplates && richTemplates.templates) {
-        var templates = richTemplates.templates;
-        var templateKeys = Object.keys(templates);
-        
-        if (templateKeys.length === 0) {
-            var noOption = document.createElement('option');
-            noOption.value = '';
-            noOption.textContent = '❌ Нет шаблонов для этого типа';
-            templateSelect.appendChild(noOption);
-            return;
-        }
-        
-        // Создаем группу с названием типа
-        var group = document.createElement('optgroup');
-        var typeName = richTemplates.name[currentLang] || richTemplates.name.ru || 'Шаблоны';
-        group.label = richTemplates.icon + ' ' + typeName + ' (' + templateKeys.length + ' шаблонов)';
-        templateSelect.appendChild(group);
-        
-        templateKeys.forEach(function(key) {
-            var template = templates[key];
-            var option = document.createElement('option');
+        const templates = richTemplates.templates;
+        Object.keys(templates).forEach(key => {
+            const t = templates[key];
+            const name = t.name.ru || t.name.en || 'Шаблон';
+            const option = document.createElement('option');
             option.value = key;
-            var name = template.name[currentLang] || template.name.ru || template.name.en || 'Сюрприз';
-            var price = template.price || 0;
-            option.textContent = name + ' - ' + price + ' ₸';
-            group.appendChild(option);
+            option.textContent = '🎁 ' + name + ' - ' + t.price + ' ₸';
+            templateSelect.appendChild(option);
         });
-        
-        console.log('✅ Шаблоны для типа "' + businessType + '":', templateKeys.length);
-    } else {
-        var noOption = document.createElement('option');
-        noOption.value = '';
-        noOption.textContent = '❌ Нет шаблонов для этого типа';
-        templateSelect.appendChild(noOption);
-    }
-    
-    if (currentValue) {
-        templateSelect.value = currentValue;
-    }
-}
-
-// ============================================================
-// ФУНКЦИИ ДЛЯ ТОВАРОВ
-// ============================================================
-function renderSelectedProducts() {
-    var container = document.getElementById('selectedProductsList');
-    var preview = document.getElementById('selectedProductsPreview');
-    if (!container || !preview) return;
-    if (selectedProducts.length === 0) { preview.style.display = 'none'; return; }
-    preview.style.display = 'block';
-    container.innerHTML = '';
-    for (var i = 0; i < selectedProducts.length; i++) {
-        var p = selectedProducts[i];
-        var name = p.name[currentLang] || p.name.ru || p.name.en || 'Товар';
-        var div = document.createElement('div');
-        div.className = 'product-item';
-        div.innerHTML = '<div><strong>' + name + '</strong> x' + p.quantity + ' = <strong>' + (p.price * p.quantity) + ' ₸</strong></div>' +
-            '<button type="button" class="remove-product" onclick="removeProduct(' + i + ')">✖</button>';
-        container.appendChild(div);
-    }
-}
-
-function updateTotalPrice() {
-    var total = 0;
-    for (var i = 0; i < selectedProducts.length; i++) {
-        total += selectedProducts[i].price * selectedProducts[i].quantity;
-    }
-    document.getElementById('originalPrice').value = total;
-    return total;
-}
-
-function removeProduct(index) { 
-    selectedProducts.splice(index, 1); 
-    renderSelectedProducts(); 
-    updateTotalPrice(); 
-}
-
-function addProduct() {
-    var select = document.getElementById('productSelect');
-    var productId = select.value;
-    var quantity = parseInt(document.getElementById('productQuantity').value) || 1;
-    
-    if (!productId) { 
-        alert('⚠️ Выберите товар!'); 
-        return; 
-    }
-    
-    var product = null;
-    for (var i = 0; i < window.productsData.length; i++) {
-        if (window.productsData[i].id == productId) {
-            product = window.productsData[i];
-            break;
-        }
-    }
-    
-    if (!product) {
-        alert('⚠️ Товар не найден!');
-        return;
-    }
-    
-    var existingIndex = -1;
-    for (var j = 0; j < selectedProducts.length; j++) {
-        if (selectedProducts[j].id === productId) { 
-            existingIndex = j; 
-            break; 
-        }
-    }
-    
-    if (existingIndex !== -1) {
-        selectedProducts[existingIndex].quantity += quantity;
-    } else {
-        selectedProducts.push({
-            id: productId,
-            name: { 
-                en: product.name_en || '', 
-                ru: product.name_ru, 
-                kz: product.name_kz 
-            },
-            price: product.price,
-            quantity: quantity
-        });
-    }
-    
-    renderSelectedProducts();
-    updateTotalPrice();
-    select.value = '';
-    showNotification('✅ Товар добавлен в сюрприз!', 'success');
-}
-
-function applyDiscount(percent) {
-    var originalPrice = parseFloat(document.getElementById('originalPrice').value);
-    if (isNaN(originalPrice) || originalPrice <= 0) { alert('Сначала добавьте товары'); return; }
-    var discountedPrice = percent === 0 ? originalPrice : originalPrice * (1 - percent / 100);
-    document.getElementById('discountedPrice').value = Math.round(discountedPrice);
-    var discountInfo = document.getElementById('discountInfo');
-    if (discountInfo) {
-        if (percent === 0) discountInfo.innerHTML = 'Без скидки';
-        else { var saved = originalPrice - discountedPrice; discountInfo.innerHTML = 'Вы экономите: ' + Math.round(saved) + ' ₸ (' + percent + '%)'; }
     }
 }
 
 function loadSurpriseTemplate() {
-    var templateKey = document.getElementById('surpriseTemplate').value;
-    var hint = document.getElementById('selectedHint');
+    const key = document.getElementById('surpriseTemplate').value;
+    if (!key) return;
     
-    if (!templateKey) { 
-        hint.innerHTML = translations[currentLang].selectTemplate || 'Выберите готовый сюрприз'; 
-        hint.style.color = '#64748b'; 
-        return; 
-    }
+    const richTemplates = getRichTemplatesByType(businessType);
+    if (!richTemplates || !richTemplates.templates) return;
     
-    var richTemplates = getRichTemplatesByType(businessType);
-    var templates = richTemplates && richTemplates.templates ? richTemplates.templates : {};
-    var template = templates[templateKey];
+    const template = richTemplates.templates[key];
     if (!template) return;
     
-    document.getElementById('bagName').value = template.name[currentLang] || template.name.ru || template.name.en;
-    document.getElementById('bagDescription').value = template.description[currentLang] || template.description.ru || template.description.en || '';
-    
-    selectedProducts = [];
-    var items = template.items || [];
-    
-    for (var i = 0; i < items.length; i++) {
-        var item = items[i];
-        var product = null;
-        for (var j = 0; j < window.productsData.length; j++) {
-            if (window.productsData[j].id == item.id) {
-                product = window.productsData[j];
-                break;
-            }
-        }
-        if (product) {
-            selectedProducts.push({
-                id: product.id,
-                name: { 
-                    en: product.name_en || '', 
-                    ru: product.name_ru, 
-                    kz: product.name_kz 
-                },
-                price: product.price,
-                quantity: item.qty || 1
-            });
-        }
-    }
-    
-    renderSelectedProducts();
-    var total = updateTotalPrice();
-    
+    document.getElementById('bagName').value = template.name.ru || template.name.en || '';
+    document.getElementById('bagDescription').value = template.description.ru || template.description.en || '';
+    document.getElementById('discountedPrice').value = template.price || 0;
     if (template.image) document.getElementById('imageUrl').value = template.image;
     
-    hint.innerHTML = (translations[currentLang].templateLoaded || 'Загружено:') + ' ' + 
-        (template.name[currentLang] || template.name.ru) + ' (' + total + ' ₸). ' + 
-        (translations[currentLang].youCanEdit || 'Вы можете редактировать');
-    hint.style.color = '#10b981';
-    showNotification((translations[currentLang].templateLoaded || 'Загружено:') + ' ' + 
-        (template.name[currentLang] || template.name.ru), 'success');
-}
-
-async function submitBagForm() {
-    var name = document.getElementById('bagName').value;
-    var description = document.getElementById('bagDescription').value;
-    var discountedPrice = parseFloat(document.getElementById('discountedPrice').value);
-    var availableQuantity = parseInt(document.getElementById('availableQuantity').value);
-    var pickupStart = document.getElementById('pickupStart').value;
-    var pickupEnd = document.getElementById('pickupEnd').value;
-    var imageUrl = document.getElementById('imageUrl').value;
-    
-    var bagType = document.querySelector('input[name="bag_type"]:checked').value;
-    var hideContents = (bagType === 'hidden');
-    
-    if (!name) { alert('Введите название'); return; }
-    if (selectedProducts.length === 0) { alert('Добавьте хотя бы один товар'); return; }
-    
-    if (!imageUrl) {
-        imageUrl = getImageByTitle(name);
-    }
-    
-    var originalPrice = 0;
-    for (var i = 0; i < selectedProducts.length; i++) {
-        originalPrice += selectedProducts[i].price * selectedProducts[i].quantity;
-    }
-    
-    var discountPercentage = 0;
-    if (originalPrice > 0 && discountedPrice < originalPrice) {
-        discountPercentage = Math.round((1 - discountedPrice / originalPrice) * 100);
-    }
-    
-    var productsData = [];
-    for (var j = 0; j < selectedProducts.length; j++) {
-        var p = selectedProducts[j];
-        productsData.push({
-            id: parseInt(p.id),
-            name: p.name.en || p.name.ru,
-            price: p.price,
-            quantity: p.quantity
+    selectedProducts = [];
+    if (template.items && window.productsData) {
+        template.items.forEach(item => {
+            const product = window.productsData.find(p => p.id == item.id);
+            if (product) {
+                selectedProducts.push({
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    quantity: item.qty || 1
+                });
+            }
         });
+        renderSelectedProducts();
+        updateTotalPrice();
     }
     
-    var data = {
-        name: name,
-        description: description,
-        original_price: originalPrice,
-        discounted_price: discountedPrice,
-        discount_percentage: discountPercentage,
-        available_quantity: availableQuantity,
-        total_quantity: availableQuantity,
-        pickup_start_time: pickupStart,
-        pickup_end_time: pickupEnd,
-        image_url: imageUrl,
-        products: productsData,
-        supplier_id: supplierId,
-        hide_contents: hideContents
-    };
-    
-    try {
-        var response = await authFetch('/api/supplier/surprise-bags', { 
-            method: 'POST', 
-            body: JSON.stringify(data) 
-        });
-        if (response.ok) {
-            var result = await response.json();
-            var typeText = hideContents ? 'Скрытый' : 'Открытый';
-            showNotification('Сюрприз добавлен! Тип: ' + typeText, 'success');
-            location.reload();
-        } else {
-            var error = await response.json();
-            alert('Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
-        }
-    } catch(error) {
-        alert('Ошибка сети');
-    }
-}
-
-// ============================================================
-// УСТАНОВКА ЯЗЫКА
-// ============================================================
-function setLanguage(lang) {
-    currentLang = lang || 'ru';
-    var t = translations[lang] || {};
-    
-    document.querySelectorAll('[id]').forEach(function(el) {
-        var id = el.id;
-        if (t[id]) {
-            el.textContent = t[id];
-        }
-    });
-    
-    document.querySelectorAll('[placeholder]').forEach(function(el) {
-        var id = el.id + 'Placeholder';
-        if (t[id]) {
-            el.placeholder = t[id];
-        }
-    });
-    
-    document.querySelectorAll('.lang-btn').forEach(function(btn) {
-        btn.classList.toggle('active', btn.dataset.lang === lang);
-    });
-    
-    localStorage.setItem('supplier_lang', lang);
-}
-
-// ============================================================
-// ПЕРЕКЛЮЧЕНИЕ АКТИВНОСТИ СЮРПРИЗА (Вкл/Выкл) - РАБОТАЕТ!
-// ============================================================
-async function toggleBagActive(bagId) {
-    if (!confirm('Изменить статус сюрприза?')) return;
-    
-    try {
-        var response = await authFetch('/api/supplier/surprise-bags/' + bagId + '/toggle', {
-            method: 'PUT'
-        });
-        var data = await response.json();
-        if (data.success) {
-            showNotification(data.message || 'Статус изменен', 'success');
-            refreshBags();
-        } else {
-            showNotification('❌ ' + (data.error || 'Ошибка'), 'error');
-        }
-    } catch(error) {
-        showNotification('❌ Ошибка: ' + error.message, 'error');
-    }
-}
-
-// ============================================================
-// ПЕРЕКЛЮЧЕНИЕ ТИПА СЮРПРИЗА (Открытый/Скрытый) - РАБОТАЕТ!
-// ============================================================
-async function toggleBagType(bagId, currentHideContents) {
-    var newHideContents = !currentHideContents;
-    var newTypeText = newHideContents ? 'Скрытый' : 'Открытый';
-    
-    if (!confirm('Сделать сюрприз ' + newTypeText + '?')) return;
-    
-    try {
-        var response = await authFetch('/api/supplier/surprise-bags/' + bagId + '/toggle-type', {
-            method: 'PUT',
-            body: JSON.stringify({ hide_contents: newHideContents })
-        });
-        var data = await response.json();
-        if (data.success) {
-            showNotification('✅ Тип изменен на ' + newTypeText, 'success');
-            refreshBags();
-        } else {
-            showNotification('❌ ' + (data.error || 'Ошибка'), 'error');
-        }
-    } catch(error) {
-        showNotification('❌ Ошибка: ' + error.message, 'error');
-    }
-}
-
-// ============================================================
-// УПРАВЛЕНИЕ ТОВАРАМИ
-// ============================================================
-function toggleProductForm() {
-    var form = document.getElementById('addProductForm');
-    if (form) {
-        form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    }
-}
-
-async function deleteProduct(productId) {
-    if (!confirm('🗑️ Удалить этот товар?')) return;
-    
-    try {
-        var response = await authFetch('/api/supplier/products/' + productId, {
-            method: 'DELETE'
-        });
-        
-        var result = await response.json();
-        if (result.success) {
-            showNotification('✅ Товар удален', 'success');
-            await loadSupplierProducts();
-        } else {
-            showNotification('❌ ' + (result.error || 'Ошибка'), 'error');
-        }
-    } catch(error) {
-        showNotification('❌ Ошибка: ' + error.message, 'error');
-    }
-}
-
-// ============================================================
-// ЗАКАЗЫ
-// ============================================================
-async function refreshOrders() {
-    try {
-        var response = await authFetch('/api/supplier/orders');
-        var data = await response.json();
-        if (!data.success) return;
-        var orders = data.orders;
-        var tbody = document.getElementById('ordersTableBody');
-        tbody.innerHTML = '';
-        var pendingCount = 0;
-        var activeOrders = orders.filter(function(o) { return o.status !== 'cancelled' && o.status !== 'deleted'; });
-        if (activeOrders.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">Нет активных заказов</td></tr>';
-            document.getElementById('pendingOrders').innerText = '0';
-            document.getElementById('totalOrders').innerText = '0';
-            return;
-        }
-        for (var i = 0; i < activeOrders.length; i++) {
-            var order = activeOrders[i];
-            if (order.status === 'pending') pendingCount++;
-            var row = '<tr data-order-id="' + order.id + '">' +
-                '<td><strong>' + escapeHtml(order.order_number) + '</strong><br><span style="font-size:0.65rem;color:#94a3b8;">#' + order.id + '</span></td>' +
-                '<td>' + escapeHtml(order.customer_address || 'Адрес не указан') + '<br><span style="font-size:0.6rem;color:#94a3b8;">' + new Date(order.created_at).toLocaleString() + '</span></td>' +
-                '<td>' + escapeHtml(order.bag_name) + '</td>' +
-                '<td><strong>' + order.amount_paid + '</strong> ₸</td>' +
-                '<td><span class="status-badge status-' + order.status + '">' + getStatusText(order.status) + '</span></td>' +
-                '<td id="courier-cell-' + order.id + '">' + (order.assigned_courier_name ? escapeHtml(order.assigned_courier_name) : '—') + '</td>' +
-                '<td>' + getActionButtons(order) + '</td>' +
-                '<td><button class="btn track-btn" data-order-id="' + order.id + '">Карта</button></td>' +
-                '</tr>';
-            tbody.innerHTML += row;
-        }
-        document.getElementById('pendingOrders').innerText = pendingCount;
-        document.getElementById('totalOrders').innerText = activeOrders.length;
-        attachOrderHandlers();
-    } catch(error) { console.error('Refresh error:', error); }
-}
-
-function getStatusText(status) {
-    var texts = { pending: 'Ожидает', confirmed: 'Подтвержден', preparing: 'Готовится', ready_for_pickup: 'Готов', out_for_delivery: 'В пути', delivered: 'Доставлен', cancelled: 'Отменен', deleted: 'Удален' };
-    return texts[status] || status;
-}
-
-function getActionButtons(order) {
-    if (order.status === 'confirmed') {
-        return '<div><button class="auto-assign-btn btn" data-order-id="' + order.id + '">Автоназначить</button><br><button class="manual-assign-btn btn" data-order-id="' + order.id + '" style="margin-top:0.3rem;">Вручную</button></div>';
-    } else if (order.status === 'out_for_delivery') {
-        return '<div class="delivery-timer" data-deadline="' + order.delivery_deadline + '"></div>';
-    } else if (order.status === 'delivered') {
-        return '<span style="color: #10b981;">Доставлен</span>';
-    } else {
-        return '<select class="status-select" data-order-id="' + order.id + '">' +
-            '<option value="">Изменить статус</option>' +
-            '<option value="confirmed">Подтвердить</option>' +
-            '<option value="preparing">Готовить</option>' +
-            '<option value="ready_for_pickup">Готов</option>' +
-            '<option value="out_for_delivery">Отправить</option>' +
-            '<option value="delivered">Доставлен</option>' +
-            '<option value="cancelled">Отменить</option>' +
-            '</select>';
-    }
-}
-
-function attachOrderHandlers() {
-    var selects = document.querySelectorAll('.status-select');
-    for (var i = 0; i < selects.length; i++) {
-        var select = selects[i];
-        select.removeEventListener('change', select._handler);
-        select._handler = function() { 
-            var orderId = this.getAttribute('data-order-id'); 
-            var newStatus = this.value; 
-            if (newStatus) updateOrderStatus(orderId, newStatus); 
-            this.value = ''; 
-        };
-        select.addEventListener('change', select._handler);
-    }
-    var trackBtns = document.querySelectorAll('.track-btn');
-    for (var j = 0; j < trackBtns.length; j++) {
-        var btn = trackBtns[j];
-        btn._handler = function() { window.location.href = '/track-order/' + this.getAttribute('data-order-id'); };
-        btn.addEventListener('click', btn._handler);
-    }
-}
-
-async function updateOrderStatus(orderId, newStatus) {
-    try {
-        var response = await authFetch('/api/supplier/orders/' + orderId + '/status', { 
-            method: 'PUT', 
-            body: JSON.stringify({ status: newStatus }) 
-        });
-        if (response.ok) { 
-            showNotification('Статус изменен на ' + getStatusText(newStatus)); 
-            refreshOrders(); 
-        }
-    } catch(error) { console.error(error); }
-}
-
-// ============================================================
-// СЮРПРИЗЫ (ОБНОВЛЕННАЯ ВЕРСИЯ С КНОПКАМИ)
-// ============================================================
-async function refreshBags() {
-    try {
-        var response = await authFetch('/api/supplier/surprise-bags');
-        var data = await response.json();
-        if (!data.bags) return;
-        var tbody = document.getElementById('bagsTableBody');
-        if (!tbody) return;
-        tbody.innerHTML = '';
-        for (var i = 0; i < data.bags.length; i++) {
-            var bag = data.bags[i];
-            var isHidden = bag.hide_contents === true;
-            var typeIcon = isHidden ? '🔒' : '🔓';
-            var typeText = isHidden ? 'Скрытый' : 'Открытый';
-            var typeColor = isHidden ? '#f59e0b' : '#10b981';
-            
-            var row = document.createElement('tr');
-            row.setAttribute('data-bag-id', bag.id);
-            row.innerHTML = `
-                <td><strong>${escapeHtml(bag.name)}</strong></td>
-                <td>${escapeHtml(bag.description || '-')}</td>
-                <td>${bag.original_price} ₸</td>
-                <td><strong style="color: #ef4444;">${bag.discounted_price} ₸</strong></td>
-                <td><span style="background: #ef4444; color: white; padding: 0.2rem 0.4rem; border-radius: 1rem; font-size: 0.65rem;">-${bag.discount_percentage || 0}%</span></td>
-                <td>${bag.available_quantity}/${bag.total_quantity}</td>
-                <td><span style="color: ${typeColor}; font-weight: bold;">${typeIcon} ${typeText}</span></td>
-                <td>${bag.is_active ? '<span style="color: #10b981;">Активен</span>' : '<span style="color: #ef4444;">Неактивен</span>'}</td>
-                <td>
-                    <button class="toggle-bag-btn" onclick="toggleBagActive(${bag.id})" style="background: ${bag.is_active ? '#10b981' : '#ef4444'}; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 0.4rem; cursor: pointer; margin-bottom: 0.3rem; width: 100%;">
-                        ${bag.is_active ? '🟢 Выключить' : '🔴 Включить'}
-                    </button>
-                    <button class="toggle-type-btn" onclick="toggleBagType(${bag.id}, ${isHidden})" style="background: #8b5cf6; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 0.4rem; cursor: pointer; width: 100%;">
-                        ${isHidden ? '🔓 Сделать открытым' : '🔒 Сделать скрытым'}
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        }
-    } catch(error) {
-        console.error('Refresh bags error:', error);
-    }
-}
-
-async function clearInactiveBags() {
-    if (!confirm('Удалить неактивные сюрпризы?')) return;
-    var btn = document.getElementById('clearInactiveBagsBtn');
-    btn.disabled = true;
-    try { 
-        var response = await authFetch('/api/supplier/clear-inactive-bags', { method: 'DELETE' }); 
-        var data = await response.json(); 
-        if (data.success) { 
-            showNotification(data.message, 'success'); 
-            refreshBags(); 
-        }
-    } catch(error) { 
-        showNotification('Ошибка удаления', 'error'); 
-    }
-    finally { 
-        btn.disabled = false; 
-    }
-}
-
-async function clearAllBags() {
-    if (!confirm('Удалить ВСЕ сюрпризы?')) return;
-    var btn = document.getElementById('clearAllBagsBtn');
-    btn.disabled = true;
-    try { 
-        var response = await authFetch('/api/supplier/clear-all-bags', { method: 'DELETE' }); 
-        var data = await response.json(); 
-        if (data.success) { 
-            showNotification(data.message, 'success'); 
-            refreshBags(); 
-        }
-    } catch(error) { 
-        showNotification('Ошибка удаления', 'error'); 
-    }
-    finally { 
-        btn.disabled = false; 
-    }
+    showNotification('🎁 Шаблон загружен: ' + (template.name.ru || template.name.en), 'success');
 }
 
 // ============================================================
 // WEBSOCKET
 // ============================================================
+let ws = null;
+
 function initWebSocket() {
     try {
-        var token = sessionStorage.getItem('supplier_token');
-        if (!token) {
-            console.warn('⚠️ Нет токена для WebSocket');
-            return;
-        }
-        var wsUrl = 'wss://' + window.location.host + '/ws/supplier/' + supplierId + '?token=' + encodeURIComponent(token);
+        const token = getSupplierToken();
+        if (!token) return;
+        const wsUrl = 'wss://' + window.location.host + '/ws/supplier/' + supplierId + '?token=' + encodeURIComponent(token);
         ws = new WebSocket(wsUrl);
-        var dot = document.getElementById('wsDot');
-        var status = document.getElementById('wsStatus');
-        ws.onopen = function() {
-            dot.className = 'ws-dot connected';
-            status.textContent = 'Подключено';
-            console.log('✅ WebSocket connected');
+        ws.onopen = () => {
+            document.getElementById('wsDot').className = 'ws-dot connected';
+            document.getElementById('wsStatus').textContent = 'Подключено';
         };
-        ws.onmessage = function(event) {
+        ws.onmessage = (event) => {
             try {
-                var data = JSON.parse(event.data);
+                const data = JSON.parse(event.data);
                 if (data.type === 'order_update' || data.type === 'new_order') {
                     refreshOrders();
                     showNotification('📦 Обновление заказов!', 'success');
@@ -2043,24 +1523,14 @@ function initWebSocket() {
                 if (data.type === 'bag_update') {
                     refreshBags();
                 }
-                if (data.type === 'ping') {
-                    ws.send(JSON.stringify({type: 'pong'}));
-                }
-            } catch(e) {
-                console.error('WS message error:', e);
-            }
+            } catch(e) {}
         };
-        ws.onclose = function() {
-            dot.className = 'ws-dot disconnected';
-            status.textContent = 'Отключено';
+        ws.onclose = () => {
+            document.getElementById('wsDot').className = 'ws-dot disconnected';
+            document.getElementById('wsStatus').textContent = 'Отключено';
             setTimeout(initWebSocket, 5000);
         };
-        ws.onerror = function() {
-            dot.className = 'ws-dot disconnected';
-            status.textContent = 'Ошибка';
-        };
     } catch(e) {
-        console.error('WebSocket init error:', e);
         setTimeout(initWebSocket, 5000);
     }
 }
@@ -2069,148 +1539,117 @@ function initWebSocket() {
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Загрузка дашборда...');
-    console.log('🏢 Тип поставщика:', businessType);
-    
-    var savedLang = localStorage.getItem('supplier_lang') || 'ru';
+    const savedLang = localStorage.getItem('supplier_lang') || 'ru';
     setLanguage(savedLang);
     
-    loadCategories();
+    updateCategorySelect();
     
-    loadSupplierProducts().then(function() {
-        console.log('✅ Товары загружены');
+    loadSupplierProducts().then(() => {
+        if (!window.productsData || window.productsData.length === 0) {
+            window.productsData = getTestProductsByType(businessType);
+            updateProductsTable();
+            updateProductSelect();
+        }
     });
-    
-    // ✅ ИСПОЛЬЗУЕМ ШАБЛОНЫ ТОЛЬКО ДЛЯ КОНКРЕТНОГО ТИПА
-    window.templatesData = getRichTemplatesByType(businessType);
-    updateTemplateSelect();
-    console.log('✅ Шаблоны загружены для типа "' + businessType + '"');
     
     refreshOrders();
     refreshBags();
     initWebSocket();
+    updateTemplateSelect();
     
-    document.getElementById('refreshOrdersBtn').addEventListener('click', refreshOrders);
-    document.getElementById('clearInactiveBagsBtn').addEventListener('click', clearInactiveBags);
-    document.getElementById('clearAllBagsBtn').addEventListener('click', clearAllBags);
-    document.getElementById('addProductBtn').addEventListener('click', addProduct);
-    
-    var discountBtns = document.querySelectorAll('.discount-preset');
-    for (var i = 0; i < discountBtns.length; i++) {
-        discountBtns[i].addEventListener('click', function() {
-            applyDiscount(parseInt(this.dataset.percent));
-        });
-    }
-    
-    document.getElementById('surpriseTemplate').addEventListener('change', loadSurpriseTemplate);
-    document.getElementById('createBagForm').addEventListener('submit', function(e) {
+    document.getElementById('createCategoryForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        submitBagForm();
+        const name = document.getElementById('categoryName').value.trim();
+        const icon = document.getElementById('categoryIcon').value;
+        if (!name) { showNotification('Введите название категории', 'error'); return; }
+        
+        try {
+            const response = await authFetch('/api/supplier/categories', {
+                method: 'POST',
+                body: JSON.stringify({ name: name, icon: icon })
+            });
+            const result = await response.json();
+            if (result.success) {
+                showNotification('📂 Категория "' + name + '" добавлена!', 'success');
+                document.getElementById('createCategoryForm').reset();
+                toggleCategoryForm();
+                await loadCategories();
+            }
+        } catch(error) {
+            showNotification('Ошибка сети', 'error');
+        }
     });
     
-    var langBtns = document.querySelectorAll('.lang-btn');
-    for (var j = 0; j < langBtns.length; j++) {
-        langBtns[j].addEventListener('click', function() {
+    document.getElementById('createProductForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const name = document.getElementById('productName').value.trim();
+        const price = parseFloat(document.getElementById('productPrice').value);
+        const categoryId = document.getElementById('productCategory').value;
+        const prepTime = parseInt(document.getElementById('productPrepTime').value) || 15;
+        const desc = document.getElementById('productDesc').value.trim();
+        if (!name || !price) { showNotification('Заполните название и цену', 'error'); return; }
+        
+        try {
+            const response = await authFetch('/api/supplier/products', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: name,
+                    description: desc,
+                    price: price,
+                    category_id: categoryId || null,
+                    preparation_time: prepTime
+                })
+            });
+            const result = await response.json();
+            if (result.success) {
+                showNotification('📦 Товар "' + name + '" добавлен!', 'success');
+                document.getElementById('createProductForm').reset();
+                document.getElementById('productPrepTime').value = 15;
+                toggleProductForm();
+                await loadSupplierProducts();
+                updateProductSelect();
+            }
+        } catch(error) {
+            showNotification('Ошибка сети', 'error');
+        }
+    });
+    
+    document.getElementById('createBagForm').addEventListener('submit', submitBagForm);
+    document.getElementById('surpriseTemplate').addEventListener('change', loadSurpriseTemplate);
+    
+    document.querySelectorAll('.discount-preset').forEach(btn => {
+        btn.addEventListener('click', function() {
+            applyDiscount(parseInt(this.dataset.percent));
+        });
+    });
+    
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
             setLanguage(this.dataset.lang);
         });
-    }
+    });
     
-    // Форма создания категории
-    var categoryForm = document.getElementById('createCategoryForm');
-    if (categoryForm) {
-        categoryForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            var nameRu = document.getElementById('categoryNameRu').value.trim();
-            var nameKz = document.getElementById('categoryNameKz').value.trim();
-            var nameEn = document.getElementById('categoryNameEn').value.trim();
-            var icon = document.getElementById('categoryIcon').value;
-            if (!nameRu || !nameKz) {
-                showNotification('❌ Введите название на обоих языках', 'error');
-                return;
-            }
-            try {
-                var response = await authFetch('/api/supplier/categories', {
-                    method: 'POST',
-                    body: JSON.stringify({ name_ru: nameRu, name_kz: nameKz, name_en: nameEn, icon: icon })
-                });
-                var result = await response.json();
-                if (result.success) {
-                    showNotification('✅ Категория "' + nameRu + '" добавлена!', 'success');
-                    document.getElementById('createCategoryForm').reset();
-                    toggleCategoryForm();
-                    await loadCategories();
-                    updateCategorySelect();
-                } else {
-                    showNotification('❌ ' + (result.error || 'Ошибка'), 'error');
-                }
-            } catch(error) {
-                showNotification('❌ Ошибка: ' + error.message, 'error');
-            }
-        });
-    }
-    
-    // Форма создания товара
-    var productForm = document.getElementById('createProductForm');
-    if (productForm) {
-        productForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            var nameRu = document.getElementById('productNameRu').value.trim();
-            var nameKz = document.getElementById('productNameKz').value.trim();
-            var price = parseFloat(document.getElementById('productPrice').value);
-            var categoryValue = document.getElementById('productCategory').value;
-            var prepTime = parseInt(document.getElementById('productPrepTime').value) || 15;
-            var descRu = document.getElementById('productDescRu').value.trim();
-            var descKz = document.getElementById('productDescKz').value.trim();
-            
-            if (!nameRu || !nameKz) {
-                showNotification('❌ Введите название на обоих языках', 'error');
-                return;
-            }
-            if (!price || price <= 0) {
-                showNotification('❌ Введите корректную цену', 'error');
-                return;
-            }
-            
-            var data = {
-                name_ru: nameRu,
-                name_kz: nameKz,
-                price: price,
-                category_id: categoryValue || null,
-                preparation_time: prepTime,
-                description_ru: descRu,
-                description_kz: descKz,
-                is_available: true
-            };
-            
-            try {
-                var response = await authFetch('/api/supplier/products', {
-                    method: 'POST',
-                    body: JSON.stringify(data)
-                });
-                var result = await response.json();
-                if (result.success) {
-                    showNotification('✅ Товар "' + nameRu + '" добавлен!', 'success');
-                    document.getElementById('createProductForm').reset();
-                    document.getElementById('productPrepTime').value = 15;
-                    toggleProductForm();
-                    await loadSupplierProducts();
-                    updateProductSelect();
-                    showNotification('✅ Товар теперь доступен в списке!', 'success');
-                } else {
-                    showNotification('❌ ' + (result.error || 'Ошибка'), 'error');
-                }
-            } catch(error) {
-                showNotification('❌ Ошибка: ' + error.message, 'error');
-            }
-        });
-    }
-    
-    setInterval(function() {
+    setInterval(() => {
         refreshOrders();
         refreshBags();
     }, 30000);
-     
-    console.log('✅ Дашборд загружен!');
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.nav-links a').forEach(link => {
+        link.addEventListener('click', function(e) {
+            const href = this.getAttribute('href');
+            if (href && href.startsWith('/supplier/')) {
+                e.preventDefault();
+                const token = getSupplierToken();
+                if (token) {
+                    window.location.href = href + '?token=' + encodeURIComponent(token);
+                } else {
+                    window.location.href = href;
+                }
+            }
+        });
+    });
 });
 </script>
 {% endblock %}
