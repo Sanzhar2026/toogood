@@ -7903,6 +7903,8 @@ async def update_supplier_category(
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         return {"success": False, "error": str(e)}
+
+        
 # ======== ПОЛУЧИТЬ ТОВАРЫ ДЛЯ ВЫБОРА В СЮРПРИЗЕ ========
 @app.get("/api/supplier/products/for-bag")
 async def get_products_for_bag(
