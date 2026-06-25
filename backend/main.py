@@ -4258,8 +4258,8 @@ async def admin_approve_password_reset(
                 content={"success": False, "message": "Телефон обязателен"}
             )
         
-        formatted_phone = format_phone_number(phone)
-        
+        # formatted_phone = format_phone_number(phone)
+        formatted_phone = phone
         if formatted_phone not in password_reset_requests:
             return JSONResponse(
                 status_code=404,
