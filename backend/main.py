@@ -4185,7 +4185,7 @@ async def request_password_reset(request: Request, db: Session = Depends(get_db)
             )
         
         # formatted_phone = format_phone_number(phone)
-        
+        formatted_phone = phone
         # Проверяем, существует ли пользователь
         user = db.query(User).filter(User.phone == formatted_phone).first()
         if not user:
