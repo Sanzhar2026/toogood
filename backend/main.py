@@ -4361,7 +4361,89 @@ async def verify_reset_code(request: Request, db: Session = Depends(get_db)):
             content={"success": False, "message": str(e)}
         )
 
-
+@app.post("/api/admin/approve-password-reset")
+async def admin_approve_password_reset(request: Request, db: Session = Depends(get_db)):
+    """Админ одобряет запрос на восстановление пароля"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "message": "Admin only"}
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "message": f"Invalid token: {str(e)}"}
+        )
+    
+    try:
+        data = await request.json()
+        phone = data.get("phone")
+        approve = data.get("approve", True)
+        
+        if not phone:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Телефон обязателен"}
+            )
+        
+        if phone not in password_reset_requests:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Запрос не найден"}
+            )
+        
+        request_data = password_reset_requests[phone]
+        
+        if request_data["expires"] < datetime.utcnow():
+            del password_reset_requests[phone]
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "Запрос истек"}
+            )
+        
+        if approve:
+            import random
+            import secrets
+            code = str(random.randint(100000, 999999))
+            reset_token = secrets.token_urlsafe(32)
+            
+            request_data["admin_approved"] = True
+            request_data["code"] = code
+            request_data["reset_token"] = reset_token
+            password_reset_requests[phone] = request_data
+            
+            print(f"🔐 КОД ДЛЯ {phone}: {code}")
+            
+            return JSONResponse(content={
+                "success": True,
+                "message": "Запрос одобрен",
+                "debug_code": code
+            })
+        else:
+            del password_reset_requests[phone]
+            return JSONResponse(content={
+                "success": True,
+                "message": "Запрос отклонен"
+            })
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "message": str(e)}
+        )
 # ✅ 4. СБРОС ПАРОЛЯ
 @app.post("/api/auth/reset-password")
 async def reset_password(request: Request, db: Session = Depends(get_db)):
