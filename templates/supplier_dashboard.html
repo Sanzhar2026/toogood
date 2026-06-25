@@ -823,6 +823,32 @@ function updateProductSelect() {
 }
 
 function updateCategorySelect() {
+    document.getElementById('createCategoryForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const name = document.getElementById('categoryName').value.trim();
+    const icon = document.getElementById('categoryIcon').value;
+    if (!name) { showNotification('Введите название категории', 'error'); return; }
+    
+    try {
+        const response = await authFetch('/api/supplier/categories', {
+            method: 'POST',
+            body: JSON.stringify({ name: name, icon: icon })
+        });
+        const result = await response.json();
+        if (result.success) {
+            showNotification('📂 Категория "' + name + '" добавлена!', 'success');
+            document.getElementById('createCategoryForm').reset();
+            toggleCategoryForm();
+            await loadCategories();  // ✅ ЗАГРУЗИТЬ КАТЕГОРИИ
+            
+            // ✅ ОБНОВИТЬ ВЫПАДАЮЩИЙ СПИСОК
+            updateCategorySelect();
+            updateProductSelect();  // ОБНОВИТЬ И ТОВАРЫ
+        }
+    } catch(error) {
+        showNotification('Ошибка сети', 'error');
+    }
+});
     const categorySelect = document.getElementById('productCategory');
     if (!categorySelect) return;
     const standardCategories = getCategoriesByType(businessType);
