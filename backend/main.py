@@ -14440,41 +14440,46 @@ async def delete_surprise_bag(bag_id: int, request: Request, db: Session = Depen
     return {"success": True, "message": "Bag deleted"}
 # Если у тебя есть эндпоинт для обновления сюрприза, добавь туда уведомление:
 # Например:
-
 @app.put("/api/supplier/surprise-bags/{bag_id}/toggle")
 async def toggle_bag_status(
     bag_id: int,
-    supplier: Supplier = Depends(verify_supplier_token),  # ← JWT!
+    supplier: Supplier = Depends(verify_supplier_token),
     db: Session = Depends(get_db)
 ):
     """Включить/выключить сюрприз-пакет"""
     
-    bag = db.query(SurpriseBag).filter(
-        SurpriseBag.id == bag_id,
-        SurpriseBag.supplier_id == supplier.id
-    ).first()
-    
-    if not bag:
-        raise HTTPException(status_code=404, detail="Bag not found")
-    
-    bag.is_active = not bag.is_active
-    db.commit()
-    
-    if bag.is_active:
-        await notify_new_surprise({
-            "id": bag.id,
-            "name": bag.name,
-            "supplier_name": supplier.business_name,
-            "discounted_price": bag.discounted_price,
-            "original_price": bag.original_price,
-            "discount_percentage": bag.discount_percentage,
-            "image_url": bag.image_url
+    try:
+        bag = db.query(SurpriseBag).filter(
+            SurpriseBag.id == bag_id,
+            SurpriseBag.supplier_id == supplier.id
+        ).first()
+        
+        if not bag:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Bag not found"}
+            )
+        
+        # Переключаем статус
+        bag.is_active = not bag.is_active
+        db.commit()
+        
+        print(f"✅ Сюрприз #{bag_id} статус изменен на: {bag.is_active}")
+        
+        return JSONResponse(content={
+            "success": True,
+            "is_active": bag.is_active,
+            "message": "Статус изменен"
         })
-    else:
-        await notify_bag_deleted(bag_id)
-    
-    return {"success": True, "is_active": bag.is_active}
-
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
 @app.get("/api/test-websocket")
 async def test_websocket():
     """Test endpoint to broadcast a test message"""
