@@ -822,12 +822,50 @@ function updateProductSelect() {
     }
 }
 
+// ============================================================
+// 1. ФУНКЦИЯ ОБНОВЛЕНИЯ SELECT (ТОЛЬКО ОБНОВЛЯЕТ СПИСОК)
+// ============================================================
 function updateCategorySelect() {
-    document.getElementById('createCategoryForm').addEventListener('submit', async function(e) {
+    const categorySelect = document.getElementById('productCategory');
+    if (!categorySelect) return;
+    
+    const standardCategories = getCategoriesByType(businessType);
+    categorySelect.innerHTML = '<option value="">-- Выберите категорию --</option>';
+    
+    // СТАНДАРТНЫЕ КАТЕГОРИИ
+    standardCategories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat.value;
+        option.textContent = cat.label;
+        categorySelect.appendChild(option);
+    });
+    
+    // МОИ КАТЕГОРИИ ИЗ БД
+    if (window.customCategories && window.customCategories.length > 0) {
+        const optGroup = document.createElement('optgroup');
+        optGroup.label = '✨ Мои категории';
+        window.customCategories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat.id;
+            option.textContent = (cat.icon || '📦') + ' ' + cat.name;
+            optGroup.appendChild(option);
+        });
+        categorySelect.appendChild(optGroup);
+    }
+}
+
+// ============================================================
+// 2. ОБРАБОТЧИК ФОРМЫ (ОТДЕЛЬНО!)
+// ============================================================
+document.getElementById('createCategoryForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const name = document.getElementById('categoryName').value.trim();
     const icon = document.getElementById('categoryIcon').value;
-    if (!name) { showNotification('Введите название категории', 'error'); return; }
+    
+    if (!name) { 
+        showNotification('Введите название категории', 'error'); 
+        return; 
+    }
     
     try {
         const response = await authFetch('/api/supplier/categories', {
@@ -835,30 +873,45 @@ function updateCategorySelect() {
             body: JSON.stringify({ name: name, icon: icon })
         });
         const result = await response.json();
+        
         if (result.success) {
             showNotification('📂 Категория "' + name + '" добавлена!', 'success');
             document.getElementById('createCategoryForm').reset();
             toggleCategoryForm();
-            await loadCategories();  // ✅ ЗАГРУЗИТЬ КАТЕГОРИИ
             
-            // ✅ ОБНОВИТЬ ВЫПАДАЮЩИЙ СПИСОК
+            // ✅ ЗАГРУЖАЕМ КАТЕГОРИИ
+            await loadCategories();
+            
+            // ✅ ОБНОВЛЯЕМ SELECT
             updateCategorySelect();
-            updateProductSelect();  // ОБНОВИТЬ И ТОВАРЫ
+            updateProductSelect();
+            
+        } else {
+            showNotification('❌ ' + (result.error || 'Ошибка'), 'error');
         }
     } catch(error) {
-        showNotification('Ошибка сети', 'error');
+        showNotification('❌ Ошибка сети', 'error');
     }
 });
-    const categorySelect = document.getElementById('productCategory');
-    if (!categorySelect) return;
-    const standardCategories = getCategoriesByType(businessType);
-    categorySelect.innerHTML = '<option value="">-- Выберите категорию --</option>';
-    standardCategories.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat.value;
-        option.textContent = cat.label;
-        categorySelect.appendChild(option);
-    });
+
+// ============================================================
+// 3. ФУНКЦИЯ ЗАГРУЗКИ КАТЕГОРИЙ
+// ============================================================
+
+
+async function loadCategories() {
+    try {
+        const response = await authFetch('/api/supplier/categories');
+        const data = await response.json();
+        
+        if (data.success) {
+            window.customCategories = data.categories;
+            updateCategorySelect();
+            console.log('✅ Категории загружены:', window.customCategories.length);
+        }
+    } catch(error) {
+        console.error('❌ Ошибка загрузки категорий:', error);
+    }
 }
 
 async function deleteProduct(productId) {
@@ -878,17 +931,7 @@ async function deleteProduct(productId) {
 // ============================================================
 // КАТЕГОРИИ
 // ============================================================
-async function loadCategories() {
-    try {
-        const response = await authFetch('/api/supplier/categories');
-        const data = await response.json();
-        if (data.success) {
-            updateCategorySelect();
-        }
-    } catch(error) {
-        console.error('❌ Ошибка загрузки категорий:', error);
-    }
-}
+
 
 // ============================================================
 // СЮРПРИЗЫ
@@ -1583,28 +1626,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initWebSocket();
     updateTemplateSelect();
     
-    document.getElementById('createCategoryForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const name = document.getElementById('categoryName').value.trim();
-        const icon = document.getElementById('categoryIcon').value;
-        if (!name) { showNotification('Введите название категории', 'error'); return; }
-        
-        try {
-            const response = await authFetch('/api/supplier/categories', {
-                method: 'POST',
-                body: JSON.stringify({ name: name, icon: icon })
-            });
-            const result = await response.json();
-            if (result.success) {
-                showNotification('📂 Категория "' + name + '" добавлена!', 'success');
-                document.getElementById('createCategoryForm').reset();
-                toggleCategoryForm();
-                await loadCategories();
-            }
-        } catch(error) {
-            showNotification('Ошибка сети', 'error');
-        }
-    });
     
     document.getElementById('createProductForm').addEventListener('submit', async function(e) {
         e.preventDefault();
