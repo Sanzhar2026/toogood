@@ -4173,7 +4173,7 @@ from datetime import datetime, timedelta
 # ✅ 1. КЛИЕНТ ЗАПРАШИВАЕТ ВОССТАНОВЛЕНИЕ ПАРОЛЯ
 @app.post("/api/auth/request-password-reset")
 async def request_password_reset(request: Request, db: Session = Depends(get_db)):
-    """Клиент запрашивает восстановление пароля"""
+    """Клиент запрашивает восстановление пароля (БЕЗ КОДА В ОТВЕТЕ!)"""
     try:
         data = await request.json()
         phone = data.get("phone")
@@ -4184,34 +4184,27 @@ async def request_password_reset(request: Request, db: Session = Depends(get_db)
                 content={"success": False, "message": "Телефон обязателен"}
             )
         
-        # formatted_phone = format_phone_number(phone)
-        formatted_phone = phone
-        # Проверяем, существует ли пользователь
-        user = db.query(User).filter(User.phone == formatted_phone).first()
+        # Проверяем пользователя
+        user = db.query(User).filter(User.phone == phone).first()
         if not user:
             return JSONResponse(
                 status_code=404,
-                content={"success": False, "message": "Пользователь с таким номером не найден"}
+                content={"success": False, "message": "Пользователь не найден"}
             )
         
-        # Генерируем 6-значный код
-        code = str(random.randint(100000, 999999))
-        
-        # Сохраняем запрос (НЕ ОДОБРЕН)
-        password_reset_requests[formatted_phone] = {
-            "code": code,
+        # Сохраняем запрос (БЕЗ КОДА!)
+        password_reset_requests[phone] = {
             "user_id": user.id,
             "expires": datetime.utcnow() + timedelta(minutes=15),
-            "status": "pending",
-            "admin_approved": False
+            "admin_approved": False,
+            "code": None  # Код будет сгенерирован после одобрения
         }
         
-        print(f"🔐 Запрос на восстановление для {formatted_phone}, код: {code}")
+        print(f"📝 ЗАПРОС НА ВОССТАНОВЛЕНИЕ: {phone}")
         
         return JSONResponse(content={
             "success": True,
-            "message": "Код отправлен на ваш номер",
-            "debug_code": code
+            "message": "Запрос отправлен. Дождитесь одобрения администратора."
         })
         
     except Exception as e:
@@ -4220,6 +4213,7 @@ async def request_password_reset(request: Request, db: Session = Depends(get_db)
             status_code=500,
             content={"success": False, "message": str(e)}
         )
+
 
 
 
@@ -4309,7 +4303,7 @@ async def admin_approve_password_reset(
 # ✅ 3. КЛИЕНТ ПОДТВЕРЖДАЕТ КОД
 @app.post("/api/auth/verify-reset-code")
 async def verify_reset_code(request: Request, db: Session = Depends(get_db)):
-    """Клиент подтверждает код восстановления"""
+    """Клиент проверяет код (который пришел после одобрения)"""
     try:
         data = await request.json()
         phone = data.get("phone")
@@ -4321,21 +4315,19 @@ async def verify_reset_code(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "message": "Телефон и код обязательны"}
             )
         
-        formatted_phone = format_phone_number(phone)
-        
-        if formatted_phone not in password_reset_requests:
+        if phone not in password_reset_requests:
             return JSONResponse(
                 status_code=404,
-                content={"success": False, "message": "Запрос на восстановление не найден"}
+                content={"success": False, "message": "Запрос не найден"}
             )
         
-        request_data = password_reset_requests[formatted_phone]
+        request_data = password_reset_requests[phone]
         
         if request_data["expires"] < datetime.utcnow():
-            del password_reset_requests[formatted_phone]
+            del password_reset_requests[phone]
             return JSONResponse(
                 status_code=400,
-                content={"success": False, "message": "Код истек"}
+                content={"success": False, "message": "Запрос истек"}
             )
         
         if not request_data["admin_approved"]:
@@ -4367,7 +4359,7 @@ async def verify_reset_code(request: Request, db: Session = Depends(get_db)):
 # ✅ 4. СБРОС ПАРОЛЯ
 @app.post("/api/auth/reset-password")
 async def reset_password(request: Request, db: Session = Depends(get_db)):
-    """Сброс пароля после одобрения админа"""
+    """Сброс пароля после подтверждения кода"""
     try:
         data = await request.json()
         phone = data.get("phone")
@@ -4384,21 +4376,19 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
         if len(new_password) < 6:
             return JSONResponse(
                 status_code=400,
-                content={"success": False, "message": "Пароль должен быть минимум 6 символов"}
+                content={"success": False, "message": "Пароль минимум 6 символов"}
             )
         
-        formatted_phone = format_phone_number(phone)
-        
-        if formatted_phone not in password_reset_requests:
+        if phone not in password_reset_requests:
             return JSONResponse(
                 status_code=404,
-                content={"success": False, "message": "Запрос на восстановление не найден"}
+                content={"success": False, "message": "Запрос не найден"}
             )
         
-        request_data = password_reset_requests[formatted_phone]
+        request_data = password_reset_requests[phone]
         
         if request_data["expires"] < datetime.utcnow():
-            del password_reset_requests[formatted_phone]
+            del password_reset_requests[phone]
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "message": "Запрос истек"}
@@ -4407,7 +4397,7 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
         if not request_data["admin_approved"]:
             return JSONResponse(
                 status_code=403,
-                content={"success": False, "message": "Запрос еще не одобрен администратором"}
+                content={"success": False, "message": "Запрос не одобрен администратором"}
             )
         
         if request_data["code"] != code:
@@ -4426,20 +4416,15 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
         password_hash = hashlib.sha256(new_password.encode()).hexdigest()
         
         user = db.query(User).filter(User.id == request_data["user_id"]).first()
-        if not user:
-            return JSONResponse(
-                status_code=404,
-                content={"success": False, "message": "Пользователь не найден"}
-            )
+        if user:
+            user.password = password_hash
+            db.commit()
         
-        user.password = password_hash
-        db.commit()
-        
-        del password_reset_requests[formatted_phone]
+        del password_reset_requests[phone]
         
         return JSONResponse(content={
             "success": True,
-            "message": "Пароль успешно изменен"
+            "message": "Пароль изменен"
         })
         
     except Exception as e:
@@ -4453,10 +4438,7 @@ async def reset_password(request: Request, db: Session = Depends(get_db)):
 
 # ✅ 5. АДМИН ПОЛУЧАЕТ ВСЕ ЗАПРОСЫ НА ВОССТАНОВЛЕНИЕ
 @app.get("/api/admin/password-reset-requests")
-async def admin_get_password_reset_requests(
-    request: Request,
-    db: Session = Depends(get_db)
-):
+async def admin_get_password_reset_requests(request: Request, db: Session = Depends(get_db)):
     """Админ получает список запросов"""
     
     auth_header = request.headers.get("Authorization")
@@ -4475,10 +4457,10 @@ async def admin_get_password_reset_requests(
                 status_code=403,
                 content={"success": False, "message": "Admin only"}
             )
-    except Exception as e:
+    except:
         return JSONResponse(
             status_code=401,
-            content={"success": False, "message": f"Invalid token: {str(e)}"}
+            content={"success": False, "message": "Invalid token"}
         )
     
     requests_list = []
@@ -4487,13 +4469,14 @@ async def admin_get_password_reset_requests(
             requests_list.append({
                 "phone": phone,
                 "user_id": data["user_id"],
-                "code": data["code"],
+                "code": data.get("code"),  # Может быть None (пока не одобрили)
                 "admin_approved": data["admin_approved"],
-                "status": data["status"],
+                "status": "approved" if data["admin_approved"] else "pending",
                 "time_left": int((data["expires"] - datetime.utcnow()).total_seconds() / 60)
             })
     
     return JSONResponse(content={"success": True, "requests": requests_list})
+
 
 
 # backend/main.py - ИСПРАВЛЕННЫЙ ЛОГИН КУРЬЕРА
