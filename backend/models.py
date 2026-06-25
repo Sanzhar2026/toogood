@@ -28,9 +28,8 @@ class SupplierCategory(Base):
     id = Column(Integer, primary_key=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"), nullable=False)
     
-    name_ru = Column(String(255), nullable=False)
-    name_kz = Column(String(255), nullable=False)
-    name_en = Column(String(255), nullable=True)
+    name = Column(String(255), nullable=False)
+    
     icon = Column(String(50), default='📦')
     is_custom = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)
@@ -49,11 +48,10 @@ class SupplierProduct(Base):
     id = Column(Integer, primary_key=True)
     supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"), nullable=False)
     
-    name_ru = Column(String(255), nullable=False)
-    name_kz = Column(String(255), nullable=False)
-    name_en = Column(String(255), nullable=True)
+    name = Column(String(255), nullable=False)
+    
     description_ru = Column(Text, nullable=True)
-    description_kz = Column(Text, nullable=True)
+    
     price = Column(Float, nullable=False)
     
     category_id = Column(Integer, ForeignKey("supplier_categories.id", ondelete="SET NULL"), nullable=True)

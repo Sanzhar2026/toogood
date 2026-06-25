@@ -7869,40 +7869,30 @@ async def update_supplier_category(
     request: Request,
     supplier_id: int = Depends(get_supplier_id_from_token)
 ):
-    """Обновить категорию поставщика (только свою)"""
+    """Обновить категорию поставщика"""
     try:
         data = await request.json()
         
-        name_ru = data.get("name_ru", "").strip()
-        name_kz = data.get("name_kz", "").strip()
-        name_en = data.get("name_en", "").strip()
+        name = data.get("name", "").strip()
         icon = data.get("icon", "📦")
         is_active = data.get("is_active", True)
+        
+        if not name:
+            return {"success": False, "error": "Введите название категории"}
         
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Проверяем что категория принадлежит поставщику и она кастомная
         cur.execute("""
-            SELECT id FROM supplier_categories 
+            UPDATE supplier_categories 
+            SET name = %s, icon = %s, is_active = %s, updated_at = NOW()
             WHERE id = %s AND supplier_id = %s AND is_custom = true
-        """, (category_id, supplier_id))
+        """, (name, icon, is_active, category_id, supplier_id))
         
-        if not cur.fetchone():
+        if cur.rowcount == 0:
             cur.close()
             conn.close()
             return {"success": False, "error": "Категория не найдена или является стандартной"}
-        
-        cur.execute("""
-            UPDATE supplier_categories SET
-                name_ru = %s,
-                name_kz = %s,
-                name_en = %s,
-                icon = %s,
-                is_active = %s,
-                updated_at = NOW()
-            WHERE id = %s AND supplier_id = %s
-        """, (name_ru, name_kz, name_en, icon, is_active, category_id, supplier_id))
         
         conn.commit()
         cur.close()
@@ -7911,7 +7901,7 @@ async def update_supplier_category(
         return {"success": True, "message": "Категория обновлена"}
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Ошибка: {e}")
         return {"success": False, "error": str(e)}
 # ======== ПОЛУЧИТЬ ТОВАРЫ ДЛЯ ВЫБОРА В СЮРПРИЗЕ ========
 @app.get("/api/supplier/products/for-bag")
@@ -8113,7 +8103,6 @@ async def create_surprise_bag(
         )    # ============================================================
 
 
-
 @app.get("/api/supplier/categories")
 async def get_supplier_categories(supplier_id: int = Depends(get_supplier_id_from_token)):
     """Получить все категории поставщика"""
@@ -8137,13 +8126,12 @@ async def get_supplier_categories(supplier_id: int = Depends(get_supplier_id_fro
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         return {"success": False, "error": str(e)}
-
 # ============================================================
 # ДОБАВИТЬ НОВУЮ КАТЕГОРИЮ
 # ============================================================
 @app.post("/api/supplier/categories")
 async def create_supplier_category(request: Request, supplier_id: int = Depends(get_supplier_id_from_token)):
-    """Создать новую категорию поставщика (ОДНО ПОЛЕ name)"""
+    """Создать новую категорию поставщика"""
     try:
         data = await request.json()
         
@@ -8176,7 +8164,6 @@ async def create_supplier_category(request: Request, supplier_id: int = Depends(
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         return {"success": False, "error": str(e)}
-
 # ============================================================
 # УДАЛИТЬ КАТЕГОРИЮ (ТОЛЬКО СВОЮ)
 # ============================================================
@@ -8220,6 +8207,8 @@ async def delete_supplier_category(
 # ============================================================
 # ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ ТОВАРОВ (С КАТЕГОРИЯМИ)
 # ============================================================
+
+
 @app.get("/api/supplier/products")
 async def get_supplier_products(supplier_id: int = Depends(get_supplier_id_from_token)):
     """Получить все товары поставщика"""
@@ -8253,45 +8242,69 @@ async def get_supplier_products(supplier_id: int = Depends(get_supplier_id_from_
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         return {"success": False, "error": str(e)}
-# ============================================================
-# ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ СОЗДАНИЯ ТОВАРА
-# ============================================================
+
 @app.post("/api/supplier/products")
 async def create_supplier_product(request: Request, supplier_id: int = Depends(get_supplier_id_from_token)):
-    """Создать новый товар поставщика (ОДНО ПОЛЕ name)"""
+    """Создать новый товар поставщика"""
     try:
         data = await request.json()
         
-        # ✅ ТОЛЬКО ОДНО ПОЛЕ name
         name = data.get("name", "").strip()
         price = float(data.get("price", 0))
-        category_id = data.get("category_id")
+        category_value = data.get("category_id")
         image_url = data.get("image_url", "").strip()
         description = data.get("description", "").strip()
         preparation_time = int(data.get("preparation_time", 15))
         is_available = data.get("is_available", True)
         
         if not name:
-            return {"success": False, "error": "Введите название товара"}
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Введите название товара"}
+            )
         
         if price <= 0:
-            return {"success": False, "error": "Цена должна быть больше 0"}
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Цена должна быть больше 0"}
+            )
         
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Проверяем категорию
-        if category_id:
-            cur.execute("""
-                SELECT id FROM supplier_categories 
-                WHERE id = %s AND supplier_id = %s AND is_active = true
-            """, (category_id, supplier_id))
-            if not cur.fetchone():
-                cur.close()
-                conn.close()
-                return {"success": False, "error": "Категория не найдена"}
+        category_id = None
         
-        # ✅ СОЗДАЕМ ТОВАР С ОДНИМ ПОЛЕМ name
+        if category_value:
+            if str(category_value).isdigit():
+                category_id = int(category_value)
+                cur.execute("""
+                    SELECT id FROM supplier_categories 
+                    WHERE id = %s AND supplier_id = %s AND is_active = true
+                """, (category_id, supplier_id))
+                if not cur.fetchone():
+                    cur.close()
+                    conn.close()
+                    return JSONResponse(
+                        status_code=400,
+                        content={"success": False, "error": "Категория не найдена"}
+                    )
+            else:
+                cur.execute("""
+                    SELECT id FROM supplier_categories 
+                    WHERE name = %s AND supplier_id = %s AND is_active = true
+                """, (category_value, supplier_id))
+                result = cur.fetchone()
+                if result:
+                    category_id = result[0]
+                else:
+                    cur.execute("""
+                        INSERT INTO supplier_categories (supplier_id, name, icon, is_custom, is_active)
+                        VALUES (%s, %s, '📦', false, true)
+                        RETURNING id
+                    """, (supplier_id, category_value))
+                    category_id = cur.fetchone()[0]
+                    print(f"✅ Создана категория: {category_value}")
+        
         cur.execute("""
             INSERT INTO supplier_products (
                 supplier_id, name, price, category_id, image_url, 
@@ -8307,17 +8320,22 @@ async def create_supplier_product(request: Request, supplier_id: int = Depends(g
         cur.close()
         conn.close()
         
-        return {
+        return JSONResponse(content={
             "success": True,
             "message": "Товар добавлен",
             "product_id": product_id
-        }
+        })
         
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         import traceback
         traceback.print_exc()
-        return {"success": False, "error": str(e)}
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
 # ============================================================
 # ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ УДАЛЕНИЯ ТОВАРА
 # ============================================================
