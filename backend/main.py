@@ -4276,16 +4276,22 @@ async def admin_approve_password_reset(
             )
         
         if approve:
-            import secrets
-            request_data["admin_approved"] = True
-            request_data["status"] = "approved"
-            request_data["reset_token"] = secrets.token_urlsafe(32)
-            password_reset_requests[formatted_phone] = request_data
-            
-            return JSONResponse(content={
-                "success": True,
-                "message": "Запрос одобрен"
-            })
+          code = str(random.randint(100000, 999999))
+          reset_token = secrets.token_urlsafe(32)
+        
+          request_data["admin_approved"] = True
+          request_data["code"] = code
+          request_data["reset_token"] = reset_token
+          password_reset_requests[phone] = request_data
+        
+          print(f"🔐 КОД ДЛЯ {phone}: {code}")
+        
+          # ✅ ОТПРАВЛЯЕМ КОД В ОТВЕТЕ (для теста)
+          return JSONResponse(content={
+            "success": True,
+            "message": "Запрос одобрен",
+            "debug_code": code  # <--- ДОБАВЬ ЭТУ СТРОЧКУ
+        })
         else:
             del password_reset_requests[formatted_phone]
             return JSONResponse(content={
