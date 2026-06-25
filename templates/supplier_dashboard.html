@@ -1,4 +1,4 @@
-<!-- templates/supplier_dashboard.html - ПОЛНАЯ ВЕРСИЯ -->
+<!-- templates/supplier_dashboard.html - ИСПРАВЛЕННАЯ ВЕРСИЯ -->
 
 {% extends "supplier_base.html" %}
 
@@ -296,7 +296,7 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
             <h3 style="margin-bottom: 1rem; font-size: 1rem; color: #367666;">Добавить сюрприз</h3>
             <form id="createBagForm">
                 <div class="form-group full-width">
-                    <label>Готовые сюрпризы</label>
+                    <label>Готовый шаблон</label>
                     <select id="surpriseTemplate" style="padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #e2e8f0; font-size: 0.8rem;">
                         <option value="">-- Выберите шаблон --</option>
                     </select>
@@ -304,18 +304,18 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 
                 <div class="form-group full-width">
                     <label>Название сюрприза *</label>
-                    <input type="text" id="bagName" required>
+                    <input type="text" id="bagName" required placeholder="Название">
                 </div>
 
                 <div class="form-group full-width">
                     <label>Описание</label>
-                    <textarea id="bagDescription" rows="2"></textarea>
+                    <textarea id="bagDescription" rows="2" placeholder="Описание сюрприза"></textarea>
                 </div>
 
                 <div class="form-group full-width">
-                    <label>Список товаров</label>
+                    <label>Список товаров (можно выбрать несколько)</label>
                     <div class="product-row">
-                        <select id="productSelect">
+                        <select id="productSelect" style="flex: 1;">
                             <option value="">-- Выберите товар --</option>
                         </select>
                         <input type="number" id="productQuantity" class="quantity-input" value="1" min="1">
@@ -347,7 +347,7 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Цена со скидкой (₸)</label>
-                        <input type="number" id="discountedPrice" required>
+                        <input type="number" id="discountedPrice" required placeholder="Цена после скидки">
                     </div>
                     <div class="form-group">
                         <label>Количество</label>
@@ -586,7 +586,7 @@ function setLanguage(lang) {
 }
 
 // ============================================================
-// БОГАТЫЕ ШАБЛОНЫ (ВСЕ ВОЗВРАЩЕНЫ)
+// БОГАТЫЕ ШАБЛОНЫ
 // ============================================================
 function getRichTemplatesByType(type) {
     var allTemplates = {
@@ -861,112 +861,16 @@ function getRichTemplatesByType(type) {
 }
 
 // ============================================================
-// ТЕСТОВЫЕ ТОВАРЫ (ВСЕ ВОЗВРАЩЕНЫ)
-// ============================================================
-function getTestProductsByType(type) {
-    var allProducts = {
-        'restaurant': [
-            {id: 101, name: 'Борщ', price: 1500, category: 'soup'},
-            {id: 102, name: 'Цезарь', price: 2200, category: 'salad'},
-            {id: 103, name: 'Стейк Рибай', price: 4500, category: 'hot_dish'},
-            {id: 104, name: 'Паста Карбонара', price: 2800, category: 'pasta'},
-            {id: 105, name: 'Маргарита Пицца', price: 2500, category: 'pizza'},
-            {id: 106, name: 'Гамбургер', price: 1800, category: 'burger'},
-            {id: 107, name: 'Тирамису', price: 1400, category: 'dessert'},
-            {id: 108, name: 'Лимонад', price: 800, category: 'drink'},
-            {id: 109, name: 'Семга на гриле', price: 3800, category: 'hot_dish'},
-            {id: 110, name: 'Греческий салат', price: 1500, category: 'salad'},
-            {id: 111, name: 'Стейк из говядины', price: 4200, category: 'hot_dish'}
-        ],
-        'cafe': [
-            {id: 201, name: 'Капучино', price: 800, category: 'coffee'},
-            {id: 202, name: 'Грин Чай', price: 600, category: 'tea'},
-            {id: 203, name: 'Чизкейк', price: 1200, category: 'dessert'},
-            {id: 204, name: 'Круассан', price: 600, category: 'pastry'},
-            {id: 205, name: 'Сэндвич', price: 1500, category: 'sandwich'},
-            {id: 206, name: 'Салат Греческий', price: 1500, category: 'salad'},
-            {id: 207, name: 'Смузи', price: 1000, category: 'smoothie'},
-            {id: 208, name: 'Завтрак', price: 2500, category: 'breakfast'}
-        ],
-        'fastfood': [
-            {id: 301, name: 'Бургер', price: 1800, category: 'burger'},
-            {id: 302, name: 'Пицца Маргарита', price: 2500, category: 'pizza'},
-            {id: 303, name: 'Курица', price: 2000, category: 'chicken'},
-            {id: 304, name: 'Картошка Фри', price: 800, category: 'fries'},
-            {id: 305, name: 'Наггетсы', price: 1500, category: 'snacks'},
-            {id: 306, name: 'Кола', price: 500, category: 'drink'},
-            {id: 307, name: 'Мороженое', price: 700, category: 'dessert'},
-            {id: 308, name: 'Чесночный соус', price: 200, category: 'sauce'}
-        ],
-        'supermarket': [
-            {id: 401, name: 'Молоко 1л', price: 500, category: 'dairy'},
-            {id: 402, name: 'Сметана 400г', price: 400, category: 'dairy'},
-            {id: 403, name: 'Курица 1кг', price: 1200, category: 'meat'},
-            {id: 404, name: 'Говядина 1кг', price: 2500, category: 'meat'},
-            {id: 405, name: 'Семга', price: 3500, category: 'fish'},
-            {id: 406, name: 'Картофель 1кг', price: 300, category: 'vegetables'},
-            {id: 407, name: 'Помидоры 1кг', price: 600, category: 'vegetables'},
-            {id: 408, name: 'Хлеб', price: 300, category: 'bakery'},
-            {id: 409, name: 'Рис 1кг', price: 500, category: 'groceries'},
-            {id: 410, name: 'Макароны', price: 400, category: 'groceries'},
-            {id: 411, name: 'Шоколад', price: 600, category: 'sweets'},
-            {id: 412, name: 'Чипсы', price: 400, category: 'snacks'},
-            {id: 413, name: 'Сок', price: 600, category: 'drinks'},
-            {id: 414, name: 'Вода', price: 300, category: 'drinks'},
-            {id: 415, name: 'Пельмени', price: 800, category: 'frozen'},
-            {id: 416, name: 'Мыло', price: 400, category: 'household'}
-        ],
-        'bakery': [
-            {id: 501, name: 'Белый хлеб', price: 400, category: 'bread'},
-            {id: 502, name: 'Бородинский хлеб', price: 450, category: 'bread'},
-            {id: 503, name: 'Багет', price: 350, category: 'baguette'},
-            {id: 504, name: 'Круассан', price: 600, category: 'pastry'},
-            {id: 505, name: 'Булочка с маком', price: 250, category: 'buns'},
-            {id: 506, name: 'Сдобная булочка', price: 300, category: 'buns'},
-            {id: 507, name: 'Пирожок с мясом', price: 350, category: 'pies'},
-            {id: 508, name: 'Пирожок с капустой', price: 300, category: 'pies'},
-            {id: 509, name: 'Торт Наполеон', price: 2000, category: 'cake'},
-            {id: 510, name: 'Медовик', price: 1800, category: 'cake'},
-            {id: 511, name: 'Чизкейк', price: 1500, category: 'dessert'},
-            {id: 512, name: 'Печенье', price: 300, category: 'cookies'},
-            {id: 513, name: 'Пряники', price: 250, category: 'cookies'},
-            {id: 514, name: 'Пончики', price: 400, category: 'yeast'},
-            {id: 515, name: 'Хлебцы', price: 200, category: 'other'}
-        ],
-        'hotel': [
-            {id: 601, name: 'Завтрак Европейский', price: 2500, category: 'breakfast'},
-            {id: 602, name: 'Завтрак Английский', price: 3000, category: 'breakfast'},
-            {id: 603, name: 'Обед бизнес-ланч', price: 3500, category: 'lunch'},
-            {id: 604, name: 'Ужин из 3 блюд', price: 4500, category: 'dinner'},
-            {id: 605, name: 'Шведский стол', price: 5000, category: 'buffet'},
-            {id: 606, name: 'Горячее блюдо', price: 2800, category: 'hot_dish'},
-            {id: 607, name: 'Салат Цезарь', price: 1500, category: 'salad'},
-            {id: 608, name: 'Салат Греческий', price: 1500, category: 'salad'},
-            {id: 609, name: 'Том Ям суп', price: 2000, category: 'soup'},
-            {id: 610, name: 'Борщ', price: 1500, category: 'soup'},
-            {id: 611, name: 'Десерт Тирамису', price: 1200, category: 'dessert'},
-            {id: 612, name: 'Фруктовая тарелка', price: 1800, category: 'fruit'},
-            {id: 613, name: 'Сок свежевыжатый', price: 800, category: 'drinks'},
-            {id: 614, name: 'Кофе эспрессо', price: 600, category: 'drinks'},
-            {id: 615, name: 'Чай ассорти', price: 500, category: 'drinks'},
-            {id: 616, name: 'Миндальные кексы', price: 400, category: 'snacks'},
-            {id: 617, name: 'Канапе', price: 600, category: 'snacks'}
-        ]
-    };
-    return allProducts[type] || allProducts['restaurant'];
-}
-
-// ============================================================
 // ТОВАРЫ
 // ============================================================
 function toggleProductForm() {
     const form = document.getElementById('addProductForm');
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
 
 function toggleCategoryForm() {
     const form = document.getElementById('addCategoryForm');
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
 
 async function loadSupplierProducts() {
@@ -1056,9 +960,12 @@ async function loadCategories() {
 // ============================================================
 function toggleAddBagForm() {
     const form = document.getElementById('addBagForm');
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    if (form.style.display === 'block') {
+    if (!form) return;
+    if (form.style.display === 'none' || form.style.display === '') {
+        form.style.display = 'block';
         form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        form.style.display = 'none';
     }
 }
 
@@ -1066,10 +973,10 @@ function addProduct() {
     const select = document.getElementById('productSelect');
     const productId = select.value;
     const quantity = parseInt(document.getElementById('productQuantity').value) || 1;
-    if (!productId) { alert('Выберите товар!'); return; }
+    if (!productId) { showNotification('Выберите товар!', 'error'); return; }
     
     const product = window.productsData.find(p => p.id == productId);
-    if (!product) { alert('Товар не найден!'); return; }
+    if (!product) { showNotification('Товар не найден!', 'error'); return; }
     
     const existing = selectedProducts.find(p => p.id == productId);
     if (existing) {
@@ -1086,7 +993,7 @@ function addProduct() {
     renderSelectedProducts();
     updateTotalPrice();
     select.value = '';
-    showNotification('Товар добавлен', 'success');
+    showNotification('Товар добавлен в сюрприз', 'success');
 }
 
 function renderSelectedProducts() {
@@ -1121,22 +1028,23 @@ function updateTotalPrice() {
 
 function applyDiscount(percent) {
     const original = parseFloat(document.getElementById('originalPrice').value);
-    if (!original || original <= 0) { alert('Сначала добавьте товары'); return; }
+    if (!original || original <= 0) { showNotification('Сначала добавьте товары', 'error'); return; }
     const discounted = percent === 0 ? original : original * (1 - percent / 100);
     document.getElementById('discountedPrice').value = Math.round(discounted);
+    showNotification('Скидка ' + percent + '% применена', 'success');
 }
 
 async function submitBagForm(e) {
     e.preventDefault();
-    const name = document.getElementById('bagName').value;
-    const description = document.getElementById('bagDescription').value;
+    const name = document.getElementById('bagName').value.trim();
+    const description = document.getElementById('bagDescription').value.trim();
     const discountedPrice = parseFloat(document.getElementById('discountedPrice').value);
-    const quantity = parseInt(document.getElementById('availableQuantity').value);
-    const imageUrl = document.getElementById('imageUrl').value;
+    const quantity = parseInt(document.getElementById('availableQuantity').value) || 1;
+    const imageUrl = document.getElementById('imageUrl').value.trim();
     const isHidden = document.querySelector('input[name="bag_type"]:checked').value === 'hidden';
     
-    if (!name) { alert('Введите название'); return; }
-    if (selectedProducts.length === 0) { alert('Добавьте товары'); return; }
+    if (!name) { showNotification('Введите название сюрприза', 'error'); return; }
+    if (selectedProducts.length === 0) { showNotification('Добавьте хотя бы один товар', 'error'); return; }
     
     const originalPrice = selectedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
     const discount = originalPrice > 0 && discountedPrice < originalPrice 
@@ -1157,16 +1065,26 @@ async function submitBagForm(e) {
     };
     
     try {
-        const response = await authFetch('/api/supplier/surprise-bags', { method: 'POST', body: JSON.stringify(data) });
+        const response = await authFetch('/api/supplier/surprise-bags', { 
+            method: 'POST', 
+            body: JSON.stringify(data) 
+        });
         if (response.ok) {
+            const result = await response.json();
             showNotification('Сюрприз добавлен!', 'success');
-            location.reload();
+            // Очищаем форму
+            document.getElementById('createBagForm').reset();
+            selectedProducts = [];
+            renderSelectedProducts();
+            updateTotalPrice();
+            document.getElementById('addBagForm').style.display = 'none';
+            refreshBags();
         } else {
             const error = await response.json();
-            alert('Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
+            showNotification('Ошибка: ' + (error.detail || 'Неизвестная ошибка'), 'error');
         }
     } catch(error) {
-        alert('Ошибка сети');
+        showNotification('Ошибка сети', 'error');
     }
 }
 
@@ -1236,7 +1154,7 @@ async function toggleBagType(bagId, currentHidden) {
         });
         const data = await response.json();
         if (data.success) {
-            showNotification('Тип изменен', 'success');
+            showNotification('Тип изменен на ' + text, 'success');
             refreshBags();
         }
     } catch(error) {
@@ -1456,6 +1374,37 @@ document.addEventListener('DOMContentLoaded', function() {
     initWebSocket();
     updateTemplateSelect();
     
+    // ============================================================
+    // СОЗДАНИЕ КАТЕГОРИИ
+    // ============================================================
+    document.getElementById('createCategoryForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const name = document.getElementById('categoryName').value.trim();
+        const icon = document.getElementById('categoryIcon').value;
+        if (!name) { showNotification('Введите название категории', 'error'); return; }
+        
+        try {
+            const response = await authFetch('/api/supplier/categories', {
+                method: 'POST',
+                body: JSON.stringify({ name: name, icon: icon })
+            });
+            const result = await response.json();
+            if (result.success) {
+                showNotification('Категория "' + name + '" добавлена!', 'success');
+                document.getElementById('createCategoryForm').reset();
+                toggleCategoryForm();
+                await loadCategories();
+            } else {
+                showNotification('Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
+            }
+        } catch(error) {
+            showNotification('Ошибка сети', 'error');
+        }
+    });
+    
+    // ============================================================
+    // СОЗДАНИЕ ТОВАРА
+    // ============================================================
     document.getElementById('createProductForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const name = document.getElementById('productName').value.trim();
@@ -1463,7 +1412,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const categoryId = document.getElementById('productCategory').value;
         const prepTime = parseInt(document.getElementById('productPrepTime').value) || 15;
         const desc = document.getElementById('productDesc').value.trim();
-        if (!name || !price) { alert('Заполните название и цену'); return; }
+        if (!name || !price) { showNotification('Заполните название и цену', 'error'); return; }
         
         try {
             const response = await authFetch('/api/supplier/products', {
@@ -1478,41 +1427,23 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             const result = await response.json();
             if (result.success) {
-                showNotification('Товар добавлен', 'success');
+                showNotification('Товар "' + name + '" добавлен!', 'success');
                 document.getElementById('createProductForm').reset();
                 document.getElementById('productPrepTime').value = 15;
                 toggleProductForm();
                 await loadSupplierProducts();
                 updateProductSelect();
+            } else {
+                showNotification('Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
             }
         } catch(error) {
-            showNotification('Ошибка', 'error');
+            showNotification('Ошибка сети', 'error');
         }
     });
     
-    document.getElementById('createCategoryForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const name = document.getElementById('categoryName').value.trim();
-        const icon = document.getElementById('categoryIcon').value;
-        if (!name) { alert('Введите название'); return; }
-        
-        try {
-            const response = await authFetch('/api/supplier/categories', {
-                method: 'POST',
-                body: JSON.stringify({ name: name, icon: icon })
-            });
-            const result = await response.json();
-            if (result.success) {
-                showNotification('Категория добавлена', 'success');
-                document.getElementById('createCategoryForm').reset();
-                toggleCategoryForm();
-                await loadCategories();
-            }
-        } catch(error) {
-            showNotification('Ошибка', 'error');
-        }
-    });
-    
+    // ============================================================
+    // СОЗДАНИЕ СЮРПРИЗА
+    // ============================================================
     document.getElementById('createBagForm').addEventListener('submit', submitBagForm);
     document.getElementById('surpriseTemplate').addEventListener('change', loadSurpriseTemplate);
     
@@ -1534,6 +1465,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 30000);
 });
 
+// ПОДПИСКА НА КЛИКИ ПО НАВИГАЦИИ
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.nav-links a').forEach(link => {
         link.addEventListener('click', function(e) {
