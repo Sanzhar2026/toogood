@@ -4173,7 +4173,7 @@ from datetime import datetime, timedelta
 # ✅ 1. КЛИЕНТ ЗАПРАШИВАЕТ ВОССТАНОВЛЕНИЕ ПАРОЛЯ
 @app.post("/api/auth/request-password-reset")
 async def request_password_reset(request: Request, db: Session = Depends(get_db)):
-    """Клиент запрашивает восстановление пароля"""
+    """Запрос на восстановление пароля"""
     try:
         data = await request.json()
         phone = data.get("phone")
@@ -4184,33 +4184,30 @@ async def request_password_reset(request: Request, db: Session = Depends(get_db)
                 content={"success": False, "message": "Телефон обязателен"}
             )
         
-        formatted_phone = format_phone_number(phone)
-        
-        # Проверяем, существует ли пользователь
-        user = db.query(User).filter(User.phone == formatted_phone).first()
+        # Проверяем пользователя
+        user = db.query(User).filter(User.phone == phone).first()
         if not user:
             return JSONResponse(
                 status_code=404,
-                content={"success": False, "message": "Пользователь с таким номером не найден"}
+                content={"success": False, "message": "Пользователь не найден"}
             )
         
-        # Генерируем 6-значный код
+        # Генерируем код
         code = str(random.randint(100000, 999999))
         
         # Сохраняем запрос (НЕ ОДОБРЕН)
-        password_reset_requests[formatted_phone] = {
+        password_reset_requests[phone] = {
             "code": code,
             "user_id": user.id,
             "expires": datetime.utcnow() + timedelta(minutes=15),
-            "status": "pending",
             "admin_approved": False
         }
         
-        print(f"🔐 Запрос на восстановление для {formatted_phone}, код: {code}")
+        print(f"🔐 Запрос на восстановление для {phone}, код: {code}")
         
         return JSONResponse(content={
             "success": True,
-            "message": "Код отправлен на ваш номер",
+            "message": "Код отправлен",
             "debug_code": code
         })
         
