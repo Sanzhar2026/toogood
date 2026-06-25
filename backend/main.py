@@ -7904,7 +7904,7 @@ async def update_supplier_category(
         print(f"❌ Ошибка: {e}")
         return {"success": False, "error": str(e)}
 
-        
+
 # ======== ПОЛУЧИТЬ ТОВАРЫ ДЛЯ ВЫБОРА В СЮРПРИЗЕ ========
 @app.get("/api/supplier/products/for-bag")
 async def get_products_for_bag(
@@ -8104,7 +8104,6 @@ async def create_surprise_bag(
             content={"success": False, "error": str(e)}
         )    # ============================================================
 
-
 @app.get("/api/supplier/categories")
 async def get_supplier_categories(supplier_id: int = Depends(get_supplier_id_from_token)):
     """Получить все категории поставщика"""
@@ -8112,6 +8111,7 @@ async def get_supplier_categories(supplier_id: int = Depends(get_supplier_id_fro
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
+        # ✅ ТОЛЬКО name (БЕЗ name_ru, name_kz, name_en)
         cur.execute("""
             SELECT id, name, icon, is_custom, is_active, created_at
             FROM supplier_categories
@@ -8133,7 +8133,7 @@ async def get_supplier_categories(supplier_id: int = Depends(get_supplier_id_fro
 # ============================================================
 @app.post("/api/supplier/categories")
 async def create_supplier_category(request: Request, supplier_id: int = Depends(get_supplier_id_from_token)):
-    """Создать новую категорию поставщика"""
+    """Создать новую категорию поставщика (ОДНО ПОЛЕ name)"""
     try:
         data = await request.json()
         
@@ -8146,6 +8146,7 @@ async def create_supplier_category(request: Request, supplier_id: int = Depends(
         conn = get_db_connection()
         cur = conn.cursor()
         
+        # ✅ ТОЛЬКО name (БЕЗ name_ru, name_kz)
         cur.execute("""
             INSERT INTO supplier_categories (supplier_id, name, icon, is_custom, is_active)
             VALUES (%s, %s, %s, true, true)
@@ -8165,8 +8166,7 @@ async def create_supplier_category(request: Request, supplier_id: int = Depends(
         
     except Exception as e:
         print(f"❌ Ошибка: {e}")
-        return {"success": False, "error": str(e)}
-# ============================================================
+        return {"success": False, "error": str(e)}# ============================================================
 # УДАЛИТЬ КАТЕГОРИЮ (ТОЛЬКО СВОЮ)
 # ============================================================
 @app.delete("/api/supplier/categories/{category_id}")
