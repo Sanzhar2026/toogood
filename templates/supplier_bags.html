@@ -1,195 +1,99 @@
-{% extends "layout_supplier.html" %}
+{% extends "supplier_base.html" %}
+
+{% block title %}Сюрпризы - {{ supplier.business_name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.bags-container { padding: 1rem 2rem 5rem 2rem; }
+.nav-links { background: white; border-bottom: 1px solid #e8f5e9; padding: 0 2rem; margin-bottom: 2rem; display: flex; gap: 2rem; overflow-x: auto; position: sticky; top: 70px; z-index: 99; }
+.nav-links a { padding: 1rem 0; text-decoration: none; color: #64748b; font-weight: 500; transition: all 0.2s; font-size: 0.9rem; }
+.nav-links a:hover { color: #367666; }
+.nav-links a.active { color: #367666; border-bottom: 2px solid #367666; }
+.section-title { font-size: 1.2rem; font-weight: 600; color: #367666; border-left: 4px solid #367666; padding-left: 0.75rem; }
+.header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+.btn-primary { background: #367666; color: white; padding: 0.4rem 0.8rem; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+.btn-primary:hover { background: #2a5a4d; }
+.refresh-btn { background: #f1f5f9; border: 1px solid #e0e0e0; padding: 0.4rem 1rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.8rem; color: #367666; transition: background 0.2s; }
+.refresh-btn:hover { background: #e8f5e9; }
+.table-container { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+th, td { padding: 0.6rem 0.5rem; text-align: left; border-bottom: 1px solid #e8f5e9; }
+th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px solid #367666; }
+</style>
+{% endblock %}
 
 {% block content %}
-<style>
-    .bags-container {
-        padding: 2rem;
-    }
-    
-    .header-section {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        border-radius: 1.5rem;
-        padding: 2rem;
-        margin-bottom: 2rem;
-        color: white;
-    }
-    
-    .nav-links {
-        background: white;
-        border-bottom: 1px solid #e2e8f0;
-        padding: 0 2rem;
-        margin-bottom: 2rem;
-        display: flex;
-        gap: 2rem;
-        overflow-x: auto;
-    }
-    
-    .nav-links a {
-        padding: 1rem 0;
-        text-decoration: none;
-        color: #64748b;
-        font-weight: 500;
-    }
-    
-    .nav-links a:hover {
-        color: #0f172a;
-    }
-    
-    .nav-links a.active {
-        color: #0f172a;
-        border-bottom: 2px solid #fbbf24;
-    }
-    
-    .bags-table {
-        background: white;
-        border-radius: 1rem;
-        overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    
-    th, td {
-        padding: 1rem;
-        text-align: left;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    
-    th {
-        background: #f8fafc;
-        font-weight: 600;
-    }
-    
-    .btn {
-        padding: 0.4rem 0.8rem;
-        border: none;
-        border-radius: 0.5rem;
-        cursor: pointer;
-        font-size: 0.8rem;
-    }
-    
-    .btn-primary {
-        background: #fbbf24;
-        color: #0f172a;
-    }
-    
-    .btn-primary:hover {
-        background: #f59e0b;
-    }
-    
-    .empty-state {
-        text-align: center;
-        padding: 3rem;
-        color: #94a3b8;
-    }
-    
-    @media (max-width: 768px) {
-        .bags-container {
-            padding: 1rem;
-        }
-        .nav-links {
-            padding: 0 1rem;
-            gap: 1rem;
-        }
-        th, td {
-            font-size: 12px;
-            padding: 0.5rem;
-        }
-    }
-</style>
-
 <div class="bags-container">
-    <div class="header-section">
-        <h1>🎁 Управление сюрпризами</h1>
-        <p>Список ваших сюрприз-пакетов</p>
-    </div>
-
     <div class="nav-links">
-        <a href="/supplier/dashboard">📊 Дашборд</a>
-        <a href="/supplier/couriers">🚚 Курьеры</a>
-        <a href="/supplier/orders">📦 Заказы</a>
-        <a href="/supplier/surprise-bags" class="active">🎁 Сюрпризы</a>
+        <a href="/supplier/dashboard">Главная</a>
+        <a href="/supplier/couriers">Курьеры</a>
+        <a href="/supplier/orders">Заказы</a>
+        <a href="/supplier/surprise-bags" class="active">Сюрпризы</a>
     </div>
 
-    <div class="bags-table">
+    <div class="header-actions">
+        <h1 class="section-title">Сюрпризы</h1>
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="btn-primary" onclick="window.location.href='/supplier/dashboard?openForm=bag'">+ Добавить</button>
+            <button class="refresh-btn" onclick="location.reload()">Обновить</button>
+        </div>
+    </div>
+    
+    <div class="table-container">
         <table>
             <thead>
                 <tr>
-                    <th>ID</th>
                     <th>Название</th>
-                    <th>Описание</th>
                     <th>Цена</th>
                     <th>Со скидкой</th>
-                    <th>Скидка</th>
-                    <th>Осталось</th>
+                    <th>Кол-во</th>
+                    <th>Тип</th>
                     <th>Статус</th>
-                    <th>Действие</th>
                 </tr>
             </thead>
             <tbody id="bagsTableBody">
-                <tr><td colspan="9" class="empty-state">Загрузка...</td></tr>
+                <tr><td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">Загрузка...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
 <script>
-    async function loadBags() {
-        try {
-            const response = await fetch('/api/supplier/surprise-bags');
-            const data = await response.json();
-            
-            if (!data.success) return;
-            
-            const tbody = document.getElementById('bagsTableBody');
-            
-            if (!data.bags || data.bags.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">🎁 Нет сюрприз-пакетов. Добавьте на главной странице</td></tr>';
-                return;
-            }
-            
-            tbody.innerHTML = '';
-            for (let bag of data.bags) {
-                const row = `
-                    <tr>
-                        <td>#${bag.id}</td>
-                        <td><strong>${escapeHtml(bag.name)}</strong></td>
-                        <td style="max-width: 200px;">${escapeHtml(bag.description || '—')}</td>
-                        <td>${bag.original_price} ₸</td>
-                        <td><strong style="color: #ef4444;">${bag.discounted_price} ₸</strong></td>
-                        <td><span style="background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; font-size: 0.7rem;">-${bag.discount_percentage || 0}%</span></td>
-                        <td>${bag.available_quantity}/${bag.total_quantity}</td>
-                        <td>${bag.is_active ? '<span style="color: #10b981;">✅ Активен</span>' : '<span style="color: #ef4444;">❌ Неактивен</span>'}</td>
-                        <td><button class="btn btn-primary" onclick="toggleBag(${bag.id})">🔄 Сменить статус</button></td>
-                    </tr>
-                `;
-                tbody.innerHTML += row;
-            }
-        } catch (error) {
-            console.error('Error loading bags:', error);
+document.addEventListener('DOMContentLoaded', function() {
+    const token = sessionStorage.getItem('supplier_token');
+    
+    fetch('/api/supplier/surprise-bags', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(r => r.json())
+    .then(data => {
+        const tbody = document.getElementById('bagsTableBody');
+        if (!data.bags || data.bags.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">Нет сюрпризов</td></tr>';
+            return;
         }
-    }
-    
-    async function toggleBag(bagId) {
-        if (confirm('Изменить статус сюрприз-пакета?')) {
-            const res = await fetch(`/api/supplier/surprise-bags/${bagId}/toggle`, { method: 'PUT' });
-            if (res.ok) {
-                alert('✅ Статус изменен');
-                loadBags();
-            } else {
-                alert('❌ Ошибка');
-            }
-        }
-    }
-    
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
-    }
-    
-    loadBags();
+        tbody.innerHTML = '';
+        data.bags.forEach(b => {
+            const typeText = b.hide_contents ? 'Скрытый' : 'Открытый';
+            const typeColor = b.hide_contents ? '#f59e0b' : '#10b981';
+            const statusText = b.is_active ? 'Активен' : 'Неактивен';
+            const statusColor = b.is_active ? '#10b981' : '#e74c3c';
+            
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${b.name}</strong></td>
+                    <td>${b.original_price} ₸</td>
+                    <td><strong style="color: #e74c3c;">${b.discounted_price} ₸</strong></td>
+                    <td>${b.available_quantity}/${b.total_quantity}</td>
+                    <td style="color: ${typeColor}; font-weight: bold;">${typeText}</td>
+                    <td style="color: ${statusColor};">${statusText}</td>
+                </tr>
+            `;
+        });
+    })
+    .catch(() => {
+        document.getElementById('bagsTableBody').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #e74c3c;">Ошибка загрузки</td></tr>';
+    });
+});
 </script>
 {% endblock %}

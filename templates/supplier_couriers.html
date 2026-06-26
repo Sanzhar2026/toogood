@@ -1,194 +1,232 @@
 <!-- templates/supplier_couriers.html -->
-{% extends "layout_supplier.html" %}
+{% extends "supplier_base.html" %}
+
+{% block title %}Курьеры - {{ supplier.business_name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.couriers-container {
+    padding: 1rem 2rem 5rem 2rem;
+}
+
+.header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.add-courier-btn {
+    background: #367666;
+    color: white;
+    padding: 0.7rem 1.5rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.add-courier-btn:hover {
+    background: #2a5a4d;
+    transform: translateY(-2px);
+}
+
+.courier-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    border: 1px solid #e8f5e9;
+}
+
+.courier-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.courier-info {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.courier-avatar {
+    width: 60px;
+    height: 60px;
+    background: #367666;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: white;
+}
+
+.courier-details h3 {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-bottom: 0.3rem;
+}
+
+.courier-details p {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.courier-stats {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.stat {
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #367666;
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    color: #64748b;
+}
+
+.online-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+.online {
+    background: #10b981;
+    animation: pulse 2s infinite;
+}
+
+.offline {
+    background: #e74c3c;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.verified-badge {
+    background: #10b981;
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: 2rem;
+    font-size: 0.7rem;
+}
+
+.pending-badge {
+    background: #f59e0b;
+    color: white;
+    padding: 0.2rem 0.5rem;
+    border-radius: 2rem;
+    font-size: 0.7rem;
+}
+
+.verify-btn {
+    background: #367666;
+    color: white;
+    padding: 0.4rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+    margin-right: 0.5rem;
+}
+
+.verify-btn:hover {
+    background: #2a5a4d;
+}
+
+.remove-btn {
+    background: #e74c3c;
+    color: white;
+    padding: 0.4rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+}
+
+.remove-btn:hover {
+    background: #c0392b;
+}
+
+.nav-links {
+    background: white;
+    border-bottom: 1px solid #e8f5e9;
+    padding: 0 2rem;
+    margin-bottom: 2rem;
+    display: flex;
+    gap: 2rem;
+    overflow-x: auto;
+    position: sticky;
+    top: 70px;
+    z-index: 99;
+}
+
+.nav-links a {
+    padding: 1rem 0;
+    text-decoration: none;
+    color: #64748b;
+    font-weight: 500;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.nav-links a:hover { color: #367666; }
+.nav-links a.active { color: #367666; border-bottom: 2px solid #367666; }
+
+.section-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #367666;
+    border-left: 4px solid #367666;
+    padding-left: 0.75rem;
+}
+
+@media (max-width: 768px) {
+    .couriers-container { padding: 1rem; }
+    .courier-card { flex-direction: column; text-align: center; }
+    .courier-info { flex-direction: column; }
+    .courier-stats { justify-content: center; }
+}
+</style>
+{% endblock %}
 
 {% block content %}
-<style>
-    .couriers-container {
-        padding: 2rem;
-    }
-    
-    .header-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 2rem;
-        flex-wrap: wrap;
-        gap: 1rem;
-    }
-    
-    .add-courier-btn {
-        background: #0f172a;
-        color: white;
-        padding: 0.7rem 1.5rem;
-        border: none;
-        border-radius: 0.5rem;
-        cursor: pointer;
-        font-weight: 600;
-        transition: all 0.2s;
-    }
-    
-    .add-courier-btn:hover {
-        background: #1e293b;
-        transform: translateY(-2px);
-    }
-    
-    .courier-card {
-        background: white;
-        border-radius: 1rem;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        transition: transform 0.2s;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 1rem;
-    }
-    
-    .courier-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    
-    .courier-info {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-    }
-    
-    .courier-avatar {
-        width: 60px;
-        height: 60px;
-        background: linear-gradient(135deg, #0f172a, #1e293b);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.8rem;
-        color: white;
-    }
-    
-    .courier-details h3 {
-        font-size: 1.1rem;
-        font-weight: bold;
-        margin-bottom: 0.3rem;
-    }
-    
-    .courier-details p {
-        color: #64748b;
-        font-size: 0.8rem;
-    }
-    
-    .courier-stats {
-        display: flex;
-        gap: 1rem;
-    }
-    
-    .stat {
-        text-align: center;
-    }
-    
-    .stat-value {
-        font-size: 1.2rem;
-        font-weight: bold;
-    }
-    
-    .stat-label {
-        font-size: 0.7rem;
-        color: #64748b;
-    }
-    
-    .online-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 0.5rem;
-    }
-    
-    .online {
-        background: #10b981;
-        animation: pulse 2s infinite;
-    }
-    
-    .offline {
-        background: #ef4444;
-    }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-    }
-    
-    .verified-badge {
-        background: #10b981;
-        color: white;
-        padding: 0.2rem 0.5rem;
-        border-radius: 2rem;
-        font-size: 0.7rem;
-    }
-    
-    .pending-badge {
-        background: #f59e0b;
-        color: white;
-        padding: 0.2rem 0.5rem;
-        border-radius: 2rem;
-        font-size: 0.7rem;
-    }
-    
-    .verify-btn {
-        background: #10b981;
-        color: white;
-        padding: 0.5rem 1rem;
-        border: none;
-        border-radius: 0.5rem;
-        cursor: pointer;
-        font-size: 0.8rem;
-        transition: all 0.2s;
-    }
-    
-    .verify-btn:hover {
-        background: #059669;
-    }
-    
-    .remove-btn {
-        background: #ef4444;
-        color: white;
-        padding: 0.5rem 1rem;
-        border: none;
-        border-radius: 0.5rem;
-        cursor: pointer;
-        font-size: 0.8rem;
-        margin-left: 0.5rem;
-        transition: all 0.2s;
-    }
-    
-    .remove-btn:hover {
-        background: #dc2626;
-    }
-    
-    @media (max-width: 768px) {
-        .couriers-container {
-            padding: 1rem;
-        }
-        .courier-card {
-            flex-direction: column;
-            text-align: center;
-        }
-        .courier-info {
-            flex-direction: column;
-        }
-        .courier-stats {
-            justify-content: center;
-        }
-    }
-</style>
-
 <div class="couriers-container">
+    <!-- НАВИГАЦИЯ -->
+    <div class="nav-links">
+        <a href="/supplier/dashboard">Главная</a>
+        <a href="/supplier/couriers" class="active">Курьеры</a>
+        <a href="/supplier/orders">Заказы</a>
+        <a href="/supplier/surprise-bags">Сюрпризы</a>
+    </div>
+
     <div class="header-actions">
-        <h1 class="section-title">🚚 Курьеры</h1>
-        <button class="add-courier-btn" id="addCourierBtn">➕ Добавить курьера</button>
+        <h1 class="section-title">Курьеры</h1>
+        <button class="add-courier-btn" id="addCourierBtn">+ Добавить курьера</button>
     </div>
     
     <div id="couriersList">
@@ -196,9 +234,7 @@
             {% for courier in couriers %}
             <div class="courier-card" data-courier-id="{{ courier.id }}">
                 <div class="courier-info">
-                    <div class="courier-avatar">
-                        🚚
-                    </div>
+                    <div class="courier-avatar">🚚</div>
                     <div class="courier-details">
                         <h3>
                             <span class="online-dot {% if courier.is_online %}online{% else %}offline{% endif %}"></span>
@@ -211,19 +247,19 @@
                 
                 <div class="courier-stats">
                     <div class="stat">
-                        <div class="stat-value">⭐ {{ courier.rating }}</div>
+                        <div class="stat-value">⭐ {{ courier.rating or 0 }}</div>
                         <div class="stat-label">Рейтинг</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">{{ courier.total_deliveries }}</div>
+                        <div class="stat-value">{{ courier.total_deliveries or 0 }}</div>
                         <div class="stat-label">Доставок</div>
                     </div>
                     <div class="stat">
                         <div class="stat-value">
                             {% if courier.is_verified %}
-                                <span class="verified-badge">✅ Подтвержден</span>
+                                <span class="verified-badge">Подтвержден</span>
                             {% else %}
-                                <span class="pending-badge">⏳ Ожидает</span>
+                                <span class="pending-badge">Ожидает</span>
                             {% endif %}
                         </div>
                         <div class="stat-label">Статус</div>
@@ -232,67 +268,69 @@
                 
                 <div class="courier-actions">
                     {% if not courier.is_verified %}
-                        <button class="verify-btn" data-courier-id="{{ courier.id }}">✅ Подтвердить</button>
+                        <button class="verify-btn" data-courier-id="{{ courier.id }}">Подтвердить</button>
                     {% endif %}
-                    <button class="remove-btn" data-courier-id="{{ courier.id }}">🗑️ Удалить</button>
+                    <button class="remove-btn" data-courier-id="{{ courier.id }}">Удалить</button>
                 </div>
             </div>
             {% endfor %}
         {% else %}
-            <div class="text-center" style="padding: 3rem; background: white; border-radius: 1rem;">
-                <p style="color: #64748b;">👋 Нет добавленных курьеров</p>
-                <button class="add-courier-btn" style="margin-top: 1rem;">➕ Добавить первого курьера</button>
+            <div style="text-align: center; padding: 3rem; background: white; border-radius: 1rem; border: 1px solid #e8f5e9;">
+                <p style="color: #64748b;">Нет добавленных курьеров</p>
+                <button class="add-courier-btn" style="margin-top: 1rem;">+ Добавить первого курьера</button>
             </div>
         {% endif %}
     </div>
 </div>
 
-<!-- Модальное окно добавления курьера -->
+<!-- Модальное окно -->
 <div id="addCourierModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-    <div style="background: white; border-radius: 1rem; padding: 2rem; max-width: 500px; width: 90%;">
-        <h2 style="margin-bottom: 1rem;">➕ Добавить курьера</h2>
+    <div style="background: white; border-radius: 1rem; padding: 2rem; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <h2 style="margin-bottom: 1rem; color: #367666;">+ Добавить курьера</h2>
         <form id="addCourierForm">
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem;">Имя *</label>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Имя *</label>
                 <input type="text" id="firstName" required style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 0.5rem;">
             </div>
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem;">Фамилия *</label>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Фамилия *</label>
                 <input type="text" id="lastName" required style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 0.5rem;">
             </div>
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem;">Телефон *</label>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Телефон *</label>
                 <input type="tel" id="phone" required placeholder="+7 777 123 4567" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 0.5rem;">
             </div>
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem;">Пароль *</label>
-                <input type="password" id="password" required style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 0.5rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Пароль *</label>
+                <input type="password" id="password" required minlength="6" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 0.5rem;">
             </div>
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem;">Тип курьера</label>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Тип курьера</label>
                 <select id="courierType" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 0.5rem;">
                     <option value="pedestrian">🚶 Пеший</option>
                     <option value="driver">🚗 На машине</option>
                 </select>
             </div>
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem;">Модель авто</label>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Модель авто</label>
                 <input type="text" id="carModel" placeholder="Toyota Camry" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 0.5rem;">
             </div>
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem;">Госномер</label>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Госномер</label>
                 <input type="text" id="carNumber" placeholder="A123BC" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 0.5rem;">
             </div>
             <div style="display: flex; gap: 1rem;">
-                <button type="submit" style="flex: 1; background: #0f172a; color: white; padding: 0.7rem; border: none; border-radius: 0.5rem; cursor: pointer;">✅ Добавить</button>
-                <button type="button" id="closeModalBtn" style="flex: 1; background: #ef4444; color: white; padding: 0.7rem; border: none; border-radius: 0.5rem; cursor: pointer;">❌ Отмена</button>
+                <button type="submit" style="flex: 1; background: #367666; color: white; padding: 0.7rem; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600;">Добавить</button>
+                <button type="button" id="closeModalBtn" style="flex: 1; background: #e74c3c; color: white; padding: 0.7rem; border: none; border-radius: 0.5rem; cursor: pointer;">Отмена</button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-    var modal = document.getElementById('addCourierModal');
+(function() {
+    const modal = document.getElementById('addCourierModal');
+    const token = sessionStorage.getItem('supplier_token');
     
     document.getElementById('addCourierBtn').addEventListener('click', function() {
         modal.style.display = 'flex';
@@ -302,69 +340,89 @@
         modal.style.display = 'none';
     });
     
+    window.addEventListener('click', function(e) {
+        if (e.target === modal) modal.style.display = 'none';
+    });
+    
     document.getElementById('addCourierForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        var data = {
-            first_name: document.getElementById('firstName').value,
-            last_name: document.getElementById('lastName').value,
-            phone: document.getElementById('phone').value,
+        const data = {
+            first_name: document.getElementById('firstName').value.trim(),
+            last_name: document.getElementById('lastName').value.trim(),
+            phone: document.getElementById('phone').value.trim(),
             password: document.getElementById('password').value,
             courier_type: document.getElementById('courierType').value,
-            car_model: document.getElementById('carModel').value,
-            car_number: document.getElementById('carNumber').value
+            car_model: document.getElementById('carModel').value.trim(),
+            car_number: document.getElementById('carNumber').value.trim()
         };
         
         try {
-            var response = await fetch('/supplier/couriers/add', {
+            const response = await fetch('/supplier/couriers/add', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
                 body: JSON.stringify(data)
             });
             
-            var result = await response.json();
+            const result = await response.json();
             
             if (response.ok && result.success) {
-                alert('✅ Курьер добавлен!');
+                alert('Курьер добавлен!');
                 location.reload();
             } else {
-                alert('❌ ' + (result.detail || 'Ошибка'));
+                alert('Ошибка: ' + (result.detail || 'Неизвестная ошибка'));
             }
         } catch(error) {
-            alert('❌ Ошибка сети');
+            alert('Ошибка сети');
         }
     });
     
-    // Подтверждение курьера
     document.querySelectorAll('.verify-btn').forEach(function(btn) {
         btn.addEventListener('click', async function() {
-            var courierId = this.getAttribute('data-courier-id');
-            if (confirm('Подтвердить этого курьера?')) {
-                var response = await fetch('/api/admin/verify-courier/' + courierId, { method: 'POST' });
+            const courierId = this.getAttribute('data-courier-id');
+            if (!confirm('Подтвердить этого курьера?')) return;
+            
+            try {
+                const response = await fetch('/api/admin/verify-courier/' + courierId, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
                 if (response.ok) {
-                    alert('✅ Курьер подтвержден');
+                    alert('Курьер подтвержден');
                     location.reload();
                 } else {
-                    alert('❌ Ошибка');
+                    alert('Ошибка');
                 }
+            } catch(e) {
+                alert('Ошибка сети');
             }
         });
     });
     
-    // Удаление курьера
     document.querySelectorAll('.remove-btn').forEach(function(btn) {
         btn.addEventListener('click', async function() {
-            var courierId = this.getAttribute('data-courier-id');
-            if (confirm('Удалить этого курьера?')) {
-                var response = await fetch('/api/supplier/couriers/' + courierId, { method: 'DELETE' });
+            const courierId = this.getAttribute('data-courier-id');
+            if (!confirm('Удалить этого курьера?')) return;
+            
+            try {
+                const response = await fetch('/api/supplier/couriers/' + courierId, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
                 if (response.ok) {
-                    alert('✅ Курьер удален');
+                    alert('Курьер удален');
                     location.reload();
                 } else {
-                    alert('❌ Ошибка');
+                    alert('Ошибка');
                 }
+            } catch(e) {
+                alert('Ошибка сети');
             }
         });
     });
+})();
 </script>
 {% endblock %}
