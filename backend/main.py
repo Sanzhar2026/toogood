@@ -8821,6 +8821,8 @@ async def get_supplier_templates(
         
     except Exception as e:
         print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
@@ -8882,6 +8884,8 @@ async def create_supplier_template(
     except Exception as e:
         db.rollback()
         print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
@@ -8917,10 +8921,14 @@ async def delete_supplier_template(
     except Exception as e:
         db.rollback()
         print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+    
+
     
 @app.get("/api/payment/history")
 async def get_payment_history(request: Request, db: Session = Depends(get_db)):

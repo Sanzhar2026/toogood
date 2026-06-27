@@ -142,7 +142,7 @@ class Supplier(Base):
     reviews = relationship("SupplierReview", back_populates="supplier", cascade="all, delete-orphan")
     products = relationship("SupplierProduct", back_populates="supplier", cascade="all, delete-orphan")
     categories = relationship("SupplierCategory", back_populates="supplier", cascade="all, delete-orphan")
-
+    templates = relationship("SupplierTemplate", back_populates="supplier", cascade="all, delete-orphan")
 
 # ======== SupplierReview model ========
 class SupplierReview(Base):
@@ -291,7 +291,7 @@ class SupplierTemplate(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     supplier = relationship("Supplier", back_populates="templates")
-    
+
 # ======== Order model ========
 class Order(Base):
     __tablename__ = "orders"
