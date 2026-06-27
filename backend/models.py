@@ -273,7 +273,25 @@ class SurpriseBag(Base):
     items = relationship("SurpriseBagItem", back_populates="surprise_bag", cascade="all, delete-orphan")
     reviews = relationship("SurpriseBagReview", back_populates="surprise_bag", cascade="all, delete-orphan")
 
-
+class SupplierTemplate(Base):
+    """Шаблоны сюрпризов для поставщиков"""
+    __tablename__ = "supplier_templates"
+    
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"), nullable=False)
+    
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # Данные шаблона (JSON)
+    template_data = Column(Text, nullable=False)  # JSON с товарами, ценами и т.д.
+    
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    supplier = relationship("Supplier", back_populates="templates")
+    
 # ======== Order model ========
 class Order(Base):
     __tablename__ = "orders"

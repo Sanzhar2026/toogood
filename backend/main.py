@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from backend.database import SessionLocal, engine, get_db
 from backend import models
-from backend.models import Food, User, Supplier, SurpriseBag, Order, OrderTracking
+from backend.models import Food, SupplierTemplate, User, Supplier, SurpriseBag, Order, OrderTracking
 from datetime import datetime, timedelta
 import secrets
 import os
@@ -8790,6 +8790,138 @@ async def get_payment_status(payment_id: str, db: Session = Depends(get_db)):
         "timestamp": transaction["timestamp"]
     }
 
+
+# ============================================================
+# ШАБЛОНЫ СЮРПРИЗОВ
+# ============================================================
+
+@app.get("/api/supplier/templates")
+async def get_supplier_templates(
+    supplier_id: int = Depends(get_supplier_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """Получить все шаблоны поставщика"""
+    try:
+        templates = db.query(SupplierTemplate).filter(
+            SupplierTemplate.supplier_id == supplier_id,
+            SupplierTemplate.is_active == True
+        ).order_by(SupplierTemplate.created_at.desc()).all()
+        
+        result = []
+        for template in templates:
+            result.append({
+                "id": template.id,
+                "name": template.name,
+                "description": template.description,
+                "template_data": json.loads(template.template_data) if template.template_data else {},
+                "created_at": template.created_at.isoformat() if template.created_at else None
+            })
+        
+        return JSONResponse(content={"success": True, "templates": result})
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+@app.post("/api/supplier/templates")
+async def create_supplier_template(
+    request: Request,
+    supplier_id: int = Depends(get_supplier_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """Создать новый шаблон"""
+    try:
+        data = await request.json()
+        
+        name = data.get("name", "").strip()
+        description = data.get("description", "").strip()
+        template_data = data.get("template_data", {})
+        
+        if not name:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Введите название шаблона"}
+            )
+        
+        if not template_data:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Нет данных шаблона"}
+            )
+        
+        # Проверяем, что есть товары
+        products = template_data.get("products", [])
+        if not products or len(products) == 0:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Добавьте хотя бы один товар"}
+            )
+        
+        # Создаем шаблон
+        template = SupplierTemplate(
+            supplier_id=supplier_id,
+            name=name,
+            description=description,
+            template_data=json.dumps(template_data),
+            is_active=True
+        )
+        
+        db.add(template)
+        db.commit()
+        db.refresh(template)
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Шаблон создан",
+            "template_id": template.id
+        })
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Ошибка: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+@app.delete("/api/supplier/templates/{template_id}")
+async def delete_supplier_template(
+    template_id: int,
+    supplier_id: int = Depends(get_supplier_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """Удалить шаблон"""
+    try:
+        template = db.query(SupplierTemplate).filter(
+            SupplierTemplate.id == template_id,
+            SupplierTemplate.supplier_id == supplier_id
+        ).first()
+        
+        if not template:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Шаблон не найден"}
+            )
+        
+        db.delete(template)
+        db.commit()
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Шаблон удален"
+        })
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Ошибка: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+    
 @app.get("/api/payment/history")
 async def get_payment_history(request: Request, db: Session = Depends(get_db)):
     """Get user's payment history"""

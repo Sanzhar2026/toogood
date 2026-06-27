@@ -591,7 +591,79 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
                         <option value="">-- Выберите шаблон --</option>
                     </select>
                 </div>
+<div class="section-header" style="margin-top: 1.5rem;">
+    <span class="section-title">📋 Мои шаблоны</span>
+    <button class="btn-primary" onclick="toggleTemplateForm()">+ Создать шаблон</button>
+</div>
 
+<!-- Форма создания шаблона -->
+<div id="addTemplateForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-top: 1rem; border: 1px solid #e8f5e9;">
+    <h4 style="margin-bottom: 1rem; color: #367666;">📝 Новый шаблон</h4>
+    <form id="createTemplateForm">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Название шаблона *</label>
+                <input type="text" id="templateName" required placeholder="Например: Бургер-сет">
+            </div>
+            <div class="form-group">
+                <label>Скидка по умолчанию</label>
+                <select id="templateDiscount">
+                    <option value="0">0%</option>
+                    <option value="10">10%</option>
+                    <option value="20">20%</option>
+                    <option value="30" selected>30%</option>
+                    <option value="40">40%</option>
+                    <option value="50">50%</option>
+                    <option value="75">75%</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Описание</label>
+            <input type="text" id="templateDescription" placeholder="Краткое описание">
+        </div>
+        
+        <div class="form-group">
+            <label>Товары в шаблоне</label>
+            <div class="product-row">
+                <select id="templateProductSelect">
+                    <option value="">-- Выберите товар --</option>
+                </select>
+                <input type="number" id="templateProductQuantity" class="quantity-input" value="1" min="1">
+                <button type="button" class="btn-primary" onclick="addTemplateProduct()">+ Добавить</button>
+            </div>
+            <div id="templateProductsPreview" style="display: none;">
+                <strong>Товары в шаблоне:</strong>
+                <div id="templateProductsList" class="selected-products-list"></div>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="submit-btn" style="width: auto; padding: 0.5rem 2rem; background: #8b5cf6;">Сохранить шаблон</button>
+            <button type="button" class="clear-btn" onclick="toggleTemplateForm()" style="padding: 0.5rem 1rem;">Отмена</button>
+        </div>
+    </form>
+</div>
+
+<!-- Список шаблонов -->
+<div id="templatesList" style="margin-top: 1rem;">
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Описание</th>
+                    <th>Товаров</th>
+                    <th>Скидка</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody id="templatesTableBody">
+                <tr><td colspan="5" style="text-align: center; padding: 1rem; color: #94a3b8;">Нет шаблонов</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
                 <div class="form-group full-width">
                     <label>Название сюрприза *</label>
                     <input type="text" id="bagName" required placeholder="Название">
@@ -633,17 +705,7 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
                         </div>
                     </div>
                 </div>
-
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Цена со скидкой (₸)</label>
-                        <input type="number" id="discountedPrice" required placeholder="Цена после скидки">
-                    </div>
-                    <div class="form-group">
-                        <label>Количество</label>
-                        <input type="number" id="availableQuantity" value="5" min="1">
-                    </div>
-                    <div class="form-group">
+  <div class="form-group">
     <label>Своя скидка</label>
     <div style="display: flex; gap: 0.5rem; align-items: center;">
         <input 
@@ -664,6 +726,16 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
         </button>
     </div>
 </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Цена со скидкой (₸)</label>
+                        <input type="number" id="discountedPrice" required placeholder="Цена после скидки">
+                    </div>
+                    <div class="form-group">
+                        <label>Количество</label>
+                        <input type="number" id="availableQuantity" value="5" min="1">
+                    </div>
+                  
                 </div>
 
                 <div class="form-group full-width">
@@ -2379,5 +2451,319 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+
+// ============================================================
+// ШАБЛОНЫ СЮРПРИЗОВ - ПОЛНАЯ ВЕРСИЯ
+// ============================================================
+
+// ПЕРЕМЕННЫЕ
+let templateProducts = [];
+let isTemplateFormVisible = false;
+
+// ============================================================
+// ФУНКЦИИ ДЛЯ РАБОТЫ С ШАБЛОНАМИ
+// ============================================================
+
+function toggleTemplateForm() {
+    const form = document.getElementById('addTemplateForm');
+    if (!form) return;
+    isTemplateFormVisible = !isTemplateFormVisible;
+    form.style.display = isTemplateFormVisible ? 'block' : 'none';
+}
+
+function addTemplateProduct() {
+    const select = document.getElementById('templateProductSelect');
+    const productId = select.value;
+    const quantity = parseInt(document.getElementById('templateProductQuantity').value) || 1;
+    
+    if (!productId) { 
+        showNotification('Выберите товар!', 'error'); 
+        return; 
+    }
+    
+    const product = window.productsData?.find(p => p.id == productId);
+    if (!product) { 
+        showNotification('Товар не найден!', 'error'); 
+        return; 
+    }
+    
+    const existing = templateProducts.find(p => p.id == productId);
+    if (existing) {
+        existing.quantity += quantity;
+    } else {
+        templateProducts.push({
+            id: parseInt(productId),
+            name: product.name,
+            price: product.price,
+            icon: product.icon || '🍽️',
+            quantity: quantity
+        });
+    }
+    
+    renderTemplateProducts();
+    select.value = '';
+    document.getElementById('templateProductQuantity').value = 1;
+    showNotification('✅ Товар добавлен в шаблон', 'success');
+}
+
+function renderTemplateProducts() {
+    const container = document.getElementById('templateProductsList');
+    const preview = document.getElementById('templateProductsPreview');
+    if (!container || !preview) return;
+    
+    if (templateProducts.length === 0) { 
+        preview.style.display = 'none'; 
+        return; 
+    }
+    
+    preview.style.display = 'block';
+    container.innerHTML = '';
+    
+    templateProducts.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.className = 'product-item';
+        div.innerHTML = `
+            <div>
+                <span>${p.icon || '🍽️'}</span>
+                <strong>${escapeHtml(p.name)}</strong> 
+                x${p.quantity} = ${p.price * p.quantity} ₸
+            </div>
+            <button class="remove-product" onclick="removeTemplateProduct(${i})">✖</button>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function removeTemplateProduct(index) { 
+    templateProducts.splice(index, 1); 
+    renderTemplateProducts(); 
+}
+
+// ============================================================
+// СОХРАНЕНИЕ ШАБЛОНА
+// ============================================================
+document.getElementById('createTemplateForm')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('templateName').value.trim();
+    const description = document.getElementById('templateDescription').value.trim();
+    const discount = parseInt(document.getElementById('templateDiscount').value) || 0;
+    
+    if (!name) { 
+        showNotification('Введите название шаблона', 'error'); 
+        return; 
+    }
+    
+    if (templateProducts.length === 0) { 
+        showNotification('Добавьте хотя бы один товар', 'error'); 
+        return; 
+    }
+    
+    const originalPrice = templateProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+    const discountedPrice = discount > 0 ? originalPrice * (1 - discount / 100) : originalPrice;
+    
+    const templateData = {
+        products: templateProducts.map(p => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            quantity: p.quantity
+        })),
+        original_price: originalPrice,
+        discounted_price: Math.round(discountedPrice),
+        discount_percentage: discount,
+        hide_contents: false
+    };
+    
+    try {
+        const response = await authFetch('/api/supplier/templates', {
+            method: 'POST',
+            body: JSON.stringify({
+                name: name,
+                description: description,
+                template_data: templateData
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('✅ Шаблон "' + name + '" создан!', 'success');
+            document.getElementById('createTemplateForm').reset();
+            templateProducts = [];
+            renderTemplateProducts();
+            toggleTemplateForm();
+            loadTemplates();
+        } else {
+            showNotification('❌ ' + (result.error || 'Ошибка'), 'error');
+        }
+    } catch(error) {
+        showNotification('❌ Ошибка сети', 'error');
+    }
+});
+
+// ============================================================
+// ЗАГРУЗКА ШАБЛОНОВ
+// ============================================================
+async function loadTemplates() {
+    try {
+        const response = await authFetch('/api/supplier/templates');
+        const result = await response.json();
+        
+        if (result.success && result.templates) {
+            const tbody = document.getElementById('templatesTableBody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            
+            if (result.templates.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 1rem; color: #94a3b8;">Нет шаблонов</td></tr>';
+                return;
+            }
+            
+            result.templates.forEach(template => {
+                const data = template.template_data || {};
+                const productCount = data.products?.length || 0;
+                const discount = data.discount_percentage || 0;
+                
+                const row = `
+                    <tr>
+                        <td><strong>${escapeHtml(template.name)}</strong></td>
+                        <td>${escapeHtml(template.description || '-')}</td>
+                        <td>${productCount} товаров</td>
+                        <td><span style="color: #e74c3c; font-weight: bold;">-${discount}%</span></td>
+                        <td>
+                            <button class="btn" onclick="loadTemplate(${template.id})" style="background: #367666; color: white; padding: 0.3rem 0.6rem; font-size: 0.7rem;">📋 Загрузить</button>
+                            <button class="btn" onclick="deleteTemplate(${template.id})" style="background: #e74c3c; color: white; padding: 0.3rem 0.6rem; font-size: 0.7rem;">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+            
+            console.log(`✅ Загружено ${result.templates.length} шаблонов`);
+        }
+    } catch(error) {
+        console.error('Ошибка загрузки шаблонов:', error);
+    }
+}
+
+// ============================================================
+// ЗАГРУЗКА ШАБЛОНА В ФОРМУ СЮРПРИЗА
+// ============================================================
+async function loadTemplate(templateId) {
+    try {
+        const response = await authFetch('/api/supplier/templates');
+        const result = await response.json();
+        
+        if (result.success && result.templates) {
+            const template = result.templates.find(t => t.id === templateId);
+            if (!template) {
+                showNotification('Шаблон не найден', 'error');
+                return;
+            }
+            
+            const data = template.template_data || {};
+            
+            // Заполняем форму сюрприза
+            document.getElementById('bagName').value = template.name || '';
+            document.getElementById('bagDescription').value = template.description || '';
+            document.getElementById('originalPrice').value = data.original_price || 0;
+            document.getElementById('discountedPrice').value = data.discounted_price || 0;
+            
+            // Добавляем товары
+            selectedProducts = [];
+            if (data.products) {
+                data.products.forEach(p => {
+                    selectedProducts.push({
+                        id: parseInt(p.id),
+                        name: p.name,
+                        price: p.price,
+                        quantity: p.quantity || 1
+                    });
+                });
+                renderSelectedProducts();
+                updateTotalPrice();
+            }
+            
+            // Показываем форму сюрприза
+            const bagForm = document.getElementById('addBagForm');
+            if (bagForm) {
+                bagForm.style.display = 'block';
+                bagForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            
+            showNotification('✅ Шаблон "' + template.name + '" загружен!', 'success');
+        }
+    } catch(error) {
+        console.error('Ошибка загрузки шаблона:', error);
+        showNotification('Ошибка загрузки шаблона', 'error');
+    }
+}
+
+// ============================================================
+// УДАЛЕНИЕ ШАБЛОНА
+// ============================================================
+async function deleteTemplate(templateId) {
+    if (!confirm('Удалить шаблон?')) return;
+    
+    try {
+        const response = await authFetch('/api/supplier/templates/' + templateId, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('Шаблон удален', 'success');
+            loadTemplates();
+        } else {
+            showNotification('Ошибка удаления: ' + (result.error || 'Неизвестно'), 'error');
+        }
+    } catch(error) {
+        showNotification('Ошибка сети', 'error');
+    }
+}
+
+// ============================================================
+// ОБНОВЛЕНИЕ SELECT ДЛЯ ШАБЛОНОВ
+// ============================================================
+function updateTemplateProductSelect() {
+    const select = document.getElementById('templateProductSelect');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">-- Выберите товар --</option>';
+    
+    if (window.productsData) {
+        window.productsData.forEach(p => {
+            const option = document.createElement('option');
+            option.value = p.id;
+            option.textContent = `${p.icon || '🍽️'} ${p.name} (${p.price} ₸)`;
+            select.appendChild(option);
+        });
+    }
+}
+
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ ШАБЛОНОВ
+// ============================================================
+// Добавляем в DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    // ... существующий код ...
+    
+    // Загружаем шаблоны
+    loadTemplates();
+    
+    // Обновляем select для шаблонов
+    updateTemplateProductSelect();
+});
+
+// Обновляем loadSupplierProducts чтобы обновлять и select шаблонов
+const originalLoadSupplierProducts = loadSupplierProducts;
+loadSupplierProducts = async function() {
+    await originalLoadSupplierProducts();
+    updateTemplateProductSelect();
+};
 </script>
 {% endblock %}
