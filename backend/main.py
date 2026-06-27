@@ -15396,20 +15396,47 @@ async def supplier_orders_page(request: Request, db: Session = Depends(get_db)):
         "supplier": supplier,
         "token": token
     })
+
 @app.get("/supplier/surprise-bags")
 async def supplier_bags_page(request: Request, db: Session = Depends(get_db)):
     """Страница управления сюрпризами поставщика"""
-    supplier_id = request.cookies.get("supplier_id")
-    if not supplier_id:
-        return RedirectResponse(url="/supplier/login", status_code=303)
+    
+    token = request.query_params.get("token")
+    
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+    
+    if not token:
+        return RedirectResponse(url="/supplier/login?error=no_token", status_code=303)
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        if payload.get("role") != "supplier":
+            return RedirectResponse(url="/supplier/login?error=invalid_role", status_code=303)
+        
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            user_id = int(payload.get("sub"))
+            supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
+            if not supplier:
+                return RedirectResponse(url="/supplier/login?error=supplier_not_found", status_code=303)
+            supplier_id = supplier.id
+        
+    except Exception as e:
+        return RedirectResponse(url="/supplier/login?error=invalid_token", status_code=303)
     
     supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
     if not supplier:
-        return RedirectResponse(url="/supplier/login", status_code=303)
+        return RedirectResponse(url="/supplier/login?error=supplier_not_found", status_code=303)
     
-    return templates.TemplateResponse("supplier_bags.html", {
+    return templates.TemplateResponse("surprise-bags.html", {
         "request": request,
-        "supplier": supplier
+        "supplier": supplier,
+        "token": token
     })
 
 # backend/main.py - ДОБАВИТЬ В КОНЕЦ ФАЙЛА
