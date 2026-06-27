@@ -11250,7 +11250,6 @@ async def get_all_suppliers(db: Session = Depends(get_db)):
 
 
 
-
 @app.get("/api/surprise-bags/{bag_id}")
 async def get_surprise_bag_by_id(
     bag_id: int,
@@ -11261,73 +11260,68 @@ async def get_surprise_bag_by_id(
     
     print(f"🔍 Запрос сюрприза #{bag_id}")
     
-    # Находим сюрприз
-    bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
-    
-    if not bag:
-        print(f"❌ Сюрприз #{bag_id} не найден")
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Сюрприз не найден"}
-        )
-    
-    # Получаем поставщика
-    supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-    
-    # ✅ Получаем товары с иконками (с защитой от ошибок)
-    items_list = []
     try:
-        items = db.query(SurpriseBagItem).filter(
+        bag = db.query(SurpriseBag).filter(SurpriseBag.id == bag_id).first()
+        
+        if not bag:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Сюрприз не найден"}
+            )
+        
+        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
+        
+        # ✅ ПРАВИЛЬНЫЙ ЗАПРОС С ИКОНКАМИ
+        items = db.query(
+            SurpriseBagItem,
+            SupplierProduct.icon
+        ).outerjoin(
+            SupplierProduct,
+            SupplierProduct.id == SurpriseBagItem.supplier_product_id
+        ).filter(
             SurpriseBagItem.surprise_bag_id == bag.id
         ).all()
         
-        for item in items:
-            icon = '🍽️'  # По умолчанию
-            
-            # Пробуем получить иконку из товара
-            try:
-                if item.supplier_product_id:
-                    product = db.query(SupplierProduct).filter(
-                        SupplierProduct.id == item.supplier_product_id
-                    ).first()
-                    if product and product.icon:
-                        icon = product.icon
-            except Exception as e:
-                print(f"⚠️ Ошибка получения иконки для item {item.id}: {e}")
-                # Продолжаем с дефолтной иконкой
-            
+        items_list = []
+        for item, icon in items:
             items_list.append({
                 "product_id": item.product_id or 0,
                 "name": item.product_name or "Товар",
                 "price": float(item.product_price) if item.product_price else 0,
                 "quantity": int(item.quantity) if item.quantity else 1,
-                "icon": icon  # ✅ ВСЕГДА ЕСТЬ ИКОНКА
+                "icon": icon if icon else '🍽️'  # ✅ БЕРЕМ ИКОНКУ ИЗ БД!
             })
+        
+        result = {
+            "id": bag.id,
+            "supplier_id": bag.supplier_id,
+            "supplier_name": supplier.business_name if supplier else "Неизвестно",
+            "name": bag.name,
+            "description": bag.description,
+            "original_price": float(bag.original_price) if bag.original_price else 0,
+            "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
+            "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
+            "image_url": bag.image_url or "",
+            "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
+            "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
+            "city": bag.city or "",
+            "is_active": bool(bag.is_active) if bag.is_active is not None else False,
+            "items": items_list  # ✅ ТЕПЕРЬ С ИКОНКАМИ!
+        }
+        
+        print(f"✅ Сюрприз #{bag_id} найден")
+        print(f"📋 Товаров с иконками: {items_list}")
+        
+        return JSONResponse(content=result)
+        
     except Exception as e:
-        print(f"⚠️ Ошибка загрузки товаров: {e}")
-        # items_list останется пустым
-    
-    result = {
-        "id": bag.id,
-        "supplier_id": bag.supplier_id,
-        "supplier_name": supplier.business_name if supplier else "Неизвестно",
-        "name": bag.name,
-        "description": bag.description,
-        "original_price": float(bag.original_price) if bag.original_price else 0,
-        "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
-        "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
-        "image_url": bag.image_url or "",
-        "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
-        "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
-        "city": bag.city or "",
-        "is_active": bool(bag.is_active) if bag.is_active is not None else False,
-        "items": items_list  # ✅ ВСЕГДА СПИСОК (даже пустой)
-    }
-    
-    print(f"✅ Сюрприз #{bag_id} найден: {bag.name}")
-    print(f"📋 Товаров: {len(items_list)}")
-    
-    return JSONResponse(content=result)
+        print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
 # ============ ОЦЕНКА МАГАЗИНОВ ============
 
 @app.get("/api/suppliers/{supplier_id}/rating")
