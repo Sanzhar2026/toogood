@@ -136,12 +136,12 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 </div>
 
 <div class="dashboard-container">
-
-    <a href="/supplier/dashboard" class="active" id="navDashboard">Главная</a>
-    <a href="/supplier/couriers" id="navCouriers">Курьеры</a>
-    <a href="/supplier/orders" id="navOrders">Заказы</a>
-    <a href="/supplier/surprise-bags" id="navBags">Сюрпризы</a>
-</div>
+    <div class="nav-links">
+        <a href="/supplier/dashboard" class="active" id="navDashboard">Главная</a>
+        <a href="/supplier/couriers" id="navCouriers">Курьеры</a>
+        <a href="/supplier/supplier_orders" id="navOrders">Заказы</a>
+        <a href="/supplier/surprise-bags" id="navBags">Сюрпризы</a>
+    </div>
 
     <div class="stats-grid">
         <div class="stat-card">
@@ -160,6 +160,7 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
             <div class="stat-number">{{ stats.total_revenue }} ₸</div>
             <div class="stat-label" id="statRevenue">Общий доход</div>
         </div>
+    </div>
     </div>
 
     <div class="orders-section">
