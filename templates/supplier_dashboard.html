@@ -1417,7 +1417,80 @@ function addProduct() {
     showNotification('✅ Товар добавлен в сюрприз', 'success');
 }
 
+// ============================================================
+// МГНОВЕННОЕ ИСПРАВЛЕНИЕ БЕЗ ПЕРЕЗАГРУЗКИ
+// ============================================================
 
+// ПЕРЕОПРЕДЕЛЯЕМ ОТПРАВКУ ФОРМЫ
+document.getElementById('createBagForm').onsubmit = async function(e) {
+    e.preventDefault();
+    
+    console.log('🔥🔥🔥 НОВАЯ ВЕРСИЯ ОТПРАВКИ! 🔥🔥🔥');
+    
+    const name = document.getElementById('bagName').value.trim();
+    const description = document.getElementById('bagDescription').value.trim();
+    const discountedPrice = parseFloat(document.getElementById('discountedPrice').value);
+    const quantity = parseInt(document.getElementById('availableQuantity').value) || 1;
+    const imageUrl = document.getElementById('imageUrl').value.trim();
+    const isHidden = document.querySelector('input[name="bag_type"]:checked')?.value === 'hidden';
+    
+    if (!name) { alert('Введите название'); return; }
+    if (!selectedProducts || selectedProducts.length === 0) { alert('Добавьте товары'); return; }
+    
+    const originalPrice = selectedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+    
+    const data = {
+        name: name,
+        description: description,
+        original_price: originalPrice,
+        discounted_price: discountedPrice || originalPrice,
+        discount_percentage: Math.round((1 - discountedPrice / originalPrice) * 100) || 0,
+        available_quantity: quantity,
+        total_quantity: quantity,
+        image_url: imageUrl,
+        hide_contents: isHidden || false,
+        pickup_start_time: '',
+        pickup_end_time: '',
+        products: selectedProducts.map(p => ({ 
+            id: parseInt(p.id),
+            name: p.name,
+            price: p.price,
+            quantity: p.quantity 
+        }))
+    };
+    
+    console.log('📦 ОТПРАВЛЯЮ:', JSON.stringify(data, null, 2));
+    
+    const token = getSupplierToken();
+    try {
+        const response = await fetch('/api/supplier/surprise-bags', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        console.log('📨 ОТВЕТ:', result);
+        
+        if (response.ok) {
+            alert('✅ Сюрприз создан! ID: ' + result.bag_id);
+            selectedProducts = [];
+            renderSelectedProducts();
+            document.getElementById('addBagForm').style.display = 'none';
+            location.reload(); // Обновляем для отображения
+        } else {
+            alert('❌ Ошибка: ' + JSON.stringify(result));
+        }
+    } catch(error) {
+        alert('❌ Ошибка: ' + error.message);
+    }
+};
+
+console.log('✅ ГОТОВО! Теперь нажми "Добавить сюрприз"');
+console.log('📌 Смотри консоль - там будут логи!');
 function renderSelectedProducts() {
     const container = document.getElementById('selectedProductsList');
     const preview = document.getElementById('selectedProductsPreview');
