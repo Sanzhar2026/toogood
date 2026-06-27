@@ -15332,7 +15332,9 @@ async def supplier_couriers_page(request: Request, db: Session = Depends(get_db)
 async def supplier_orders_page(request: Request, db: Session = Depends(get_db)):
     """Страница всех заказов поставщика"""
     
-    # ✅ ПОЛУЧАЕМ ТОКЕН ИЗ QUERY PARAM ИЛИ HEADER
+    print("🔍 /supplier/orders вызван")
+    
+    # ✅ ПОЛУЧАЕМ ТОКЕН ИЗ QUERY PARAM
     token = request.query_params.get("token")
     
     if not token:
@@ -15341,44 +15343,59 @@ async def supplier_orders_page(request: Request, db: Session = Depends(get_db)):
             token = auth_header.split(" ")[1]
     
     if not token:
+        print("❌ Нет токена")
         return RedirectResponse(url="/supplier/login?error=no_token", status_code=303)
     
-    # ✅ ДЕКОДИРУЕМ ТОКЕН
+    print(f"✅ Токен получен")
+    
     try:
         from jose import jwt
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
+        print(f"📦 Payload: {payload}")
+        
+        # Проверяем роль
         if payload.get("role") != "supplier":
+            print(f"❌ Не supplier: {payload.get('role')}")
             return RedirectResponse(url="/supplier/login?error=invalid_role", status_code=303)
         
+        # Получаем supplier_id
         supplier_id = payload.get("supplier_id")
         if not supplier_id:
             user_id = int(payload.get("sub"))
             supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
             if not supplier:
+                print(f"❌ Поставщик не найден для user_id={user_id}")
                 return RedirectResponse(url="/supplier/login?error=supplier_not_found", status_code=303)
             supplier_id = supplier.id
         
+        print(f"✅ supplier_id: {supplier_id}")
+        
     except jwt.ExpiredSignatureError:
+        print("❌ Токен истек")
         return RedirectResponse(url="/supplier/login?error=token_expired", status_code=303)
     except jwt.JWTError as e:
-        print(f"❌ JWT Error: {e}")
+        print(f"❌ Ошибка JWT: {e}")
         return RedirectResponse(url="/supplier/login?error=invalid_token", status_code=303)
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
         return RedirectResponse(url="/supplier/login?error=unknown", status_code=303)
     
     # ✅ ПОЛУЧАЕМ ПОСТАВЩИКА
     supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
     if not supplier:
+        print(f"❌ Поставщик с id={supplier_id} не найден")
         return RedirectResponse(url="/supplier/login?error=supplier_not_found", status_code=303)
+    
+    print(f"✅ Поставщик найден: {supplier.business_name}")
     
     return templates.TemplateResponse("supplier_orders.html", {
         "request": request,
         "supplier": supplier,
-        "token": token  # ← ПЕРЕДАЕМ ТОКЕН В ШАБЛОН
+        "token": token
     })
-
 @app.get("/supplier/surprise-bags")
 async def supplier_bags_page(request: Request, db: Session = Depends(get_db)):
     """Страница управления сюрпризами поставщика"""

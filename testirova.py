@@ -4,6 +4,11 @@ import psycopg2
 
 DATABASE_URL = "postgresql://postgres:YHceVkBwWMtDTXqSbqQhsGrnIxeWlcwz@thomas.proxy.rlwy.net:27717/railway"
 
+
+
+
+
+
 def run_migration():
     conn = None
     cur = None
