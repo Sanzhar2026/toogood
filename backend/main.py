@@ -12659,12 +12659,17 @@ async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
             )
         
         # ✅ ЕСЛИ ДЕАКТИВИРОВАН - АКТИВИРУЕМ АВТОМАТИЧЕСКИ
-        if not user.is_active:
-            print(f"⚠️ Пользователь {email} деактивирован. Активируем...")
+        if user:
+        # ✅ АВТОМАТИЧЕСКАЯ АКТИВАЦИЯ ПРИ ВХОДЕ
+          if not user.is_active:
             user.is_active = True
             db.commit()
-            print(f"✅ Пользователь {email} активирован автоматически")
         
+        # Находим поставщика
+          supplier = db.query(Supplier).filter(Supplier.user_id == user.id).first()
+          if supplier and not supplier.is_active:
+            supplier.is_active = True
+            db.commit()
         # Проверка пароля
         import hashlib
         password_hash = hashlib.sha256(password.encode()).hexdigest()
@@ -12732,6 +12737,8 @@ async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
             content={"success": False, "message": str(e)}
         )
 # backend/main.py - ЭНДПОИНТ ЛОГИНА
+
+
 
 @app.post("/supplier/login")
 async def supplier_login(request: Request):
