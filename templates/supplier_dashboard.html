@@ -1387,17 +1387,24 @@ function addProduct() {
     const select = document.getElementById('productSelect');
     const productId = select.value;
     const quantity = parseInt(document.getElementById('productQuantity').value) || 1;
-    if (!productId) { showNotification('Выберите товар!', 'error'); return; }
+    
+    if (!productId) { 
+        showNotification('Выберите товар!', 'error'); 
+        return; 
+    }
     
     const product = window.productsData.find(p => p.id == productId);
-    if (!product) { showNotification('Товар не найден!', 'error'); return; }
+    if (!product) { 
+        showNotification('Товар не найден!', 'error'); 
+        return; 
+    }
     
-    const existing = selectedProducts.find(p => p.id == productId);
+    const existing = selectedProducts.find(p => p.id == parseInt(productId));
     if (existing) {
         existing.quantity += quantity;
     } else {
         selectedProducts.push({
-            id: productId,
+            id: parseInt(productId),  // ✅ ПРЕВРАЩАЕМ В ЧИСЛО
             name: product.name,
             price: product.price,
             quantity: quantity
@@ -1407,9 +1414,8 @@ function addProduct() {
     renderSelectedProducts();
     updateTotalPrice();
     select.value = '';
-    showNotification('Товар добавлен в сюрприз', 'success');
+    showNotification('✅ Товар добавлен в сюрприз', 'success');
 }
-
 function renderSelectedProducts() {
     const container = document.getElementById('selectedProductsList');
     const preview = document.getElementById('selectedProductsPreview');
@@ -1457,7 +1463,6 @@ function applyDiscount(percent) {
 }
 
 
-
 async function submitBagForm(e) {
     e.preventDefault();
     
@@ -1485,7 +1490,7 @@ async function submitBagForm(e) {
         ? Math.round((1 - discountedPrice / originalPrice) * 100) 
         : 0;
     
-    // ✅ ФОРМИРУЕМ ПРАВИЛЬНЫЕ ДАННЫЕ
+    // ✅ ПРАВИЛЬНЫЙ ФОРМАТ ДАННЫХ
     const data = {
         name: name,
         description: description,
@@ -1496,12 +1501,12 @@ async function submitBagForm(e) {
         total_quantity: quantity,
         image_url: imageUrl,
         hide_contents: isHidden,
-        pickup_start_time: "",
-        pickup_end_time: "",
+        pickup_start_time: '',
+        pickup_end_time: '',
         products: selectedProducts.map(p => ({ 
-            id: p.id,           // ✅ БЕКЕНД ЖДЕТ "id"
-            name: p.name,       // ✅ ДЛЯ БЕЗОПАСНОСТИ
-            price: p.price,     // ✅ ДЛЯ БЕЗОПАСНОСТИ
+            id: p.id,           // ✅ id (НЕ product_id!)
+            name: p.name,       // ✅ Добавляем name
+            price: p.price,     // ✅ Добавляем price
             quantity: p.quantity 
         }))
     };
