@@ -1381,10 +1381,18 @@ function renderSelectedProducts() {
     preview.style.display = 'block';
     container.innerHTML = '';
     selectedProducts.forEach((p, i) => {
+        // ✅ НАХОДИМ ИКОНКУ ТОВАРА
+        const product = window.productsData?.find(prod => prod.id == p.id);
+        const icon = product?.icon || '🍽️';
+        
         const div = document.createElement('div');
         div.className = 'product-item';
         div.innerHTML = `
-            <div><strong>${escapeHtml(p.name)}</strong> x${p.quantity} = ${p.price * p.quantity} ₸</div>
+            <div>
+                <span style="font-size: 1rem;">${icon}</span>
+                <strong>${escapeHtml(p.name)}</strong> 
+                x${p.quantity} = ${p.price * p.quantity} ₸
+            </div>
             <button class="remove-product" onclick="removeProduct(${i})">✖</button>
         `;
         container.appendChild(div);
@@ -2015,14 +2023,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     updateCategorySelect();
     
-    loadSupplierProducts().then(() => {
+  loadSupplierProducts().then(() => {
         if (!window.productsData || window.productsData.length === 0) {
             window.productsData = getTestProductsByType(businessType);
             updateProductsTable();
-            updateProductSelect();
         }
+        // ✅ ОБНОВЛЯЕМ SELECT ПОСЛЕ ЗАГРУЗКИ
+        updateProductSelect();
     });
-     updateProductSelect();
     refreshOrders();
     refreshBags();
     initWebSocket();
@@ -2088,16 +2096,20 @@ async function updateProductSelect() {
         const result = await response.json();
         
         if (result.success) {
-            const select = document.getElementById('surpriseProductSelect');
-            if (!select) return;
+            // ✅ ИСПОЛЬЗУЕМ ПРАВИЛЬНЫЙ ID - productSelect
+            const select = document.getElementById('productSelect');
+            if (!select) {
+                console.error('❌ Элемент #productSelect не найден!');
+                return;
+            }
             
             // Сохраняем выбранное значение
             const currentValue = select.value;
             
-            // Очищаем select (сохраняем первый option "Выберите товар")
+            // Очищаем select
             select.innerHTML = '<option value="">-- Выберите товар --</option>';
             
-            // Добавляем товары
+            // Добавляем товары с иконками
             result.products.forEach(product => {
                 const option = document.createElement('option');
                 option.value = product.id;
@@ -2114,10 +2126,9 @@ async function updateProductSelect() {
             console.log(`✅ Обновлен список товаров: ${result.products.length} товаров`);
         }
     } catch(error) {
-        console.error('Ошибка обновления списка товаров:', error);
+        console.error('❌ Ошибка обновления списка товаров:', error);
     }
 }
-
 
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.nav-links a').forEach(link => {
