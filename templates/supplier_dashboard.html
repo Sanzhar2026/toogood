@@ -137,11 +137,10 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 
 <div class="dashboard-container">
     <div class="nav-links">
-        <!-- ✅ ПРАВИЛЬНО: с токеном в URL -->
-<a href="/supplier/orders?token={{ token }}">Заказы</a>
-
-<a href="/supplier/surprise_bags?token={{ token }}">Сюрпризы</a>
-    </div>
+    <a href="/supplier/dashboard?token={{ token }}" class="active" id="navDashboard">Главная</a>
+    <a href="/supplier/orders?token={{ token }}" id="navOrders">Заказы</a>
+    <a href="/supplier/surprise-bags?token={{ token }}" id="navBags">Сюрпризы</a>
+</div>
 
     <div class="stats-grid">
         <div class="stat-card">
