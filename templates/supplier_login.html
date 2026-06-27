@@ -259,57 +259,56 @@
             window.location.replace('/supplier/dashboard?token=' + encodeURIComponent(token));
         }
     })();
+async function doLogin() {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
 
-    async function doLogin() {
-        const email = emailInput.value.trim();
-        const password = passwordInput.value;
+    if (!email || !password) {
+        showError('Заполните email и пароль');
+        return;
+    }
 
-        if (!email || !password) {
-            showError('Заполните email и пароль');
-            return;
-        }
+    loginBtn.disabled = true;
+    loginBtn.innerHTML = '<span class="loader"></span> Вход...';
+    errorMsg.classList.remove('show');
 
-        loginBtn.disabled = true;
-        loginBtn.innerHTML = '<span class="loader"></span> Вход...';
-        errorMsg.classList.remove('show');
+    try {
+        // ✅ ИСПРАВЛЕННЫЙ URL
+        const response = await fetch('/supplier/api/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email: email,
+                password: password
+            })
+        });
 
-        try {
-            const response = await fetch('/supplier/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    email: email,
-                    password: password
-                })
-            });
+        const data = await response.json();
+        console.log('📥 Ответ:', data);
 
-            const data = await response.json();
-            console.log('📥 Ответ:', data);
-
-            if (data.success && data.token) {
-                sessionStorage.setItem('supplier_token', data.token);
-                localStorage.setItem('supplier_token', data.token);
-                
-                if (data.supplier) {
-                    sessionStorage.setItem('supplier', JSON.stringify(data.supplier));
-                }
-                
-                window.location.replace('/supplier/dashboard?token=' + encodeURIComponent(data.token));
-            } else {
-                showError(data.message || data.error || 'Неверный email или пароль');
-                loginBtn.disabled = false;
-                loginBtn.innerHTML = 'Войти';
+        if (data.success && data.token) {
+            sessionStorage.setItem('supplier_token', data.token);
+            localStorage.setItem('supplier_token', data.token);
+            
+            if (data.supplier) {
+                sessionStorage.setItem('supplier', JSON.stringify(data.supplier));
             }
-        } catch (error) {
-            console.error('❌ Ошибка:', error);
-            showError('Ошибка сети. Попробуйте снова');
+            
+            window.location.replace('/supplier/dashboard?token=' + encodeURIComponent(data.token));
+        } else {
+            showError(data.message || data.error || 'Неверный email или пароль');
             loginBtn.disabled = false;
             loginBtn.innerHTML = 'Войти';
         }
+    } catch (error) {
+        console.error('❌ Ошибка:', error);
+        showError('Ошибка сети. Попробуйте снова');
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = 'Войти';
     }
-
+}
     function showError(message) {
         errorMsg.textContent = '❌ ' + message;
         errorMsg.classList.add('show');
