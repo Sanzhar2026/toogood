@@ -12745,7 +12745,38 @@ async def supplier_api_login(request: Request):
         traceback.print_exc()
         return {"success": False, "message": str(e)}
 # backend/main.py - ЭНДПОИНТ ЛОГИНА
+@app.get("/api/debug/supplier-status")
+async def debug_supplier_status_get(request: Request, db: Session = Depends(get_db)):
+    """Проверить статус поставщика по email (GET)"""
+    try:
+        email = request.query_params.get("email")
+        
+        if not email:
+            return {"error": "Email required"}
+        
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            return {"error": f"User with email {email} not found"}
+        
+        supplier = db.query(Supplier).filter(Supplier.user_id == user.id).first()
+        
+        return {
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "is_active": user.is_active,
+                "role": user.role
+            },
+            "supplier": {
+                "id": supplier.id if supplier else None,
+                "business_name": supplier.business_name if supplier else None,
+                "is_active": supplier.is_active if supplier else None
+            }
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
+        
 @app.get("/supplier/api/status")
 async def supplier_status(request: Request, db: Session = Depends(get_db)):
     """Проверить статус поставщика"""
