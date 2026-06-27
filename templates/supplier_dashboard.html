@@ -1215,7 +1215,25 @@ function toggleCategoryForm() {
     const form = document.getElementById('addCategoryForm');
     form.style.display = form.style.display === 'none' ? 'block' : 'none';
 }
-
+function applyCustomDiscount() {
+    const original = parseFloat(document.getElementById('originalPrice').value);
+    const percent = parseFloat(document.getElementById('customDiscount').value);
+    
+    if (!original || original <= 0) { 
+        showNotification('Сначала добавьте товары', 'error'); 
+        return; 
+    }
+    
+    if (!percent || percent < 0 || percent > 100) { 
+        showNotification('Введите скидку от 0 до 100%', 'error'); 
+        return; 
+    }
+    
+    const discounted = original * (1 - percent / 100);
+    document.getElementById('discountedPrice').value = Math.round(discounted);
+    
+    showNotification(`✅ Скидка ${percent}% применена! Цена: ${Math.round(discounted)} ₸`, 'success');
+}
 async function loadSupplierProducts() {
     try {
         const response = await authFetch('/api/supplier/products');
