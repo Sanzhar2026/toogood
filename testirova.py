@@ -1,12 +1,12 @@
-# migrate_add_icons.py
+# fix_all.py - ИСПРАВЛЕНИЕ ВСЕХ ПРОБЛЕМ С БД
 
 import psycopg2
-import re
+from psycopg2.extras import RealDictCursor
 
 # ✅ ТВОЯ БД НА RAILWAY
 DATABASE_URL = "postgresql://postgres:YHceVkBwWMtDTXqSbqQhsGrnIxeWlcwz@thomas.proxy.rlwy.net:27717/railway"
 
-def run_migration():
+def run_fix():
     conn = None
     cur = None
     try:
@@ -14,13 +14,15 @@ def run_migration():
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
         
-        print("=" * 60)
-        print("📋 ДОБАВЛЕНИЕ ИКОНОК В ТАБЛИЦУ supplier_products")
-        print("=" * 60)
+        print("=" * 70)
+        print("🛠 ИСПРАВЛЕНИЕ ВСЕХ ПРОБЛЕМ С БД")
+        print("=" * 70)
         
         # ============================================================
-        # 1. ПРОВЕРИТЬ И ДОБАВИТЬ КОЛОНКУ icon
+        # 1. ПРОВЕРЯЕМ И ДОБАВЛЯЕМ КОЛОНКУ icon
         # ============================================================
+        print("\n📋 1. ПРОВЕРКА КОЛОНКИ icon...")
+        
         cur.execute("""
             SELECT column_name 
             FROM information_schema.columns 
@@ -28,51 +30,77 @@ def run_migration():
         """)
         
         if not cur.fetchone():
-            print("➕ ДОБАВЛЯЮ КОЛОНКУ icon...")
+            print("   ➕ Добавляю колонку icon...")
             cur.execute("ALTER TABLE supplier_products ADD COLUMN icon VARCHAR(50) DEFAULT '🍽️'")
-            print("✅ КОЛОНКА icon ДОБАВЛЕНА")
+            print("   ✅ Колонка icon добавлена")
         else:
-            print("✅ КОЛОНКА icon УЖЕ СУЩЕСТВУЕТ")
+            print("   ✅ Колонка icon уже существует")
         
         # ============================================================
-        # 2. ОБНОВИТЬ СУЩЕСТВУЮЩИЕ ТОВАРЫ
+        # 2. ИСПРАВЛЯЕМ КОЛОНКУ description_ru
         # ============================================================
+        print("\n📋 2. ИСПРАВЛЕНИЕ КОЛОНКИ description_ru...")
+        
+        # Проверяем, есть ли колонка description_ru
         cur.execute("""
-            SELECT id, name FROM supplier_products
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'supplier_products' AND column_name = 'description_ru'
+        """)
+        
+        if not cur.fetchone():
+            print("   ➕ Добавляю колонку description_ru...")
+            cur.execute("ALTER TABLE supplier_products ADD COLUMN description_ru TEXT")
+            
+            # Копируем данные из description
+            cur.execute("""
+                UPDATE supplier_products 
+                SET description_ru = description 
+                WHERE description IS NOT NULL
+            """)
+            print("   ✅ Колонка description_ru добавлена и заполнена")
+        else:
+            print("   ✅ Колонка description_ru уже существует")
+        
+        # ============================================================
+        # 3. ОБНОВЛЯЕМ ИКОНКИ ДЛЯ ВСЕХ ТОВАРОВ
+        # ============================================================
+        print("\n📋 3. ОБНОВЛЕНИЕ ИКОНОК...")
+        
+        cur.execute("""
+            SELECT id, name, icon FROM supplier_products
         """)
         
         products = cur.fetchall()
-        print(f"\n📦 ВСЕГО ТОВАРОВ: {len(products)}")
+        print(f"   📦 Найдено товаров: {len(products)}")
         
-        # ============================================================
-        # 3. МАППИНГ ИКОНОК ПО НАЗВАНИЮ
-        # ============================================================
+        # Маппинг иконок
         icon_map = {
-            # ===== ЕДА =====
+            # ЕДА
             'пицц': '🍕', 'pizza': '🍕', 'маргарит': '🍕', 'пепперони': '🍕',
             'бургер': '🍔', 'burger': '🍔', 
             'донер': '🌯', 'шаурм': '🥙', 'кебаб': '🥙',
-            'суши': '🍣', 'sushi': '🍣', 'ролл': '🍣', 'roll': '🍣', 'нигири': '🍣', 'сашими': '🍣',
+            'суши': '🍣', 'sushi': '🍣', 'ролл': '🍣', 'roll': '🍣',
             'салат': '🥗', 'salad': '🥗', 'цезарь': '🥗', 'греческ': '🥗',
             'картошк': '🍟', 'fries': '🍟', 'фри': '🍟',
-            'куриц': '🍗', 'chicken': '🍗', 'крилс': '🍗', 'wings': '🍗', 'наггетс': '🍗',
-            'стейк': '🥩', 'steak': '🥩', 'говядин': '🥩', 'баранин': '🥩',
+            'куриц': '🍗', 'chicken': '🍗', 'крилс': '🍗', 'wings': '🍗',
+            'стейк': '🥩', 'steak': '🥩', 'говядин': '🥩',
             'паста': '🍝', 'pasta': '🍝', 'спагетти': '🍝', 'макарон': '🍝',
-            'суп': '🍲', 'soup': '🍲', 'борщ': '🍲', 'том ям': '🍲',
-            'десерт': '🍰', 'dessert': '🍰', 'торт': '🍰', 'cake': '🍰', 'пирожн': '🍰', 
-            'тирамису': '🍰', 'чизкейк': '🍰',
+            'суп': '🍲', 'soup': '🍲', 'борщ': '🍲',
+            'десерт': '🍰', 'dessert': '🍰', 'торт': '🍰', 'cake': '🍰',
             'хот-дог': '🌭', 'hot dog': '🌭',
             'сэндвич': '🥪', 'sandwich': '🥪',
-            
+            'буррито': '🌯', 'burrito': '🌯',
+            'фалафель': '🧆', 'falafel': '🧆',
             'плов': '🥘', 'plov': '🥘',
             'креветк': '🍤', 'shrimp': '🍤',
             'бенто': '🍱', 'bento': '🍱',
-         
+            'карри': '🍛', 'curry': '🍛',
             'лапш': '🍜', 'noodle': '🍜',
             'пельмен': '🥟', 'dumpling': '🥟',
-
+            'фондю': '🫕', 'fondue': '🫕',
             
-            # ===== МОЛОЧНЫЕ =====
+            # МОЛОЧНЫЕ
             'сыр': '🧀', 'cheese': '🧀',
             'молоко': '🥛', 'milk': '🥛',
             'морожен': '🍦', 'ice cream': '🍦',
@@ -82,7 +110,7 @@ def run_migration():
             'вафл': '🧇', 'waffle': '🧇',
             'сливк': '🍶', 'cream': '🍶',
             
-            # ===== ВЫПЕЧКА =====
+            # ВЫПЕЧКА
             'кекс': '🧁', 'cupcake': '🧁',
             'пирог': '🥧', 'pie': '🥧',
             'печень': '🍪', 'cookie': '🍪',
@@ -97,14 +125,12 @@ def run_migration():
             'бублик': '🥯', 'bagel': '🥯',
             'лепешк': '🫓', 'flatbread': '🫓',
             
-            # ===== НАПИТКИ =====
-            'кофе': '☕', 'coffee': '☕', 'капучино': '☕', 'латте': '☕', 'эспрессо': '☕',
+            # НАПИТКИ
+            'кофе': '☕', 'coffee': '☕', 'капучино': '☕', 'латте': '☕',
             'чай': '🍵', 'tea': '🍵',
             'сок': '🧃', 'juice': '🧃',
             'напит': '🥤', 'drink': '🥤',
             'кола': '🥤', 'coca': '🥤', 'лимонад': '🥤',
-            'bubble tea': '🧋',
-            'мате': '🧉', 'mate': '🧉',
             'пиво': '🍺', 'beer': '🍺',
             'вино': '🍷', 'wine': '🍷',
             'виски': '🥃', 'whiskey': '🥃',
@@ -113,7 +139,7 @@ def run_migration():
             'вода': '💧', 'water': '💧',
             'лёд': '🧊', 'ice': '🧊',
             
-            # ===== ФРУКТЫ И ОВОЩИ =====
+            # ФРУКТЫ И ОВОЩИ
             'яблок': '🍎', 'apple': '🍎',
             'груш': '🍐', 'pear': '🍐',
             'апельсин': '🍊', 'orange': '🍊',
@@ -130,7 +156,6 @@ def run_migration():
             'дын': '🍈', 'melon': '🍈',
             'киви': '🥝', 'kiwi': '🥝',
             'помидор': '🍅', 'tomato': '🍅',
-            'лист': '🥬', 'lettuce': '🥬',
             'огурец': '🥒', 'cucumber': '🥒',
             'перец': '🌶️', 'pepper': '🌶️',
             'морков': '🥕', 'carrot': '🥕',
@@ -140,24 +165,23 @@ def run_migration():
             'гриб': '🍄', 'mushroom': '🍄',
             'кукуруз': '🌽', 'corn': '🌽',
             
-            # ===== РЫБА =====
+            # РЫБА
             'рыб': '🐟', 'fish': '🐟',
             'лосос': '🐟', 'salmon': '🐟',
-            'семг': '🐟', 
-            'креветк': '🦐', 'shrimp': '🦐',
+            'семг': '🐟',
             'лобстер': '🦞', 'lobster': '🦞',
             'краб': '🦀', 'crab': '🦀',
             'осьминог': '🐙', 'octopus': '🐙',
             'кальмар': '🦑', 'squid': '🦑',
             'ракушк': '🐚', 'shell': '🐚',
             
-            # ===== СОУСЫ =====
+            # СОУСЫ
             'соль': '🧂', 'salt': '🧂',
             'трав': '🌿', 'herb': '🌿',
             'мёд': '🍯', 'honey': '🍯',
             'соус': '🥫', 'sauce': '🥫',
             
-            # ===== ХОЗТОВАРЫ =====
+            # ХОЗТОВАРЫ
             'веник': '🧹', 'broom': '🧹',
             'корзин': '🧺', 'basket': '🧺',
             'губк': '🧽', 'sponge': '🧽',
@@ -194,52 +218,61 @@ def run_migration():
         }
         
         updated_count = 0
-        print("\n🔄 ОБНОВЛЕНИЕ ИКОНОК:")
-        
-        for product_id, name in products:
+        for product_id, name, icon in products:
+            # Если иконка уже есть и не дефолтная - пропускаем
+            if icon and icon != '🍽️':
+                continue
+                
             name_lower = name.lower()
-            icon = None
+            new_icon = None
             
-            # Ищем совпадение в маппинге
             for keyword, emoji in icon_map.items():
                 if keyword in name_lower:
-                    icon = emoji
+                    new_icon = emoji
                     break
             
-            # Если не найдено - ставим по умолчанию
-            if not icon:
-                icon = '🍽️'
+            if not new_icon:
+                new_icon = '🍽️'
             
-            cur.execute("""
-                UPDATE supplier_products 
-                SET icon = %s 
-                WHERE id = %s
-            """, (icon, product_id))
-            
-            updated_count += 1
-            print(f"  ✅ #{product_id}: '{name}' → {icon}")
+            if new_icon != icon:
+                cur.execute("""
+                    UPDATE supplier_products 
+                    SET icon = %s 
+                    WHERE id = %s
+                """, (new_icon, product_id))
+                updated_count += 1
+                print(f"   ✅ #{product_id}: '{name}' → {new_icon}")
         
-        conn.commit()
-        print(f"\n✅ ОБНОВЛЕНО {updated_count} ТОВАРОВ")
+        print(f"   ✅ Обновлено {updated_count} товаров")
         
         # ============================================================
-        # 4. ПРОВЕРИТЬ РЕЗУЛЬТАТ
+        # 4. ПРОВЕРЯЕМ РЕЗУЛЬТАТ
         # ============================================================
+        print("\n📋 4. ИТОГОВЫЙ СПИСОК ТОВАРОВ:")
+        print("-" * 70)
+        
         cur.execute("""
-            SELECT id, name, icon FROM supplier_products ORDER BY id
+            SELECT id, name, icon, description_ru 
+            FROM supplier_products 
+            ORDER BY id
         """)
         
         products = cur.fetchall()
-        print("\n" + "=" * 60)
-        print("📋 ИТОГОВЫЙ СПИСОК ТОВАРОВ С ИКОНКАМИ:")
-        print("=" * 60)
+        for product_id, name, icon, desc in products:
+            icon_display = icon if icon else '🍽️'
+            desc_display = desc if desc else '-'
+            print(f"   #{product_id}: {icon_display} {name} | {desc_display[:30]}")
         
-        for product_id, name, icon in products:
-            print(f"  #{product_id}: {icon} {name}")
+        conn.commit()
         
-        print("\n" + "=" * 60)
-        print("✅ ✅ ✅ МИГРАЦИЯ УСПЕШНО ЗАВЕРШЕНА!")
-        print("=" * 60)
+        print("\n" + "=" * 70)
+        print("✅ ✅ ✅ ВСЕ ИСПРАВЛЕНИЯ УСПЕШНО ПРИМЕНЕНЫ!")
+        print("=" * 70)
+        print("\n📋 ЧТО БЫЛО СДЕЛАНО:")
+        print("   1. ✅ Добавлена колонка icon")
+        print("   2. ✅ Добавлена колонка description_ru")
+        print("   3. ✅ Обновлены иконки для всех товаров")
+        print("   4. ✅ Все товары проверены")
         
     except Exception as e:
         print(f"\n❌ ОШИБКА: {e}")
@@ -255,4 +288,4 @@ def run_migration():
             print("\n🔌 Соединение закрыто")
 
 if __name__ == "__main__":
-    run_migration()
+    run_fix()
