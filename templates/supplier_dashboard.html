@@ -697,64 +697,114 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 // ============================================================
 // ПОИСК ИКОНОК - ИСПРАВЛЕННАЯ ВЕРСИЯ
 // ============================================================
+// ============================================================
+// ПОИСК ИКОНОК - РАБОЧАЯ ВЕРСИЯ
+// ============================================================
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('iconSearch');
     const iconSelect = document.getElementById('productIcon');
     
-    console.log('🔍 Поиск иконок:', {
-        searchInput: !!searchInput,
-        iconSelect: !!iconSelect
-    });
-    
     if (searchInput && iconSelect) {
-        // ✅ ФУНКЦИЯ ФИЛЬТРАЦИИ
+        // ✅ СОХРАНЯЕМ ВСЕ ОПЦИИ ПРИ ЗАГРУЗКЕ
+        let allOptions = [];
+        let allOptgroups = [];
+        
+        // Сохраняем все опции и optgroup
+        for (let i = 0; i < iconSelect.children.length; i++) {
+            const child = iconSelect.children[i];
+            if (child.tagName === 'OPTGROUP') {
+                allOptgroups.push({
+                    label: child.label,
+                    options: Array.from(child.querySelectorAll('option')).map(opt => ({
+                        value: opt.value,
+                        text: opt.text
+                    }))
+                });
+            } else if (child.tagName === 'OPTION') {
+                allOptions.push({
+                    value: child.value,
+                    text: child.text
+                });
+            }
+        }
+        
         function filterIcons() {
             const searchText = searchInput.value.toLowerCase().trim();
-            const options = iconSelect.options;
             
-            console.log(`🔍 Фильтр: "${searchText}"`);
+            // ✅ ОЧИЩАЕМ SELECT
+            iconSelect.innerHTML = '';
             
-            // Сначала показываем все опции
-            for (let i = 0; i < options.length; i++) {
-                const option = options[i];
-                if (option.tagName === 'OPTGROUP') continue;
-                option.style.display = ''; // Показываем все
-            }
-            
-            // Если есть текст поиска - фильтруем
-            if (searchText !== '') {
-                let visibleCount = 0;
-                for (let i = 0; i < options.length; i++) {
-                    const option = options[i];
-                    if (option.tagName === 'OPTGROUP') continue;
-                    
-                    const text = option.text.toLowerCase();
-                    if (text.includes(searchText)) {
-                        option.style.display = '';
-                        visibleCount++;
-                    } else {
-                        option.style.display = 'none';
+            if (searchText === '') {
+                // ✅ Если поиск пустой - показываем все
+                // Добавляем опции без optgroup
+                allOptions.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.text;
+                    iconSelect.appendChild(option);
+                });
+                
+                // Добавляем optgroup с опциями
+                allOptgroups.forEach(group => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = group.label;
+                    group.options.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.text;
+                        optgroup.appendChild(option);
+                    });
+                    iconSelect.appendChild(optgroup);
+                });
+            } else {
+                // ✅ Ищем совпадения
+                let foundAny = false;
+                
+                // Проверяем опции без optgroup
+                allOptions.forEach(opt => {
+                    if (opt.text.toLowerCase().includes(searchText)) {
+                        const option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.text;
+                        iconSelect.appendChild(option);
+                        foundAny = true;
                     }
+                });
+                
+                // Проверяем optgroup
+                allOptgroups.forEach(group => {
+                    const matchingOptions = group.options.filter(opt => 
+                        opt.text.toLowerCase().includes(searchText)
+                    );
+                    
+                    if (matchingOptions.length > 0) {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = group.label;
+                        matchingOptions.forEach(opt => {
+                            const option = document.createElement('option');
+                            option.value = opt.value;
+                            option.textContent = opt.text;
+                            optgroup.appendChild(option);
+                        });
+                        iconSelect.appendChild(optgroup);
+                        foundAny = true;
+                    }
+                });
+                
+                // ✅ Если ничего не найдено - показываем сообщение
+                if (!foundAny) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = '❌ Ничего не найдено';
+                    option.disabled = true;
+                    iconSelect.appendChild(option);
                 }
-                console.log(`✅ Найдено совпадений: ${visibleCount}`);
             }
-            
-            // Скрываем пустые optgroup
-            const optgroups = iconSelect.querySelectorAll('optgroup');
-            optgroups.forEach(group => {
-                const visibleOptions = Array.from(group.querySelectorAll('option')).filter(
-                    opt => opt.style.display !== 'none'
-                );
-                if (visibleOptions.length === 0) {
-                    group.style.display = 'none';
-                } else {
-                    group.style.display = '';
-                }
-            });
         }
         
         // ✅ СЛУШАЕМ ВВОД
         searchInput.addEventListener('input', filterIcons);
+        searchInput.addEventListener('keyup', filterIcons);
         
         // ✅ СБРОС ПРИ КЛИКЕ НА SELECT
         iconSelect.addEventListener('click', function() {
@@ -764,7 +814,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // ✅ СБРОС ПРИ КЛИКЕ НА КНОПКУ ОЧИСТКИ (если есть)
+        // ✅ КНОПКА ОЧИСТКИ
         const clearBtn = document.querySelector('.clear-icon-search');
         if (clearBtn) {
             clearBtn.addEventListener('click', function() {
@@ -774,25 +824,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
+        // ✅ ПЕРВОНАЧАЛЬНАЯ ЗАГРУЗКА
+        filterIcons();
+        
         console.log('✅ Поиск иконок настроен!');
-    } else {
-        console.error('❌ Элементы поиска не найдены!');
-        console.log('🔍 Ищем #iconSearch:', document.getElementById('iconSearch'));
-        console.log('🔍 Ищем #productIcon:', document.getElementById('productIcon'));
     }
 });
-// ============================================================
-// ПОЛУЧАЕМ ТОКЕН
-// ============================================================
-(function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl = urlParams.get('token');
-    if (tokenFromUrl) {
-        sessionStorage.setItem('supplier_token', tokenFromUrl);
-        localStorage.setItem('supplier_token', tokenFromUrl);
-        console.log('✅ Токен сохранен из URL');
-    }
-})();
 
 function getSupplierToken() {
     let token = sessionStorage.getItem('supplier_token');
