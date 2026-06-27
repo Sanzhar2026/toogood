@@ -12776,7 +12776,76 @@ async def debug_supplier_status_get(request: Request, db: Session = Depends(get_
     except Exception as e:
         return {"error": str(e)}
 
+@app.post("/api/debug/activate-all-suppliers")
+async def activate_all_suppliers(db: Session = Depends(get_db)):
+    """Активировать ВСЕХ поставщиков"""
+    try:
+        users = db.query(User).filter(User.role == "supplier").all()
+        user_count = 0
+        for user in users:
+            if not user.is_active:
+                user.is_active = True
+                user_count += 1
         
+        suppliers = db.query(Supplier).all()
+        supplier_count = 0
+        for supplier in suppliers:
+            if not supplier.is_active:
+                supplier.is_active = True
+                supplier_count += 1
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "users_activated": user_count,
+            "suppliers_activated": supplier_count,
+            "total_users": len(users),
+            "total_suppliers": len(suppliers)
+        }
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/debug/activate-supplier")
+async def activate_supplier_by_email(request: Request, db: Session = Depends(get_db)):
+    """Активировать поставщика по email"""
+    try:
+        data = await request.json()
+        email = data.get("email", "").strip()
+        
+        if not email:
+            return {"success": False, "error": "Email required"}
+        
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            return {"success": False, "error": f"User with email {email} not found"}
+        
+        old_status = user.is_active
+        user.is_active = True
+        db.commit()
+        
+        supplier = db.query(Supplier).filter(Supplier.user_id == user.id).first()
+        supplier_activated = False
+        if supplier:
+            supplier.is_active = True
+            db.commit()
+            supplier_activated = True
+        
+        return {
+            "success": True,
+            "message": f"User {email} activated",
+            "user_id": user.id,
+            "old_status": old_status,
+            "new_status": True,
+            "supplier_activated": supplier_activated,
+            "supplier_id": supplier.id if supplier else None
+        }
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+    
 @app.get("/supplier/api/status")
 async def supplier_status(request: Request, db: Session = Depends(get_db)):
     """Проверить статус поставщика"""
