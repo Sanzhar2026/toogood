@@ -2508,68 +2508,22 @@ document.addEventListener('DOMContentLoaded', function() {
 // ============================================================
 // ПЕРЕМЕННЫЕ ДЛЯ ШАБЛОНОВ
 // ============================================================
+// ============================================================
+// ПЕРЕМЕННЫЕ ДЛЯ ШАБЛОНОВ
+// ============================================================
 let templateProducts = [];
-let isTemplateFormVisible = false;
 let templateDiscountPercent = 0;
 
 // ============================================================
-// ФУНКЦИИ ДЛЯ РАБОТЫ С ФОРМОЙ ШАБЛОНА
+// ФУНКЦИИ ШАБЛОНОВ
 // ============================================================
 
 function toggleTemplateForm() {
     const form = document.getElementById('addTemplateForm');
-    if (!form) return;
-    isTemplateFormVisible = !isTemplateFormVisible;
-    form.style.display = isTemplateFormVisible ? 'block' : 'none';
-}
-
-// ============================================================
-// ФУНКЦИИ ДЛЯ РАБОТЫ СО СКИДКОЙ В ШАБЛОНЕ
-// ============================================================
-
-function applyTemplateDiscount() {
-    const select = document.getElementById('templateDiscount');
-    const percent = parseInt(select.value) || 0;
-    templateDiscountPercent = percent;
-    updateTemplatePrices();
-    showNotification(`✅ Скидка ${percent}% применена`, 'success');
-}
-
-function applyTemplateCustomDiscount() {
-    const input = document.getElementById('templateCustomDiscount');
-    const percent = parseFloat(input.value);
-    
-    if (!percent || percent < 0 || percent > 100) {
-        showNotification('Введите скидку от 0 до 100%', 'error');
-        return;
+    if (form) {
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
     }
-    
-    templateDiscountPercent = percent;
-    
-    // Обновляем select
-    const select = document.getElementById('templateDiscount');
-    select.value = percent;
-    
-    updateTemplatePrices();
-    showNotification(`✅ Своя скидка ${percent}% применена!`, 'success');
 }
-
-function updateTemplatePrices() {
-    const originalPrice = templateProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
-    const discountedPrice = originalPrice * (1 - templateDiscountPercent / 100);
-    
-    const origEl = document.getElementById('templateOriginalPrice');
-    const discEl = document.getElementById('templateDiscountedPrice');
-    
-    if (origEl) origEl.value = originalPrice + ' ₸';
-    if (discEl) discEl.value = Math.round(discountedPrice) + ' ₸';
-    
-    return { originalPrice, discountedPrice: Math.round(discountedPrice) };
-}
-
-// ============================================================
-// ФУНКЦИИ ДЛЯ РАБОТЫ С ТОВАРАМИ В ШАБЛОНЕ
-// ============================================================
 
 function addTemplateProduct() {
     const select = document.getElementById('templateProductSelect');
@@ -2614,11 +2568,7 @@ function renderTemplateProducts() {
     if (!container || !preview) return;
     
     if (templateProducts.length === 0) { 
-        preview.style.display = 'none';
-        const origEl = document.getElementById('templateOriginalPrice');
-        const discEl = document.getElementById('templateDiscountedPrice');
-        if (origEl) origEl.value = '0 ₸';
-        if (discEl) discEl.value = '0 ₸';
+        preview.style.display = 'none'; 
         return; 
     }
     
@@ -2646,70 +2596,149 @@ function removeTemplateProduct(index) {
     updateTemplatePrices();
 }
 
-// ============================================================
-// СОХРАНЕНИЕ ШАБЛОНА
-// ============================================================
-document.getElementById('createTemplateForm')?.addEventListener('submit', async function(e) {
-    e.preventDefault();
+function updateTemplatePrices() {
+    const originalPrice = templateProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+    const discountedPrice = originalPrice * (1 - templateDiscountPercent / 100);
     
-    const name = document.getElementById('templateName').value.trim();
-    const description = document.getElementById('templateDescription').value.trim();
+    const origEl = document.getElementById('templateOriginalPrice');
+    const discEl = document.getElementById('templateDiscountedPrice');
     
-    if (!name) { 
-        showNotification('Введите название шаблона', 'error'); 
-        return; 
+    if (origEl) origEl.value = originalPrice + ' ₸';
+    if (discEl) discEl.value = Math.round(discountedPrice) + ' ₸';
+    
+    return { originalPrice, discountedPrice: Math.round(discountedPrice) };
+}
+
+function applyTemplateCustomDiscount() {
+    const input = document.getElementById('templateCustomDiscount');
+    const percent = parseFloat(input.value);
+    
+    if (!percent || percent < 0 || percent > 100) {
+        showNotification('Введите скидку от 0 до 100%', 'error');
+        return;
     }
     
-    if (templateProducts.length === 0) { 
-        showNotification('Добавьте хотя бы один товар', 'error'); 
-        return; 
-    }
+    templateDiscountPercent = percent;
     
-    // Берем скидку из переменной
-    const discount = templateDiscountPercent;
+    const select = document.getElementById('templateDiscount');
+    if (select) select.value = percent;
     
-    // Вычисляем цены
-    const { originalPrice, discountedPrice } = updateTemplatePrices();
+    updateTemplatePrices();
+    showNotification(`✅ Своя скидка ${percent}% применена!`, 'success');
+}
+
+// ============================================================
+// ОБРАБОТЧИК ФОРМЫ ШАБЛОНА
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('createTemplateForm');
     
-    const templateData = {
-        products: templateProducts.map(p => ({
-            id: p.id,
-            name: p.name,
-            price: p.price,
-            quantity: p.quantity
-        })),
-        original_price: originalPrice,
-        discounted_price: discountedPrice,
-        discount_percentage: discount,
-        hide_contents: false
-    };
-    
-    try {
-        const response = await authFetch('/api/supplier/templates', {
-            method: 'POST',
-            body: JSON.stringify({
+    if (form) {
+        // Удаляем старые обработчики
+        form.onsubmit = null;
+        
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            console.log('🔥 ФОРМА ШАБЛОНА ОТПРАВЛЕНА!');
+            
+            const nameInput = document.getElementById('templateName');
+            const descInput = document.getElementById('templateDescription');
+            const discountSelect = document.getElementById('templateDiscount');
+            
+            if (!nameInput) {
+                showNotification('Ошибка: поле templateName не найдено', 'error');
+                return;
+            }
+            
+            const name = nameInput.value.trim();
+            const description = descInput ? descInput.value.trim() : '';
+            const discount = discountSelect ? parseInt(discountSelect.value) || 0 : 0;
+            
+            console.log('📝 Название:', name);
+            console.log('📝 Длина:', name.length);
+            console.log('💰 Скидка:', discount);
+            console.log('📦 Товаров:', templateProducts ? templateProducts.length : 0);
+            
+            // ✅ ГЛАВНАЯ ПРОВЕРКА
+            if (!name || name === '') {
+                showNotification('❌ Введите название шаблона!', 'error');
+                nameInput.focus();
+                nameInput.style.border = '2px solid red';
+                setTimeout(() => nameInput.style.border = '', 2000);
+                return;
+            }
+            
+            if (!templateProducts || templateProducts.length === 0) {
+                showNotification('❌ Добавьте товары в шаблон!', 'error');
+                return;
+            }
+            
+            // Вычисляем цены
+            const originalPrice = templateProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+            const discountedPrice = discount > 0 ? originalPrice * (1 - discount / 100) : originalPrice;
+            
+            const data = {
                 name: name,
                 description: description,
-                template_data: templateData
-            })
+                template_data: {
+                    products: templateProducts.map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        price: p.price,
+                        quantity: p.quantity
+                    })),
+                    original_price: originalPrice,
+                    discounted_price: Math.round(discountedPrice),
+                    discount_percentage: discount,
+                    hide_contents: false
+                }
+            };
+            
+            console.log('📦 Отправка:', JSON.stringify(data, null, 2));
+            
+            try {
+                const token = getSupplierToken();
+                if (!token) {
+                    showNotification('❌ Нет токена!', 'error');
+                    return;
+                }
+                
+                const response = await fetch('/api/supplier/templates', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                console.log('📨 Ответ:', result);
+                
+                if (result.success) {
+                    showNotification(`✅ Шаблон "${name}" создан со скидкой ${discount}%!`, 'success');
+                    this.reset();
+                    templateProducts = [];
+                    renderTemplateProducts();
+                    
+                    const formDiv = document.getElementById('addTemplateForm');
+                    if (formDiv) formDiv.style.display = 'none';
+                    
+                    loadTemplates();
+                } else {
+                    showNotification('❌ ' + (result.error || 'Ошибка'), 'error');
+                }
+            } catch(error) {
+                console.error('❌ Ошибка:', error);
+                showNotification('❌ Ошибка сети: ' + error.message, 'error');
+            }
         });
         
-        const result = await response.json();
-        
-        if (result.success) {
-            showNotification(`✅ Шаблон "${name}" создан со скидкой ${discount}%!`, 'success');
-            document.getElementById('createTemplateForm').reset();
-            templateProducts = [];
-            templateDiscountPercent = 0;
-            renderTemplateProducts();
-            updateTemplatePrices();
-            toggleTemplateForm();
-            loadTemplates();
-        } else {
-            showNotification('❌ ' + (result.error || 'Ошибка'), 'error');
-        }
-    } catch(error) {
-        showNotification('❌ Ошибка сети', 'error');
+        console.log('✅ Обработчик шаблонов добавлен!');
+    } else {
+        console.error('❌ Форма #createTemplateForm не найдена!');
     }
 });
 
@@ -2778,13 +2807,16 @@ async function loadTemplate(templateId) {
             
             const data = template.template_data || {};
             
-            // Заполняем форму сюрприза
-            document.getElementById('bagName').value = template.name || '';
-            document.getElementById('bagDescription').value = template.description || '';
-            document.getElementById('originalPrice').value = data.original_price || 0;
-            document.getElementById('discountedPrice').value = data.discounted_price || 0;
+            const bagName = document.getElementById('bagName');
+            const bagDesc = document.getElementById('bagDescription');
+            const origPrice = document.getElementById('originalPrice');
+            const discPrice = document.getElementById('discountedPrice');
             
-            // Добавляем товары
+            if (bagName) bagName.value = template.name || '';
+            if (bagDesc) bagDesc.value = template.description || '';
+            if (origPrice) origPrice.value = data.original_price || 0;
+            if (discPrice) discPrice.value = data.discounted_price || 0;
+            
             selectedProducts = [];
             if (data.products) {
                 data.products.forEach(p => {
@@ -2799,7 +2831,6 @@ async function loadTemplate(templateId) {
                 updateTotalPrice();
             }
             
-            // Показываем форму сюрприза
             const bagForm = document.getElementById('addBagForm');
             if (bagForm) {
                 bagForm.style.display = 'block';
@@ -2858,20 +2889,28 @@ function updateTemplateProductSelect() {
 }
 
 // ============================================================
-// ОБРАБОТЧИКИ ДЛЯ СКИДОК
+// ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    // Слушаем изменения в select скидки
-    const discountSelect = document.getElementById('templateDiscount');
-    if (discountSelect) {
-        discountSelect.addEventListener('change', applyTemplateDiscount);
-    }
-    
     // Загружаем шаблоны
     loadTemplates();
+    
+    // Обновляем select для шаблонов
     updateTemplateProductSelect();
+    
+    // Обработчик для select скидки
+    const discountSelect = document.getElementById('templateDiscount');
+    if (discountSelect) {
+        discountSelect.addEventListener('change', function() {
+            const percent = parseInt(this.value) || 0;
+            templateDiscountPercent = percent;
+            updateTemplatePrices();
+            showNotification(`✅ Скидка ${percent}% применена`, 'success');
+        });
+    }
+    
+    console.log('✅ Шаблоны инициализированы!');
 });
-
 // Обновляем loadSupplierProducts чтобы обновлять и select шаблонов
 const originalLoadSupplierProducts = loadSupplierProducts;
 loadSupplierProducts = async function() {
