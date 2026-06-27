@@ -8370,41 +8370,83 @@ async def delete_supplier_product(product_id: int, supplier_id: int = Depends(ge
 # ПОЛУЧИТЬ ЗАКАЗЫ
 # ============================================================
 @app.get("/api/supplier/orders")
-async def get_supplier_orders(
-    supplier: Supplier = Depends(get_current_supplier),
-    db: Session = Depends(get_db)
-):
-    """Получить заказы поставщика"""
+async def get_supplier_orders_api(request: Request, db: Session = Depends(get_db)):
+    """API для получения заказов поставщика"""
+    
+    print("🔍 /api/supplier/orders вызван")
+    
+    # Получаем токен
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Unauthorized"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
-        cur.execute("""
-            SELECT 
-                o.id,
-                o.order_number,
-                o.customer_address,
-                o.amount_paid,
-                o.status,
-                o.created_at,
-                o.delivery_deadline,
-                o.assigned_courier_id,
-                sb.name as bag_name
-            FROM orders o
-            LEFT JOIN surprise_bags sb ON sb.id = o.surprise_bag_id
-            WHERE o.supplier_id = %s
-            ORDER BY o.created_at DESC
-        """, (supplier.id,))
+        if payload.get("role") != "supplier":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "error": "Not a supplier"}
+            )
         
-        orders = cur.fetchall()
-        cur.close()
-        conn.close()
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            user_id = int(payload.get("sub"))
+            supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
+            if not supplier:
+                return JSONResponse(
+                    status_code=404,
+                    content={"success": False, "error": "Supplier not found"}
+                )
+            supplier_id = supplier.id
         
-        return {"success": True, "orders": orders}
     except Exception as e:
-        print(f"❌ Error: {e}")
-        return {"success": False, "error": str(e)}
-
+        print(f"❌ Ошибка токена: {e}")
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "error": str(e)}
+        )
+    
+    # ✅ ПОЛУЧАЕМ ЗАКАЗЫ
+    orders = db.query(Order).filter(
+        Order.supplier_id == int(supplier_id)
+    ).order_by(Order.created_at.desc()).all()
+    
+    orders_list = []
+    for order in orders:
+        # Получаем имя курьера
+        courier_name = None
+        if order.assigned_courier_id:
+            courier = db.query(CourierProfile).filter(
+                CourierProfile.user_id == order.assigned_courier_id
+            ).first()
+            if courier:
+                courier_name = f"{courier.first_name} {courier.last_name}"
+        
+        # Получаем пользователя
+        user = db.query(User).filter(User.id == order.user_id).first()
+        
+        orders_list.append({
+            "id": order.id,
+            "order_number": order.order_number or f"ORD-{order.id}",
+            "customer_name": user.full_name if user else None,
+            "customer_phone": user.phone if user else None,
+            "amount_paid": float(order.amount_paid) if order.amount_paid else 0,
+            "status": order.status or "pending",
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "assigned_courier_name": courier_name,
+            "bag_name": order.surprise_bag.name if order.surprise_bag else None
+        })
+    
+    print(f"✅ Найдено заказов: {len(orders_list)}")
+    
+    return {"success": True, "orders": orders_list}
 
 # ============================================================
 # ПОЛУЧИТЬ СЮРПРИЗЫ
