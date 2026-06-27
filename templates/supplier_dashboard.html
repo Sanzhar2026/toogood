@@ -1418,24 +1418,34 @@ function applyDiscount(percent) {
     document.getElementById('discountedPrice').value = Math.round(discounted);
     showNotification('Скидка ' + percent + '% применена', 'success');
 }
-
 async function submitBagForm(e) {
     e.preventDefault();
+    
+    console.log('📝 Начинаем создание сюрприза...');
+    
     const name = document.getElementById('bagName').value.trim();
     const description = document.getElementById('bagDescription').value.trim();
     const discountedPrice = parseFloat(document.getElementById('discountedPrice').value);
     const quantity = parseInt(document.getElementById('availableQuantity').value) || 1;
     const imageUrl = document.getElementById('imageUrl').value.trim();
-    const isHidden = document.querySelector('input[name="bag_type"]:checked').value === 'hidden';
+    const isHidden = document.querySelector('input[name="bag_type"]:checked')?.value === 'hidden';
     
-    if (!name) { showNotification('Введите название сюрприза', 'error'); return; }
-    if (selectedProducts.length === 0) { showNotification('Добавьте хотя бы один товар', 'error'); return; }
+    if (!name) { 
+        showNotification('Введите название сюрприза', 'error'); 
+        return; 
+    }
+    
+    if (selectedProducts.length === 0) { 
+        showNotification('Добавьте хотя бы один товар', 'error'); 
+        return; 
+    }
     
     const originalPrice = selectedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
     const discount = originalPrice > 0 && discountedPrice < originalPrice 
         ? Math.round((1 - discountedPrice / originalPrice) * 100) 
         : 0;
     
+    // ✅ ФОРМИРУЕМ ПРАВИЛЬНЫЕ ДАННЫЕ
     const data = {
         name: name,
         description: description,
@@ -1446,28 +1456,48 @@ async function submitBagForm(e) {
         total_quantity: quantity,
         image_url: imageUrl,
         hide_contents: isHidden,
-        products: selectedProducts.map(p => ({ id: p.id, quantity: p.quantity }))
+        pickup_start_time: "",
+        pickup_end_time: "",
+        products: selectedProducts.map(p => ({ 
+            id: p.id,           // ✅ БЕКЕНД ЖДЕТ "id"
+            name: p.name,       // ✅ ДЛЯ БЕЗОПАСНОСТИ
+            price: p.price,     // ✅ ДЛЯ БЕЗОПАСНОСТИ
+            quantity: p.quantity 
+        }))
     };
+    
+    console.log('📦 Отправляем данные:', JSON.stringify(data, null, 2));
     
     try {
         const response = await authFetch('/api/supplier/surprise-bags', { 
             method: 'POST', 
             body: JSON.stringify(data) 
         });
+        
+        console.log('📡 Статус ответа:', response.status);
+        
         if (response.ok) {
-            showNotification('Сюрприз добавлен!', 'success');
+            const result = await response.json();
+            console.log('✅ Сюрприз создан:', result);
+            showNotification('🎁 Сюрприз "' + name + '" добавлен!', 'success');
+            
             document.getElementById('createBagForm').reset();
             selectedProducts = [];
             renderSelectedProducts();
             updateTotalPrice();
             document.getElementById('addBagForm').style.display = 'none';
+            document.getElementById('originalPrice').value = '';
+            document.getElementById('discountedPrice').value = '';
+            
             refreshBags();
         } else {
             const error = await response.json();
-            showNotification('Ошибка: ' + (error.detail || 'Неизвестная ошибка'), 'error');
+            console.error('❌ Ошибка сервера:', error);
+            showNotification('❌ Ошибка: ' + (error.detail || error.message || 'Неизвестная ошибка'), 'error');
         }
     } catch(error) {
-        showNotification('Ошибка сети', 'error');
+        console.error('❌ Ошибка сети:', error);
+        showNotification('❌ Ошибка сети: ' + error.message, 'error');
     }
 }
 
