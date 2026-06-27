@@ -12637,19 +12637,21 @@ async def supplier_api_login(request: Request):
         email = data.get("email", "").strip()
         password = data.get("password", "")
         
-        print(f"🔐 LOGIN: email={email}")
-        
         if not email or not password:
             return {"success": False, "message": "Email и пароль обязательны"}
         
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # Получаем пользователя
+        # ✅ ОДИН ЗАПРОС - ВСЕ ДАННЫЕ
         cur.execute("""
-            SELECT id, email, password, role, is_active
-            FROM users
-            WHERE email = %s
+            SELECT 
+                u.id, u.email, u.password, u.is_active,
+                s.id as supplier_id, s.business_name, s.business_type,
+                s.phone, s.city, s.address, s.is_active as supplier_active
+            FROM users u
+            JOIN suppliers s ON s.user_id = u.id
+            WHERE u.email = %s AND u.role = 'supplier'
         """, (email,))
         
         user = cur.fetchone()
@@ -12659,92 +12661,54 @@ async def supplier_api_login(request: Request):
             conn.close()
             return {"success": False, "message": "Неверный email или пароль"}
         
-        # Проверяем пароль
+        # Проверка пароля
         import hashlib
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        
-        if user['password'] != password_hash:
+        if user['password'] != hashlib.sha256(password.encode()).hexdigest():
             cur.close()
             conn.close()
             return {"success": False, "message": "Неверный email или пароль"}
         
-        # ✅ АКТИВИРУЕМ ПРЯМО В SQL
-        if not user['is_active']:
-            print(f"⚠️ User {email} is inactive. Activating via SQL...")
+        # ✅ АКТИВАЦИЯ ЕСЛИ НАДО
+        if not user['is_active'] or not user['supplier_active']:
             cur2 = conn.cursor()
             cur2.execute("""
-                UPDATE users 
-                SET is_active = true 
-                WHERE id = %s
-            """, (user['id'],))
-            conn.commit()
-            cur2.close()
-            print(f"✅ User {email} activated via SQL")
-        
-        # Получаем поставщика
-        cur.execute("""
-            SELECT id, business_name, business_type, phone, city, address, is_active
-            FROM suppliers
-            WHERE user_id = %s
-        """, (user['id'],))
-        
-        supplier = cur.fetchone()
-        
-        if not supplier:
-            cur.close()
-            conn.close()
-            return {"success": False, "message": "Профиль поставщика не найден"}
-        
-        # ✅ АКТИВИРУЕМ ПОСТАВЩИКА
-        if not supplier['is_active']:
-            cur2 = conn.cursor()
-            cur2.execute("""
-                UPDATE suppliers 
-                SET is_active = true 
-                WHERE id = %s
-            """, (supplier['id'],))
+                UPDATE users SET is_active = true WHERE id = %s;
+                UPDATE suppliers SET is_active = true WHERE user_id = %s;
+            """, (user['id'], user['id']))
             conn.commit()
             cur2.close()
         
         cur.close()
         conn.close()
         
-        # Создаем токен
+        # Токен
         from jose import jwt
         import datetime
-        
-        token_data = {
+        token = jwt.encode({
             "sub": str(user['id']),
             "role": "supplier",
-            "supplier_id": supplier['id'],
+            "supplier_id": user['supplier_id'],
             "email": user['email'],
             "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
-        }
-        
-        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
-        
-        print(f"✅ Login successful: {email}")
+        }, SECRET_KEY, algorithm=ALGORITHM)
         
         return {
             "success": True,
             "token": token,
             "supplier": {
-                "id": supplier['id'],
-                "business_name": supplier['business_name'],
-                "business_type": supplier['business_type'],
+                "id": user['supplier_id'],
+                "business_name": user['business_name'],
+                "business_type": user['business_type'],
                 "email": user['email'],
-                "phone": supplier['phone'],
-                "city": supplier['city'],
-                "address": supplier['address']
+                "phone": user['phone'],
+                "city": user['city'],
+                "address": user['address']
             }
         }
         
     except Exception as e:
-        print(f"❌ Login error: {e}")
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "message": str(e)}
-# backend/main.py - ЭНДПОИНТ ЛОГИНА
+        print(f"❌ Error: {e}")
+        return {"success": False, "message": str(e)}# backend/main.py - ЭНДПОИНТ ЛОГИНА
 @app.get("/api/debug/supplier-status")
 async def debug_supplier_status_get(request: Request, db: Session = Depends(get_db)):
     """Проверить статус поставщика по email (GET)"""
