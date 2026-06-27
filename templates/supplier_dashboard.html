@@ -1164,25 +1164,38 @@ async function loadSupplierProducts() {
         const result = await response.json();
         
         if (result.success) {
-            const container = document.getElementById('productsList');
-            container.innerHTML = '';
+            // ✅ ИСПОЛЬЗУЕМ productsTableBody
+            const tbody = document.getElementById('productsTableBody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            
+            if (result.products.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #94a3b8;">Нет товаров</td></tr>';
+                return;
+            }
             
             result.products.forEach(product => {
-                const div = document.createElement('div');
-                div.className = 'product-item';
-                div.innerHTML = `
-                    <div class="product-info">
-                        <span class="product-icon">${product.icon || '🍽️'}</span>  <!-- ✅ ДОБАВИТЬ -->
-                        <span class="product-name">${product.name}</span>
-                        <span class="product-price">${product.price} ₸</span>
-                    </div>
-                    <div class="product-actions">
-                        <button onclick="editProduct(${product.id})">✏️</button>
-                        <button onclick="deleteProduct(${product.id})">🗑️</button>
-                    </div>
+                const row = `
+                    <tr>
+                        <td><span class="product-icon">${product.icon || '🍽️'}</span> ${escapeHtml(product.name)}</td>
+                        <td>${escapeHtml(product.category_name || '-')}</td>
+                        <td><strong>${product.price} ₸</strong></td>
+                        <td>${product.preparation_time || 15} мин</td>
+                        <td>${product.is_available ? '✅ Доступен' : '❌ Недоступен'}</td>
+                        <td>
+                            <button class="btn" onclick="deleteProduct(${product.id})" style="background: #e74c3c; color: white;">🗑️ Удалить</button>
+                        </td>
+                    </tr>
                 `;
-                container.appendChild(div);
+                tbody.innerHTML += row;
             });
+            
+            // ✅ СОХРАНЯЕМ В ГЛОБАЛЬНУЮ ПЕРЕМЕННУЮ
+            window.productsData = result.products;
+            
+            // ✅ ОБНОВЛЯЕМ SELECT В ФОРМЕ СЮРПРИЗА
+            updateProductSelect();
         }
     } catch(error) {
         console.error('Ошибка загрузки товаров:', error);
@@ -1209,17 +1222,6 @@ function updateProductsTable() {
         `;
         tbody.innerHTML += row;
     });
-}
-
-function updateProductSelect() {
-    const select = document.getElementById('productSelect');
-    if (!select) return;
-    select.innerHTML = '<option value="">-- Выберите товар --</option>';
-    if (window.productsData) {
-        window.productsData.forEach(p => {
-            select.innerHTML += `<option value="${p.id}">${p.name} - ${p.price} ₸</option>`;
-        });
-    }
 }
 
 // ============================================================
@@ -2020,7 +2022,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updateProductSelect();
         }
     });
-    
+     updateProductSelect();
     refreshOrders();
     refreshBags();
     initWebSocket();
@@ -2061,8 +2063,8 @@ document.addEventListener('DOMContentLoaded', function() {
             toggleProductForm();
             
             // ✅ ОБНОВЛЯЕМ ОБА СПИСКА!
-            await loadSupplierProducts();  // Список товаров в дашборде
-            await updateProductSelect();   // Список товаров в форме сюрприза ✅ ВАЖНО!
+            await loadSupplierProducts();  // Список товаров в таблице
+            // ✅ updateProductSelect() вызывается ВНУТРИ loadSupplierProducts()
         }
     } catch(error) {
         showNotification('Ошибка сети', 'error');
