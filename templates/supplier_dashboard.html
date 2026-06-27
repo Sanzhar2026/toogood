@@ -365,9 +365,26 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
             </div>
             <div class="form-group">
                 <label>Иконка (эмодзи)</label>
-                <!-- ✅ ПОЛЕ ДЛЯ ПОИСКА -->
-                <input type="text" id="iconSearch" placeholder="🔍 Поиск иконки..." style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 0.3rem; font-size: 0.85rem;">
-                <select id="productIcon" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 0.5rem; font-size: 0.85rem; height: 120px;">
+                <div style="position: relative;">
+                    <input 
+                        type="text" 
+                        id="iconSearch" 
+                        placeholder="🔍 Поиск иконки..." 
+                        style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 0.3rem; font-size: 0.85rem;"
+                    >
+                    <!-- Кнопка очистки (опционально) -->
+                    <button 
+                        type="button" 
+                        class="clear-icon-search" 
+                        style="position: absolute; right: 8px; top: 8px; background: none; border: none; color: #999; cursor: pointer; font-size: 0.8rem;"
+                    >
+                        ✕
+                    </button>
+                </div>
+                <select 
+                    id="productIcon" 
+                    style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 0.5rem; font-size: 0.85rem; height: 120px;"
+                >
                     <option value="🍽️">🍽️ Ресторан</option>
                     <option value="🍕">🍕 Пицца</option>
                     <option value="🍔">🍔 Бургер</option>
@@ -677,29 +694,49 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
     // ============================================================
 // ПОИСК ИКОНОК (ФИЛЬТР)
 // ============================================================
+// ============================================================
+// ПОИСК ИКОНОК - ИСПРАВЛЕННАЯ ВЕРСИЯ
+// ============================================================
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('iconSearch');
     const iconSelect = document.getElementById('productIcon');
     
+    console.log('🔍 Поиск иконок:', {
+        searchInput: !!searchInput,
+        iconSelect: !!iconSelect
+    });
+    
     if (searchInput && iconSelect) {
-        searchInput.addEventListener('input', function() {
-            const searchText = this.value.toLowerCase().trim();
+        // ✅ ФУНКЦИЯ ФИЛЬТРАЦИИ
+        function filterIcons() {
+            const searchText = searchInput.value.toLowerCase().trim();
             const options = iconSelect.options;
             
-            // Показываем все опции
+            console.log(`🔍 Фильтр: "${searchText}"`);
+            
+            // Сначала показываем все опции
             for (let i = 0; i < options.length; i++) {
                 const option = options[i];
-                const text = option.text.toLowerCase();
-                
-                // Если optgroup - пропускаем
                 if (option.tagName === 'OPTGROUP') continue;
-                
-                // Если поиск пустой или текст содержит поисковую фразу
-                if (searchText === '' || text.includes(searchText)) {
-                    option.style.display = '';
-                } else {
-                    option.style.display = 'none';
+                option.style.display = ''; // Показываем все
+            }
+            
+            // Если есть текст поиска - фильтруем
+            if (searchText !== '') {
+                let visibleCount = 0;
+                for (let i = 0; i < options.length; i++) {
+                    const option = options[i];
+                    if (option.tagName === 'OPTGROUP') continue;
+                    
+                    const text = option.text.toLowerCase();
+                    if (text.includes(searchText)) {
+                        option.style.display = '';
+                        visibleCount++;
+                    } else {
+                        option.style.display = 'none';
+                    }
                 }
+                console.log(`✅ Найдено совпадений: ${visibleCount}`);
             }
             
             // Скрываем пустые optgroup
@@ -714,15 +751,34 @@ document.addEventListener('DOMContentLoaded', function() {
                     group.style.display = '';
                 }
             });
-        });
+        }
         
-        // Сброс поиска при клике на select
+        // ✅ СЛУШАЕМ ВВОД
+        searchInput.addEventListener('input', filterIcons);
+        
+        // ✅ СБРОС ПРИ КЛИКЕ НА SELECT
         iconSelect.addEventListener('click', function() {
             if (searchInput.value) {
                 searchInput.value = '';
-                searchInput.dispatchEvent(new Event('input'));
+                filterIcons();
             }
         });
+        
+        // ✅ СБРОС ПРИ КЛИКЕ НА КНОПКУ ОЧИСТКИ (если есть)
+        const clearBtn = document.querySelector('.clear-icon-search');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                searchInput.value = '';
+                filterIcons();
+                searchInput.focus();
+            });
+        }
+        
+        console.log('✅ Поиск иконок настроен!');
+    } else {
+        console.error('❌ Элементы поиска не найдены!');
+        console.log('🔍 Ищем #iconSearch:', document.getElementById('iconSearch'));
+        console.log('🔍 Ищем #productIcon:', document.getElementById('productIcon'));
     }
 });
 // ============================================================
@@ -1972,47 +2028,46 @@ document.addEventListener('DOMContentLoaded', function() {
     
     
     document.getElementById('createProductForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const name = document.getElementById('productName').value.trim();
-        const price = parseFloat(document.getElementById('productPrice').value);
-        const categoryId = document.getElementById('productCategory').value;
-        const prepTime = parseInt(document.getElementById('productPrepTime').value) || 15;
-        const desc = document.getElementById('productDesc').value.trim();
-        if (!name || !price) { showNotification('Заполните название и цену', 'error'); return; }
-        
-        try {
-            const response = await authFetch('/api/supplier/products', {
-                method: 'POST',
-                body: JSON.stringify({
-                    name: name,
-                    description: desc,
-                    price: price,
-                    category_id: categoryId || null,
-                    preparation_time: prepTime
-                })
-            });
-            const result = await response.json();
-            if (result.success) {
-                showNotification('📦 Товар "' + name + '" добавлен!', 'success');
-                document.getElementById('createProductForm').reset();
-                document.getElementById('productPrepTime').value = 15;
-                toggleProductForm();
-                await loadSupplierProducts();
-                updateProductSelect();
-            }
-        } catch(error) {
-            showNotification('Ошибка сети', 'error');
-        }
-    });
+    e.preventDefault();
+    const name = document.getElementById('productName').value.trim();
+    const icon = document.getElementById('productIcon').value;
+    const price = parseFloat(document.getElementById('productPrice').value);
+    const categoryId = document.getElementById('productCategory').value;
+    const prepTime = parseInt(document.getElementById('productPrepTime').value) || 15;
+    const desc = document.getElementById('productDesc').value.trim();
     
-    document.getElementById('createBagForm').addEventListener('submit', submitBagForm);
-    document.getElementById('surpriseTemplate').addEventListener('change', loadSurpriseTemplate);
+    if (!name || !price) { 
+        showNotification('Заполните название и цену', 'error'); 
+        return; 
+    }
     
-    document.querySelectorAll('.discount-preset').forEach(btn => {
-        btn.addEventListener('click', function() {
-            applyDiscount(parseInt(this.dataset.percent));
+    try {
+        const response = await authFetch('/api/supplier/products', {
+            method: 'POST',
+            body: JSON.stringify({
+                name: name,
+                icon: icon,
+                price: price,
+                category_id: categoryId || null,
+                preparation_time: prepTime,
+                description: desc
+            })
         });
-    });
+        const result = await response.json();
+        if (result.success) {
+            showNotification('📦 Товар "' + name + '" добавлен!', 'success');
+            document.getElementById('createProductForm').reset();
+            document.getElementById('productPrepTime').value = 15;
+            toggleProductForm();
+            
+            // ✅ ОБНОВЛЯЕМ ОБА СПИСКА!
+            await loadSupplierProducts();  // Список товаров в дашборде
+            await updateProductSelect();   // Список товаров в форме сюрприза ✅ ВАЖНО!
+        }
+    } catch(error) {
+        showNotification('Ошибка сети', 'error');
+    }
+});
     
     document.querySelectorAll('.lang-btn').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -2025,6 +2080,42 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshBags();
     }, 30000);
 });
+async function updateProductSelect() {
+    try {
+        const response = await authFetch('/api/supplier/products');
+        const result = await response.json();
+        
+        if (result.success) {
+            const select = document.getElementById('surpriseProductSelect');
+            if (!select) return;
+            
+            // Сохраняем выбранное значение
+            const currentValue = select.value;
+            
+            // Очищаем select (сохраняем первый option "Выберите товар")
+            select.innerHTML = '<option value="">-- Выберите товар --</option>';
+            
+            // Добавляем товары
+            result.products.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product.id;
+                // ✅ ПОКАЗЫВАЕМ ИКОНКУ В СПИСКЕ
+                option.textContent = `${product.icon || '🍽️'} ${product.name} (${product.price} ₸)`;
+                select.appendChild(option);
+            });
+            
+            // Восстанавливаем выбранное значение
+            if (currentValue) {
+                select.value = currentValue;
+            }
+            
+            console.log(`✅ Обновлен список товаров: ${result.products.length} товаров`);
+        }
+    } catch(error) {
+        console.error('Ошибка обновления списка товаров:', error);
+    }
+}
+
 
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.nav-links a').forEach(link => {
