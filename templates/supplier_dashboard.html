@@ -592,6 +592,9 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
                     </select>
                 </div>
 <!-- ШАБЛОНЫ СЮРПРИЗОВ -->
+<!-- ============================================================ -->
+<!-- ШАБЛОНЫ СЮРПРИЗОВ -->
+<!-- ============================================================ -->
 <div class="section-header" style="margin-top: 1.5rem;">
     <span class="section-title">📋 Мои шаблоны</span>
     <button class="btn-primary" onclick="toggleTemplateForm()">+ Создать шаблон</button>
@@ -601,7 +604,9 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 <div id="addTemplateForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-top: 1rem; border: 1px solid #e8f5e9;">
     <h4 style="margin-bottom: 1rem; color: #367666;">📝 Новый шаблон</h4>
     
+    <!-- ✅ ВАЖНО: id="createTemplateForm" -->
     <form id="createTemplateForm">
+        <!-- Название и описание -->
         <div class="form-grid">
             <div class="form-group">
                 <label>Название шаблона *</label>
@@ -613,10 +618,10 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
             </div>
         </div>
         
-        <!-- ✅ НОВЫЙ БЛОК СО СКИДКАМИ -->
+        <!-- Скидка -->
         <div class="form-grid">
             <div class="form-group">
-                <label>Быстрая скидка</label>
+                <label>Скидка по умолчанию</label>
                 <select id="templateDiscount">
                     <option value="0">0%</option>
                     <option value="10">10%</option>
@@ -661,12 +666,12 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
                 <button type="button" class="btn-primary" onclick="addTemplateProduct()">+ Добавить</button>
             </div>
             <div id="templateProductsPreview" style="display: none;">
-                <strong>Товары в шаблоне:</strong>
+                <strong>Выбранные товары:</strong>
                 <div id="templateProductsList" class="selected-products-list"></div>
             </div>
         </div>
         
-        <!-- ✅ ИТОГОВАЯ ЦЕНА СО СКИДКОЙ -->
+        <!-- Цены -->
         <div class="form-grid">
             <div class="form-group">
                 <label>Оригинальная цена</label>
@@ -678,7 +683,8 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
             </div>
         </div>
         
-        <div style="display: flex; gap: 0.5rem;">
+        <!-- Кнопки -->
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.8rem;">
             <button type="submit" class="submit-btn" style="width: auto; padding: 0.5rem 2rem; background: #8b5cf6;">Сохранить шаблон</button>
             <button type="button" class="clear-btn" onclick="toggleTemplateForm()" style="padding: 0.5rem 1rem;">Отмена</button>
         </div>

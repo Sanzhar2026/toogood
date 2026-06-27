@@ -7,6 +7,7 @@ def create_table():
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
     
+    # Создаем таблицу
     cur.execute("""
         CREATE TABLE IF NOT EXISTS supplier_templates (
             id SERIAL PRIMARY KEY,
