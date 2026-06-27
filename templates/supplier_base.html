@@ -5,9 +5,103 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Supplier Dashboard{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
     {% block content %}{% endblock %}
+
+    <script>
+    // ✅ ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ТОКЕНОМ
+    function getSupplierToken() {
+        let token = sessionStorage.getItem('supplier_token');
+        if (!token) token = localStorage.getItem('supplier_token');
+        if (!token) {
+            const el = document.getElementById('supplierData');
+            if (el) token = el.getAttribute('data-token');
+        }
+        if (!token) {
+            const params = new URLSearchParams(window.location.search);
+            token = params.get('token');
+        }
+        return token;
+    }
+
+    function clearSupplierToken() {
+        sessionStorage.removeItem('supplier_token');
+        localStorage.removeItem('supplier_token');
+    }
+
+    function logout() {
+        clearSupplierToken();
+        window.location.href = '/supplier/login';
+    }
+
+    async function authFetch(url, options = {}) {
+        const token = getSupplierToken();
+        if (!token) {
+            console.error('❌ НЕТ ТОКЕНА!');
+            window.location.href = '/supplier/login?error=no_token';
+            throw new Error('No token');
+        }
+        
+        const response = await fetch(url, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token,
+                ...options.headers
+            }
+        });
+        
+        if (response.status === 401) {
+            clearSupplierToken();
+            window.location.href = '/supplier/login?error=unauthorized';
+            throw new Error('Unauthorized');
+        }
+        return response;
+    }
+
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        notification.textContent = (type === 'success' ? '✅ ' : '❌ ') + message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
+
+    // ✅ АВТОМАТИЧЕСКИ ДОБАВЛЯЕМ ТОКЕН ВО ВСЕ ССЫЛКИ
+    document.addEventListener('DOMContentLoaded', function() {
+        const token = getSupplierToken();
+        if (token) {
+            document.querySelectorAll('a[href^="/supplier/"]').forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.includes('token=') && !href.includes('login')) {
+                    link.href = href + (href.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
+                }
+            });
+        }
+    });
+    </script>
+
+    <style>
+        .notification {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: white;
+            border-radius: 0.5rem;
+            padding: 0.6rem 1rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            border-left: 3px solid #10b981;
+            font-size: 0.8rem;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
 </body>
 </html>
