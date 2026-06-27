@@ -50,7 +50,7 @@ class SupplierProduct(Base):
     
     name = Column(String(255), nullable=False)
     
-    description_ru = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
     
     price = Column(Float, nullable=False)
     
