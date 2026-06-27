@@ -49,7 +49,7 @@ class SupplierProduct(Base):
     supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"), nullable=False)
     
     name = Column(String(255), nullable=False)
-    
+    icon = Column(String(50), default='🍽️')  # ← ВОТ ЭТО!
     description = Column(Text, nullable=True)
     
     price = Column(Float, nullable=False)
