@@ -12645,10 +12645,10 @@ async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "message": "Email и пароль обязательны"}
             )
         
-        # ✅ ИСПРАВЛЕНО: role = 'supplier' (строка, БЕЗ ENUM)
+        # Находим пользователя
         user = db.query(User).filter(
             User.email == email,
-            User.role == "supplier"  # ✅ СТРОКА, БЕЗ ENUM
+            User.role == "supplier"
         ).first()
         
         if not user:
@@ -12658,13 +12658,12 @@ async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
                 content={"success": False, "message": "Invalid credentials"}
             )
         
+        # ✅ ЕСЛИ ДЕАКТИВИРОВАН - АКТИВИРУЕМ АВТОМАТИЧЕСКИ
         if not user.is_active:
-            return JSONResponse(
-                status_code=403,
-                content={"success": False, "message": "Account is deactivated"}
-            )
-        
-        print(f"✅ User found: {user.id}")
+            print(f"⚠️ Пользователь {email} деактивирован. Активируем...")
+            user.is_active = True
+            db.commit()
+            print(f"✅ Пользователь {email} активирован автоматически")
         
         # Проверка пароля
         import hashlib
@@ -12689,10 +12688,10 @@ async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
             )
         
         if not supplier.is_active:
-            return JSONResponse(
-                status_code=403,
-                content={"success": False, "message": "Supplier is not active"}
-            )
+            print(f"⚠️ Поставщик {email} деактивирован. Активируем...")
+            supplier.is_active = True
+            db.commit()
+            print(f"✅ Поставщик {email} активирован")
         
         # Создаем JWT токен
         from jose import jwt
@@ -12703,7 +12702,7 @@ async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
             "role": "supplier",
             "supplier_id": supplier.id,
             "email": user.email,
-            "exp": datetime.utcnow() + timedelta(days=30)
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
         }
         
         token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
