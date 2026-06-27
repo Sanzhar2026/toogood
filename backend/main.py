@@ -14839,18 +14839,50 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 async def supplier_couriers_page(request: Request, db: Session = Depends(get_db)):
     """Страница управления курьерами для поставщика"""
     
-    supplier_id = request.cookies.get("supplier_id")
+    # ✅ ПОЛУЧАЕМ ТОКЕН ИЗ QUERY PARAM ИЛИ HEADER
+    token = request.query_params.get("token")
     
-    if not supplier_id:
-        return RedirectResponse(url="/supplier/login", status_code=303)
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
     
+    if not token:
+        return RedirectResponse(url="/supplier/login?error=no_token", status_code=303)
+    
+    # ✅ ДЕКОДИРУЕМ ТОКЕН
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # Проверяем роль
+        if payload.get("role") != "supplier":
+            return RedirectResponse(url="/supplier/login?error=invalid_role", status_code=303)
+        
+        supplier_id = payload.get("supplier_id")
+        if not supplier_id:
+            # Если supplier_id нет в токене - ищем по user_id
+            user_id = int(payload.get("sub"))
+            supplier = db.query(Supplier).filter(Supplier.user_id == user_id).first()
+            if not supplier:
+                return RedirectResponse(url="/supplier/login?error=supplier_not_found", status_code=303)
+            supplier_id = supplier.id
+        
+    except jwt.ExpiredSignatureError:
+        return RedirectResponse(url="/supplier/login?error=token_expired", status_code=303)
+    except jwt.JWTError as e:
+        print(f"❌ JWT Error: {e}")
+        return RedirectResponse(url="/supplier/login?error=invalid_token", status_code=303)
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return RedirectResponse(url="/supplier/login?error=unknown", status_code=303)
+    
+    # ✅ ПОЛУЧАЕМ ПОСТАВЩИКА
     supplier = db.query(Supplier).filter(Supplier.id == int(supplier_id)).first()
     if not supplier:
-        response = RedirectResponse(url="/supplier/login", status_code=303)
-        response.delete_cookie("supplier_id")
-        return response
+        return RedirectResponse(url="/supplier/login?error=supplier_not_found", status_code=303)
     
-    # Получаем курьеров этого поставщика
+    # ✅ ПОЛУЧАЕМ КУРЬЕРОВ
     couriers = db.query(CourierProfile).filter(
         CourierProfile.supplier_id == int(supplier_id)
     ).all()
@@ -14877,7 +14909,8 @@ async def supplier_couriers_page(request: Request, db: Session = Depends(get_db)
         "request": request,
         "supplier": supplier,
         "couriers": couriers_list,
-        "lang": request.query_params.get("lang", "ru")
+        "lang": request.query_params.get("lang", "ru"),
+        "token": token  # ← ПЕРЕДАЕМ ТОКЕН В ШАБЛОН
     })
 # В main.py
 # backend/main.py - добавьте
