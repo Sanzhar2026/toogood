@@ -12738,7 +12738,32 @@ async def supplier_api_login(request: Request, db: Session = Depends(get_db)):
         )
 # backend/main.py - ЭНДПОИНТ ЛОГИНА
 
-
+@app.get("/supplier/api/status")
+async def supplier_status(request: Request, db: Session = Depends(get_db)):
+    """Проверить статус поставщика"""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return {"authenticated": False}
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        supplier_id = payload.get("supplier_id")
+        
+        supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+        if not supplier:
+            return {"authenticated": False}
+        
+        user = db.query(User).filter(User.id == supplier.user_id).first()
+        
+        return {
+            "authenticated": True,
+            "is_active": user.is_active if user else False,
+            "supplier_active": supplier.is_active
+        }
+    except:
+        return {"authenticated": False}
 
 @app.post("/supplier/login")
 async def supplier_login(request: Request):
