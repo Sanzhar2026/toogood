@@ -355,41 +355,186 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
             </form>
         </div>
         
-        <div id="addProductForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem; border: 1px solid #e8f5e9;">
-            <h4 style="margin-bottom: 1rem; color: #367666;">Новый товар</h4>
-            <form id="createProductForm">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Название *</label>
-                        <input type="text" id="productName" required placeholder="Название товара">
-                    </div>
-                    <div class="form-group">
-                        <label>Категория</label>
-                        <select id="productCategory">
-                            <option value="">-- Выберите категорию --</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Цена (₸) *</label>
-                        <input type="number" id="productPrice" required min="1" placeholder="2500">
-                    </div>
-                    <div class="form-group">
-                        <label>Время приготовления (мин)</label>
-                        <input type="number" id="productPrepTime" value="15" min="1">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Описание</label>
-                    <textarea id="productDesc" rows="2" placeholder="Описание товара"></textarea>
-                </div>
-                <div style="display: flex; gap: 0.5rem;">
-                    <button type="submit" class="submit-btn" style="width: auto; padding: 0.5rem 2rem;">Сохранить</button>
-                    <button type="button" class="clear-btn" onclick="toggleProductForm()" style="padding: 0.5rem 1rem;">Отмена</button>
-                </div>
-            </form>
+<div id="addProductForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem; border: 1px solid #e8f5e9;">
+    <h4 style="margin-bottom: 1rem; color: #367666;">Новый товар</h4>
+    <form id="createProductForm">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Название *</label>
+                <input type="text" id="productName" required placeholder="Название товара">
+            </div>
+            <div class="form-group">
+                <label>Иконка (эмодзи)</label>
+                <!-- ✅ ПОЛЕ ДЛЯ ПОИСКА -->
+                <input type="text" id="iconSearch" placeholder="🔍 Поиск иконки..." style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 0.3rem; font-size: 0.85rem;">
+                <select id="productIcon" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 0.5rem; font-size: 0.85rem; height: 120px;">
+                    <option value="🍽️">🍽️ Ресторан</option>
+                    <option value="🍕">🍕 Пицца</option>
+                    <option value="🍔">🍔 Бургер</option>
+                    <option value="🍟">🍟 Картошка фри</option>
+                    <option value="🌭">🌭 Хот-дог</option>
+                    <option value="🥪">🥪 Сэндвич</option>
+                    <option value="🌯">🌯 Буррито</option>
+                    <option value="🥙">🥙 Шаурма</option>
+                    <option value="🧆">🧆 Фалафель</option>
+                    <option value="🥘">🥘 Плов</option>
+                    <option value="🍲">🍲 Суп</option>
+                    <option value="🥗">🥗 Салат</option>
+                    <option value="🍖">🍖 Мясо</option>
+                    <option value="🍗">🍗 Курица</option>
+                    <option value="🥩">🥩 Стейк</option>
+                    <option value="🍤">🍤 Креветки</option>
+                    <option value="🍣">🍣 Суши</option>
+                    <option value="🍱">🍱 Бенто</option>
+                    <option value="🍛">🍛 Карри</option>
+                    <option value="🍜">🍜 Лапша</option>
+                    <option value="🍝">🍝 Паста</option>
+                    <option value="🥟">🥟 Пельмени</option>
+                    <option value="🫕">🫕 Фондю</option>
+                    
+                    <optgroup label="🧀 Молочные">
+                        <option value="🧀">🧀 Сыр</option>
+                        <option value="🥛">🥛 Молоко</option>
+                        <option value="🍦">🍦 Мороженое</option>
+                        <option value="🥚">🥚 Яйца</option>
+                        <option value="🧈">🧈 Масло</option>
+                        <option value="🥞">🥞 Блины</option>
+                        <option value="🧇">🧇 Вафли</option>
+                    </optgroup>
+                    
+                    <optgroup label="🥐 Выпечка">
+                        <option value="🍰">🍰 Торт</option>
+                        <option value="🧁">🧁 Кекс</option>
+                        <option value="🥧">🥧 Пирог</option>
+                        <option value="🍪">🍪 Печенье</option>
+                        <option value="🍩">🍩 Пончик</option>
+                        <option value="🍫">🍫 Шоколад</option>
+                        <option value="🍬">🍬 Конфеты</option>
+                        <option value="🍭">🍭 Леденец</option>
+                        <option value="🍮">🍮 Пудинг</option>
+                        <option value="🥐">🥐 Круассан</option>
+                        <option value="🥖">🥖 Багет</option>
+                        <option value="🍞">🍞 Хлеб</option>
+                        <option value="🥯">🥯 Бублик</option>
+                        <option value="🫓">🫓 Лепешка</option>
+                    </optgroup>
+                    
+                    <optgroup label="🥤 Напитки">
+                        <option value="☕">☕ Кофе</option>
+                        <option value="🍵">🍵 Чай</option>
+                        <option value="🧃">🧃 Сок</option>
+                        <option value="🥤">🥤 Напиток</option>
+                        <option value="🧋">🧋 Bubble tea</option>
+                        <option value="🧉">🧉 Мате</option>
+                        <option value="🍺">🍺 Пиво</option>
+                        <option value="🍷">🍷 Вино</option>
+                        <option value="🥃">🥃 Виски</option>
+                        <option value="🍸">🍸 Коктейль</option>
+                        <option value="🍾">🍾 Шампанское</option>
+                        <option value="💧">💧 Вода</option>
+                    </optgroup>
+                    
+                    <optgroup label="🍎 Фрукты и овощи">
+                        <option value="🍎">🍎 Яблоко</option>
+                        <option value="🍐">🍐 Груша</option>
+                        <option value="🍊">🍊 Апельсин</option>
+                        <option value="🍋">🍋 Лимон</option>
+                        <option value="🍌">🍌 Банан</option>
+                        <option value="🍉">🍉 Арбуз</option>
+                        <option value="🍇">🍇 Виноград</option>
+                        <option value="🍓">🍓 Клубника</option>
+                        <option value="🫐">🫐 Черника</option>
+                        <option value="🍑">🍑 Персик</option>
+                        <option value="🍒">🍒 Вишня</option>
+                        <option value="🍍">🍍 Ананас</option>
+                        <option value="🥭">🥭 Манго</option>
+                        <option value="🍈">🍈 Дыня</option>
+                        <option value="🥝">🥝 Киви</option>
+                        <option value="🍅">🍅 Помидор</option>
+                        <option value="🥬">🥬 Салат</option>
+                        <option value="🥒">🥒 Огурец</option>
+                        <option value="🌶️">🌶️ Перец</option>
+                        <option value="🥕">🥕 Морковь</option>
+                        <option value="🧄">🧄 Чеснок</option>
+                        <option value="🧅">🧅 Лук</option>
+                        <option value="🥔">🥔 Картофель</option>
+                        <option value="🍄">🍄 Грибы</option>
+                        <option value="🌽">🌽 Кукуруза</option>
+                    </optgroup>
+                    
+                    <optgroup label="🐟 Рыба и морепродукты">
+                        <option value="🐟">🐟 Рыба</option>
+                        <option value="🦐">🦐 Креветка</option>
+                        <option value="🦞">🦞 Лобстер</option>
+                        <option value="🦀">🦀 Краб</option>
+                        <option value="🐙">🐙 Осьминог</option>
+                        <option value="🦑">🦑 Кальмар</option>
+                    </optgroup>
+                    
+                    <optgroup label="🧹 Хозтовары">
+                        <option value="🧹">🧹 Веник</option>
+                        <option value="🧺">🧺 Корзина</option>
+                        <option value="🧽">🧽 Губка</option>
+                        <option value="🧴">🧴 Средство</option>
+                        <option value="🧵">🧵 Нитки</option>
+                        <option value="🪣">🪣 Ведро</option>
+                        <option value="🧤">🧤 Перчатки</option>
+                        <option value="🧦">🧦 Носки</option>
+                        <option value="👕">👕 Футболка</option>
+                        <option value="👖">👖 Штаны</option>
+                        <option value="👗">👗 Платье</option>
+                        <option value="👟">👟 Кроссовки</option>
+                        <option value="🧳">🧳 Чемодан</option>
+                        <option value="🎒">🎒 Рюкзак</option>
+                        <option value="👜">👜 Сумка</option>
+                        <option value="🧢">🧢 Кепка</option>
+                        <option value="🧸">🧸 Игрушка</option>
+                        <option value="📚">📚 Книги</option>
+                    </optgroup>
+                    
+                    <optgroup label="📦 Универсальные">
+                        <option value="📦">📦 Посылка</option>
+                        <option value="🛒">🛒 Корзина</option>
+                        <option value="🎁">🎁 Подарок</option>
+                        <option value="🏪">🏪 Магазин</option>
+                        <option value="⭐">⭐ Рейтинг</option>
+                        <option value="🔥">🔥 Горячее</option>
+                        <option value="✨">✨ Новинка</option>
+                    </optgroup>
+                </select>
+            </div>
         </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Категория</label>
+                <select id="productCategory">
+                    <option value="">-- Выберите категорию --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Цена (₸) *</label>
+                <input type="number" id="productPrice" required min="1" placeholder="2500">
+            </div>
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Время приготовления (мин)</label>
+                <input type="number" id="productPrepTime" value="15" min="1">
+            </div>
+            <div class="form-group">
+                <!-- Пусто для выравнивания -->
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Описание</label>
+            <textarea id="productDesc" rows="2" placeholder="Описание товара"></textarea>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="submit-btn" style="width: auto; padding: 0.5rem 2rem;">Сохранить</button>
+            <button type="button" class="clear-btn" onclick="toggleProductForm()" style="padding: 0.5rem 1rem;">Отмена</button>
+        </div>
+    </form>
+</div>
         
         <div class="table-container">
             <table>
@@ -528,6 +673,58 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 </div>
 
 <script>
+
+    // ============================================================
+// ПОИСК ИКОНОК (ФИЛЬТР)
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('iconSearch');
+    const iconSelect = document.getElementById('productIcon');
+    
+    if (searchInput && iconSelect) {
+        searchInput.addEventListener('input', function() {
+            const searchText = this.value.toLowerCase().trim();
+            const options = iconSelect.options;
+            
+            // Показываем все опции
+            for (let i = 0; i < options.length; i++) {
+                const option = options[i];
+                const text = option.text.toLowerCase();
+                
+                // Если optgroup - пропускаем
+                if (option.tagName === 'OPTGROUP') continue;
+                
+                // Если поиск пустой или текст содержит поисковую фразу
+                if (searchText === '' || text.includes(searchText)) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            }
+            
+            // Скрываем пустые optgroup
+            const optgroups = iconSelect.querySelectorAll('optgroup');
+            optgroups.forEach(group => {
+                const visibleOptions = Array.from(group.querySelectorAll('option')).filter(
+                    opt => opt.style.display !== 'none'
+                );
+                if (visibleOptions.length === 0) {
+                    group.style.display = 'none';
+                } else {
+                    group.style.display = '';
+                }
+            });
+        });
+        
+        // Сброс поиска при клике на select
+        iconSelect.addEventListener('click', function() {
+            if (searchInput.value) {
+                searchInput.value = '';
+                searchInput.dispatchEvent(new Event('input'));
+            }
+        });
+    }
+});
 // ============================================================
 // ПОЛУЧАЕМ ТОКЕН
 // ============================================================
@@ -908,14 +1105,31 @@ function toggleCategoryForm() {
 async function loadSupplierProducts() {
     try {
         const response = await authFetch('/api/supplier/products');
-        const data = await response.json();
-        if (data.success) {
-            window.productsData = data.products;
-            updateProductsTable();
-            updateProductSelect();
+        const result = await response.json();
+        
+        if (result.success) {
+            const container = document.getElementById('productsList');
+            container.innerHTML = '';
+            
+            result.products.forEach(product => {
+                const div = document.createElement('div');
+                div.className = 'product-item';
+                div.innerHTML = `
+                    <div class="product-info">
+                        <span class="product-icon">${product.icon || '🍽️'}</span>  <!-- ✅ ДОБАВИТЬ -->
+                        <span class="product-name">${product.name}</span>
+                        <span class="product-price">${product.price} ₸</span>
+                    </div>
+                    <div class="product-actions">
+                        <button onclick="editProduct(${product.id})">✏️</button>
+                        <button onclick="deleteProduct(${product.id})">🗑️</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
         }
     } catch(error) {
-        console.error('❌ Ошибка загрузки товаров:', error);
+        console.error('Ошибка загрузки товаров:', error);
     }
 }
 

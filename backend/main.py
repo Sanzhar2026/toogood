@@ -7969,18 +7969,25 @@ async def get_surprise_bag_by_id(
     # Получаем поставщика
     supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
     
-    # Получаем товары в сюрпризе (если они есть)
-    items = db.query(SurpriseBagItem).filter(
+    # ✅ ОПТИМИЗАЦИЯ: Получаем товары с иконками за 1 запрос
+    items = db.query(
+        SurpriseBagItem,
+        SupplierProduct.icon
+    ).outerjoin(
+        SupplierProduct,
+        SupplierProduct.id == SurpriseBagItem.supplier_product_id
+    ).filter(
         SurpriseBagItem.surprise_bag_id == bag.id
     ).all()
     
     items_list = []
-    for item in items:
+    for item, icon in items:
         items_list.append({
             "product_id": item.product_id or 0,
             "name": item.product_name or "",
             "price": float(item.product_price) if item.product_price else 0,
-            "quantity": int(item.quantity) if item.quantity else 1
+            "quantity": int(item.quantity) if item.quantity else 1,
+            "icon": icon if icon else '🍽️'  # ✅ ИКОНКА ИЗ JOIN
         })
     
     result = {
@@ -7997,12 +8004,15 @@ async def get_surprise_bag_by_id(
         "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
         "city": bag.city or "",
         "is_active": bool(bag.is_active) if bag.is_active is not None else False,
-        "items": items_list
+        "items": items_list  # ✅ С ИКОНКАМИ
     }
     
     print(f"✅ Сюрприз #{bag_id} найден: {bag.name}")
+    print(f"📋 Товаров: {len(items_list)}")
     
     return JSONResponse(content=result)
+
+
 @app.post("/api/supplier/surprise-bags")
 async def create_surprise_bag(
     request: Request,
@@ -8213,7 +8223,6 @@ async def delete_supplier_category(
 
 @app.get("/api/supplier/products")
 async def get_supplier_products(supplier_id: int = Depends(get_supplier_id_from_token)):
-    """Получить все товары поставщика"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -8222,6 +8231,7 @@ async def get_supplier_products(supplier_id: int = Depends(get_supplier_id_from_
             SELECT 
                 sp.id,
                 sp.name,
+                sp.icon,  -- ✅ УЖЕ ЕСТЬ
                 sp.price,
                 sp.category_id,
                 sc.name as category_name,
@@ -8252,6 +8262,7 @@ async def create_supplier_product(request: Request, supplier_id: int = Depends(g
         data = await request.json()
         
         name = data.get("name", "").strip()
+        icon = data.get("icon", "🍽️")  # ✅ ДОБАВЛЯЕМ icon
         price = float(data.get("price", 0))
         category_value = data.get("category_id")
         image_url = data.get("image_url", "").strip()
@@ -8307,14 +8318,15 @@ async def create_supplier_product(request: Request, supplier_id: int = Depends(g
                     category_id = cur.fetchone()[0]
                     print(f"✅ Создана категория: {category_value}")
         
+        # ✅ ДОБАВЛЯЕМ icon В INSERT
         cur.execute("""
             INSERT INTO supplier_products (
-                supplier_id, name, price, category_id, image_url, 
+                supplier_id, name, icon, price, category_id, image_url, 
                 description, preparation_time, is_available, created_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             RETURNING id
-        """, (supplier_id, name, price, category_id, image_url,
+        """, (supplier_id, name, icon, price, category_id, image_url,
               description, preparation_time, is_available))
         
         product_id = cur.fetchone()[0]
@@ -8336,7 +8348,6 @@ async def create_supplier_product(request: Request, supplier_id: int = Depends(g
             status_code=500,
             content={"success": False, "error": str(e)}
         )
-
 
 # ============================================================
 # ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ УДАЛЕНИЯ ТОВАРА
