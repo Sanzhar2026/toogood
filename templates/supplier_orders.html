@@ -29,12 +29,20 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 {% endblock %}
 
 {% block content %}
+<!-- ✅ ДОБАВЛЯЕМ data-token -->
+<div id="supplierData" 
+     data-supplier-id="{{ supplier.id }}" 
+     data-token="{{ token or '' }}"
+     style="display: none;">
+</div>
+
 <div class="orders-container">
+    <!-- ✅ ДОБАВЛЯЕМ ТОКЕН В ССЫЛКИ -->
     <div class="nav-links">
-        <a href="/supplier/dashboard">Главная</a>
-        <a href="/supplier/couriers">Курьеры</a>
-        <a href="/supplier/orders" class="active">Заказы</a>
-        <a href="/supplier/surprise-bags">Сюрпризы</a>
+        <a href="/supplier/dashboard?token={{ token }}">Главная</a>
+        <a href="/supplier/couriers?token={{ token }}">Курьеры</a>
+        <a href="/supplier/orders?token={{ token }}" class="active">Заказы</a>
+        <a href="/supplier/surprise-bags?token={{ token }}">Сюрпризы</a>
     </div>
 
     <div class="header-actions">
@@ -64,12 +72,26 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const token = sessionStorage.getItem('supplier_token');
+    // ✅ БЕРЕМ ТОКЕН ИЗ ВСЕХ МЕСТ
+    const token = document.getElementById('supplierData')?.getAttribute('data-token') ||
+                  localStorage.getItem('supplier_token') ||
+                  sessionStorage.getItem('supplier_token') ||
+                  new URLSearchParams(window.location.search).get('token');
+    
+    console.log('🔍 Токен для заказов:', token ? 'есть' : 'нет');
+    
+    if (!token) {
+        document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #e74c3c;">Нет авторизации</td></tr>';
+        return;
+    }
     
     fetch('/api/supplier/orders', {
         headers: { 'Authorization': 'Bearer ' + token }
     })
-    .then(r => r.json())
+    .then(r => {
+        if (!r.ok) throw new Error('Ошибка ' + r.status);
+        return r.json();
+    })
     .then(data => {
         const tbody = document.getElementById('ordersTableBody');
         if (!data.orders || data.orders.length === 0) {
@@ -92,13 +114,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     <td><strong>${o.amount_paid} ₸</strong></td>
                     <td><span class="status-badge status-${o.status}">${statusText}</span></td>
                     <td>${o.assigned_courier_name || '—'}</td>
-                    <td>${new Date(o.created_at).toLocaleString()}</td>
+                    <td>${o.created_at ? new Date(o.created_at).toLocaleString() : '—'}</td>
                 </tr>
             `;
         });
     })
-    .catch(() => {
-        document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #e74c3c;">Ошибка загрузки</td></tr>';
+    .catch((err) => {
+        console.error('❌ Ошибка загрузки заказов:', err);
+        document.getElementById('ordersTableBody').innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: #e74c3c;">Ошибка загрузки: ' + err.message + '</td></tr>';
     });
 });
 </script>
