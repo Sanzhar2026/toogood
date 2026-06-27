@@ -1626,11 +1626,31 @@ async function submitBagForm(e) {
 
 async function refreshBags() {
     try {
+        console.log('🔄 Обновление списка сюрпризов...');
+        
         const response = await authFetch('/api/supplier/surprise-bags');
         const data = await response.json();
-        if (!data.bags) return;
+        
+        console.log('📦 Получены сюрпризы:', data);
+        
+        if (!data.bags) {
+            console.warn('⚠️ Нет сюрпризов');
+            return;
+        }
+        
         const tbody = document.getElementById('bagsTableBody');
+        if (!tbody) {
+            console.error('❌ Элемент #bagsTableBody не найден!');
+            return;
+        }
+        
         tbody.innerHTML = '';
+        
+        if (data.bags.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #94a3b8;">Нет сюрпризов</td></tr>';
+            return;
+        }
+        
         data.bags.forEach(bag => {
             const isHidden = bag.hide_contents;
             const statusText = bag.is_active ? 'Активен' : 'Неактивен';
@@ -1660,8 +1680,11 @@ async function refreshBags() {
             `;
             tbody.innerHTML += row;
         });
+        
+        console.log(`✅ Отображено ${data.bags.length} сюрпризов`);
+        
     } catch(error) {
-        console.error('Refresh bags error:', error);
+        console.error('❌ Ошибка refreshBags:', error);
     }
 }
 
