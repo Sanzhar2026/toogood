@@ -9348,35 +9348,47 @@ async def update_cart_quantity(bag_id: int, request: Request, db: Session = Depe
 # backend/main.py - добавь этот эндпоинт для проверки
 
 @app.get("/api/debug/users")
-async def debug_users(request: Request, db: Session = Depends(get_db)):
-    """Проверка пользователей в БД (только для отладки)"""
+async def debug_all_users():
+    """Посмотреть всех пользователей и их статус"""
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     
-    # Получаем всех пользователей
-    users = db.query(User).all()
+    cur.execute("""
+        SELECT id, phone, first_name, last_name, is_active, role, created_at
+        FROM users
+        ORDER BY id DESC
+    """)
     
-    result = {
-        "total_users": len(users),
-        "users": []
+    users = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    return {
+        "total": len(users),
+        "users": users
     }
+@app.post("/api/debug/activate-all")
+async def activate_all_users():
+    """Активировать ВСЕХ пользователей"""
+    conn = get_db_connection()
+    cur = conn.cursor()
     
-    for user in users:
-        result["users"].append({
-            "id": user.id,
-            "phone": user.phone,
-            "full_name": user.full_name,
-            "is_active": user.is_active,
-            "phone_verified": user.phone_verified,
-            "created_at": user.created_at.isoformat() if user.created_at else None,
-            "last_login": user.last_login.isoformat() if hasattr(user, 'last_login') and user.last_login else None
-        })
+    cur.execute("""
+        UPDATE users 
+        SET is_active = true 
+        WHERE is_active = false
+    """)
     
-    # Также проверь таблицу suppliers
-    suppliers = db.query(Supplier).all()
-    result["total_suppliers"] = len(suppliers)
+    updated = cur.rowcount
+    conn.commit()
+    cur.close()
+    conn.close()
     
-    return result
-
-
+    return {
+        "success": True,
+        "activated_count": updated,
+        "message": f"Активировано {updated} пользователей"
+    }
 
 @app.delete("/api/cart/clear")
 async def clear_cart(request: Request, db: Session = Depends(get_db)):
@@ -10708,7 +10720,6 @@ async def resend_code(request: Request):
 # backend/main.py - ИСПРАВЛЕННЫЙ ЛОГИН
 
 from datetime import datetime, timedelta  # ✅ В САМОМ НАЧАЛЕ
-
 @app.post("/api/auth/login")
 async def login_user(request: Request):
     try:
@@ -10725,6 +10736,7 @@ async def login_user(request: Request):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
+        # 1. ПОЛУЧАЕМ ПОЛЬЗОВАТЕЛЯ
         cur.execute("""
             SELECT id, first_name, last_name, phone, password, role, is_active
             FROM users
@@ -10732,21 +10744,46 @@ async def login_user(request: Request):
         """, (phone,))
         
         user = cur.fetchone()
-        cur.close()
-        conn.close()
         
         if not user:
+            cur.close()
+            conn.close()
             return {"success": False, "detail": "Неверный телефон или пароль"}
         
-        if not user.get("is_active"):
-            return {"success": False, "detail": "Аккаунт деактивирован"}
-        
+        # 2. ПРОВЕРЯЕМ ПАРОЛЬ
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         
         if user.get("password") != password_hash:
+            cur.close()
+            conn.close()
             return {"success": False, "detail": "Неверный телефон или пароль"}
         
-        # ✅ ИСПРАВЛЕНО: datetime.utcnow() + timedelta(days=30)
+        # 3. ✅ ЕСЛИ ДЕАКТИВИРОВАН - АКТИВИРУЕМ
+        if not user.get("is_active"):
+            print(f"⚠️ Пользователь {phone} деактивирован. Активируем...")
+            
+            # Закрываем старый курсор, открываем новый для UPDATE
+            cur.close()
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE users 
+                SET is_active = true 
+                WHERE id = %s
+            """, (user["id"],))
+            conn.commit()
+            
+            print(f"✅ Пользователь {phone} активирован")
+            
+            # Обновляем данные пользователя
+            user["is_active"] = True
+        
+        cur.close()
+        conn.close()
+        
+        # 4. СОЗДАЕМ ТОКЕН
+        from jose import jwt
+        from datetime import datetime, timedelta
+        
         token_data = {
             "sub": str(user["id"]),
             "role": user["role"] or "customer",
@@ -10766,7 +10803,8 @@ async def login_user(request: Request):
                 "first_name": user["first_name"],
                 "last_name": user["last_name"],
                 "phone": user["phone"],
-                "role": user["role"] or "customer"
+                "role": user["role"] or "customer",
+                "is_active": user["is_active"]
             }
         }
         
@@ -10775,7 +10813,7 @@ async def login_user(request: Request):
         import traceback
         traceback.print_exc()
         return {"success": False, "detail": str(e)}
-
+    
 # 3. ПОЛУЧЕНИЕ ПРОФИЛЯ
 @app.get("/api/auth/me")
 async def get_current_user(request: Request):
@@ -12776,7 +12814,112 @@ async def supplier_login(request: Request):
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
+# backend/main.py - добавьте этот эндпоинт
 
+@app.post("/api/auth/activate-user")
+async def activate_user(request: Request, db: Session = Depends(get_db)):
+    """Активировать пользователя (если он деактивирован)"""
+    try:
+        data = await request.json()
+        phone = data.get("phone", "").strip()
+        password = data.get("password", "")
+        
+        if not phone or not password:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "Телефон и пароль обязательны"}
+            )
+        
+        # Находим пользователя
+        user = db.query(User).filter(User.phone == phone).first()
+        
+        if not user:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "Пользователь не найден"}
+            )
+        
+        # Проверяем пароль
+        import hashlib
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        
+        if user.password != password_hash:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Неверный пароль"}
+            )
+        
+        # Активируем пользователя
+        user.is_active = True
+        db.commit()
+        
+        print(f"✅ Пользователь {phone} активирован")
+        
+        # Создаем токен
+        from jose import jwt
+        import datetime
+        
+        token_data = {
+            "sub": str(user.id),
+            "role": user.role or "customer",
+            "phone": user.phone,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30)
+        }
+        
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+        
+        return {
+            "success": True,
+            "message": "Пользователь активирован",
+            "token": token,
+            "user": {
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phone": user.phone,
+                "role": user.role or "customer"
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+
+# backend/main.py - добавьте этот эндпоинт для отладки
+
+@app.post("/api/debug/activate-all-users")
+async def debug_activate_all_users(db: Session = Depends(get_db)):
+    """Активировать ВСЕХ пользователей (только для отладки)"""
+    try:
+        users = db.query(User).all()
+        activated_count = 0
+        
+        for user in users:
+            if not user.is_active:
+                user.is_active = True
+                activated_count += 1
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Активировано {activated_count} пользователей",
+            "total_users": len(users),
+            "activated_count": activated_count
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return {
+            "success": False,
+            "error": str(e)
+        }
+    
 @app.get("/api/supplier/check-auth")
 async def supplier_check_auth(request: Request, db: Session = Depends(get_db)):
     """Проверка валидности токена поставщика"""
