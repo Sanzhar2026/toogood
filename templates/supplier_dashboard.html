@@ -2958,61 +2958,117 @@ function applyTemplateCustomDiscount() {
 // ============================================================
 // ЗАГРУЗКА ШАБЛОНОВ - ИСПРАВЛЕННАЯ
 // ============================================================
-async function loadTemplates() {
+// ============================================================
+// ЗАГРУЗКА ПОЛЬЗОВАТЕЛЬСКОГО ШАБЛОНА - ИСПРАВЛЕННАЯ
+// ============================================================
+async function loadTemplate(templateId) {
+    console.log('📋 loadTemplate вызван с ID:', templateId);
+    
     try {
-        console.log('🔄 Загрузка шаблонов...');
-        
+        // 1. Получаем все шаблоны
         const response = await authFetch('/api/supplier/templates');
         const result = await response.json();
         
         console.log('📦 Ответ от API:', result);
         
-        const tbody = document.getElementById('templatesTableBody');
-        if (!tbody) {
-            console.error('❌ Элемент #templatesTableBody не найден!');
+        if (!result.success || !result.templates) {
+            showNotification('Ошибка загрузки шаблонов', 'error');
             return;
         }
         
-        tbody.innerHTML = '';
+        // 2. Находим нужный шаблон
+        const template = result.templates.find(t => t.id === templateId);
         
-        if (!result.success || !result.templates || result.templates.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1rem; color: #94a3b8;">Нет шаблонов</td></tr>';
+        if (!template) {
+            showNotification('Шаблон не найден', 'error');
+            console.error('❌ Шаблон с ID', templateId, 'не найден');
             return;
         }
         
-        result.templates.forEach(template => {
-            const data = template.template_data || {};
-            const productCount = data.products?.length || 0;
-            const discount = data.discount_percentage || 0;
-            const price = data.discounted_price || 0;
+        console.log('✅ Шаблон найден:', template);
+        
+        // 3. Получаем данные шаблона
+        const data = template.template_data || {};
+        console.log('📦 Данные шаблона:', data);
+        
+        // 4. Заполняем форму
+        const bagName = document.getElementById('bagName');
+        const bagDesc = document.getElementById('bagDescription');
+        const origPrice = document.getElementById('originalPrice');
+        const discPrice = document.getElementById('discountedPrice');
+        const imageUrl = document.getElementById('imageUrl');
+        
+        if (bagName) bagName.value = template.name || '';
+        if (bagDesc) bagDesc.value = template.description || '';
+        if (origPrice) origPrice.value = data.original_price || 0;
+        if (discPrice) discPrice.value = data.discounted_price || 0;
+        if (imageUrl && data.image_url) imageUrl.value = data.image_url;
+        
+        // 5. Очищаем выбранные товары
+        selectedProducts = [];
+        
+        // 6. Добавляем товары из шаблона
+        if (data.products && Array.isArray(data.products) && data.products.length > 0) {
+            console.log(`📦 Товаров в шаблоне: ${data.products.length}`);
             
-            const row = `
-                <tr>
-                    <td><strong>${escapeHtml(template.name)}</strong></td>
-                    <td>${escapeHtml(template.description || '-')}</td>
-                    <td>${productCount} товаров</td>
-                    <td><span style="color: #e74c3c; font-weight: bold;">-${discount}%</span></td>
-                    <td><strong>${price} ₸</strong></td>
-                    <td>
-                        <button class="btn" onclick="loadTemplate(${template.id})" style="background: #367666; color: white; padding: 0.3rem 0.6rem; font-size: 0.7rem;">📋 Загрузить</button>
-                        <button class="btn" onclick="deleteTemplate(${template.id})" style="background: #e74c3c; color: white; padding: 0.3rem 0.6rem; font-size: 0.7rem;">🗑️</button>
-                    </td>
-                </tr>
-            `;
-            tbody.innerHTML += row;
-        });
+            data.products.forEach(p => {
+                // Ищем товар в window.productsData
+                const product = window.productsData?.find(prod => prod.id == p.id);
+                
+                if (product) {
+                    selectedProducts.push({
+                        id: parseInt(p.id),
+                        name: product.name,
+                        price: product.price,
+                        quantity: p.quantity || 1
+                    });
+                    console.log(`✅ Добавлен: ${product.name} x${p.quantity}`);
+                } else {
+                    // Если товар не найден - добавляем как есть (с данными из шаблона)
+                    selectedProducts.push({
+                        id: parseInt(p.id),
+                        name: p.name || 'Товар',
+                        price: p.price || 0,
+                        quantity: p.quantity || 1
+                    });
+                    console.log(`⚠️ Товар ${p.id} не найден в productsData, добавлен как есть`);
+                }
+            });
+            
+            // Обновляем отображение
+            renderSelectedProducts();
+            updateTotalPrice();
+            
+            // Применяем скидку из шаблона
+            const discount = data.discount_percentage || 0;
+            if (discount > 0 && typeof applyDiscount === 'function') {
+                // Устанавливаем скидку через applyDiscount
+                const original = parseFloat(document.getElementById('originalPrice').value);
+                if (original > 0) {
+                    const discounted = original * (1 - discount / 100);
+                    document.getElementById('discountedPrice').value = Math.round(discounted);
+                    showNotification(`✅ Скидка ${discount}% применена`, 'success');
+                }
+            }
+            
+            showNotification(`✅ Шаблон "${template.name}" загружен (${selectedProducts.length} товаров)!`, 'success');
+            
+        } else {
+            showNotification('В шаблоне нет товаров', 'error');
+        }
         
-        console.log(`✅ Загружено ${result.templates.length} шаблонов`);
+        // 7. Показываем форму сюрприза
+        const bagForm = document.getElementById('addBagForm');
+        if (bagForm) {
+            bagForm.style.display = 'block';
+            bagForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
         
     } catch(error) {
-        console.error('❌ Ошибка загрузки шаблонов:', error);
-        const tbody = document.getElementById('templatesTableBody');
-        if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1rem; color: #e74c3c;">Ошибка загрузки шаблонов</td></tr>';
-        }
+        console.error('❌ Ошибка загрузки шаблона:', error);
+        showNotification('Ошибка загрузки шаблона: ' + error.message, 'error');
     }
 }
-
 // ============================================================
 // ЗАГРУЗКА ШАБЛОНА В ФОРМУ СЮРПРИЗА
 // ============================================================
