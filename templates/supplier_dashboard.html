@@ -1804,11 +1804,16 @@ function addProduct() {
 // ============================================================
 
 // ПЕРЕОПРЕДЕЛЯЕМ ОТПРАВКУ ФОРМЫ
+// ============================================================
+// ИСПРАВЛЕННАЯ ФУНКЦИЯ СОЗДАНИЯ СЮРПРИЗА
+// ============================================================
+
 document.getElementById('createBagForm').onsubmit = async function(e) {
     e.preventDefault();
     
-    console.log('🔥🔥🔥 НОВАЯ ВЕРСИЯ ОТПРАВКИ! 🔥🔥🔥');
+    console.log('🔥🔥🔥 СОЗДАНИЕ СЮРПРИЗА!');
     
+    // Получаем данные
     const name = document.getElementById('bagName').value.trim();
     const description = document.getElementById('bagDescription').value.trim();
     const discountedPrice = parseFloat(document.getElementById('discountedPrice').value);
@@ -1816,58 +1821,115 @@ document.getElementById('createBagForm').onsubmit = async function(e) {
     const imageUrl = document.getElementById('imageUrl').value.trim();
     const isHidden = document.querySelector('input[name="bag_type"]:checked')?.value === 'hidden';
     
-    if (!name) { alert('Введите название'); return; }
-    if (!selectedProducts || selectedProducts.length === 0) { alert('Добавьте товары'); return; }
+    if (!name) {
+        showNotification('Введите название сюрприза', 'error');
+        return;
+    }
     
-    const originalPrice = selectedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+    if (!selectedProducts || selectedProducts.length === 0) {
+        showNotification('Добавьте хотя бы один товар', 'error');
+        return;
+    }
+    
+    // ✅ ПРОВЕРЯЕМ, ЧТО ВСЕ ТОВАРЫ СУЩЕСТВУЮТ В БД
+    // Получаем актуальные товары из БД
+    const productsResponse = await authFetch('/api/supplier/products');
+    const productsResult = await productsResponse.json();
+    
+    if (!productsResult.success) {
+        showNotification('Ошибка загрузки товаров', 'error');
+        return;
+    }
+    
+    const dbProducts = productsResult.products;
+    const dbProductIds = dbProducts.map(p => p.id);
+    
+    // Проверяем каждый товар
+    const validProducts = [];
+    const invalidProducts = [];
+    
+    selectedProducts.forEach(p => {
+        if (dbProductIds.includes(p.id)) {
+            // Товар есть в БД
+            const dbProduct = dbProducts.find(dp => dp.id === p.id);
+            validProducts.push({
+                id: p.id,
+                name: dbProduct.name,
+                price: dbProduct.price,
+                quantity: p.quantity
+            });
+        } else {
+            // Товара нет в БД
+            invalidProducts.push(p);
+            console.warn(`⚠️ Товар ID=${p.id} (${p.name}) отсутствует в БД!`);
+        }
+    });
+    
+    if (invalidProducts.length > 0) {
+        console.warn('⚠️ Следующие товары отсутствуют в БД и будут пропущены:', invalidProducts);
+        showNotification(`⚠️ ${invalidProducts.length} товаров пропущено (нет в БД)`, 'error');
+        
+        if (validProducts.length === 0) {
+            showNotification('Нет валидных товаров для создания сюрприза', 'error');
+            return;
+        }
+    }
+    
+    if (validProducts.length === 0) {
+        showNotification('Нет валидных товаров', 'error');
+        return;
+    }
+    
+    // Вычисляем цены
+    const originalPrice = validProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+    const finalDiscount = discountedPrice && discountedPrice < originalPrice 
+        ? Math.round((1 - discountedPrice / originalPrice) * 100)
+        : 0;
+    const finalPrice = discountedPrice && discountedPrice < originalPrice ? discountedPrice : originalPrice;
     
     const data = {
         name: name,
         description: description,
         original_price: originalPrice,
-        discounted_price: discountedPrice || originalPrice,
-        discount_percentage: Math.round((1 - discountedPrice / originalPrice) * 100) || 0,
+        discounted_price: finalPrice,
+        discount_percentage: finalDiscount,
         available_quantity: quantity,
         total_quantity: quantity,
         image_url: imageUrl,
         hide_contents: isHidden || false,
         pickup_start_time: '',
         pickup_end_time: '',
-        products: selectedProducts.map(p => ({ 
-            id: parseInt(p.id),
+        products: validProducts.map(p => ({ 
+            id: p.id,
             name: p.name,
             price: p.price,
             quantity: p.quantity 
         }))
     };
     
-    console.log('📦 ОТПРАВЛЯЮ:', JSON.stringify(data, null, 2));
+    console.log('📦 ОТПРАВЛЯЕМ:', JSON.stringify(data, null, 2));
     
-    const token = getSupplierToken();
     try {
-        const response = await fetch('/api/supplier/surprise-bags', {
+        const response = await authFetch('/api/supplier/surprise-bags', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + token
-            },
             body: JSON.stringify(data)
         });
         
         const result = await response.json();
         console.log('📨 ОТВЕТ:', result);
         
-        if (response.ok) {
-            alert('✅ Сюрприз создан! ID: ' + result.bag_id);
+        if (response.ok && result.success) {
+            showNotification(`✅ Сюрприз "${name}" создан!`, 'success');
             selectedProducts = [];
             renderSelectedProducts();
             document.getElementById('addBagForm').style.display = 'none';
-            location.reload(); // Обновляем для отображения
+            refreshBags();
         } else {
-            alert('❌ Ошибка: ' + JSON.stringify(result));
+            showNotification('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
         }
     } catch(error) {
-        alert('❌ Ошибка: ' + error.message);
+        console.error('❌ Ошибка:', error);
+        showNotification('❌ Ошибка сети: ' + error.message, 'error');
     }
 };
 
