@@ -3396,16 +3396,35 @@ document.addEventListener('DOMContentLoaded', function() {
 // ПЕРЕХВАТЫВАЕМ ЗАГРУЗКУ ТОВАРОВ ДЛЯ ОБНОВЛЕНИЯ SELECT
 // ============================================================
 // ✅ Сохраняем оригинальную функцию
-const originalLoadSupplierProducts = window.loadSupplierProducts;
+// ============================================================
+// ПЕРЕХВАТЫВАЕМ ЗАГРУЗКУ ТОВАРОВ ДЛЯ ОБНОВЛЕНИЯ SELECT
+// ============================================================
+// ✅ Сохраняем оригинальную функцию ТОЛЬКО ЕСЛИ ОНА СУЩЕСТВУЕТ
+if (typeof window.loadSupplierProducts === 'function') {
+    const originalLoadSupplierProducts = window.loadSupplierProducts;
+    
+    window.loadSupplierProducts = async function() {
+        if (originalLoadSupplierProducts) {
+            await originalLoadSupplierProducts();
+        }
+        updateTemplateProductSelect();
+    };
+}
 
-// ✅ Переопределяем
-window.loadSupplierProducts = async function() {
-    if (originalLoadSupplierProducts) {
-        await originalLoadSupplierProducts();
-    }
-    updateTemplateProductSelect();
-};
-
+// ✅ Для loadTemplates - просто вызываем updateTemplateSelect после загрузки
+if (typeof window.loadTemplates === 'function') {
+    const originalLoadTemplates = window.loadTemplates;
+    
+    window.loadTemplates = async function() {
+        if (originalLoadTemplates) {
+            await originalLoadTemplates();
+        }
+        // Обновляем select шаблонов после загрузки
+        if (typeof updateTemplateSelect === 'function') {
+            await updateTemplateSelect();
+        }
+    };
+}
 // ============================================================
 // ПОИСК ИКОНОК ДЛЯ КАТЕГОРИЙ
 // ============================================================
