@@ -11461,7 +11461,8 @@ async def get_nearby_suppliers(
                     "lon": supplier.lon,
                     "distance_km": round(distance, 2),
                     "rating": supplier.rating or 0,
-                    "surprise_bags_count": len(active_bags)
+                    "surprise_bags_count": len(active_bags),
+                    "logo": supplier.logo, 
                 })
     
     # Сортируем по расстоянию
