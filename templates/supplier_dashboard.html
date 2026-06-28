@@ -571,7 +571,105 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
             </table>
         </div>
     </div>
+<!-- ============================================================ -->
+<!-- ШАБЛОНЫ СЮРПРИЗОВ - ПРАВИЛЬНОЕ МЕСТО -->
+<!-- ============================================================ -->
+<div class="section-header" style="margin-top: 1.5rem;">
+    <span class="section-title">📋 Мои шаблоны</span>
+    <button class="btn-primary" onclick="toggleTemplateForm()">+ Создать шаблон</button>
+</div>
 
+<!-- ФОРМА СОЗДАНИЯ ШАБЛОНА -->
+<div id="addTemplateForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-top: 1rem; border: 1px solid #e8f5e9;">
+    <h4 style="margin-bottom: 1rem; color: #367666;">📝 Новый шаблон</h4>
+    
+    <form id="createTemplateForm">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Название шаблона *</label>
+                <input type="text" id="templateName" required placeholder="Например: Бургер-сет">
+            </div>
+            <div class="form-group">
+                <label>Описание</label>
+                <input type="text" id="templateDescription" placeholder="Краткое описание">
+            </div>
+        </div>
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Скидка</label>
+                <select id="templateDiscount">
+                    <option value="0">0%</option>
+                    <option value="10">10%</option>
+                    <option value="20">20%</option>
+                    <option value="30" selected>30%</option>
+                    <option value="40">40%</option>
+                    <option value="50">50%</option>
+                    <option value="75">75%</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Своя скидка</label>
+                <div style="display:flex;gap:0.5rem;align-items:center;">
+                    <input type="number" id="templateCustomDiscount" placeholder="%" min="0" max="100" style="width:80px;padding:0.4rem;border:1px solid #e2e8f0;border-radius:0.4rem;">
+                    <button type="button" class="btn-primary" onclick="applyTemplateCustomDiscount()" style="padding:0.3rem 0.8rem;font-size:0.7rem;">Применить</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>Товары в шаблоне</label>
+            <div class="product-row">
+                <select id="templateProductSelect">
+                    <option value="">-- Выберите товар --</option>
+                </select>
+                <input type="number" id="templateProductQuantity" class="quantity-input" value="1" min="1">
+                <button type="button" class="btn-primary" onclick="addTemplateProduct()">+ Добавить</button>
+            </div>
+            <div id="templateProductsPreview" style="display:none;">
+                <strong>Выбранные товары:</strong>
+                <div id="templateProductsList" class="selected-products-list"></div>
+            </div>
+        </div>
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Оригинальная цена</label>
+                <input type="text" id="templateOriginalPrice" readonly style="background:#f1f5f9;font-weight:bold;" value="0 ₸">
+            </div>
+            <div class="form-group">
+                <label>Цена со скидкой</label>
+                <input type="text" id="templateDiscountedPrice" readonly style="background:#f1f5f9;font-weight:bold;color:#e74c3c;" value="0 ₸">
+            </div>
+        </div>
+        
+        <div style="display:flex;gap:0.5rem;margin-top:0.8rem;">
+            <button type="submit" class="submit-btn" style="width:auto;padding:0.5rem 2rem;background:#8b5cf6;">Сохранить шаблон</button>
+            <button type="button" class="clear-btn" onclick="toggleTemplateForm()" style="padding:0.5rem 1rem;">Отмена</button>
+        </div>
+    </form>
+</div>
+
+<!-- СПИСОК ШАБЛОНОВ -->
+<div id="templatesList" style="margin-top:1rem;">
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Описание</th>
+                    <th>Товаров</th>
+                    <th>Скидка</th>
+                    <th>Цена</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody id="templatesTableBody">
+                <tr><td colspan="6" style="text-align:center;padding:1rem;color:#94a3b8;">Нет шаблонов</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
     <div class="bags-section">
         <div class="section-header">
             <span class="section-title">Сюрпризы</span>
@@ -595,124 +693,7 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 <!-- ============================================================ -->
 <!-- ШАБЛОНЫ СЮРПРИЗОВ -->
 <!-- ============================================================ -->
-<!-- ============================================================ -->
-<!-- ШАБЛОНЫ СЮРПРИЗОВ -->
-<!-- ============================================================ -->
-<div class="section-header" style="margin-top: 1.5rem;">
-    <span class="section-title">📋 Мои шаблоны</span>
-    <button class="btn-primary" onclick="toggleTemplateForm()">+ Создать шаблон</button>
-</div>
 
-<!-- ФОРМА СОЗДАНИЯ ШАБЛОНА -->
-<div id="addTemplateForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-top: 1rem; border: 1px solid #e8f5e9;">
-    <h4 style="margin-bottom: 1rem; color: #367666;">📝 Новый шаблон</h4>
-    
-    <form id="createTemplateForm">
-        <!-- Название и описание -->
-        <div class="form-grid">
-            <div class="form-group">
-                <label>Название шаблона *</label>
-                <input type="text" id="templateName" required placeholder="Например: Бургер-сет">
-            </div>
-            <div class="form-group">
-                <label>Описание</label>
-                <input type="text" id="templateDescription" placeholder="Краткое описание">
-            </div>
-        </div>
-        
-        <!-- Скидки -->
-        <div class="form-grid">
-            <div class="form-group">
-                <label>Быстрая скидка</label>
-                <select id="templateDiscount">
-                    <option value="0">0%</option>
-                    <option value="10">10%</option>
-                    <option value="20">20%</option>
-                    <option value="30" selected>30%</option>
-                    <option value="40">40%</option>
-                    <option value="50">50%</option>
-                    <option value="75">75%</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Своя скидка</label>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <input 
-                        type="number" 
-                        id="templateCustomDiscount" 
-                        placeholder="%" 
-                        min="0" 
-                        max="100"
-                        style="width: 80px; padding: 0.4rem; border: 1px solid #e2e8f0; border-radius: 0.4rem;"
-                    >
-                    <button 
-                        type="button" 
-                        class="btn-primary" 
-                        onclick="applyTemplateCustomDiscount()"
-                        style="padding: 0.3rem 0.8rem; font-size: 0.7rem;"
-                    >
-                        Применить
-                    </button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Товары -->
-        <div class="form-group">
-            <label>Товары в шаблоне</label>
-            <div class="product-row">
-                <select id="templateProductSelect">
-                    <option value="">-- Выберите товар --</option>
-                </select>
-                <input type="number" id="templateProductQuantity" class="quantity-input" value="1" min="1">
-                <button type="button" class="btn-primary" onclick="addTemplateProduct()">+ Добавить</button>
-            </div>
-            <div id="templateProductsPreview" style="display: none;">
-                <strong>Выбранные товары:</strong>
-                <div id="templateProductsList" class="selected-products-list"></div>
-            </div>
-        </div>
-        
-        <!-- Цены -->
-        <div class="form-grid">
-            <div class="form-group">
-                <label>Оригинальная цена</label>
-                <input type="text" id="templateOriginalPrice" readonly style="background: #f1f5f9; font-weight: bold;" value="0 ₸">
-            </div>
-            <div class="form-group">
-                <label>Цена со скидкой</label>
-                <input type="text" id="templateDiscountedPrice" readonly style="background: #f1f5f9; font-weight: bold; color: #e74c3c;" value="0 ₸">
-            </div>
-        </div>
-        
-        <!-- Кнопки -->
-        <div style="display: flex; gap: 0.5rem; margin-top: 0.8rem;">
-            <button type="submit" class="submit-btn" style="width: auto; padding: 0.5rem 2rem; background: #8b5cf6;">Сохранить шаблон</button>
-            <button type="button" class="clear-btn" onclick="toggleTemplateForm()" style="padding: 0.5rem 1rem;">Отмена</button>
-        </div>
-    </form>
-</div>
-
-<!-- Список шаблонов -->
-<div id="templatesList" style="margin-top: 1rem;">
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th>Название</th>
-                    <th>Описание</th>
-                    <th>Товаров</th>
-                    <th>Скидка</th>
-                    <th>Цена</th>
-                    <th>Действие</th>
-                </tr>
-            </thead>
-            <tbody id="templatesTableBody">
-                <tr><td colspan="6" style="text-align: center; padding: 1rem; color: #94a3b8;">Нет шаблонов</td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
                 <div class="form-group full-width">
                     <label>Название сюрприза *</label>
                     <input type="text" id="bagName" required placeholder="Название">
