@@ -3848,13 +3848,24 @@ console.log('✅ Инициализация шаблонов завершена'
 // ============================================================
 // АВАТАРКА ПОСТАВЩИКА
 // ============================================================
+// ============================================================
+// АВАТАРКА ПОСТАВЩИКА - ИСПРАВЛЕННАЯ
+// ============================================================
 
 async function handleSupplierAvatarUpload(event) {
     const file = event.target.files?.[0];
     if (!file) return;
     
+    console.log('📤 Файл выбран:', file.name, file.type, file.size);
+    
     if (!file.type.startsWith('image/')) {
         showNotification('Выберите изображение', 'error');
+        return;
+    }
+    
+    // ✅ ПРОВЕРКА РАЗМЕРА (макс 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        showNotification('Файл слишком большой (макс 5MB)', 'error');
         return;
     }
     
@@ -3862,15 +3873,34 @@ async function handleSupplierAvatarUpload(event) {
     formData.append('logo', file);
     
     try {
-        const response = await authFetch('/api/supplier/logo', {
+        const token = getSupplierToken();
+        console.log('🔑 Токен:', token ? 'Есть ✅' : 'Нет ❌');
+        
+        const response = await fetch('/api/supplier/logo', {
             method: 'POST',
-            body: formData,
-            headers: {} // важно: без Content-Type, чтобы FormData сам установил
+            headers: {
+                'Authorization': 'Bearer ' + token
+                // ✅ НЕ ДОБАВЛЯЙ 'Content-Type' - FormData сам установит!
+            },
+            body: formData
         });
         
-        const result = await response.json();
+        console.log('📡 Статус:', response.status);
         
-        if (result.success) {
+        // Пытаемся получить текст ошибки
+        const text = await response.text();
+        console.log('📨 Ответ:', text);
+        
+        let result;
+        try {
+            result = JSON.parse(text);
+        } catch(e) {
+            console.error('❌ Невалидный JSON:', text);
+            showNotification('Ошибка сервера', 'error');
+            return;
+        }
+        
+        if (response.ok && result.success) {
             showNotification('✅ Аватар обновлен!', 'success');
             
             // Обновляем изображение на странице
@@ -3887,17 +3917,16 @@ async function handleSupplierAvatarUpload(event) {
             localStorage.setItem('supplier_logo', result.logo_url);
             
         } else {
-            showNotification('❌ Ошибка: ' + (result.error || 'Неизвестная ошибка'), 'error');
+            showNotification('❌ ' + (result.error || 'Ошибка загрузки'), 'error');
         }
     } catch(error) {
-        console.error('Ошибка загрузки:', error);
-        showNotification('❌ Ошибка сети', 'error');
+        console.error('❌ Ошибка:', error);
+        showNotification('❌ Ошибка сети: ' + error.message, 'error');
     }
     
     // Очищаем input
     event.target.value = '';
 }
-
 
 </script>
 {% endblock %}
