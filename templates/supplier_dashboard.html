@@ -1166,12 +1166,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
-        
-        
-        // ✅ СЛУШАЕМ ВВОД
-        searchInput.addEventListener('input', filterIcons);
-        searchInput.addEventListener('keyup', filterIcons);
-        
+         const templateSelect = document.getElementById('templateProductSelect');
+    if (templateSelect && window.productsData) {
+        templateSelect.innerHTML = '<option value="">-- Выберите товар --</option>';
+        window.productsData.forEach(product => {
+            const option = document.createElement('option');
+            option.value = product.id;
+            option.textContent = `${product.icon || '🍽️'} ${product.name} (${product.price} ₸)`;
+            templateSelect.appendChild(option);
+        });
+        console.log(`✅ Добавлено ${window.productsData.length} товаров в select шаблона`);
         // ✅ СБРОС ПРИ КЛИКЕ НА SELECT
         iconSelect.addEventListener('click', function() {
             if (searchInput.value) {
@@ -1195,7 +1199,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         console.log('✅ Поиск иконок настроен!');
     }
-});
+}});
+        
+        // ✅ СЛУШАЕМ ВВОД
+        searchInput.addEventListener('input', filterIcons);
+        searchInput.addEventListener('keyup', filterIcons);
+       
 
 function getSupplierToken() {
     let token = sessionStorage.getItem('supplier_token');
