@@ -2609,7 +2609,6 @@ async function loadSurpriseTemplate() {
         showNotification('Неизвестный тип шаблона', 'error');
     }
 }
-
 // ============================================================
 // WEBSOCKET
 // ============================================================
@@ -2698,7 +2697,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         const result = await response.json();
         if (result.success) {
-            showNotification('📦 Товар "' + name + '" добавлен!', 'success');
+            showNotification('Товар "' + name + '" добавлен!', 'success');
             document.getElementById('createProductForm').reset();
             document.getElementById('productPrepTime').value = 15;
             toggleProductForm();
@@ -3239,7 +3238,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     templateProducts = [];
                     renderTemplateProducts();
                     updateTemplatePrices();
-                    
+                     await updateTemplateSelect();
                     const formDiv = document.getElementById('addTemplateForm');
                     if (formDiv) formDiv.style.display = 'none';
                     
