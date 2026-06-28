@@ -8928,8 +8928,66 @@ async def delete_supplier_template(
             content={"success": False, "error": str(e)}
         )
     
+# backend/routes/supplier.py
 
-    
+@app.post("/api/supplier/logo")
+async def upload_supplier_logo(
+    request: Request,
+    supplier_id: int = Depends(get_supplier_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """Загрузить логотип поставщика"""
+    try:
+        form = await request.form()
+        file = form.get("logo")
+        
+        if not file:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Файл не выбран"}
+            )
+        
+        # Проверяем тип
+        if not file.content_type.startswith('image/'):
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "Файл должен быть изображением"}
+            )
+        
+        # Генерируем имя файла
+        ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+        filename = f"supplier_{supplier_id}_logo.{ext}"
+        
+        # Сохраняем файл
+        import os
+        upload_dir = "uploads/suppliers"
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        filepath = os.path.join(upload_dir, filename)
+        
+        content = await file.read()
+        with open(filepath, "wb") as f:
+            f.write(content)
+        
+        # Обновляем в БД
+        supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+        if supplier:
+            supplier.logo = f"/uploads/suppliers/{filename}"
+            db.commit()
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Логотип обновлен",
+            "logo_url": f"/uploads/suppliers/{filename}"
+        })
+        
+    except Exception as e:
+        print(f"❌ Ошибка загрузки логотипа: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
 @app.get("/api/payment/history")
 async def get_payment_history(request: Request, db: Session = Depends(get_db)):
     """Get user's payment history"""
