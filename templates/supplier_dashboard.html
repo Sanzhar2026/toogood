@@ -327,42 +327,38 @@ button[type="button"].clear-btn {
 </div>
 
 <div class="admin-header">
- <div class="business-info" style="display: flex; align-items: center; gap: 1rem;">
-        <!-- ✅ АВАТАРКА ПОСТАВЩИКА -->
+    <div class="business-info" style="display: flex; align-items: center; gap: 1rem;">
+        <!-- АВАТАРКА -->
         <div class="relative">
-            <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border-2 border-white/50">
-                {% if supplier.logo %}
-                    <img 
-                        src="{{ supplier.logo }}" 
-                        alt="{{ supplier.business_name }}"
-                        class="w-full h-full object-cover"
-                        id="supplierAvatar"
-                    >
-                {% else %}
-                    <span class="text-2xl font-bold text-white" id="supplierAvatarText">
-                        {{ supplier.business_name[0]|upper }}
-                    </span>
-                {% endif %}
-            </div>
-            
-            <!-- Кнопка загрузки аватарки -->
-            <label 
-                for="avatar-upload-supplier"
-                class="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 cursor-pointer shadow-md hover:bg-gray-100 transition"
+            <div 
+                class="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border-2 border-white/50 cursor-pointer hover:ring-2 hover:ring-white/50 transition" 
+                onclick="document.getElementById('supplierAvatarInput').click()"
                 title="Изменить аватар"
             >
-                <svg class="w-3.5 h-3.5 text-[#367666]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <input 
-                    id="avatar-upload-supplier"
-                    type="file"
-                    accept="image/*"
-                    class="hidden"
-                    onchange="handleSupplierAvatarUpload(event)"
-                />
-            </label>
+                <!-- ✅ ВОТ ЭТОТ img - ЕГО НЕ БЫЛО! -->
+                <img 
+                    id="supplierAvatar"
+                    src=""
+                    alt="Avatar"
+                    class="w-full h-full object-cover"
+                    style="display: none;"
+                >
+                <span id="supplierAvatarText" class="text-2xl font-bold text-white">
+                    {{ supplier.business_name[0]|upper }}
+                </span>
+            </div>
+            
+            <div id="supplierAvatarLoading" style="display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.5); border-radius: 50%; align-items: center; justify-content: center;">
+                <div style="width: 20px; height: 20px; border: 2px solid white; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+            </div>
+            
+            <input 
+                id="supplierAvatarInput"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                onChange="handleSupplierAvatarUpload(event)"
+            />
         </div>
         
         <div>
@@ -370,6 +366,8 @@ button[type="button"].clear-btn {
             <p>{{ supplier.address or 'Адрес не указан' }} | {{ supplier.phone or '—' }}</p>
         </div>
     </div>
+    <!-- остальное (header-actions) -->
+</div>
     <div class="header-actions">
         <span class="rating-badge">⭐ {{ supplier.rating or 0 }}</span>
         <span class="business-type-badge">{{ supplier.business_type or 'Ресторан' }}</span>
