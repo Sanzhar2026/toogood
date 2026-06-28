@@ -1166,45 +1166,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
-         const templateSelect = document.getElementById('templateProductSelect');
-    if (templateSelect && window.productsData) {
-        templateSelect.innerHTML = '<option value="">-- Выберите товар --</option>';
-        window.productsData.forEach(product => {
-            const option = document.createElement('option');
-            option.value = product.id;
-            option.textContent = `${product.icon || '🍽️'} ${product.name} (${product.price} ₸)`;
-            templateSelect.appendChild(option);
-        });
-        console.log(`✅ Добавлено ${window.productsData.length} товаров в select шаблона`);
-        // ✅ СБРОС ПРИ КЛИКЕ НА SELECT
-        iconSelect.addEventListener('click', function() {
-            if (searchInput.value) {
-                searchInput.value = '';
-                filterIcons();
-            }
-        });
-        
-        // ✅ КНОПКА ОЧИСТКИ
-        const clearBtn = document.querySelector('.clear-icon-search');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', function() {
-                searchInput.value = '';
-                filterIcons();
-                searchInput.focus();
-            });
-        }
-        
-        // ✅ ПЕРВОНАЧАЛЬНАЯ ЗАГРУЗКА
-        filterIcons();
-        
-        console.log('✅ Поиск иконок настроен!');
-    }
-}});
-        
+         
+   
+    
         // ✅ СЛУШАЕМ ВВОД
         searchInput.addEventListener('input', filterIcons);
         searchInput.addEventListener('keyup', filterIcons);
-       
+}} )
 
 function getSupplierToken() {
     let token = sessionStorage.getItem('supplier_token');
