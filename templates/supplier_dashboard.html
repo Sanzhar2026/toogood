@@ -1922,9 +1922,7 @@ function applyDiscount(percent) {
     const discounted = percent === 0 ? original : original * (1 - percent / 100);
     document.getElementById('discountedPrice').value = Math.round(discounted);
     
-    // ✅ ПОКАЗЫВАЕМ СКИДКУ
-    const discountPercent = percent === 0 ? 0 : percent;
-    showNotification(`✅ Скидка ${discountPercent}% применена! Цена: ${Math.round(discounted)} ₸`, 'success');
+    showNotification(`✅ Скидка ${percent}% применена! Цена: ${Math.round(discounted)} ₸`, 'success');
 }
 
 // Назначаем обработчики
@@ -2352,6 +2350,7 @@ function getRichTemplatesByType(type) {
                 }
             }
         },
+
         'fastfood': {
             icon: '🍔',
             name: {'en': 'Fast Food', 'ru': 'Фастфуд', 'kz': 'Фастфуд'},
@@ -2500,32 +2499,46 @@ function getRichTemplatesByType(type) {
 
 async function updateTemplateSelect() {
     const templateSelect = document.getElementById('surpriseTemplate');
-    if (!templateSelect) return;
+    if (!templateSelect) {
+        console.error('❌ Элемент #surpriseTemplate не найден!');
+        return;
+    }
+    
+    console.log('🔄 Обновление списка шаблонов...');
     
     templateSelect.innerHTML = '<option value="">-- Выберите шаблон --</option>';
     
     // 1. ВСТРОЕННЫЕ ШАБЛОНЫ
     const richTemplates = getRichTemplatesByType(businessType);
+    console.log('📋 Встроенные шаблоны:', richTemplates);
+    
     if (richTemplates && richTemplates.templates) {
         const builtinGroup = document.createElement('optgroup');
         builtinGroup.label = '📦 Встроенные шаблоны';
         
-        Object.keys(richTemplates.templates).forEach(key => {
+        const templateKeys = Object.keys(richTemplates.templates);
+        console.log(`📋 Найдено ${templateKeys.length} встроенных шаблонов`);
+        
+        templateKeys.forEach(key => {
             const t = richTemplates.templates[key];
-            const name = t.name.ru || t.name.en || 'Шаблон';
+            const name = t.name?.ru || t.name?.en || 'Шаблон';
             const option = document.createElement('option');
             option.value = 'builtin_' + key;
-            option.textContent = '🎁 ' + name + ' - ' + t.price + ' ₸';
+            option.textContent = `🎁 ${name} - ${t.price} ₸`;
             builtinGroup.appendChild(option);
         });
         
         templateSelect.appendChild(builtinGroup);
+    } else {
+        console.warn('⚠️ Встроенные шаблоны не найдены');
     }
     
     // 2. ПОЛЬЗОВАТЕЛЬСКИЕ ШАБЛОНЫ
     try {
         const response = await authFetch('/api/supplier/templates');
         const result = await response.json();
+        
+        console.log('📋 Пользовательские шаблоны:', result);
         
         if (result.success && result.templates && result.templates.length > 0) {
             const userGroup = document.createElement('optgroup');
@@ -2545,28 +2558,35 @@ async function updateTemplateSelect() {
             templateSelect.appendChild(userGroup);
         }
     } catch(error) {
-        console.error('Ошибка загрузки пользовательских шаблонов:', error);
+        console.error('❌ Ошибка загрузки пользовательских шаблонов:', error);
     }
     
     console.log('✅ Select шаблонов обновлен');
 }
-
+// ============================================================
+// ЗАГРУЗКА ШАБЛОНА (ВСТРОЕННЫЙ ИЛИ ПОЛЬЗОВАТЕЛЬСКИЙ)
+// ============================================================
 async function loadSurpriseTemplate() {
-    const key = document.getElementById('surpriseTemplate').value;
+    const select = document.getElementById('surpriseTemplate');
+    const key = select?.value;
+    
     if (!key) {
         showNotification('Выберите шаблон', 'info');
         return;
     }
     
     console.log('📋 Загрузка шаблона:', key);
+    console.log('📦 productsData:', window.productsData);
     
-    // Встроенный
+    // Встроенный шаблон
     if (key.startsWith('builtin_')) {
         const templateKey = key.replace('builtin_', '');
         const richTemplates = getRichTemplatesByType(businessType);
         
+        console.log('📋 richTemplates:', richTemplates);
+        
         if (!richTemplates || !richTemplates.templates) {
-            showNotification('Шаблон не найден', 'error');
+            showNotification('Встроенные шаблоны не найдены', 'error');
             return;
         }
         
@@ -2576,31 +2596,52 @@ async function loadSurpriseTemplate() {
             return;
         }
         
-        document.getElementById('bagName').value = template.name.ru || template.name.en || '';
-        document.getElementById('bagDescription').value = template.description.ru || template.description.en || '';
+        console.log('✅ Шаблон найден:', template);
+        
+        // Заполняем форму
+        document.getElementById('bagName').value = template.name?.ru || template.name?.en || '';
+        document.getElementById('bagDescription').value = template.description?.ru || template.description?.en || '';
         document.getElementById('discountedPrice').value = template.price || 0;
         if (template.image) document.getElementById('imageUrl').value = template.image;
         
+        // Очищаем выбранные товары
         selectedProducts = [];
-        if (template.items && window.productsData) {
+        
+        // Добавляем товары из шаблона
+        if (template.items && Array.isArray(template.items) && window.productsData) {
+            console.log('📦 Товары шаблона:', template.items);
+            
             template.items.forEach(item => {
+                // Ищем товар по ID
                 const product = window.productsData.find(p => p.id == item.id);
                 if (product) {
                     selectedProducts.push({
-                        id: product.id,
+                        id: parseInt(product.id),
                         name: product.name,
                         price: product.price,
                         quantity: item.qty || 1
                     });
+                    console.log(`✅ Добавлен товар: ${product.name} x${item.qty}`);
+                } else {
+                    console.warn(`⚠️ Товар с ID ${item.id} не найден`);
                 }
             });
+            
             renderSelectedProducts();
             updateTotalPrice();
+            
+            // Применяем скидку из шаблона
+            const discount = template.discount_percentage || 0;
+            if (discount > 0) {
+                applyDiscount(discount);
+            }
+            
+            showNotification(`🎁 Шаблон "${template.name?.ru || template.name?.en || 'Шаблон'}" загружен!`, 'success');
+        } else {
+            showNotification('В шаблоне нет товаров или товары не загружены', 'error');
         }
         
-        showNotification('🎁 Шаблон загружен: ' + (template.name.ru || template.name.en), 'success');
-        
-    // Пользовательский
+    // Пользовательский шаблон
     } else if (key.startsWith('user_')) {
         const templateId = parseInt(key.replace('user_', ''));
         await loadTemplate(templateId);
