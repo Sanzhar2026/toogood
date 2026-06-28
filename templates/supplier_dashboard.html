@@ -3396,34 +3396,29 @@ document.addEventListener('DOMContentLoaded', function() {
 // ПЕРЕХВАТЫВАЕМ ЗАГРУЗКУ ТОВАРОВ ДЛЯ ОБНОВЛЕНИЯ SELECT
 // ============================================================
 // ✅ Сохраняем оригинальную функцию
-// ============================================================
-// ПЕРЕХВАТЫВАЕМ ЗАГРУЗКУ ТОВАРОВ ДЛЯ ОБНОВЛЕНИЯ SELECT
-// ============================================================
-// ✅ Сохраняем оригинальную функцию ТОЛЬКО ЕСЛИ ОНА СУЩЕСТВУЕТ
-if (typeof window.loadSupplierProducts === 'function') {
-    const originalLoadSupplierProducts = window.loadSupplierProducts;
-    
-    window.loadSupplierProducts = async function() {
-        if (originalLoadSupplierProducts) {
-            await originalLoadSupplierProducts();
+async function loadSupplierProducts() {
+    try {
+        const response = await authFetch('/api/supplier/products');
+        const result = await response.json();
+        
+        if (result.success) {
+            // ... код загрузки товаров ...
+            
+            // ✅ СОХРАНЯЕМ В ГЛОБАЛЬНУЮ ПЕРЕМЕННУЮ
+            window.productsData = result.products;
+            
+            // ✅ ОБНОВЛЯЕМ SELECT В ФОРМЕ СЮРПРИЗА
+            updateProductSelect();
+            
+            // ✅ ОБНОВЛЯЕМ SELECT ДЛЯ ШАБЛОНОВ
+            updateTemplateProductSelect();
+            
+            // ✅ ОБНОВЛЯЕМ SELECT ШАБЛОНОВ В ФОРМЕ СЮРПРИЗА
+            updateTemplateSelect();
         }
-        updateTemplateProductSelect();
-    };
-}
-
-// ✅ Для loadTemplates - просто вызываем updateTemplateSelect после загрузки
-if (typeof window.loadTemplates === 'function') {
-    const originalLoadTemplates = window.loadTemplates;
-    
-    window.loadTemplates = async function() {
-        if (originalLoadTemplates) {
-            await originalLoadTemplates();
-        }
-        // Обновляем select шаблонов после загрузки
-        if (typeof updateTemplateSelect === 'function') {
-            await updateTemplateSelect();
-        }
-    };
+    } catch(error) {
+        console.error('Ошибка загрузки товаров:', error);
+    }
 }
 // ============================================================
 // ПОИСК ИКОНОК ДЛЯ КАТЕГОРИЙ
