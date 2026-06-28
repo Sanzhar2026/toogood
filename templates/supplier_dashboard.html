@@ -574,6 +574,25 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 <!-- ============================================================ -->
 <!-- ШАБЛОНЫ СЮРПРИЗОВ - ПРАВИЛЬНОЕ МЕСТО -->
 <!-- ============================================================ -->
+ <!-- ПОИСКОВИК ДЛЯ ШАБЛОНОВ -->
+<div style="margin-bottom: 0.8rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 200px; position: relative;">
+        <input 
+            type="text" 
+            id="templateSearch" 
+            placeholder="🔍 Поиск шаблонов..." 
+            style="width: 100%; padding: 0.4rem 0.8rem; border: 1px solid #ddd; border-radius: 0.5rem; font-size: 0.85rem;"
+        >
+        <button 
+            type="button" 
+            id="clearTemplateSearch" 
+            style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #999; cursor: pointer; font-size: 0.8rem; display: none;"
+        >
+            ✕
+        </button>
+    </div>
+    <span id="templateCount" style="font-size: 0.75rem; color: #64748b;">0 шаблонов</span>
+</div>
 <div class="section-header" style="margin-top: 1.5rem;">
     <span class="section-title">📋 Мои шаблоны</span>
     <button class="btn-primary" onclick="toggleTemplateForm()">+ Создать шаблон</button>
@@ -2617,48 +2636,61 @@ function applyTemplateCustomDiscount() {
 // ============================================================
 // ЗАГРУЗКА ШАБЛОНОВ
 // ============================================================
+// ============================================================
+// ЗАГРУЗКА ШАБЛОНОВ - ИСПРАВЛЕННАЯ
+// ============================================================
 async function loadTemplates() {
     try {
+        console.log('🔄 Загрузка шаблонов...');
+        
         const response = await authFetch('/api/supplier/templates');
         const result = await response.json();
         
-        if (result.success && result.templates) {
-            const tbody = document.getElementById('templatesTableBody');
-            if (!tbody) return;
-            
-            tbody.innerHTML = '';
-            
-            if (result.templates.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1rem; color: #94a3b8;">Нет шаблонов</td></tr>';
-                return;
-            }
-            
-            result.templates.forEach(template => {
-                const data = template.template_data || {};
-                const productCount = data.products?.length || 0;
-                const discount = data.discount_percentage || 0;
-                const price = data.discounted_price || 0;
-                
-                const row = `
-                    <tr>
-                        <td><strong>${escapeHtml(template.name)}</strong></td>
-                        <td>${escapeHtml(template.description || '-')}</td>
-                        <td>${productCount} товаров</td>
-                        <td><span style="color: #e74c3c; font-weight: bold;">-${discount}%</span></td>
-                        <td><strong>${price} ₸</strong></td>
-                        <td>
-                            <button class="btn" onclick="loadTemplate(${template.id})" style="background: #367666; color: white; padding: 0.3rem 0.6rem; font-size: 0.7rem;">📋 Загрузить</button>
-                            <button class="btn" onclick="deleteTemplate(${template.id})" style="background: #e74c3c; color: white; padding: 0.3rem 0.6rem; font-size: 0.7rem;">🗑️</button>
-                        </td>
-                    </tr>
-                `;
-                tbody.innerHTML += row;
-            });
-            
-            console.log(`✅ Загружено ${result.templates.length} шаблонов`);
+        console.log('📦 Ответ от API:', result);
+        
+        const tbody = document.getElementById('templatesTableBody');
+        if (!tbody) {
+            console.error('❌ Элемент #templatesTableBody не найден!');
+            return;
         }
+        
+        tbody.innerHTML = '';
+        
+        if (!result.success || !result.templates || result.templates.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1rem; color: #94a3b8;">Нет шаблонов</td></tr>';
+            return;
+        }
+        
+        result.templates.forEach(template => {
+            const data = template.template_data || {};
+            const productCount = data.products?.length || 0;
+            const discount = data.discount_percentage || 0;
+            const price = data.discounted_price || 0;
+            
+            const row = `
+                <tr>
+                    <td><strong>${escapeHtml(template.name)}</strong></td>
+                    <td>${escapeHtml(template.description || '-')}</td>
+                    <td>${productCount} товаров</td>
+                    <td><span style="color: #e74c3c; font-weight: bold;">-${discount}%</span></td>
+                    <td><strong>${price} ₸</strong></td>
+                    <td>
+                        <button class="btn" onclick="loadTemplate(${template.id})" style="background: #367666; color: white; padding: 0.3rem 0.6rem; font-size: 0.7rem;">📋 Загрузить</button>
+                        <button class="btn" onclick="deleteTemplate(${template.id})" style="background: #e74c3c; color: white; padding: 0.3rem 0.6rem; font-size: 0.7rem;">🗑️</button>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+        
+        console.log(`✅ Загружено ${result.templates.length} шаблонов`);
+        
     } catch(error) {
-        console.error('Ошибка загрузки шаблонов:', error);
+        console.error('❌ Ошибка загрузки шаблонов:', error);
+        const tbody = document.getElementById('templatesTableBody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1rem; color: #e74c3c;">Ошибка загрузки шаблонов</td></tr>';
+        }
     }
 }
 
