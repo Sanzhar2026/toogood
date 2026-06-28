@@ -1995,7 +1995,7 @@ async function submitBagForm(e) {
         }))
     };
     
-    console.log('📦 ОТПРАВЛЯЕМ:', JSON.stringify(data, null, 2));
+    console.log('ОТПРАВЛЯЕМ:', JSON.stringify(data, null, 2));
     
     try {
         const response = await authFetch('/api/supplier/surprise-bags', { 
@@ -2031,7 +2031,7 @@ async function refreshBags() {
         const response = await authFetch('/api/supplier/surprise-bags');
         const data = await response.json();
         
-        console.log('📦 Получены сюрпризы:', data);
+        console.log('Получены сюрпризы:', data);
         
         if (!data.bags) {
             console.warn('⚠️ Нет сюрпризов');
