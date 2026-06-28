@@ -81,6 +81,213 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 .ws-dot { width: 6px; height: 6px; border-radius: 50%; }
 .ws-dot.connected { background: #10b981; animation: pulse 2s infinite; }
 .ws-dot.disconnected { background: #e74c3c; }
+/* ============================================================
+   ВСЕ КНОПКИ ЗЕЛЕНЫЕ (КРОМЕ ОТМЕНЫ)
+   ============================================================ */
+
+/* Основные зеленые кнопки */
+.btn-primary,
+.submit-btn,
+button[type="submit"],
+.btn-green {
+    background: #367666 !important;
+    color: white !important;
+    border: none !important;
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-primary:hover,
+.submit-btn:hover,
+button[type="submit"]:hover,
+.btn-green:hover {
+    background: #2a5a4d !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(54, 118, 102, 0.3);
+}
+
+/* Фиолетовые кнопки (категории) - тоже зеленые */
+.btn-purple {
+    background: #367666 !important;
+    color: white !important;
+    border: none !important;
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-purple:hover {
+    background: #2a5a4d !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(54, 118, 102, 0.3);
+}
+
+/* Кнопки скидок */
+.discount-preset {
+    background: #e8f5e9 !important;
+    color: #367666 !important;
+    border: 1px solid #367666 !important;
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.7rem;
+    transition: all 0.2s;
+}
+
+.discount-preset:hover {
+    background: #367666 !important;
+    color: white !important;
+}
+
+.discount-preset.active {
+    background: #367666 !important;
+    color: white !important;
+}
+
+/* Кнопка "Применить" для скидки */
+.btn-sm {
+    background: #367666 !important;
+    color: white !important;
+    border: none !important;
+    padding: 0.3rem 0.8rem;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-sm:hover {
+    background: #2a5a4d !important;
+}
+
+/* Кнопка "Добавить" в товарах */
+.product-row .btn-primary {
+    background: #367666 !important;
+    color: white !important;
+    padding: 0.3rem 0.8rem;
+    border-radius: 0.4rem;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.7rem;
+    transition: all 0.2s;
+}
+
+.product-row .btn-primary:hover {
+    background: #2a5a4d !important;
+}
+
+/* Кнопка "Обновить" - зеленая */
+.refresh-btn {
+    background: #367666 !important;
+    color: white !important;
+    border: none !important;
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.refresh-btn:hover {
+    background: #2a5a4d !important;
+}
+
+/* Кнопка "Заказать" - зеленая */
+.bg-\[\#367666\] {
+    background: #367666 !important;
+}
+
+.bg-\[\#367666\]:hover {
+    background: #2a5a4d !important;
+}
+
+/* ============================================================
+   КНОПКА ОТМЕНА - ОСТАЕТСЯ КРАСНОЙ
+   ============================================================ */
+.clear-btn,
+.btn-cancel,
+button[type="button"].clear-btn {
+    background: #e74c3c !important;
+    color: white !important;
+    border: none !important;
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.clear-btn:hover,
+.btn-cancel:hover {
+    background: #c0392b !important;
+}
+
+/* ============================================================
+   КНОПКИ В ТАБЛИЦАХ
+   ============================================================ */
+/* Кнопки в таблице сюрпризов */
+.toggle-bag-btn {
+    color: white !important;
+    border: none !important;
+    padding: 0.3rem 0.8rem;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    margin-bottom: 0.3rem;
+    width: 100%;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.toggle-bag-btn.active {
+    background: #367666 !important;
+}
+
+.toggle-bag-btn.active:hover {
+    background: #2a5a4d !important;
+}
+
+.toggle-bag-btn.inactive {
+    background: #e74c3c !important;
+}
+
+.toggle-bag-btn.inactive:hover {
+    background: #c0392b !important;
+}
+
+.toggle-type-btn {
+    background: #367666 !important;
+    color: white !important;
+    border: none !important;
+    padding: 0.3rem 0.8rem;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    margin-top: 0.3rem;
+    width: 100%;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.toggle-type-btn:hover {
+    background: #2a5a4d !important;
+}
+
+/* Кнопка "Удалить" в таблице товаров */
+.btn.btn-danger {
+    background: #e74c3c !important;
+    color: white !important;
+}
+
+.btn.btn-danger:hover {
+    background: #c0392b !important;
+}
+
 .notification { position: fixed; top: 1rem; right: 1rem; background: white; border-radius: 0.5rem; padding: 0.6rem 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000; animation: slideIn 0.3s ease; border-left: 3px solid #10b981; font-size: 0.8rem; }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
@@ -191,7 +398,7 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 
     <div class="products-section">
         <div class="section-header">
-            <span class="section-title">📦 Мои товары</span>
+            <span class="section-title">Мои товары</span>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                 <button class="btn-primary" onclick="toggleProductForm()">+ Добавить товар</button>
                 <button class="btn-purple" onclick="toggleCategoryForm()">+ Добавить категорию</button>
@@ -206,9 +413,24 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
                         <label>Название *</label>
                         <input type="text" id="categoryName" required placeholder="Название категории">
                     </div>
-                    <div class="form-group">
-                        <label>Иконка</label>
-                        <select id="categoryIcon">
+     <div class="form-group">
+    <label>Иконка</label>
+    <div style="position: relative;">
+        <input 
+            type="text" 
+            id="categoryIconSearch" 
+            placeholder="🔍 Поиск иконки..." 
+            style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 0.5rem; margin-bottom: 0.3rem; font-size: 0.85rem;"
+        >
+        <button 
+            type="button" 
+            id="clearCategoryIconSearch" 
+            style="position: absolute; right: 8px; top: 8px; background: none; border: none; color: #999; cursor: pointer; font-size: 0.8rem; display: none;"
+        >
+            ✕
+        </button>
+    </div>
+    <select id="categoryIcon" style="width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 0.5rem; font-size: 0.85rem; height: 120px;">
                                 <optgroup label="🍽️ Блюда">
         <option value="🍽️">🍽️ Ресторан</option>
         <option value="🍕">🍕 Пицца</option>
@@ -547,7 +769,7 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
             <textarea id="productDesc" rows="2" placeholder="Описание товара"></textarea>
         </div>
         <div style="display: flex; gap: 0.5rem;">
-            <button type="submit" class="submit-btn" style="width: auto; padding: 0.5rem 2rem;">Сохранить</button>
+            <button type="submit" class="btn-primary" style="width: auto; padding: 0.5rem 2rem;">Сохранить</button>
             <button type="button" class="clear-btn" onclick="toggleProductForm()" style="padding: 0.5rem 1rem;">Отмена</button>
         </div>
     </form>
@@ -663,7 +885,7 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
         </div>
         
         <div style="display:flex;gap:0.5rem;margin-top:0.8rem;">
-            <button type="submit" class="submit-btn" style="width:auto;padding:0.5rem 2rem;background:#8b5cf6;">Сохранить шаблон</button>
+            <button type="submit" class="btn-primary" style="width:auto;padding:0.5rem 2rem;background:#8b5cf6;">Сохранить шаблон</button>
             <button type="button" class="clear-btn" onclick="toggleTemplateForm()" style="padding:0.5rem 1rem;">Отмена</button>
         </div>
     </form>
@@ -806,7 +1028,7 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
                     <input type="text" id="imageUrl" placeholder="Ссылка на картинку">
                 </div>
 
-                <button type="submit" class="submit-btn">Добавить сюрприз</button>
+                <button type="submit" class="btn-primary">Добавить сюрприз</button>
             </form>
         </div>
 
@@ -3018,6 +3240,125 @@ window.loadSupplierProducts = async function() {
     updateTemplateProductSelect();
 };
 
+// ============================================================
+// ПОИСК ИКОНОК ДЛЯ КАТЕГОРИЙ
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('categoryIconSearch');
+    const iconSelect = document.getElementById('categoryIcon');
+    const clearBtn = document.getElementById('clearCategoryIconSearch');
+    
+    if (searchInput && iconSelect) {
+        // Сохраняем все опции
+        let allOptions = [];
+        let allOptgroups = [];
+        
+        for (let i = 0; i < iconSelect.children.length; i++) {
+            const child = iconSelect.children[i];
+            if (child.tagName === 'OPTGROUP') {
+                allOptgroups.push({
+                    label: child.label,
+                    options: Array.from(child.querySelectorAll('option')).map(opt => ({
+                        value: opt.value,
+                        text: opt.text
+                    }))
+                });
+            } else if (child.tagName === 'OPTION') {
+                allOptions.push({
+                    value: child.value,
+                    text: child.text
+                });
+            }
+        }
+        
+        function filterCategoryIcons() {
+            const searchText = searchInput.value.toLowerCase().trim();
+            
+            iconSelect.innerHTML = '';
+            
+            if (searchText === '') {
+                allOptions.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.text;
+                    iconSelect.appendChild(option);
+                });
+                
+                allOptgroups.forEach(group => {
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = group.label;
+                    group.options.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.text;
+                        optgroup.appendChild(option);
+                    });
+                    iconSelect.appendChild(optgroup);
+                });
+            } else {
+                let foundAny = false;
+                
+                allOptions.forEach(opt => {
+                    if (opt.text.toLowerCase().includes(searchText)) {
+                        const option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.text;
+                        iconSelect.appendChild(option);
+                        foundAny = true;
+                    }
+                });
+                
+                allOptgroups.forEach(group => {
+                    const matchingOptions = group.options.filter(opt => 
+                        opt.text.toLowerCase().includes(searchText)
+                    );
+                    
+                    if (matchingOptions.length > 0) {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = group.label;
+                        matchingOptions.forEach(opt => {
+                            const option = document.createElement('option');
+                            option.value = opt.value;
+                            option.textContent = opt.text;
+                            optgroup.appendChild(option);
+                        });
+                        iconSelect.appendChild(optgroup);
+                        foundAny = true;
+                    }
+                });
+                
+                if (!foundAny) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = '❌ Ничего не найдено';
+                    option.disabled = true;
+                    iconSelect.appendChild(option);
+                }
+            }
+            
+            // Показываем/скрываем кнопку очистки
+            if (clearBtn) {
+                clearBtn.style.display = searchText !== '' ? 'block' : 'none';
+            }
+        }
+        
+        searchInput.addEventListener('input', filterCategoryIcons);
+        searchInput.addEventListener('keyup', filterCategoryIcons);
+        
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                searchInput.value = '';
+                filterCategoryIcons();
+                searchInput.focus();
+            });
+        }
+        
+        // Первоначальная загрузка
+        filterCategoryIcons();
+        
+        console.log('✅ Поиск иконок категорий настроен!');
+    }
+});
 // ============================================================
 // ПОИСК ШАБЛОНОВ - ПОЛНАЯ ВЕРСИЯ
 // ============================================================
