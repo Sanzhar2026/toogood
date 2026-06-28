@@ -11920,6 +11920,7 @@ async def logout(request: Request):
     return response
 
 # backend/main.py - add this endpoint
+# backend/routes/orders.py или где у тебя эндпоинт /api/my-orders
 @app.get("/api/my-orders")
 async def get_my_orders(request: Request):
     """Получить заказы текущего пользователя"""
@@ -11938,12 +11939,26 @@ async def get_my_orders(request: Request):
     conn = get_db_connection()
     cur = conn.cursor()
     
+    # ✅ ДОБАВЛЯЕМ supplier_id, supplier_logo, bag_name
     cur.execute("""
-        SELECT id, order_number, status, created_at, amount_paid,
-               assigned_courier_id, address, delivery_type
-        FROM orders 
-        WHERE user_id = %s
-        ORDER BY created_at DESC
+        SELECT 
+            o.id, 
+            o.order_number, 
+            o.status, 
+            o.created_at, 
+            o.amount_paid,
+            o.assigned_courier_id, 
+            o.address, 
+            o.delivery_type,
+            o.supplier_id,
+            s.business_name as supplier_name,
+            s.logo as supplier_logo,
+            sb.name as bag_name
+        FROM orders o
+        LEFT JOIN suppliers s ON s.id = o.supplier_id
+        LEFT JOIN surprise_bags sb ON sb.id = o.surprise_bag_id
+        WHERE o.user_id = %s
+        ORDER BY o.created_at DESC
     """, (user_id,))
     
     orders = cur.fetchall()
@@ -11961,7 +11976,11 @@ async def get_my_orders(request: Request):
                 "amount": float(o[4]) if o[4] else 0,
                 "courier_id": o[5],
                 "address": o[6],
-                "delivery_type": o[7]
+                "delivery_type": o[7] or "pickup",
+                "supplier_id": o[8],
+                "supplier_name": o[9],
+                "supplier_logo": o[10],  # ✅ ДОБАВЛЯЕМ!
+                "bag_name": o[11] or "Surprise Bag"
             }
             for o in orders
         ]
@@ -12329,6 +12348,7 @@ async def get_order_by_id(order_id: int, request: Request):
                 s.address as supplier_address,
                 s.lat as supplier_lat,
                 s.lon as supplier_lon,
+                s.logo as supplier_logo,  -- ✅ ДОБАВЛЯЕМ!
                 sb.name as bag_name
             FROM orders o
             LEFT JOIN suppliers s ON s.id = o.supplier_id
@@ -12367,7 +12387,8 @@ async def get_order_by_id(order_id: int, request: Request):
                 "business_name": order['supplier_name'],
                 "address": order['supplier_address'],
                 "lat": float(order['supplier_lat']) if order['supplier_lat'] else None,
-                "lon": float(order['supplier_lon']) if order['supplier_lon'] else None
+                "lon": float(order['supplier_lon']) if order['supplier_lon'] else None,
+                "logo": order['supplier_logo']  # ✅ ДОБАВЛЯЕМ!
             },
             "bag_name": order['bag_name'] or "Surprise Bag"
         }
