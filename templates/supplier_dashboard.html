@@ -2985,6 +2985,68 @@ function addTemplateProduct() {
     document.getElementById('templateProductQuantity').value = 1;
     showNotification('✅ Товар добавлен в шаблон', 'success');
 }
+// ============================================================
+// ПЕРЕОПРЕДЕЛЯЕМ addTemplateProduct
+// ============================================================
+
+window.addTemplateProduct = function() {
+    console.log('🔥 addTemplateProduct ВЫЗВАНА!');
+    
+    const select = document.getElementById('templateProductSelect');
+    if (!select) {
+        showNotification('Ошибка: select не найден!', 'error');
+        return;
+    }
+    
+    const productId = select.value;
+    const quantity = parseInt(document.getElementById('templateProductQuantity')?.value) || 1;
+    
+    console.log('📋 productId:', productId);
+    console.log('📦 quantity:', quantity);
+    
+    if (!productId) {
+        showNotification('Выберите товар!', 'error');
+        return;
+    }
+    
+    if (!window.productsData) {
+        showNotification('Товары не загружены!', 'error');
+        return;
+    }
+    
+    const product = window.productsData.find(p => p.id == productId);
+    if (!product) {
+        showNotification('Товар не найден!', 'error');
+        return;
+    }
+    
+    console.log('✅ Товар найден:', product);
+    
+    // Добавляем в список
+    const existing = templateProducts.find(p => p.id == productId);
+    if (existing) {
+        existing.quantity += quantity;
+    } else {
+        templateProducts.push({
+            id: parseInt(productId),
+            name: product.name,
+            price: product.price,
+            icon: product.icon || '🍽️',
+            quantity: quantity
+        });
+    }
+    
+    // Обновляем отображение
+    renderTemplateProducts();
+    updateTemplatePrices();
+    
+    select.value = '';
+    document.getElementById('templateProductQuantity').value = 1;
+    
+    showNotification(`✅ Товар "${product.name}" добавлен!`, 'success');
+};
+
+console.log('✅ addTemplateProduct переопределена!');
 
 function renderTemplateProducts() {
     const container = document.getElementById('templateProductsList');
