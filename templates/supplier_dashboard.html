@@ -2509,7 +2509,29 @@ function getRichTemplatesByType(type) {
     }
     return result;
 }
+// ============================================================
+// ОБРАБОТЧИК ВЫБОРА ШАБЛОНА
+// ============================================================
 
+document.addEventListener('DOMContentLoaded', function() {
+    const select = document.getElementById('surpriseTemplate');
+    if (select) {
+        // Убираем старый обработчик
+        select.onchange = null;
+        
+        // Добавляем новый
+        select.addEventListener('change', function() {
+            const key = this.value;
+            console.log('📋 Выбран шаблон:', key);
+            
+            if (key) {
+                loadSurpriseTemplate();
+            }
+        });
+        
+        console.log('✅ Обработчик выбора шаблона добавлен!');
+    }
+});
 async function updateTemplateSelect() {
     const templateSelect = document.getElementById('surpriseTemplate');
     if (!templateSelect) {
