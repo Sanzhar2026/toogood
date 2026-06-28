@@ -2949,47 +2949,11 @@ function toggleTemplateForm() {
     }
 }
 
-function addTemplateProduct() {
-    const select = document.getElementById('templateProductSelect');
-    const productId = select.value;
-    const quantity = parseInt(document.getElementById('templateProductQuantity').value) || 1;
-    
-    if (!productId) { 
-        showNotification('Выберите товар!', 'error'); 
-        return; 
-    }
-    
-    const product = window.productsData?.find(p => p.id == productId);
-    if (!product) { 
-        showNotification('Товар не найден!', 'error'); 
-        return; 
-    }
-    
-    const existing = templateProducts.find(p => p.id == productId);
-    if (existing) {
-        existing.quantity += quantity;
-    } else {
-        templateProducts.push({
-            id: parseInt(productId),
-            name: product.name,
-            price: product.price,
-            icon: product.icon || '🍽️',
-            quantity: quantity
-        });
-    }
-    
-    renderTemplateProducts();
-    updateTemplatePrices();
-    
-    select.value = '';
-    document.getElementById('templateProductQuantity').value = 1;
-    showNotification('✅ Товар добавлен в шаблон', 'success');
-}
 // ============================================================
-// ПЕРЕОПРЕДЕЛЯЕМ addTemplateProduct
+// addTemplateProduct - ИСПРАВЛЕННАЯ ВЕРСИЯ
 // ============================================================
 
-window.addTemplateProduct = function() {
+function addTemplateProduct() {
     console.log('🔥 addTemplateProduct ВЫЗВАНА!');
     
     const select = document.getElementById('templateProductSelect');
@@ -3009,7 +2973,7 @@ window.addTemplateProduct = function() {
         return;
     }
     
-    if (!window.productsData) {
+    if (!window.productsData || window.productsData.length === 0) {
         showNotification('Товары не загружены!', 'error');
         return;
     }
@@ -3022,10 +2986,10 @@ window.addTemplateProduct = function() {
     
     console.log('✅ Товар найден:', product);
     
-    // Добавляем в список
     const existing = templateProducts.find(p => p.id == productId);
     if (existing) {
         existing.quantity += quantity;
+        console.log(`📦 Обновлен: ${product.name} x${existing.quantity}`);
     } else {
         templateProducts.push({
             id: parseInt(productId),
@@ -3034,19 +2998,19 @@ window.addTemplateProduct = function() {
             icon: product.icon || '🍽️',
             quantity: quantity
         });
+        console.log(`✅ Добавлен: ${product.name} x${quantity}`);
     }
     
-    // Обновляем отображение
     renderTemplateProducts();
     updateTemplatePrices();
     
     select.value = '';
     document.getElementById('templateProductQuantity').value = 1;
     
-    showNotification(`✅ Товар "${product.name}" добавлен!`, 'success');
-};
+    showNotification(`✅ Товар "${product.name}" добавлен в шаблон!`, 'success');
+    console.log('🛒 Товары в шаблоне:', templateProducts);
+}
 
-console.log('✅ addTemplateProduct переопределена!');
 
 function renderTemplateProducts() {
     const container = document.getElementById('templateProductsList');
@@ -3788,7 +3752,7 @@ document.addEventListener('DOMContentLoaded', function() {
             searchInput.focus();
         });
     }
-    
+      updateTemplateSelect();
     // Автоматический подсчет при загрузке
     setTimeout(filterTemplates, 500);
     
