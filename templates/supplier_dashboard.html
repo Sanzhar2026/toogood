@@ -2791,7 +2791,72 @@ function updateTemplateProductSelect() {
         });
     }
 }
-
+// ============================================================
+// ПОИСК ШАБЛОНОВ
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('templateSearch');
+    const clearBtn = document.getElementById('clearTemplateSearch');
+    
+    if (searchInput) {
+        // Функция фильтрации
+        function filterTemplates() {
+            const searchText = searchInput.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#templatesTableBody tr');
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                // Пропускаем строку "Нет шаблонов"
+                if (row.querySelector('td[colspan]')) {
+                    row.style.display = 'none';
+                    return;
+                }
+                
+                const name = row.querySelector('td:first-child')?.textContent?.toLowerCase() || '';
+                const desc = row.querySelector('td:nth-child(2)')?.textContent?.toLowerCase() || '';
+                
+                if (searchText === '' || name.includes(searchText) || desc.includes(searchText)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Обновляем счетчик
+            const countEl = document.getElementById('templateCount');
+            if (countEl) {
+                const total = document.querySelectorAll('#templatesTableBody tr:not([style*="display: none"])').length;
+                // Скрываем строку "Нет шаблонов" при поиске
+                const noDataRow = document.querySelector('#templatesTableBody tr td[colspan]');
+                if (noDataRow && searchText !== '') {
+                    noDataRow.closest('tr').style.display = 'none';
+                }
+                countEl.textContent = `${visibleCount} шаблонов`;
+            }
+            
+            // Показываем/скрываем кнопку очистки
+            if (clearBtn) {
+                clearBtn.style.display = searchText !== '' ? 'block' : 'none';
+            }
+        }
+        
+        // Слушаем ввод
+        searchInput.addEventListener('input', filterTemplates);
+        searchInput.addEventListener('keyup', filterTemplates);
+        
+        // Кнопка очистки
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                searchInput.value = '';
+                filterTemplates();
+                searchInput.focus();
+            });
+        }
+        
+        console.log('✅ Поиск шаблонов настроен!');
+    }
+});
 // ============================================================
 // ⚡ ОСНОВНОЙ ОБРАБОТЧИК ФОРМЫ (ИСПРАВЛЕННЫЙ)
 // ============================================================
