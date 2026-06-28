@@ -8929,6 +8929,7 @@ async def delete_supplier_template(
         )
     
 # backend/routes/supplier.py
+# backend/routes/supplier.py
 
 @app.post("/api/supplier/logo")
 async def upload_supplier_logo(
@@ -8938,6 +8939,8 @@ async def upload_supplier_logo(
 ):
     """Загрузить логотип поставщика"""
     try:
+        print(f"📤 Загрузка логотипа для поставщика {supplier_id}")
+        
         form = await request.form()
         file = form.get("logo")
         
@@ -8947,46 +8950,90 @@ async def upload_supplier_logo(
                 content={"success": False, "error": "Файл не выбран"}
             )
         
-        # Проверяем тип
-        if not file.content_type.startswith('image/'):
+        if not file.content_type or not file.content_type.startswith('image/'):
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": "Файл должен быть изображением"}
             )
         
-        # Генерируем имя файла
-        ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
-        filename = f"supplier_{supplier_id}_logo.{ext}"
-        
-        # Сохраняем файл
         import os
+        from datetime import datetime
+        
         upload_dir = "uploads/suppliers"
         os.makedirs(upload_dir, exist_ok=True)
         
+        # ✅ СОХРАНЯЕМ С ФИКСИРОВАННЫМ ИМЕНЕМ
+        ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
+        filename = f"supplier_{supplier_id}.{ext}"  # ✅ БЕЗ ВРЕМЕНИ!
         filepath = os.path.join(upload_dir, filename)
+        
+        # Удаляем старый файл, если есть
+        if os.path.exists(filepath):
+            os.remove(filepath)
         
         content = await file.read()
         with open(filepath, "wb") as f:
             f.write(content)
         
-        # Обновляем в БД
+        print(f"✅ Файл сохранен: {filepath}")
+        
+        # ✅ ОБНОВЛЯЕМ БД
         supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
         if supplier:
             supplier.logo = f"/uploads/suppliers/{filename}"
             db.commit()
+            db.refresh(supplier)
+            print(f"✅ Обновлен логотип в БД: {supplier.logo}")
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Поставщик не найден"}
+            )
         
         return JSONResponse(content={
             "success": True,
             "message": "Логотип обновлен",
-            "logo_url": f"/uploads/suppliers/{filename}"
+            "logo_url": supplier.logo
         })
         
     except Exception as e:
-        print(f"❌ Ошибка загрузки логотипа: {e}")
+        print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+
+@app.get("/api/supplier/profile")
+async def get_supplier_profile(
+    supplier_id: int = Depends(get_supplier_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """Получить профиль поставщика"""
+    try:
+        supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+        if not supplier:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Поставщик не найден"}
+            )
+        
+        return JSONResponse(content={
+            "id": supplier.id,
+            "business_name": supplier.business_name,
+            "logo": supplier.logo,
+            "address": supplier.address,
+            "phone": supplier.phone,
+            "rating": supplier.rating
+        })
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
 
 @app.get("/api/payment/history")
 async def get_payment_history(request: Request, db: Session = Depends(get_db)):

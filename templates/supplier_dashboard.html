@@ -3926,5 +3926,55 @@ async function handleSupplierAvatarUpload(event) {
     event.target.value = '';
 }
 
+// ============================================================
+// ЗАГРУЗКА АВАТАРКИ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
+// ============================================================
+
+function loadSupplierAvatar() {
+    const avatarImg = document.getElementById('supplierAvatar');
+    const avatarText = document.getElementById('supplierAvatarText');
+    
+    if (!avatarImg) {
+        console.log('ℹ️ Элемент #supplierAvatar не найден');
+        return;
+    }
+    
+    // 1. Проверяем localStorage
+    const savedLogo = localStorage.getItem('supplier_logo');
+    if (savedLogo) {
+        avatarImg.src = savedLogo + '?t=' + Date.now();
+        avatarImg.style.display = 'block';
+        if (avatarText) avatarText.style.display = 'none';
+        console.log('✅ Аватар из localStorage');
+        return;
+    }
+    
+    // 2. Пробуем из БД
+    const token = getSupplierToken();
+    if (!token) return;
+    
+    fetch('/api/supplier/profile', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(r => r.json())
+    .then(data => {
+        console.log('📦 Профиль:', data);
+        if (data.logo) {
+            avatarImg.src = data.logo + '?t=' + Date.now();
+            avatarImg.style.display = 'block';
+            if (avatarText) avatarText.style.display = 'none';
+            localStorage.setItem('supplier_logo', data.logo);
+            console.log('✅ Аватар из БД');
+        } else {
+            console.log('ℹ️ Логотип не найден в БД');
+        }
+    })
+    .catch(err => console.error('❌ Ошибка:', err));
+}
+
+// Вызываем после загрузки
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(loadSupplierAvatar, 500);
+});
 </script>
 {% endblock %}
