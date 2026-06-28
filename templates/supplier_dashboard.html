@@ -595,6 +595,9 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 <!-- ============================================================ -->
 <!-- ШАБЛОНЫ СЮРПРИЗОВ -->
 <!-- ============================================================ -->
+<!-- ============================================================ -->
+<!-- ШАБЛОНЫ СЮРПРИЗОВ -->
+<!-- ============================================================ -->
 <div class="section-header" style="margin-top: 1.5rem;">
     <span class="section-title">📋 Мои шаблоны</span>
     <button class="btn-primary" onclick="toggleTemplateForm()">+ Создать шаблон</button>
@@ -604,7 +607,6 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
 <div id="addTemplateForm" style="display: none; background: #f8fafc; padding: 1rem; border-radius: 0.75rem; margin-top: 1rem; border: 1px solid #e8f5e9;">
     <h4 style="margin-bottom: 1rem; color: #367666;">📝 Новый шаблон</h4>
     
-    <!-- ✅ ВАЖНО: id="createTemplateForm" -->
     <form id="createTemplateForm">
         <!-- Название и описание -->
         <div class="form-grid">
@@ -618,10 +620,10 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
             </div>
         </div>
         
-        <!-- Скидка -->
+        <!-- Скидки -->
         <div class="form-grid">
             <div class="form-group">
-                <label>Скидка по умолчанию</label>
+                <label>Быстрая скидка</label>
                 <select id="templateDiscount">
                     <option value="0">0%</option>
                     <option value="10">10%</option>
@@ -675,11 +677,11 @@ th { background: #f8faf8; font-weight: 600; color: #367666; border-bottom: 2px s
         <div class="form-grid">
             <div class="form-group">
                 <label>Оригинальная цена</label>
-                <input type="text" id="templateOriginalPrice" readonly style="background: #f1f5f9; font-weight: bold;">
+                <input type="text" id="templateOriginalPrice" readonly style="background: #f1f5f9; font-weight: bold;" value="0 ₸">
             </div>
             <div class="form-group">
                 <label>Цена со скидкой</label>
-                <input type="text" id="templateDiscountedPrice" readonly style="background: #f1f5f9; font-weight: bold; color: #e74c3c;">
+                <input type="text" id="templateDiscountedPrice" readonly style="background: #f1f5f9; font-weight: bold; color: #e74c3c;" value="0 ₸">
             </div>
         </div>
         
