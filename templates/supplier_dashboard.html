@@ -3137,6 +3137,64 @@ async function loadTemplate(templateId) {
     }
 }
 
+async function loadTemplates() {
+    try {
+        console.log('🔄 Загрузка шаблонов...');
+        
+        const response = await authFetch('/api/supplier/templates');
+        const result = await response.json();
+        
+        console.log('📦 Ответ от API:', result);
+        
+        const tbody = document.getElementById('templatesTableBody');
+        if (!tbody) {
+            console.error('❌ Элемент #templatesTableBody не найден!');
+            return;
+        }
+        
+        tbody.innerHTML = '';
+        
+        if (!result.success || !result.templates || result.templates.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1rem; color: #94a3b8;">Нет шаблонов</td></tr>';
+            updateTemplateCount();
+            return;
+        }
+        
+        result.templates.forEach(template => {
+            const data = template.template_data || {};
+            const productCount = data.products?.length || 0;
+            const discount = data.discount_percentage || 0;
+            const price = data.discounted_price || 0;
+            
+            const row = `
+                <tr>
+                    <td><strong>${escapeHtml(template.name)}</strong></td>
+                    <td>${escapeHtml(template.description || '-')}</td>
+                    <td>${productCount} товаров</td>
+                    <td><span style="color: #e74c3c; font-weight: bold;">-${discount}%</span></td>
+                    <td><strong>${price} ₸</strong></td>
+                    <td>
+                        <button class="btn" onclick="loadTemplate(${template.id})" style="background: #367666; color: white; padding: 0.3rem 0.6rem; font-size: 0.7rem;">📋 Загрузить</button>
+                        <button class="btn" onclick="deleteTemplate(${template.id})" style="background: #e74c3c; color: white; padding: 0.3rem 0.6rem; font-size: 0.7rem;">🗑️</button>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+        
+        console.log(`✅ Загружено ${result.templates.length} шаблонов`);
+        updateTemplateCount();
+        
+    } catch(error) {
+        console.error('❌ Ошибка загрузки шаблонов:', error);
+        const tbody = document.getElementById('templatesTableBody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 1rem; color: #e74c3c;">Ошибка загрузки шаблонов</td></tr>';
+        }
+        updateTemplateCount();
+    }
+}
+
 // ============================================================
 // УДАЛЕНИЕ ШАБЛОНА
 // ============================================================
@@ -3592,11 +3650,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ✅ Переопределяем loadTemplates для обновления счетчика
-const originalLoadTemplates = window.loadTemplates;
-window.loadTemplates = async function() {
-    await originalLoadTemplates();
-    
-    // Обновляем счетчик
+// ============================================================
+// ОБНОВЛЕНИЕ СЧЕТЧИКА ШАБЛОНОВ
+// ============================================================
+
+function updateTemplateCount() {
     setTimeout(() => {
         const countEl = document.getElementById('templateCount');
         if (countEl) {
@@ -3609,8 +3667,7 @@ window.loadTemplates = async function() {
             }
         }
     }, 300);
-};
-
+}
 
 </script>
 {% endblock %}
