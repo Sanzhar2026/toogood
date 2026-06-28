@@ -2498,59 +2498,116 @@ function getRichTemplatesByType(type) {
     return result;
 }
 
-function updateTemplateSelect() {
+async function updateTemplateSelect() {
     const templateSelect = document.getElementById('surpriseTemplate');
     if (!templateSelect) return;
     
-    const richTemplates = getRichTemplatesByType(businessType);
     templateSelect.innerHTML = '<option value="">-- Выберите шаблон --</option>';
     
+    // 1. ВСТРОЕННЫЕ ШАБЛОНЫ
+    const richTemplates = getRichTemplatesByType(businessType);
     if (richTemplates && richTemplates.templates) {
-        const templates = richTemplates.templates;
-        Object.keys(templates).forEach(key => {
-            const t = templates[key];
+        const builtinGroup = document.createElement('optgroup');
+        builtinGroup.label = '📦 Встроенные шаблоны';
+        
+        Object.keys(richTemplates.templates).forEach(key => {
+            const t = richTemplates.templates[key];
             const name = t.name.ru || t.name.en || 'Шаблон';
             const option = document.createElement('option');
-            option.value = key;
+            option.value = 'builtin_' + key;
             option.textContent = '🎁 ' + name + ' - ' + t.price + ' ₸';
-            templateSelect.appendChild(option);
+            builtinGroup.appendChild(option);
         });
+        
+        templateSelect.appendChild(builtinGroup);
     }
+    
+    // 2. ПОЛЬЗОВАТЕЛЬСКИЕ ШАБЛОНЫ
+    try {
+        const response = await authFetch('/api/supplier/templates');
+        const result = await response.json();
+        
+        if (result.success && result.templates && result.templates.length > 0) {
+            const userGroup = document.createElement('optgroup');
+            userGroup.label = '📋 Мои шаблоны (' + result.templates.length + ')';
+            
+            result.templates.forEach(template => {
+                const data = template.template_data || {};
+                const discount = data.discount_percentage || 0;
+                const price = data.discounted_price || 0;
+                
+                const option = document.createElement('option');
+                option.value = 'user_' + template.id;
+                option.textContent = `📋 ${template.name} - ${price} ₸ (скидка ${discount}%)`;
+                userGroup.appendChild(option);
+            });
+            
+            templateSelect.appendChild(userGroup);
+        }
+    } catch(error) {
+        console.error('Ошибка загрузки пользовательских шаблонов:', error);
+    }
+    
+    console.log('✅ Select шаблонов обновлен');
 }
 
-function loadSurpriseTemplate() {
+async function loadSurpriseTemplate() {
     const key = document.getElementById('surpriseTemplate').value;
-    if (!key) return;
-    
-    const richTemplates = getRichTemplatesByType(businessType);
-    if (!richTemplates || !richTemplates.templates) return;
-    
-    const template = richTemplates.templates[key];
-    if (!template) return;
-    
-    document.getElementById('bagName').value = template.name.ru || template.name.en || '';
-    document.getElementById('bagDescription').value = template.description.ru || template.description.en || '';
-    document.getElementById('discountedPrice').value = template.price || 0;
-    if (template.image) document.getElementById('imageUrl').value = template.image;
-    
-    selectedProducts = [];
-    if (template.items && window.productsData) {
-        template.items.forEach(item => {
-            const product = window.productsData.find(p => p.id == item.id);
-            if (product) {
-                selectedProducts.push({
-                    id: product.id,
-                    name: product.name,
-                    price: product.price,
-                    quantity: item.qty || 1
-                });
-            }
-        });
-        renderSelectedProducts();
-        updateTotalPrice();
+    if (!key) {
+        showNotification('Выберите шаблон', 'info');
+        return;
     }
     
-    showNotification('🎁 Шаблон загружен: ' + (template.name.ru || template.name.en), 'success');
+    console.log('📋 Загрузка шаблона:', key);
+    
+    // Встроенный
+    if (key.startsWith('builtin_')) {
+        const templateKey = key.replace('builtin_', '');
+        const richTemplates = getRichTemplatesByType(businessType);
+        
+        if (!richTemplates || !richTemplates.templates) {
+            showNotification('Шаблон не найден', 'error');
+            return;
+        }
+        
+        const template = richTemplates.templates[templateKey];
+        if (!template) {
+            showNotification('Шаблон не найден', 'error');
+            return;
+        }
+        
+        document.getElementById('bagName').value = template.name.ru || template.name.en || '';
+        document.getElementById('bagDescription').value = template.description.ru || template.description.en || '';
+        document.getElementById('discountedPrice').value = template.price || 0;
+        if (template.image) document.getElementById('imageUrl').value = template.image;
+        
+        selectedProducts = [];
+        if (template.items && window.productsData) {
+            template.items.forEach(item => {
+                const product = window.productsData.find(p => p.id == item.id);
+                if (product) {
+                    selectedProducts.push({
+                        id: product.id,
+                        name: product.name,
+                        price: product.price,
+                        quantity: item.qty || 1
+                    });
+                }
+            });
+            renderSelectedProducts();
+            updateTotalPrice();
+        }
+        
+        showNotification('🎁 Шаблон загружен: ' + (template.name.ru || template.name.en), 'success');
+        
+    // Пользовательский
+    } else if (key.startsWith('user_')) {
+        const templateId = parseInt(key.replace('user_', ''));
+        await loadTemplate(templateId);
+        
+    } else {
+        showNotification('Неизвестный тип шаблона', 'error');
+    }
 }
 
 // ============================================================
