@@ -1090,6 +1090,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     text: child.text
                 });
             }
+            
         }
         
         function filterIcons() {
@@ -1165,6 +1166,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
+        
         
         // ✅ СЛУШАЕМ ВВОД
         searchInput.addEventListener('input', filterIcons);
@@ -3778,6 +3780,52 @@ function updateTemplateCount() {
         }
     }, 300);
 }
+// ============================================================
+// ДОПОЛНИТЕЛЬНАЯ ИНИЦИАЛИЗАЦИЯ ДЛЯ ШАБЛОНОВ
+// ============================================================
 
+// Функция заполнения select для шаблонов
+function fillTemplateProductSelect() {
+    const select = document.getElementById('templateProductSelect');
+    if (!select) {
+        console.log('ℹ️ templateProductSelect не найден (возможно форма скрыта)');
+        return;
+    }
+    
+    if (!window.productsData || window.productsData.length === 0) {
+        console.log('⚠️ Товары не загружены');
+        return;
+    }
+    
+    select.innerHTML = '<option value="">-- Выберите товар --</option>';
+    
+    window.productsData.forEach(product => {
+        const option = document.createElement('option');
+        option.value = product.id;
+        option.textContent = `${product.icon || '🍽️'} ${product.name} (${product.price} ₸)`;
+        select.appendChild(option);
+    });
+    
+    console.log(`✅ Добавлено ${window.productsData.length} товаров в select шаблона`);
+}
+
+// Вызываем после загрузки страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Немного ждем, пока загрузятся товары
+    setTimeout(function() {
+        fillTemplateProductSelect();
+    }, 500);
+});
+
+// Также обновляем select при загрузке товаров
+const originalLoadSupplierProducts = window.loadSupplierProducts;
+if (originalLoadSupplierProducts) {
+    window.loadSupplierProducts = async function() {
+        await originalLoadSupplierProducts();
+        fillTemplateProductSelect();
+    };
+}
+
+console.log('✅ Инициализация шаблонов завершена');
 </script>
 {% endblock %}
