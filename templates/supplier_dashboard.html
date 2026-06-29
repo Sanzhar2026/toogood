@@ -318,6 +318,7 @@ button[type="button"].clear-btn {
      data-business-type="{{ supplier.business_type or 'restaurant' }}"
      data-products='{{ products|tojson|safe }}'
      data-templates='{{ templates_data|tojson|safe }}'
+     data-logo="{{ supplier.logo or '' }}"
      style="display: none;">
 </div>
 
@@ -3939,7 +3940,7 @@ function loadSupplierAvatar() {
         return;
     }
     
-    // 1. Проверяем localStorage
+    // 1. Проверяем localStorage (самый быстрый)
     const savedLogo = localStorage.getItem('supplier_logo');
     if (savedLogo) {
         avatarImg.src = savedLogo + '?t=' + Date.now();
@@ -3949,7 +3950,18 @@ function loadSupplierAvatar() {
         return;
     }
     
-    // 2. Пробуем из БД
+    // 2. Проверяем data-logo из HTML
+    const dataLogo = document.getElementById('supplierData')?.dataset?.logo;
+    if (dataLogo && dataLogo !== 'None' && dataLogo !== '') {
+        avatarImg.src = dataLogo + '?t=' + Date.now();
+        avatarImg.style.display = 'block';
+        if (avatarText) avatarText.style.display = 'none';
+        localStorage.setItem('supplier_logo', dataLogo);
+        console.log('✅ Аватар из data-logo');
+        return;
+    }
+    
+    // 3. Пробуем из БД через API
     const token = getSupplierToken();
     if (!token) return;
     
@@ -3958,15 +3970,12 @@ function loadSupplierAvatar() {
     })
     .then(r => r.json())
     .then(data => {
-        console.log('📦 Профиль:', data);
         if (data.logo) {
             avatarImg.src = data.logo + '?t=' + Date.now();
             avatarImg.style.display = 'block';
             if (avatarText) avatarText.style.display = 'none';
             localStorage.setItem('supplier_logo', data.logo);
             console.log('✅ Аватар из БД');
-        } else {
-            console.log('ℹ️ Логотип не найден в БД');
         }
     })
     .catch(err => console.error('❌ Ошибка:', err));
@@ -3976,5 +3985,8 @@ function loadSupplierAvatar() {
 document.addEventListener('DOMContentLoaded', function() {
     loadSupplierAvatar();
 });
+// Вызываем после загрузки
+
+
 </script>
 {% endblock %}
