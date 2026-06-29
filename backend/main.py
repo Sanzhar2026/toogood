@@ -7377,12 +7377,14 @@ async def get_surprise_bags_hidden(
                 "original_price": bag.original_price,
                 "discounted_price": bag.discounted_price,
                 "discount_percentage": bag.discount_percentage,
+                 "address": supplier.address or "Адрес не указан",  
                 "image_url": bag.image_url,
                 "available_quantity": bag.available_quantity,
+                "business_type": supplier.business_type or "Доставка", 
                 "hide_contents": bag.hide_contents,
                 "city": bag.city,
                 "items": [],
-                "surprise_message": "🎁 Сюрприз! Состав не раскрывается до получения"
+                "surprise_message": "Сюрприз! Состав не раскрывается до получения"
             })
     
     return JSONResponse(content=result)
