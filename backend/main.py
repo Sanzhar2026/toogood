@@ -14210,6 +14210,7 @@ async def get_all_surprise_bags(
                 "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
                 "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
                 "image_url": bag.image_url or "",
+                "business_type": supplier.business_type or "доставка",  
                 "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
                 "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
                 "city": bag.city or "",
