@@ -336,7 +336,11 @@ async def get_supplier_id_from_token(
             detail="Internal server error"
         )
     
+from fastapi.staticfiles import StaticFiles
+import os
 
+# ✅ ПОСЛЕ СОЗДАНИЯ APP, ДОБАВЬ ЭТО:
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 
@@ -8933,17 +8937,24 @@ async def delete_supplier_template(
 
 # backend/routes/supplier.py
 
+# backend/routes/supplier.py
+
+import os
+from datetime import datetime
+
+# ✅ В НАЧАЛЕ ФАЙЛА ДОБАВЬ
+UPLOAD_DIR = "uploads/suppliers"
+
 @app.post("/api/supplier/logo")
 async def upload_supplier_logo(
     request: Request,
     supplier_id: int = Depends(get_supplier_id_from_token),
     db: Session = Depends(get_db)
 ):
-    """Загрузить логотип поставщика в БД"""
+    """Загрузить логотип поставщика"""
     try:
         print(f"📤 Загрузка логотипа для поставщика {supplier_id}")
         
-        # 1. Получаем файл
         form = await request.form()
         file = form.get("logo")
         
@@ -8959,40 +8970,43 @@ async def upload_supplier_logo(
                 content={"success": False, "error": "Файл должен быть изображением"}
             )
         
-        # 2. Создаем папку
-        import os
-        from datetime import datetime
+        # ✅ СОЗДАЕМ ПАПКУ, ЕСЛИ НЕТ
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        print(f"📁 Папка {UPLOAD_DIR} готова")
         
-        upload_dir = "uploads/suppliers"
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        # 3. Сохраняем файл с фиксированным именем
+        # ✅ СОХРАНЯЕМ С ФИКСИРОВАННЫМ ИМЕНЕМ
         ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
         filename = f"supplier_{supplier_id}.{ext}"
-        filepath = os.path.join(upload_dir, filename)
+        filepath = os.path.join(UPLOAD_DIR, filename)
         
-        # Удаляем старый файл
+        print(f"📝 Сохраняем: {filepath}")
+        
+        # Удаляем старый файл, если есть
         if os.path.exists(filepath):
             os.remove(filepath)
+            print(f"🗑️ Старый файл удален")
         
+        # Сохраняем новый
         content = await file.read()
         with open(filepath, "wb") as f:
             f.write(content)
         
         print(f"✅ Файл сохранен: {filepath}")
+        print(f"📏 Размер: {os.path.getsize(filepath)} байт")
         
-        # 4. ✅ ОБНОВЛЯЕМ БД
+        # ✅ ОБНОВЛЯЕМ БД
         supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
-        if supplier:
-            supplier.logo = f"/uploads/suppliers/{filename}"
-            db.commit()
-            db.refresh(supplier)
-            print(f"✅ Обновлен логотип в БД: {supplier.logo}")
-        else:
+        if not supplier:
             return JSONResponse(
                 status_code=404,
                 content={"success": False, "error": "Поставщик не найден"}
             )
+        
+        supplier.logo = f"/uploads/suppliers/{filename}"
+        db.commit()
+        db.refresh(supplier)
+        
+        print(f"✅ Обновлен логотип в БД: {supplier.logo}")
         
         return JSONResponse(content={
             "success": True,
@@ -9008,7 +9022,6 @@ async def upload_supplier_logo(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
-
 @app.get("/api/supplier/profile")
 async def get_supplier_profile(
     supplier_id: int = Depends(get_supplier_id_from_token),
@@ -9023,6 +9036,7 @@ async def get_supplier_profile(
                 content={"success": False, "error": "Поставщик не найден"}
             )
         
+
         return JSONResponse(content={
             "id": supplier.id,
             "business_name": supplier.business_name,
@@ -9032,6 +9046,7 @@ async def get_supplier_profile(
             "rating": supplier.rating
         })
         
+
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         return JSONResponse(
@@ -9040,7 +9055,7 @@ async def get_supplier_profile(
         )
   
 
-  
+
 
 @app.get("/api/payment/history")
 async def get_payment_history(request: Request, db: Session = Depends(get_db)):
@@ -15135,7 +15150,7 @@ async def debug_cookies(request: Request):
 
 uploads_dir = Path("uploads")
 uploads_dir.mkdir(exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 
 
 @app.get("/supplier/couriers")
