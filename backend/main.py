@@ -13680,8 +13680,19 @@ async def get_supplier_by_id(supplier_id: int):
         
         cur.execute("""
             SELECT 
-                id, business_name, description, address, city, 
-                phone, email, rating, cover_image, lat, lon, is_active
+                id, 
+                business_name, 
+                description, 
+                address, 
+                city, 
+                phone, 
+                email, 
+                rating, 
+                cover_image, 
+                lat, 
+                lon, 
+                is_active,
+                logo  -- ✅ ДОБАВЛЯЕМ!
             FROM suppliers 
             WHERE id = %s
         """, (supplier_id,))
