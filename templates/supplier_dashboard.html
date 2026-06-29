@@ -3851,86 +3851,45 @@ console.log('✅ Инициализация шаблонов завершена'
 // АВАТАРКА ПОСТАВЩИКА - ИСПРАВЛЕННАЯ
 // ============================================================
 
+// МИНИМАЛЬНАЯ ВЕРСИЯ
 async function handleSupplierAvatarUpload(event) {
     const file = event.target.files?.[0];
     if (!file) return;
-    
-    console.log('📤 Файл выбран:', file.name, file.type, file.size);
-    
-    if (!file.type.startsWith('image/')) {
-        showNotification('Выберите изображение', 'error');
-        return;
-    }
-    
-    // ✅ ПРОВЕРКА РАЗМЕРА (макс 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-        showNotification('Файл слишком большой (макс 5MB)', 'error');
-        return;
-    }
     
     const formData = new FormData();
     formData.append('logo', file);
     
     try {
         const token = getSupplierToken();
-        console.log('🔑 Токен:', token ? 'Есть ✅' : 'Нет ❌');
-        
         const response = await fetch('/api/supplier/logo', {
             method: 'POST',
-            headers: {
-                'Authorization': 'Bearer ' + token
-                // ✅ НЕ ДОБАВЛЯЙ 'Content-Type' - FormData сам установит!
-            },
+            headers: { 'Authorization': 'Bearer ' + token },
             body: formData
         });
         
-        console.log('📡 Статус:', response.status);
-        
-        // Пытаемся получить текст ошибки
-        const text = await response.text();
-        console.log('📨 Ответ:', text);
-        
-        let result;
-        try {
-            result = JSON.parse(text);
-        } catch(e) {
-            console.error('❌ Невалидный JSON:', text);
-            showNotification('Ошибка сервера', 'error');
-            return;
-        }
+        const result = await response.json();
         
         if (response.ok && result.success) {
-            showNotification('✅ Аватар обновлен!', 'success');
-            
-            // Обновляем изображение на странице
             const avatarImg = document.querySelector('#supplierAvatar');
-            const avatarText = document.querySelector('#supplierAvatarText');
-            
             if (avatarImg) {
                 avatarImg.src = result.logo_url + '?t=' + Date.now();
                 avatarImg.style.display = 'block';
-                if (avatarText) avatarText.style.display = 'none';
+                document.querySelector('#supplierAvatarText').style.display = 'none';
             }
-            
-            // Сохраняем в localStorage
-            localStorage.setItem('supplier_logo', result.logo_url);
-            
+            showNotification('✅ Аватар обновлен!', 'success');
         } else {
-            showNotification('❌ ' + (result.error || 'Ошибка загрузки'), 'error');
+            showNotification('❌ Ошибка', 'error');
         }
     } catch(error) {
-        console.error('❌ Ошибка:', error);
-        showNotification('❌ Ошибка сети: ' + error.message, 'error');
+        showNotification('❌ Ошибка сети', 'error');
     }
     
-    // Очищаем input
     event.target.value = '';
 }
 
 // ============================================================
 // ЗАГРУЗКА АВАТАРКИ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
 // ============================================================
-
 function loadSupplierAvatar() {
     const avatarImg = document.getElementById('supplierAvatar');
     const avatarText = document.getElementById('supplierAvatarText');
@@ -3940,30 +3899,22 @@ function loadSupplierAvatar() {
         return;
     }
     
-    // 1. Проверяем localStorage (самый быстрый)
-    const savedLogo = localStorage.getItem('supplier_logo');
-    if (savedLogo) {
-        avatarImg.src = savedLogo + '?t=' + Date.now();
-        avatarImg.style.display = 'block';
-        if (avatarText) avatarText.style.display = 'none';
-        console.log('✅ Аватар из localStorage');
-        return;
-    }
-    
-    // 2. Проверяем data-logo из HTML
+    // ✅ 1. Проверяем data-logo из HTML (данные с сервера)
     const dataLogo = document.getElementById('supplierData')?.dataset?.logo;
     if (dataLogo && dataLogo !== 'None' && dataLogo !== '') {
         avatarImg.src = dataLogo + '?t=' + Date.now();
         avatarImg.style.display = 'block';
         if (avatarText) avatarText.style.display = 'none';
-        localStorage.setItem('supplier_logo', dataLogo);
-        console.log('✅ Аватар из data-logo');
+        console.log('✅ Аватар из data-logo (БД)');
         return;
     }
     
-    // 3. Пробуем из БД через API
+    // ✅ 2. Пробуем из БД через API
     const token = getSupplierToken();
-    if (!token) return;
+    if (!token) {
+        console.log('ℹ️ Нет токена, аватар не загружен');
+        return;
+    }
     
     fetch('/api/supplier/profile', {
         headers: { 'Authorization': 'Bearer ' + token }
@@ -3974,11 +3925,19 @@ function loadSupplierAvatar() {
             avatarImg.src = data.logo + '?t=' + Date.now();
             avatarImg.style.display = 'block';
             if (avatarText) avatarText.style.display = 'none';
-            localStorage.setItem('supplier_logo', data.logo);
-            console.log('✅ Аватар из БД');
+            console.log('✅ Аватар из БД через API');
+        } else {
+            // ❌ Нет аватара в БД — показываем букву
+            avatarImg.style.display = 'none';
+            if (avatarText) avatarText.style.display = 'block';
+            console.log('ℹ️ Аватар не найден в БД');
         }
     })
-    .catch(err => console.error('❌ Ошибка:', err));
+    .catch(err => {
+        console.error('❌ Ошибка загрузки аватара:', err);
+        avatarImg.style.display = 'none';
+        if (avatarText) avatarText.style.display = 'block';
+    });
 }
 
 // Вызываем после загрузки

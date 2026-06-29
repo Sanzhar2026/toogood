@@ -8931,16 +8931,19 @@ async def delete_supplier_template(
 # backend/routes/supplier.py
 # backend/routes/supplier.py
 
+# backend/routes/supplier.py
+
 @app.post("/api/supplier/logo")
 async def upload_supplier_logo(
     request: Request,
     supplier_id: int = Depends(get_supplier_id_from_token),
     db: Session = Depends(get_db)
 ):
-    """Загрузить логотип поставщика"""
+    """Загрузить логотип поставщика в БД"""
     try:
         print(f"📤 Загрузка логотипа для поставщика {supplier_id}")
         
+        # 1. Получаем файл
         form = await request.form()
         file = form.get("logo")
         
@@ -8956,18 +8959,19 @@ async def upload_supplier_logo(
                 content={"success": False, "error": "Файл должен быть изображением"}
             )
         
+        # 2. Создаем папку
         import os
         from datetime import datetime
         
         upload_dir = "uploads/suppliers"
         os.makedirs(upload_dir, exist_ok=True)
         
-        # ✅ СОХРАНЯЕМ С ФИКСИРОВАННЫМ ИМЕНЕМ
+        # 3. Сохраняем файл с фиксированным именем
         ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
-        filename = f"supplier_{supplier_id}.{ext}"  # ✅ БЕЗ ВРЕМЕНИ!
+        filename = f"supplier_{supplier_id}.{ext}"
         filepath = os.path.join(upload_dir, filename)
         
-        # Удаляем старый файл, если есть
+        # Удаляем старый файл
         if os.path.exists(filepath):
             os.remove(filepath)
         
@@ -8977,7 +8981,7 @@ async def upload_supplier_logo(
         
         print(f"✅ Файл сохранен: {filepath}")
         
-        # ✅ ОБНОВЛЯЕМ БД
+        # 4. ✅ ОБНОВЛЯЕМ БД
         supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
         if supplier:
             supplier.logo = f"/uploads/suppliers/{filename}"
@@ -9010,7 +9014,7 @@ async def get_supplier_profile(
     supplier_id: int = Depends(get_supplier_id_from_token),
     db: Session = Depends(get_db)
 ):
-    """Получить профиль поставщика"""
+    """Получить профиль поставщика из БД"""
     try:
         supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
         if not supplier:
@@ -9022,13 +9026,14 @@ async def get_supplier_profile(
         return JSONResponse(content={
             "id": supplier.id,
             "business_name": supplier.business_name,
-            "logo": supplier.logo,
+            "logo": supplier.logo,  # ✅ БЕРЕМ ИЗ БД
             "address": supplier.address,
             "phone": supplier.phone,
             "rating": supplier.rating
         })
         
     except Exception as e:
+        print(f"❌ Ошибка: {e}")
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
