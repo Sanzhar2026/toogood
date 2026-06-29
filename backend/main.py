@@ -7320,6 +7320,7 @@ async def get_all_surprise_bags(
                 "name": bag.name,
                 "description": bag.description,
                 "original_price": bag.original_price,
+                           "business_type": supplier.business_type or "доставка",
                 "discounted_price": bag.discounted_price,
                 "discount_percentage": bag.discount_percentage,
                 "image_url": bag.image_url,
@@ -14170,54 +14171,6 @@ async def get_supplier_orders(supplier_id: int, db: Session = Depends(get_db)):
 from fastapi.encoders import jsonable_encoder
 
 
-
-@app.get("/api/surprise-bags")
-async def get_all_surprise_bags(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """ВРЕМЕННО - убираем все фильтры для теста"""
-    
-    bags = db.query(SurpriseBag).filter(
-        SurpriseBag.is_active == True,
-        SurpriseBag.available_quantity > 0
-    ).all()
-    
-    result = []
-    for bag in bags:
-        supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
-        if supplier and supplier.is_active:
-            items = db.query(SurpriseBagItem).filter(
-                SurpriseBagItem.surprise_bag_id == bag.id
-            ).all()
-            
-            items_list = []
-            for item in items:
-                items_list.append({
-                    "product_id": item.product_id or 0,
-                    "name": item.product_name or "",
-                    "price": float(item.product_price) if item.product_price else 0,
-                    "quantity": int(item.quantity) if item.quantity else 1
-                })
-            
-            result.append({
-                "id": bag.id,
-                "supplier_id": bag.supplier_id,
-                "supplier_name": supplier.business_name or "",
-                "name": bag.name or "",
-                "description": bag.description or "",
-                "original_price": float(bag.original_price) if bag.original_price else 0,
-                "discounted_price": float(bag.discounted_price) if bag.discounted_price else 0,
-                "discount_percentage": int(bag.discount_percentage) if bag.discount_percentage else 0,
-                "image_url": bag.image_url or "",
-                "business_type": supplier.business_type or "доставка",  
-                "available_quantity": int(bag.available_quantity) if bag.available_quantity else 0,
-                "hide_contents": bool(bag.hide_contents) if bag.hide_contents is not None else False,
-                "city": bag.city or "",
-                "items": items_list
-            })
-    
-    return JSONResponse(content=result)
 # @app.get("/api/supplier/surprise-bags")
 # async def get_supplier_surprise_bags(
 #     request: Request,
