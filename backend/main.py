@@ -345,7 +345,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
  
 
- 
+
 def get_current_user_from_token(
     request: Request,
     db: Session = Depends(get_db)
@@ -7315,6 +7315,8 @@ async def get_all_surprise_bags(
                 "id": bag.id,
                 "supplier_id": bag.supplier_id,
                 "supplier_name": supplier.business_name,
+                "supplier_lat": supplier.lat if supplier.lat else None,  # ✅ ДОБАВЛЯЕМ
+                "supplier_lon": supplier.lon if supplier.lon else None,
                 "name": bag.name,
                 "description": bag.description,
                 "original_price": bag.original_price,
