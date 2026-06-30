@@ -1036,6 +1036,16 @@ button[type="button"].clear-btn {
         </button>
     </div>
 </div>
+<div class="form-grid">
+    <div class="form-group">
+        <label>Время начала выдачи</label>
+        <input type="time" id="pickupStartTime" value="09:00">
+    </div>
+    <div class="form-group">
+        <label>Время окончания выдачи</label>
+        <input type="time" id="pickupEndTime" value="18:00">
+    </div>
+</div>
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Цена со скидкой (₸)</label>
@@ -2036,7 +2046,8 @@ async function submitBagForm(e) {
     const quantity = parseInt(document.getElementById('availableQuantity').value) || 1;
     const imageUrl = document.getElementById('imageUrl').value.trim();
     const isHidden = document.querySelector('input[name="bag_type"]:checked')?.value === 'hidden';
-    
+    const pickupStartTime = document.getElementById('pickupStartTime')?.value || '';
+const pickupEndTime = document.getElementById('pickupEndTime')?.value || '';
     if (!name) { 
         showNotification('Введите название сюрприза', 'error'); 
         return; 
@@ -2076,8 +2087,9 @@ async function submitBagForm(e) {
         total_quantity: quantity,
         image_url: imageUrl,
         hide_contents: isHidden || false,
-        pickup_start_time: '',
-        pickup_end_time: '',
+        
+        pickup_start_time: pickupStartTime,  // ✅ ДОБАВИТЬ!
+    pickup_end_time: pickupEndTime,    
         products: selectedProducts.map(p => ({ 
             id: parseInt(p.id),
             name: p.name,
