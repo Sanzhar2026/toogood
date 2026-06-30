@@ -7382,6 +7382,8 @@ async def get_surprise_bags_hidden(
                 "image_url": bag.image_url,
                 "available_quantity": bag.available_quantity,
                 "business_type": supplier.business_type or "Доставка", 
+                "supplier_lat": supplier.lat,  # ✅ ДОБАВИТЬ!
+            "supplier_lon": supplier.lon,  # ✅ ДОБАВИТЬ!
                 "hide_contents": bag.hide_contents,
                 "city": bag.city,
                 "items": [],
