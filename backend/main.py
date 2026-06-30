@@ -7259,7 +7259,6 @@ async def create_booking(
 
 
 # backend/main.py - ДОБАВЛЯЕМ ФИЛЬТРАЦИЮ ПО ГОРОДУ
-
 @app.get("/api/surprise-bags")
 async def get_all_surprise_bags(
     request: Request,
@@ -7280,18 +7279,16 @@ async def get_all_surprise_bags(
         except:
             pass
     
-    # Если город не определился - показываем все (или Актобе по умолчанию)
     if not user_city:
-        user_city = ""  # или ваш город
+        user_city = ""
     
     print(f"Пользователь из города: {user_city}")
     
-    # ✅ ТОЛЬКО СЮРПРИЗЫ ИЗ ГОРОДА ПОЛЬЗОВАТЕЛЯ
     bags = db.query(SurpriseBag).filter(
         SurpriseBag.is_active == True,
         SurpriseBag.available_quantity > 0,
         SurpriseBag.hide_contents == False,
-        SurpriseBag.city == user_city  # ← ФИЛЬТР ПО ГОРОДУ
+        SurpriseBag.city == user_city
     ).all()
     
     result = []
@@ -7311,9 +7308,9 @@ async def get_all_surprise_bags(
                     "quantity": item.quantity
                 })
             
-            # ✅ ФОРМАТИРУЕМ ВРЕМЯ
+            # ✅ ФОРМАТИРУЕМ ВРЕМЯ (БЕЗ .strftime()!)
             if bag.pickup_start_time and bag.pickup_end_time:
-                pickup_time = f"{bag.pickup_start_time.strftime('%H:%M')} - {bag.pickup_end_time.strftime('%H:%M')}"
+                pickup_time = f"{bag.pickup_start_time} - {bag.pickup_end_time}"
             else:
                 pickup_time = "Время не указано"
             
@@ -7333,15 +7330,14 @@ async def get_all_surprise_bags(
                 "available_quantity": bag.available_quantity,
                 "hide_contents": bag.hide_contents,
                 "city": bag.city,
-                "address": supplier.address or "Адрес не указан",  # ✅ ДОБАВЛЕНО!
-                "pickup_time": pickup_time,  # ✅ ДОБАВЛЕНО! (готовая строка)
-                "pickup_start_time": bag.pickup_start_time.strftime("%H:%M") if bag.pickup_start_time else None,  # ✅ ДОБАВЛЕНО!
-                "pickup_end_time": bag.pickup_end_time.strftime("%H:%M") if bag.pickup_end_time else None,  # ✅ ДОБАВЛЕНО!
+                "address": supplier.address or "Адрес не указан",
+                "pickup_time": pickup_time,  # ✅ ГОТОВАЯ СТРОКА!
+                "pickup_start_time": bag.pickup_start_time,  # ✅ ПРОСТО СТРОКА!
+                "pickup_end_time": bag.pickup_end_time,      # ✅ ПРОСТО СТРОКА!
                 "items": items_list
             })
     
     return JSONResponse(content=result)
-
 
 # backend/routes/surprise_bags.py
 
@@ -7383,10 +7379,10 @@ async def get_surprise_bags_hidden(
             
             # ✅ ФОРМАТИРУЕМ ВРЕМЯ НА БЭКЕНДЕ
             if bag.pickup_start_time and bag.pickup_end_time:
-                pickup_time = f"{bag.pickup_start_time.strftime('%H:%M')} - {bag.pickup_end_time.strftime('%H:%M')}"
+               pickup_time = f"{bag.pickup_start_time} - {bag.pickup_end_time}"
             else:
                 pickup_time = "Время не указано"
-            
+              
             result.append({
                 "id": bag.id,
                 "supplier_id": bag.supplier_id,
@@ -7402,9 +7398,9 @@ async def get_surprise_bags_hidden(
                 "business_type": supplier.business_type or "Доставка",
                 "supplier_lat": supplier.lat,
                 "supplier_lon": supplier.lon,
-                "pickup_time": pickup_time,  # ✅ ГОТОВАЯ СТРОКА С ВРЕМЕНЕМ!
-                "pickup_start_time": bag.pickup_start_time.strftime("%H:%M") if bag.pickup_start_time else None,
-                "pickup_end_time": bag.pickup_end_time.strftime("%H:%M") if bag.pickup_end_time else None,
+                "pickup_time": pickup_time,
+    "pickup_start_time": bag.pickup_start_time,
+    "pickup_end_time": bag.pickup_end_time,
                 "hide_contents": bag.hide_contents,
                 "city": bag.city,
                 "items": [],
