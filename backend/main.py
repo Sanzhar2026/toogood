@@ -7333,6 +7333,8 @@ async def get_all_surprise_bags(
     return JSONResponse(content=result)
 
 
+# backend/routes/surprise_bags.py
+
 @app.get("/api/surprise-bags/surprise")
 async def get_surprise_bags_hidden(
     request: Request,
@@ -7357,18 +7359,24 @@ async def get_surprise_bags_hidden(
     
     print(f"📍 Surprise страница, пользователь из: {user_city}")
     
-    # ✅ ТОЛЬКО СЮРПРИЗЫ ИЗ ГОРОДА ПОЛЬЗОВАТЕЛЯ
     bags = db.query(SurpriseBag).filter(
         SurpriseBag.is_active == True,
         SurpriseBag.available_quantity > 0,
         SurpriseBag.hide_contents == True,
-        SurpriseBag.city == user_city  # ← ФИЛЬТР ПО ГОРОДУ
+        SurpriseBag.city == user_city
     ).all()
     
     result = []
     for bag in bags:
         supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
         if supplier and supplier.is_active:
+            
+            # ✅ ФОРМАТИРУЕМ ВРЕМЯ НА БЭКЕНДЕ
+            if bag.pickup_start_time and bag.pickup_end_time:
+                pickup_time = f"{bag.pickup_start_time.strftime('%H:%M')} - {bag.pickup_end_time.strftime('%H:%M')}"
+            else:
+                pickup_time = "Время не указано"
+            
             result.append({
                 "id": bag.id,
                 "supplier_id": bag.supplier_id,
@@ -7378,12 +7386,15 @@ async def get_surprise_bags_hidden(
                 "original_price": bag.original_price,
                 "discounted_price": bag.discounted_price,
                 "discount_percentage": bag.discount_percentage,
-                 "address": supplier.address or "Адрес не указан",  
+                "address": supplier.address or "Адрес не указан",
                 "image_url": bag.image_url,
                 "available_quantity": bag.available_quantity,
-                "business_type": supplier.business_type or "Доставка", 
-                "supplier_lat": supplier.lat,  # ✅ ДОБАВИТЬ!
-            "supplier_lon": supplier.lon,  # ✅ ДОБАВИТЬ!
+                "business_type": supplier.business_type or "Доставка",
+                "supplier_lat": supplier.lat,
+                "supplier_lon": supplier.lon,
+                "pickup_time": pickup_time,  # ✅ ГОТОВАЯ СТРОКА С ВРЕМЕНЕМ!
+                "pickup_start_time": bag.pickup_start_time.strftime("%H:%M") if bag.pickup_start_time else None,
+                "pickup_end_time": bag.pickup_end_time.strftime("%H:%M") if bag.pickup_end_time else None,
                 "hide_contents": bag.hide_contents,
                 "city": bag.city,
                 "items": [],
