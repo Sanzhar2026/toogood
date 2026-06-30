@@ -7282,9 +7282,9 @@ async def get_all_surprise_bags(
     
     # Если город не определился - показываем все (или Актобе по умолчанию)
     if not user_city:
-        user_city = "Ақтөбе"  # или ваш город
+        user_city = ""  # или ваш город
     
-    print(f"📍 Пользователь из города: {user_city}")
+    print(f"Пользователь из города: {user_city}")
     
     # ✅ ТОЛЬКО СЮРПРИЗЫ ИЗ ГОРОДА ПОЛЬЗОВАТЕЛЯ
     bags = db.query(SurpriseBag).filter(
@@ -7311,22 +7311,32 @@ async def get_all_surprise_bags(
                     "quantity": item.quantity
                 })
             
+            # ✅ ФОРМАТИРУЕМ ВРЕМЯ
+            if bag.pickup_start_time and bag.pickup_end_time:
+                pickup_time = f"{bag.pickup_start_time.strftime('%H:%M')} - {bag.pickup_end_time.strftime('%H:%M')}"
+            else:
+                pickup_time = "Время не указано"
+            
             result.append({
                 "id": bag.id,
                 "supplier_id": bag.supplier_id,
                 "supplier_name": supplier.business_name,
-                "supplier_lat": supplier.lat if supplier.lat else None,  # ✅ ДОБАВЛЯЕМ
+                "supplier_lat": supplier.lat if supplier.lat else None,
                 "supplier_lon": supplier.lon if supplier.lon else None,
                 "name": bag.name,
                 "description": bag.description,
                 "original_price": bag.original_price,
-                           "business_type": supplier.business_type or "доставка",
+                "business_type": supplier.business_type or "доставка",
                 "discounted_price": bag.discounted_price,
                 "discount_percentage": bag.discount_percentage,
                 "image_url": bag.image_url,
                 "available_quantity": bag.available_quantity,
                 "hide_contents": bag.hide_contents,
                 "city": bag.city,
+                "address": supplier.address or "Адрес не указан",  # ✅ ДОБАВЛЕНО!
+                "pickup_time": pickup_time,  # ✅ ДОБАВЛЕНО! (готовая строка)
+                "pickup_start_time": bag.pickup_start_time.strftime("%H:%M") if bag.pickup_start_time else None,  # ✅ ДОБАВЛЕНО!
+                "pickup_end_time": bag.pickup_end_time.strftime("%H:%M") if bag.pickup_end_time else None,  # ✅ ДОБАВЛЕНО!
                 "items": items_list
             })
     
