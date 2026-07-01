@@ -7308,11 +7308,11 @@ async def get_all_surprise_bags(
                     "quantity": item.quantity
                 })
             
-            # ✅ ФОРМАТИРУЕМ ВРЕМЯ (БЕЗ .strftime()!)
-            if bag.pickup_start_time and bag.pickup_end_time:
-                pickup_time = f"{bag.pickup_start_time} - {bag.pickup_end_time}"
+            # ✅ ВРЕМЯ РАБОТЫ МАГАЗИНА (из Supplier)
+            if supplier.opening_time and supplier.closing_time:
+                working_time = f"{supplier.opening_time} - {supplier.closing_time}"
             else:
-                pickup_time = "Время не указано"
+                working_time = "Время не указано"
             
             result.append({
                 "id": bag.id,
@@ -7331,16 +7331,15 @@ async def get_all_surprise_bags(
                 "hide_contents": bag.hide_contents,
                 "city": bag.city,
                 "address": supplier.address or "Адрес не указан",
-                "pickup_time": pickup_time,  # ✅ ГОТОВАЯ СТРОКА!
-                "pickup_start_time": bag.pickup_start_time,  # ✅ ПРОСТО СТРОКА!
-                "pickup_end_time": bag.pickup_end_time,      # ✅ ПРОСТО СТРОКА!
+                # ✅ ВРЕМЯ РАБОТЫ МАГАЗИНА
+                "working_time": working_time,
+                "opening_time": supplier.opening_time,
+                "closing_time": supplier.closing_time,
                 "items": items_list
             })
     
     return JSONResponse(content=result)
-
 # backend/routes/surprise_bags.py
-
 @app.get("/api/surprise-bags/surprise")
 async def get_surprise_bags_hidden(
     request: Request,
@@ -7377,12 +7376,12 @@ async def get_surprise_bags_hidden(
         supplier = db.query(Supplier).filter(Supplier.id == bag.supplier_id).first()
         if supplier and supplier.is_active:
             
-            # ✅ ФОРМАТИРУЕМ ВРЕМЯ НА БЭКЕНДЕ
-            if bag.pickup_start_time and bag.pickup_end_time:
-               pickup_time = f"{bag.pickup_start_time} - {bag.pickup_end_time}"
+            # ✅ ВРЕМЯ РАБОТЫ МАГАЗИНА (из Supplier)
+            if supplier.opening_time and supplier.closing_time:
+                working_time = f"{supplier.opening_time} - {supplier.closing_time}"
             else:
-                pickup_time = "Время не указано"
-              
+                working_time = "Время не указано"
+            
             result.append({
                 "id": bag.id,
                 "supplier_id": bag.supplier_id,
@@ -7398,9 +7397,10 @@ async def get_surprise_bags_hidden(
                 "business_type": supplier.business_type or "Доставка",
                 "supplier_lat": supplier.lat,
                 "supplier_lon": supplier.lon,
-                "pickup_time": pickup_time,
-    "pickup_start_time": bag.pickup_start_time,
-    "pickup_end_time": bag.pickup_end_time,
+                # ✅ ВРЕМЯ РАБОТЫ МАГАЗИНА
+                "working_time": working_time,
+                "opening_time": supplier.opening_time,
+                "closing_time": supplier.closing_time,
                 "hide_contents": bag.hide_contents,
                 "city": bag.city,
                 "items": [],
@@ -12754,7 +12754,7 @@ async def supplier_api_register(request: Request):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, true, NOW())
             RETURNING id
         """, (user_id, business_name, business_type, city, address, phone, 
-              email, lat, lon, pickup_start, pickup_end, description))
+              email, lat, lon, opening_time, closing_time, description))
         
         supplier_id = cur.fetchone()[0]
         
