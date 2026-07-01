@@ -12699,8 +12699,8 @@ async def supplier_api_register(request: Request):
         address = data.get("address", "").strip()
         lat = float(data.get("lat"))
         lon = float(data.get("lon"))
-        pickup_start = data.get("pickup_start", "19:30")
-        pickup_end = data.get("pickup_end", "20:00")
+        opening_time = data.get("opening_time", "09:00")
+        closing_time = data.get("closing_time", "23:00")
         description = data.get("description", "").strip()
         
         # ======== ВАЛИДАЦИЯ ========
@@ -12748,7 +12748,7 @@ async def supplier_api_register(request: Request):
         cur.execute("""
             INSERT INTO suppliers (
                 user_id, business_name, business_type, city, address, phone, 
-                email, lat, lon, pickup_start_time, pickup_end_time,
+                email, lat, lon, opening_time, closing_time,
                 description, rating, is_active, created_at
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, true, NOW())

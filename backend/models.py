@@ -133,8 +133,8 @@ class Supplier(Base):
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    pickup_start_time = Column(String(50))
-    pickup_end_time = Column(String(50))
+    opening_time = Column(String(50))   # время открытия магазина
+    closing_time = Column(String(50)) 
     
     user = relationship("User", back_populates="supplier_profile")
     surprise_bags = relationship("SurpriseBag", back_populates="supplier")
