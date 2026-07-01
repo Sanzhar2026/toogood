@@ -339,19 +339,19 @@
                     </div>
                 </div>
 
-                <div class="coordinates-row">
-                    <div class="form-group">
-                        <label>🕐 {% if lang == 'kz' %}Таңдау уақыты (басталу){% else %}Время выдачи (начало){% endif %} *</label>
-                        <input type="time" name="pickup_start" id="pickup_start" required value="19:30">
-                    </div>
-                    <div class="form-group">
-                        <label>🕑 {% if lang == 'kz' %}Таңдау уақыты (аяқталу){% else %}Время выдачи (конец){% endif %} *</label>
-                        <input type="time" name="pickup_end" id="pickup_end" required value="20:00">
-                    </div>
-                </div>
+               <div class="coordinates-row">
+    <div class="form-group">
+        <label>{% if lang == 'kz' %}Ашылу уақыты{% else %}Время открытия{% endif %} *</label>
+        <input type="time" name="pickup_start" id="pickup_start" required value="09:00">
+    </div>
+    <div class="form-group">
+        <label>{% if lang == 'kz' %}Жабылу уақыты{% else %}Время закрытия{% endif %} *</label>
+        <input type="time" name="pickup_end" id="pickup_end" required value="18:00">
+    </div>
+</div>
 
                 <div class="form-group">
-                    <label>📝 {% if lang == 'kz' %}Сипаттама{% else %}Описание{% endif %}</label>
+                    <label>{% if lang == 'kz' %}Сипаттама{% else %}Описание{% endif %}</label>
                     <textarea name="description" id="description" rows="3" placeholder="{% if lang == 'kz' %}Дүкеніңіз туралы қысқаша ақпарат{% else %}Краткая информация о вашем магазине{% endif %}"></textarea>
                 </div>
 
