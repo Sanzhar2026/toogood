@@ -233,6 +233,36 @@
             background: #2a5a4d;
         }
         
+        .btn-view {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background 0.2s;
+        }
+        
+        .btn-view:hover {
+            background: #2980b9;
+        }
+        
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background 0.2s;
+        }
+        
+        .btn-delete:hover {
+            background: #c0392b;
+        }
+        
         .status-select {
             padding: 0.3rem;
             border-radius: 0.4rem;
@@ -263,6 +293,16 @@
         .status-approved {
             background: #d4edda;
             color: #155724;
+        }
+        
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-inactive {
+            background: #f8d7da;
+            color: #721c24;
         }
         
         .font-mono {
@@ -300,6 +340,54 @@
         
         tr:hover td {
             background: #f8faf8;
+        }
+        
+        .supplier-card {
+            background: #f8faf8;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #367666;
+        }
+        
+        .supplier-card .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .supplier-card .name {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: #367666;
+        }
+        
+        .supplier-card .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem;
+        }
+        
+        .supplier-card .stat-item {
+            background: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            border: 1px solid #e8f5e9;
+        }
+        
+        .supplier-card .stat-item .number {
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #367666;
+        }
+        
+        .supplier-card .stat-item .label {
+            font-size: 0.7rem;
+            color: #666;
         }
         
         .timer-warning {
@@ -368,6 +456,20 @@
             padding: 2rem;
         }
         
+        .detail-row {
+            background: #f8faf8 !important;
+        }
+        
+        .detail-row td {
+            padding: 1rem !important;
+        }
+        
+        .detail-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        
         @media (max-width: 768px) {
             .admin-container {
                 padding: 1rem;
@@ -387,6 +489,12 @@
             }
             .admin-header h1 {
                 font-size: 1.2rem;
+            }
+            .detail-content {
+                grid-template-columns: 1fr;
+            }
+            .supplier-card .stats {
+                grid-template-columns: 1fr 1fr;
             }
         }
     </style>
@@ -421,6 +529,47 @@
                 <div class="stat-number" id="totalRevenue">0 ₸</div>
                 <div class="stat-label">Общая выручка</div>
             </div>
+        </div>
+        
+        <!-- ============================================ -->
+        <!-- ПОСТАВЩИКИ (РЕСТОРАНЫ) С ПОЛНОЙ ИНФОРМАЦИЕЙ -->
+        <!-- ============================================ -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Поставщики <span class="live-badge">live</span></h2>
+                <button class="refresh-btn" onclick="loadSuppliers()">Обновить</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Тип</th>
+                            <th>Телефон</th>
+                            <th>Email</th>
+                            <th>Город</th>
+                            <th>Статус</th>
+                            <th>Рейтинг</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody id="suppliersTable">
+                        <tr><td colspan="9" class="empty-row">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- ============================================ -->
+        <!-- ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ПОСТАВЩИКА (AJAX) -->
+        <!-- ============================================ -->
+        <div class="section" id="supplierDetailSection" style="display: none;">
+            <div class="section-header">
+                <h2 class="section-title" id="supplierDetailTitle">Детали поставщика</h2>
+                <button class="refresh-btn" onclick="closeSupplierDetail()">Закрыть</button>
+            </div>
+            <div id="supplierDetailContent"></div>
         </div>
         
         <div class="section">
@@ -517,6 +666,7 @@
                             <th>Клиент</th>
                             <th>Телефон</th>
                             <th>Товар</th>
+                            <th>Ресторан</th>
                             <th>Сумма</th>
                             <th>Оплата</th>
                             <th>Статус</th>
@@ -525,7 +675,7 @@
                         </tr>
                     </thead>
                     <tbody id="ordersTable">
-                        <tr><td colspan="10" class="empty-row">Загрузка...</td></tr>
+                        <tr><td colspan="11" class="empty-row">Загрузка...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -605,6 +755,238 @@
                 return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'; 
             }); 
         }
+        
+        function closeSupplierDetail() {
+            document.getElementById('supplierDetailSection').style.display = 'none';
+        }
+        
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+        }
+        
+        // ============================================================
+        // 1. ЗАГРУЗКА ПОСТАВЩИКОВ
+        // ============================================================
+        async function loadSuppliers() {
+            try {
+                const response = await authFetch('/api/admin/suppliers');
+                const data = await response.json();
+                const tbody = document.getElementById('suppliersTable');
+                
+                if (!data.suppliers || data.suppliers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" class="empty-row">Нет поставщиков</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = '';
+                for (const s of data.suppliers) {
+                    const statusText = s.is_active ? 'Активен' : 'Неактивен';
+                    const statusClass = s.is_active ? 'status-active' : 'status-inactive';
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>#${s.id}</td>
+                            <td><strong>${escapeHtml(s.business_name)}</strong></td>
+                            <td>${escapeHtml(s.business_type || '-')}</td>
+                            <td>${escapeHtml(s.phone || '-')}</td>
+                            <td>${escapeHtml(s.email || '-')}</td>
+                            <td>${escapeHtml(s.city || '-')}</td>
+                            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                            <td>⭐ ${s.rating || 0}</td>
+                            <td>
+                                <button class="btn-view" onclick="loadSupplierDetail(${s.id})">Детали</button>
+                                <button class="btn-delete" onclick="deleteSupplier(${s.id})">Удалить</button>
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (error) { 
+                console.error('Error loading suppliers:', error); 
+            }
+        }
+        
+        // ============================================================
+        // 2. ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ПОСТАВЩИКА
+        // ============================================================
+        async function loadSupplierDetail(supplierId) {
+            try {
+                const response = await authFetch('/api/admin/suppliers/' + supplierId + '/detail');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showNotification('Ошибка загрузки деталей', true);
+                    return;
+                }
+                
+                const s = data.supplier;
+                const orders = data.orders || [];
+                const bags = data.bags || [];
+                
+                const totalRevenue = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
+                const completedOrders = orders.filter(o => o.status === 'delivered' || o.status === 'completed').length;
+                const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed').length;
+                
+                document.getElementById('supplierDetailTitle').textContent = 'Детали: ' + s.business_name;
+                document.getElementById('supplierDetailSection').style.display = 'block';
+                
+                let html = `
+                    <div class="supplier-card">
+                        <div class="header">
+                            <span class="name">${escapeHtml(s.business_name)}</span>
+                            <span style="font-size:0.85rem; color: #666;">
+                                ID: #${s.id} | ${escapeHtml(s.business_type || '—')} | ${s.is_active ? '✅ Активен' : '❌ Неактивен'}
+                            </span>
+                        </div>
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:0.5rem; margin-bottom:0.5rem; font-size:0.85rem;">
+                            <div><strong>Телефон:</strong> ${escapeHtml(s.phone || '—')}</div>
+                            <div><strong>Email:</strong> ${escapeHtml(s.email || '—')}</div>
+                            <div><strong>Город:</strong> ${escapeHtml(s.city || '—')}</div>
+                            <div><strong>Адрес:</strong> ${escapeHtml(s.address || '—')}</div>
+                            <div><strong>Регистрация:</strong> ${formatDate(s.created_at)}</div>
+                            <div><strong>Рейтинг:</strong> ⭐ ${s.rating || 0}</div>
+                            <div><strong>Время работы:</strong> ${s.opening_time || '—'} - ${s.closing_time || '—'}</div>
+                        </div>
+                        <div class="stats">
+                            <div class="stat-item">
+                                <div class="number">${orders.length}</div>
+                                <div class="label">Всего заказов</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="number">${completedOrders}</div>
+                                <div class="label">Выполнено</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="number">${pendingOrders}</div>
+                                <div class="label">В обработке</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="number">${totalRevenue.toLocaleString()} ₸</div>
+                                <div class="label">Общий доход</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="number">${bags.length}</div>
+                                <div class="label">Сюрпризов</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="number">${s.total_reviews || 0}</div>
+                                <div class="label">Отзывов</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Сюрпризы поставщика
+                if (bags.length > 0) {
+                    html += `
+                        <h4 style="margin:1rem 0 0.5rem 0; color:#367666;">📦 Сюрпризы (${bags.length})</h4>
+                        <div class="table-container" style="max-height:200px; overflow-y:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Название</th>
+                                        <th>Цена</th>
+                                        <th>Со скидкой</th>
+                                        <th>Скидка</th>
+                                        <th>Доступно</th>
+                                        <th>Статус</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    bags.forEach(b => {
+                        html += `
+                            <tr>
+                                <td>#${b.id}</td>
+                                <td>${escapeHtml(b.name)}</td>
+                                <td>${b.original_price || 0} ₸</td>
+                                <td><strong>${b.discounted_price || 0} ₸</strong></td>
+                                <td>-${b.discount_percentage || 0}%</td>
+                                <td>${b.available_quantity || 0}</td>
+                                <td>${b.is_active ? '✅ Активен' : '❌ Неактивен'}</td>
+                            </tr>
+                        `;
+                    });
+                    html += `</tbody></table></div>`;
+                }
+                
+                // Заказы поставщика
+                if (orders.length > 0) {
+                    html += `
+                        <h4 style="margin:1rem 0 0.5rem 0; color:#367666;">📋 Заказы (${orders.length})</h4>
+                        <div class="table-container" style="max-height:200px; overflow-y:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Клиент</th>
+                                        <th>Сумма</th>
+                                        <th>Статус</th>
+                                        <th>Дата</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    orders.slice(0, 20).forEach(o => {
+                        const statusText = o.status || 'pending';
+                        const statusMap = {
+                            'pending': 'Ожидает',
+                            'confirmed': 'Подтвержден',
+                            'preparing': 'Готовится',
+                            'ready_for_pickup': 'Готов',
+                            'out_for_delivery': 'В пути',
+                            'delivered': 'Доставлен',
+                            'cancelled': 'Отменен'
+                        };
+                        html += `
+                            <tr>
+                                <td>#${o.id}</td>
+                                <td>${escapeHtml(o.customer_name || '—')}</td>
+                                <td><strong>${(o.amount || 0).toLocaleString()} ₸</strong></td>
+                                <td><span class="status-badge status-${statusText}">${statusMap[statusText] || statusText}</span></td>
+                                <td>${formatDate(o.created_at)}</td>
+                            </tr>
+                        `;
+                    });
+                    if (orders.length > 20) {
+                        html += `<tr><td colspan="5" style="text-align:center; color:#999;">... и еще ${orders.length - 20} заказов</td></tr>`;
+                    }
+                    html += `</tbody></table></div>`;
+                }
+                
+                document.getElementById('supplierDetailContent').innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading supplier detail:', error);
+                showNotification('Ошибка загрузки деталей', true);
+            }
+        }
+        
+        // ============================================================
+        // 3. УДАЛЕНИЕ ПОСТАВЩИКА
+        // ============================================================
+        async function deleteSupplier(supplierId) {
+            if (!confirm('Удалить поставщика #' + supplierId + ' и все его данные?')) return;
+            try {
+                const response = await authFetch('/api/admin/suppliers/' + supplierId, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Поставщик удален');
+                    loadSuppliers();
+                    loadStats();
+                } else {
+                    showNotification('Ошибка: ' + (data.message || 'Неизвестная ошибка'), true);
+                }
+            } catch (error) {
+                showNotification('Ошибка при удалении', true);
+            }
+        }
+        
+        // ============================================================
+        // 4. ОСТАЛЬНЫЕ ФУНКЦИИ (без изменений)
+        // ============================================================
         
         async function cleanupCancelledOrders() {
             if (!confirm('Очистить все отмененные заказы? Это действие нельзя отменить!')) return;
@@ -777,7 +1159,7 @@
                 const tbody = document.getElementById('ordersTable');
                 
                 if (!data.orders || data.orders.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="10" class="empty-row">Нет заказов</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="11" class="empty-row">Нет заказов</td></tr>';
                     return;
                 }
                 
@@ -790,6 +1172,7 @@
                             <td>${escapeHtml(order.customer_name)}</td>
                             <td>${escapeHtml(order.customer_phone)}</td>
                             <td>${escapeHtml(order.bag_name)}</td>
+                            <td>${escapeHtml(order.supplier_name)}</td>
                             <td><strong>${order.amount.toLocaleString()} ₸</strong></td>
                             <td>
                                 <select class="status-select" data-order-id="${order.id}" data-field="payment_status">
@@ -810,7 +1193,7 @@
                                     <option value="cancelled" ${order.status === 'cancelled' ? 'selected' : ''}>Отменен</option>
                                 </select>
                             </td>
-                            <td>${new Date(order.created_at).toLocaleString()}</td>
+                            <td>${formatDate(order.created_at)}</td>
                             <td><button class="btn-refund" onclick="processRefund(${order.id})">Возврат</button></td>
                         </tr>
                     `;
@@ -883,7 +1266,7 @@
                             <td>${escapeHtml(courier.phone)}</td>
                             <td>${courier.courier_type === 'driver' ? 'На машине' : 'Пеший'}</td>
                             <td>${escapeHtml(courier.car_model || '-')} ${escapeHtml(courier.car_number || '')}</td>
-                            <td>${courier.is_online ? 'Онлайн' : 'Офлайн'}</td>
+                            <td>${courier.is_online ? '🟢 Онлайн' : '⚪ Офлайн'}</td>
                             <td>${courier.total_deliveries || 0}</td>
                             <td>${courier.rating || 5.0}</td>
                         </tr>
@@ -1010,6 +1393,7 @@
         
         setLang('ru');
         loadStats();
+        loadSuppliers();
         loadPendingCouriers();
         loadActiveReservations();
         loadOrders();
@@ -1018,6 +1402,7 @@
         
         setInterval(function() {
             loadStats();
+            loadSuppliers();
             loadPendingCouriers();
             loadActiveReservations();
             loadOrders();
