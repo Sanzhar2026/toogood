@@ -21,7 +21,7 @@ from backend.schemas import (
 from datetime import datetime, timedelta
 from backend.models import (
     CartItem,Food, User, Supplier, SurpriseBag, SurpriseBagItem,SupplierReview,
-    Order, OrderTracking, CourierProfile, AssignedOrder ,TemporaryReservation,SurpriseBagReview, Admin
+    Order, OrderTracking, CourierProfile, AssignedOrder ,TemporaryReservation,SurpriseBagReview, Admin,ViewedSupplier, Rating
 )
 from backend.websocket_manager import ConnectionManager
 from backend.routes.users import router as users_router
@@ -1424,6 +1424,8 @@ async def notify_user(user_id: int, message: dict):
 # ============================================================
 # backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
+# backend/main.py - ОБНОВЛЕННЫЙ ЭНДПОИНТ
+
 @app.post("/api/suppliers/mark-viewed")
 async def mark_supplier_viewed(
     request: Request,
@@ -1431,7 +1433,6 @@ async def mark_supplier_viewed(
 ):
     """Отметить, что пользователь посмотрел поставщика"""
     
-    # ✅ Проверяем авторизацию
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
@@ -1467,29 +1468,34 @@ async def mark_supplier_viewed(
         
         from datetime import datetime
         
-        user = db.query(User).filter(User.id == int(user_id)).first()
-        if not user:
-            return JSONResponse(
-                status_code=404,
-                content={"success": False, "detail": "User not found"}
-            )
+        # ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ ЗАПИСЬ
+        viewed = db.query(ViewedSupplier).filter(
+            ViewedSupplier.user_id == int(user_id),
+            ViewedSupplier.supplier_id == int(supplier_id)
+        ).first()
         
-        # ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ ПОЛЕ
-        if hasattr(user, 'last_surprise_view'):
-            user.last_surprise_view = datetime.utcnow()
-            db.commit()
-            print(f"✅ Пользователь {user_id} посмотрел поставщика {supplier_id}")
+        if viewed:
+            # ✅ ОБНОВЛЯЕМ ВРЕМЯ
+            viewed.viewed_at = datetime.utcnow()
+            print(f"🔄 Обновлен просмотр: пользователь {user_id} -> поставщик {supplier_id}")
         else:
-            print(f"⚠️ У пользователя {user_id} нет поля last_surprise_view")
-            return JSONResponse(
-                status_code=500,
-                content={"success": False, "detail": "Database schema error"}
+            # ✅ СОЗДАЕМ НОВУЮ ЗАПИСЬ
+            new_viewed = ViewedSupplier(
+                user_id=int(user_id),
+                supplier_id=int(supplier_id),
+                viewed_at=datetime.utcnow()
             )
+            db.add(new_viewed)
+            print(f"✅ Новый просмотр: пользователь {user_id} -> поставщик {supplier_id}")
+        
+        db.commit()
         
         return {
             "success": True,
             "message": "Supplier marked as viewed",
-            "last_surprise_view": user.last_surprise_view.isoformat()
+            "user_id": user_id,
+            "supplier_id": supplier_id,
+            "viewed_at": datetime.utcnow().isoformat()
         }
         
     except Exception as e:
@@ -1499,7 +1505,7 @@ async def mark_supplier_viewed(
             status_code=500,
             content={"success": False, "detail": str(e)}
         )
-
+    
 @app.post("/api/suppliers/mark-all-viewed")
 async def mark_all_suppliers_viewed(
     request: Request,
@@ -12155,6 +12161,8 @@ from typing import Optional
 
 # backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
+# backend/main.py - ОБНОВЛЕННЫЙ ЭНДПОИНТ
+
 @app.get("/api/suppliers/nearby")
 async def get_nearby_suppliers(
     lat: Optional[str] = None,
@@ -12180,6 +12188,7 @@ async def get_nearby_suppliers(
     # ✅ ПОЛУЧАЕМ ПОЛЬЗОВАТЕЛЯ
     user_id = None
     user = None
+    viewed_supplier_ids = set()
     
     if request:
         auth_header = request.headers.get("Authorization")
@@ -12192,6 +12201,14 @@ async def get_nearby_suppliers(
                 if user_id:
                     user = db.query(User).filter(User.id == int(user_id)).first()
                     print(f"👤 Пользователь: {user_id}")
+                    
+                    # ✅ ПОЛУЧАЕМ СПИСОК ПРОСМОТРЕННЫХ ПОСТАВЩИКОВ
+                    viewed = db.query(ViewedSupplier).filter(
+                        ViewedSupplier.user_id == int(user_id)
+                    ).all()
+                    viewed_supplier_ids = {v.supplier_id for v in viewed}
+                    print(f"📋 Просмотрено поставщиков: {len(viewed_supplier_ids)}")
+                    
             except Exception as e:
                 print(f"⚠️ Ошибка получения пользователя: {e}")
     
@@ -12207,33 +12224,36 @@ async def get_nearby_suppliers(
         distance = haversine_distance(lat_float, lon_float, supplier.lat, supplier.lon)
         
         if distance <= radius:
-            # ✅ СЧИТАЕМ НОВЫЕ СЮРПРИЗЫ С ПРОВЕРКОЙ
-            new_bags_count = 0
-            try:
-                # ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ У ПОЛЬЗОВАТЕЛЯ ПОЛЕ
-                if user and hasattr(user, 'last_surprise_view') and user.last_surprise_view:
-                    new_bags_count = db.query(SurpriseBag).filter(
-                        SurpriseBag.supplier_id == supplier.id,
-                        SurpriseBag.is_active == True,
-                        SurpriseBag.available_quantity > 0,
-                        SurpriseBag.created_at > user.last_surprise_view
-                    ).count()
-                else:
-                    # Если поле отсутствует или NULL - считаем все активные сюрпризы новыми
-                    new_bags_count = db.query(SurpriseBag).filter(
-                        SurpriseBag.supplier_id == supplier.id,
-                        SurpriseBag.is_active == True,
-                        SurpriseBag.available_quantity > 0
-                    ).count()
-            except Exception as e:
-                print(f"⚠️ Ошибка подсчета новых сюрпризов: {e}")
-                new_bags_count = 0
-            
+            # ✅ СЧИТАЕМ ВСЕ АКТИВНЫЕ СЮРПРИЗЫ
             active_bags = db.query(SurpriseBag).filter(
                 SurpriseBag.supplier_id == supplier.id,
                 SurpriseBag.is_active == True,
                 SurpriseBag.available_quantity > 0
             ).all()
+            
+            # ✅ СЧИТАЕМ НОВЫЕ СЮРПРИЗЫ (которые пользователь еще не видел)
+            new_bags_count = 0
+            if user_id and viewed_supplier_ids:
+                # Если пользователь уже смотрел этого поставщика → считаем сюрпризы после просмотра
+                viewed_record = db.query(ViewedSupplier).filter(
+                    ViewedSupplier.user_id == int(user_id),
+                    ViewedSupplier.supplier_id == supplier.id
+                ).first()
+                
+                if viewed_record:
+                    # Считаем сюрпризы, созданные ПОСЛЕ просмотра
+                    new_bags_count = db.query(SurpriseBag).filter(
+                        SurpriseBag.supplier_id == supplier.id,
+                        SurpriseBag.is_active == True,
+                        SurpriseBag.available_quantity > 0,
+                        SurpriseBag.created_at > viewed_record.viewed_at
+                    ).count()
+                else:
+                    # Если пользователь НИКОГДА не смотрел этого поставщика → все сюрпризы новые
+                    new_bags_count = len(active_bags)
+            else:
+                # Если пользователь не авторизован → все сюрпризы новые
+                new_bags_count = len(active_bags)
             
             if active_bags:
                 nearby.append({
@@ -12247,7 +12267,7 @@ async def get_nearby_suppliers(
                     "surprise_bags_count": len(active_bags),
                     "logo": supplier.logo,
                     "business_type": supplier.business_type,
-                    "new_bags_count": new_bags_count
+                    "new_bags_count": new_bags_count  # ✅ ТОЛЬКО НЕПРОСМОТРЕННЫЕ
                 })
     
     nearby.sort(key=lambda x: x["distance_km"])

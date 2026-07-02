@@ -1,38 +1,49 @@
-# update_db.py - СКРИПТ ДЛЯ ДОБАВЛЕНИЯ ПОЛЯ
-
+# create_viewed_suppliers_table.py
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 
 DATABASE_URL = "postgresql://postgres:YHceVkBwWMtDTXqSbqQhsGrnIxeWlcwz@thomas.proxy.rlwy.net:27717/railway"
 
-def add_last_surprise_view_column():
-    """Добавить поле last_surprise_view в таблицу users"""
+def create_viewed_suppliers_table():
+    """Создать таблицу viewed_suppliers для отслеживания просмотренных поставщиков"""
     
     try:
         conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
         
-        # Проверяем, существует ли колонка
+        print("🔄 Создание таблицы viewed_suppliers...")
+        
+        # ✅ СОЗДАЕМ ТАБЛИЦУ
         cur.execute("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name='users' AND column_name='last_surprise_view'
+            CREATE TABLE IF NOT EXISTS viewed_suppliers (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+                viewed_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, supplier_id)
+            )
         """)
+        print("✅ Таблица viewed_suppliers создана")
         
-        if cur.fetchone():
-            print("✅ Колонка last_surprise_view уже существует")
-        else:
-            # Добавляем колонку
-            cur.execute("""
-                ALTER TABLE users 
-                ADD COLUMN last_surprise_view TIMESTAMP DEFAULT NULL
-            """)
-            conn.commit()
-            print("✅ Колонка last_surprise_view добавлена")
+        # ✅ СОЗДАЕМ ИНДЕКСЫ
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_viewed_suppliers_user_id 
+            ON viewed_suppliers(user_id)
+        """)
+        print("✅ Индекс idx_viewed_suppliers_user_id создан")
         
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_viewed_suppliers_supplier_id 
+            ON viewed_suppliers(supplier_id)
+        """)
+        print("✅ Индекс idx_viewed_suppliers_supplier_id создан")
+        
+        conn.commit()
         cur.close()
         conn.close()
+        
+        print("✅ Все готово!")
         
     except Exception as e:
         print(f"❌ Ошибка: {e}")
@@ -40,4 +51,4 @@ def add_last_surprise_view_column():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    add_last_surprise_view_column()
+    create_viewed_suppliers_table()

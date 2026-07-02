@@ -450,3 +450,22 @@ class TemporaryReservation(Base):
     
     bag = relationship("SurpriseBag", backref="reservations")
     user = relationship("User", backref="reservations")
+
+
+# backend/models.py - ДОБАВИТЬ НОВУЮ МОДЕЛЬ
+
+class ViewedSupplier(Base):
+    __tablename__ = "viewed_suppliers"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="CASCADE"), nullable=False)
+    viewed_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Уникальность: один пользователь - один поставщик
+    __table_args__ = (
+        UniqueConstraint('user_id', 'supplier_id', name='unique_user_supplier_viewed'),
+    )
+    
+    user = relationship("User", backref="viewed_suppliers")
+    supplier = relationship("Supplier", backref="viewed_by_users")
