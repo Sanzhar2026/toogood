@@ -657,9 +657,18 @@
         // 2. ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ПОСТАВЩИКА
         // ============================================================
         async function loadSupplierDetail(supplierId) {
-            supplierId = parseInt(supplierId);
-    if (isNaN(supplierId)) {
-        showNotification('❌ Неверный ID поставщика', true);
+             if (!supplierId) {
+        showNotification('❌ ID поставщика не указан', true);
+        return;
+    }
+    
+    // ✅ ПРЕОБРАЗУЕМ В ЧИСЛО (если это строка)
+    const id = Number(supplierId);
+    
+    // ✅ ПРОВЕРЯЕМ, ЧТО ЭТО ЧИСЛО
+    if (isNaN(id) || id <= 0) {
+        showNotification('❌ Неверный ID поставщика: ' + supplierId, true);
+        console.log('❌ Неверный ID:', supplierId, 'тип:', typeof supplierId);
         return;
     }
             try {
