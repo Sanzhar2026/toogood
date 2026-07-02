@@ -7344,13 +7344,16 @@ async def get_all_surprise_bags(
 # АДМИН: УПРАВЛЕНИЕ ПОСТАВЩИКАМИ (ЧИСТЫЙ SQL)
 # ============================================================
 
+# ============================================================
+# АДМИН: УПРАВЛЕНИЕ ПОСТАВЩИКАМИ (ЧИСТЫЙ SQL)
+# ============================================================
+
 @app.get("/api/admin/suppliers")
 async def admin_get_all_suppliers(
     request: Request
 ):
-    """Админ получает всех поставщиков с полной информацией - ЧИСТЫЙ SQL"""
+    """Админ получает всех поставщиков с доходами - ЧИСТЫЙ SQL"""
     
-    # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
@@ -7377,7 +7380,6 @@ async def admin_get_all_suppliers(
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # ✅ ЧИСТЫЙ SQL - ВСЕ ДАННЫЕ В ОДНОМ ЗАПРОСЕ
         cur.execute("""
             SELECT 
                 s.id,
@@ -7397,7 +7399,8 @@ async def admin_get_all_suppliers(
                 u.full_name as user_name,
                 u.email as user_email,
                 (SELECT COUNT(*) FROM orders WHERE supplier_id = s.id) as orders_count,
-                (SELECT COUNT(*) FROM surprise_bags WHERE supplier_id = s.id AND is_active = true) as active_bags_count
+                (SELECT COUNT(*) FROM surprise_bags WHERE supplier_id = s.id AND is_active = true) as active_bags_count,
+                (SELECT COALESCE(SUM(amount_paid), 0) FROM orders WHERE supplier_id = s.id AND status = 'delivered') as total_revenue
             FROM suppliers s
             LEFT JOIN users u ON u.id = s.user_id
             ORDER BY s.created_at DESC
@@ -7407,7 +7410,6 @@ async def admin_get_all_suppliers(
         cur.close()
         conn.close()
         
-        # Форматируем результат
         result = []
         for s in suppliers:
             result.append({
@@ -7426,7 +7428,8 @@ async def admin_get_all_suppliers(
                 "logo": s['logo'],
                 "total_reviews": s['total_reviews'] or 0,
                 "orders_count": s['orders_count'] or 0,
-                "active_bags_count": s['active_bags_count'] or 0
+                "active_bags_count": s['active_bags_count'] or 0,
+                "total_revenue": float(s['total_revenue']) if s['total_revenue'] else 0
             })
         
         return {"success": True, "suppliers": result}
@@ -7448,7 +7451,6 @@ async def admin_get_supplier_detail(
 ):
     """Админ получает детальную информацию о поставщике - ЧИСТЫЙ SQL"""
     
-    # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
@@ -7475,32 +7477,17 @@ async def admin_get_supplier_detail(
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # 1. ПОЛУЧАЕМ ПОСТАВЩИКА
+        # 1. Поставщик
         cur.execute("""
             SELECT 
-                s.id,
-                s.business_name,
-                s.business_type,
-                s.address,
-                s.city,
-                s.phone,
-                s.email,
-                s.rating,
-                s.is_active,
-                s.created_at,
-                s.opening_time,
-                s.closing_time,
-                s.logo,
-                s.total_reviews,
-                u.full_name as user_name,
-                u.email as user_email
+                s.id, s.business_name, s.business_type, s.address, s.city,
+                s.phone, s.email, s.rating, s.is_active, s.created_at,
+                s.opening_time, s.closing_time, s.logo, s.total_reviews
             FROM suppliers s
-            LEFT JOIN users u ON u.id = s.user_id
             WHERE s.id = %s
         """, (supplier_id,))
         
         supplier = cur.fetchone()
-        
         if not supplier:
             cur.close()
             conn.close()
@@ -7509,16 +7496,11 @@ async def admin_get_supplier_detail(
                 content={"success": False, "detail": "Supplier not found"}
             )
         
-        # 2. ПОЛУЧАЕМ ЗАКАЗЫ
+        # 2. Заказы
         cur.execute("""
             SELECT 
-                o.id,
-                o.order_number,
-                o.amount_paid,
-                o.status,
-                o.created_at,
-                u.full_name as customer_name,
-                u.phone as customer_phone
+                o.id, o.order_number, o.amount_paid, o.status, o.created_at,
+                u.full_name as customer_name, u.phone as customer_phone
             FROM orders o
             LEFT JOIN users u ON u.id = o.user_id
             WHERE o.supplier_id = %s
@@ -7528,17 +7510,11 @@ async def admin_get_supplier_detail(
         
         orders = cur.fetchall()
         
-        # 3. ПОЛУЧАЕМ СЮРПРИЗЫ
+        # 3. Сюрпризы
         cur.execute("""
             SELECT 
-                id,
-                name,
-                original_price,
-                discounted_price,
-                discount_percentage,
-                available_quantity,
-                is_active,
-                created_at
+                id, name, original_price, discounted_price,
+                discount_percentage, available_quantity, is_active, hide_contents
             FROM surprise_bags
             WHERE supplier_id = %s
             ORDER BY created_at DESC
@@ -7546,46 +7522,43 @@ async def admin_get_supplier_detail(
         
         bags = cur.fetchall()
         
-        # 4. СТАТИСТИКА
+        # 4. Клиенты по сюрпризам
         cur.execute("""
             SELECT 
-                COUNT(*) as total_orders,
-                SUM(CASE WHEN status = 'delivered' THEN amount_paid ELSE 0 END) as total_revenue,
-                COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders,
-                COUNT(CASE WHEN status = 'delivered' THEN 1 END) as completed_orders
-            FROM orders
-            WHERE supplier_id = %s
+                sb.id as bag_id,
+                sb.name as bag_name,
+                u.full_name as customer_name,
+                u.phone as customer_phone,
+                o.id as order_id,
+                o.created_at as order_date
+            FROM surprise_bags sb
+            LEFT JOIN orders o ON o.surprise_bag_id = sb.id
+            LEFT JOIN users u ON u.id = o.user_id
+            WHERE sb.supplier_id = %s
+            AND o.status IN ('delivered', 'confirmed', 'ready_for_pickup', 'out_for_delivery')
+            ORDER BY sb.id, o.created_at DESC
         """, (supplier_id,))
         
-        stats = cur.fetchone()
+        customers_data = cur.fetchall()
         
         cur.close()
         conn.close()
         
-        # Форматируем
-        orders_list = []
-        for o in orders:
-            orders_list.append({
-                "id": o['id'],
-                "order_number": o['order_number'],
-                "amount": float(o['amount_paid']) if o['amount_paid'] else 0,
-                "status": o['status'],
-                "created_at": o['created_at'].isoformat() if o['created_at'] else None,
-                "customer_name": o['customer_name'] or o['customer_phone'] or "Неизвестно"
+        # Группируем клиентов по сюрпризам
+        bag_customers = {}
+        for row in customers_data:
+            bag_id = row['bag_id']
+            if bag_id not in bag_customers:
+                bag_customers[bag_id] = []
+            bag_customers[bag_id].append({
+                "name": row['customer_name'] or row['customer_phone'] or "Неизвестно",
+                "phone": row['customer_phone'],
+                "order_date": row['order_date'].isoformat() if row['order_date'] else None
             })
         
-        bags_list = []
-        for b in bags:
-            bags_list.append({
-                "id": b['id'],
-                "name": b['name'],
-                "original_price": float(b['original_price']) if b['original_price'] else 0,
-                "discounted_price": float(b['discounted_price']) if b['discounted_price'] else 0,
-                "discount_percentage": b['discount_percentage'] or 0,
-                "available_quantity": b['available_quantity'] or 0,
-                "is_active": b['is_active'],
-                "created_at": b['created_at'].isoformat() if b['created_at'] else None
-            })
+        # Добавляем клиентов в сюрпризы
+        for bag in bags:
+            bag['customers'] = bag_customers.get(bag['id'], [])
         
         return {
             "success": True,
@@ -7596,7 +7569,7 @@ async def admin_get_supplier_detail(
                 "address": supplier['address'],
                 "city": supplier['city'],
                 "phone": supplier['phone'],
-                "email": supplier['email'] or supplier['user_email'],
+                "email": supplier['email'],
                 "rating": float(supplier['rating']) if supplier['rating'] else 0,
                 "is_active": supplier['is_active'],
                 "created_at": supplier['created_at'].isoformat() if supplier['created_at'] else None,
@@ -7605,14 +7578,25 @@ async def admin_get_supplier_detail(
                 "logo": supplier['logo'],
                 "total_reviews": supplier['total_reviews'] or 0
             },
-            "orders": orders_list,
-            "bags": bags_list,
-            "stats": {
-                "total_orders": stats['total_orders'] or 0,
-                "total_revenue": float(stats['total_revenue']) if stats['total_revenue'] else 0,
-                "pending_orders": stats['pending_orders'] or 0,
-                "completed_orders": stats['completed_orders'] or 0
-            }
+            "orders": [{
+                "id": o['id'],
+                "order_number": o['order_number'],
+                "amount": float(o['amount_paid']) if o['amount_paid'] else 0,
+                "status": o['status'],
+                "created_at": o['created_at'].isoformat() if o['created_at'] else None,
+                "customer_name": o['customer_name'] or o['customer_phone'] or "Неизвестно"
+            } for o in orders],
+            "bags": [{
+                "id": b['id'],
+                "name": b['name'],
+                "original_price": float(b['original_price']) if b['original_price'] else 0,
+                "discounted_price": float(b['discounted_price']) if b['discounted_price'] else 0,
+                "discount_percentage": b['discount_percentage'] or 0,
+                "available_quantity": b['available_quantity'] or 0,
+                "is_active": b['is_active'],
+                "hide_contents": b['hide_contents'],
+                "customers": bag_customers.get(b['id'], [])
+            } for b in bags]
         }
         
     except Exception as e:
@@ -7630,9 +7614,8 @@ async def admin_delete_supplier(
     supplier_id: int,
     request: Request
 ):
-    """Админ удаляет поставщика и все его данные - ЧИСТЫЙ SQL"""
+    """Админ удаляет поставщика - ЧИСТЫЙ SQL"""
     
-    # Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
@@ -7659,8 +7642,7 @@ async def admin_delete_supplier(
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # 1. Получаем supplier_id
-        cur.execute("SELECT id, user_id FROM suppliers WHERE id = %s", (supplier_id,))
+        cur.execute("SELECT user_id FROM suppliers WHERE id = %s", (supplier_id,))
         supplier = cur.fetchone()
         
         if not supplier:
@@ -7671,24 +7653,17 @@ async def admin_delete_supplier(
                 content={"success": False, "detail": "Supplier not found"}
             )
         
-        supplier_user_id = supplier[1]
+        supplier_user_id = supplier[0]
         
-        # 2. Удаляем связи сюрпризов
         cur.execute("""
             DELETE FROM surprise_bag_items 
             WHERE surprise_bag_id IN (SELECT id FROM surprise_bags WHERE supplier_id = %s)
         """, (supplier_id,))
         
-        # 3. Удаляем сюрпризы
         cur.execute("DELETE FROM surprise_bags WHERE supplier_id = %s", (supplier_id,))
-        
-        # 4. Удаляем заказы
         cur.execute("DELETE FROM orders WHERE supplier_id = %s", (supplier_id,))
-        
-        # 5. Удаляем поставщика
         cur.execute("DELETE FROM suppliers WHERE id = %s", (supplier_id,))
         
-        # 6. Удаляем пользователя
         if supplier_user_id:
             cur.execute("DELETE FROM users WHERE id = %s", (supplier_user_id,))
         
@@ -7696,15 +7671,10 @@ async def admin_delete_supplier(
         cur.close()
         conn.close()
         
-        return {
-            "success": True,
-            "message": "Supplier and all related data deleted"
-        }
+        return {"success": True, "message": "Supplier deleted"}
         
     except Exception as e:
         print(f"❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
@@ -7712,9 +7682,201 @@ async def admin_delete_supplier(
 
 
 # ============================================================
-# АДМИН: ОБНОВЛЕНИЕ ВРЕМЕНИ РАБОТЫ ПОСТАВЩИКА
+# АДМИН: УПРАВЛЕНИЕ СЮРПРИЗАМИ
 # ============================================================
 
+@app.put("/api/admin/bags/{bag_id}/toggle-active")
+async def admin_toggle_bag_active(
+    bag_id: int,
+    request: Request
+):
+    """Админ включает/выключает сюрприз"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
+    except:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Invalid token"}
+        )
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT is_active FROM surprise_bags WHERE id = %s", (bag_id,))
+        bag = cur.fetchone()
+        
+        if not bag:
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Bag not found"}
+            )
+        
+        new_status = not bag[0]
+        
+        cur.execute("""
+            UPDATE surprise_bags 
+            SET is_active = %s 
+            WHERE id = %s
+        """, (new_status, bag_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {"success": True, "bag_id": bag_id, "is_active": new_status}
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@app.put("/api/admin/bags/{bag_id}/toggle-type")
+async def admin_toggle_bag_type(
+    bag_id: int,
+    request: Request
+):
+    """Админ меняет тип сюрприза (скрытый/открытый)"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
+    except:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Invalid token"}
+        )
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT hide_contents FROM surprise_bags WHERE id = %s", (bag_id,))
+        bag = cur.fetchone()
+        
+        if not bag:
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Bag not found"}
+            )
+        
+        new_type = not bag[0]
+        
+        cur.execute("""
+            UPDATE surprise_bags 
+            SET hide_contents = %s 
+            WHERE id = %s
+        """, (new_type, bag_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {"success": True, "bag_id": bag_id, "hide_contents": new_type}
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@app.delete("/api/admin/bags/{bag_id}")
+async def admin_delete_bag(
+    bag_id: int,
+    request: Request
+):
+    """Админ удаляет сюрприз"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Admin only"}
+            )
+    except:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Invalid token"}
+        )
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("DELETE FROM surprise_bag_items WHERE surprise_bag_id = %s", (bag_id,))
+        cur.execute("DELETE FROM surprise_bags WHERE id = %s", (bag_id,))
+        
+        if cur.rowcount == 0:
+            cur.close()
+            conn.close()
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "error": "Bag not found"}
+            )
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {"success": True, "message": "Bag deleted"}
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+# ============================================================
+# АДМИН: ОБНОВЛЕНИЕ ВРЕМЕНИ РАБОТЫ ПОСТАВЩИКА
+# ============================================================
 @app.put("/api/admin/suppliers/{supplier_id}/time")
 async def admin_update_supplier_time(
     supplier_id: int,
@@ -7722,7 +7884,7 @@ async def admin_update_supplier_time(
 ):
     """Админ обновляет время работы поставщика - ЧИСТЫЙ SQL"""
     
-    # Проверка токена
+    # ✅ Проверка токена
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
@@ -7759,6 +7921,7 @@ async def admin_update_supplier_time(
         conn = get_db_connection()
         cur = conn.cursor()
         
+        # ✅ Обновляем время работы
         cur.execute("""
             UPDATE suppliers 
             SET opening_time = %s, closing_time = %s
