@@ -105,7 +105,7 @@ class User(Base):
     
     supplier_reviews = relationship("SupplierReview", back_populates="user", cascade="all, delete-orphan")
     surprise_bag_reviews = relationship("SurpriseBagReview", back_populates="user", cascade="all, delete-orphan")
-    
+    last_surprise_view = Column(DateTime, nullable=True) 
     # ✅ НОВОЕ: Связь с рейтингами
     ratings = relationship("Rating", back_populates="user", cascade="all, delete-orphan")
 
