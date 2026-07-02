@@ -1422,16 +1422,14 @@ async def notify_user(user_id: int, message: dict):
 # ============================================================
 # НОВЫЕ ЭНДПОИНТЫ ДЛЯ ОТСЛЕЖИВАНИЯ ПРОСМОТРОВ
 # ============================================================
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 @app.post("/api/suppliers/mark-viewed")
 async def mark_supplier_viewed(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """
-    Отметить, что пользователь посмотрел поставщика
-    Обновляет last_surprise_view в таблице users
-    """
+    """Отметить, что пользователь посмотрел поставщика"""
     
     # ✅ Проверяем авторизацию
     auth_header = request.headers.get("Authorization")
@@ -1451,28 +1449,10 @@ async def mark_supplier_viewed(
                 status_code=401,
                 content={"success": False, "detail": "Invalid token"}
             )
-        
-        # Проверяем что это клиент (customer)
-        if payload.get("role") != "customer":
-            return JSONResponse(
-                status_code=403,
-                content={"success": False, "detail": "Only customers can mark viewed"}
-            )
-            
-    except jwt.ExpiredSignatureError:
+    except:
         return JSONResponse(
             status_code=401,
-            content={"success": False, "detail": "Token expired"}
-        )
-    except jwt.JWTError as e:
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "detail": f"Invalid token: {str(e)}"}
-        )
-    except Exception as e:
-        return JSONResponse(
-            status_code=401,
-            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+            content={"success": False, "detail": "Invalid token"}
         )
     
     try:
@@ -1487,7 +1467,6 @@ async def mark_supplier_viewed(
         
         from datetime import datetime
         
-        # ✅ Обновляем last_surprise_view у пользователя
         user = db.query(User).filter(User.id == int(user_id)).first()
         if not user:
             return JSONResponse(
@@ -1495,10 +1474,17 @@ async def mark_supplier_viewed(
                 content={"success": False, "detail": "User not found"}
             )
         
-        user.last_surprise_view = datetime.utcnow()
-        db.commit()
-        
-        print(f"✅ Пользователь {user_id} посмотрел поставщика {supplier_id}")
+        # ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ ПОЛЕ
+        if hasattr(user, 'last_surprise_view'):
+            user.last_surprise_view = datetime.utcnow()
+            db.commit()
+            print(f"✅ Пользователь {user_id} посмотрел поставщика {supplier_id}")
+        else:
+            print(f"⚠️ У пользователя {user_id} нет поля last_surprise_view")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "detail": "Database schema error"}
+            )
         
         return {
             "success": True,
@@ -1513,7 +1499,6 @@ async def mark_supplier_viewed(
             status_code=500,
             content={"success": False, "detail": str(e)}
         )
-
 
 @app.post("/api/suppliers/mark-all-viewed")
 async def mark_all_suppliers_viewed(
@@ -12168,6 +12153,8 @@ from typing import Optional
 
 # backend/main.py - ОБНОВЛЕННЫЙ ЭНДПОИНТ
 
+# backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
+
 @app.get("/api/suppliers/nearby")
 async def get_nearby_suppliers(
     lat: Optional[str] = None,
@@ -12176,67 +12163,71 @@ async def get_nearby_suppliers(
     request: Request = None,
     db: Session = Depends(get_db)
 ):
-    """Получить поставщиков рядом с пользователем с подсчетом новых сюрпризов"""
+    """Получить поставщиков рядом с пользователем"""
     
-    # ✅ Конвертируем координаты
+    print(f"📍 GET /api/suppliers/nearby - lat={lat}, lon={lon}, radius={radius}")
+    
     if lat is None or lon is None:
-        print("⚠️ Координаты не переданы")
         return {"count": 0, "suppliers": []}
     
     try:
         lat_float = float(lat)
         lon_float = float(lon)
     except (ValueError, TypeError) as e:
-        print(f"❌ Ошибка конвертации: lat={lat}, lon={lon}")
+        print(f"❌ Ошибка конвертации: {e}")
         return {"count": 0, "suppliers": [], "error": "Invalid coordinates"}
     
-    print(f"🔍 Поиск поставщиков рядом с {lat_float}, {lon_float}, радиус {radius}км")
-    
-    # ✅ Получаем пользователя
+    # ✅ ПОЛУЧАЕМ ПОЛЬЗОВАТЕЛЯ
     user_id = None
-    auth_header = request.headers.get("Authorization") if request else None
-    
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-        try:
-            from jose import jwt
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-        except:
-            pass
-    
     user = None
-    if user_id:
-        user = db.query(User).filter(User.id == int(user_id)).first()
     
-    # ✅ Получаем всех активных поставщиков
+    if request:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            try:
+                token = auth_header.split(" ")[1]
+                from jose import jwt
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_id = payload.get("sub")
+                if user_id:
+                    user = db.query(User).filter(User.id == int(user_id)).first()
+                    print(f"👤 Пользователь: {user_id}")
+            except Exception as e:
+                print(f"⚠️ Ошибка получения пользователя: {e}")
+    
+    # ✅ ПОЛУЧАЕМ ВСЕХ АКТИВНЫХ ПОСТАВЩИКОВ
     all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
+    print(f"📦 Найдено поставщиков: {len(all_suppliers)}")
     
     nearby = []
     for supplier in all_suppliers:
         if not supplier.lat or not supplier.lon:
             continue
         
-        # Рассчитываем расстояние
         distance = haversine_distance(lat_float, lon_float, supplier.lat, supplier.lon)
         
         if distance <= radius:
-            # ✅ Считаем новые сюрпризы
+            # ✅ СЧИТАЕМ НОВЫЕ СЮРПРИЗЫ С ПРОВЕРКОЙ
             new_bags_count = 0
-            if user and user.last_surprise_view:
-                new_bags_count = db.query(SurpriseBag).filter(
-                    SurpriseBag.supplier_id == supplier.id,
-                    SurpriseBag.is_active == True,
-                    SurpriseBag.available_quantity > 0,
-                    SurpriseBag.created_at > user.last_surprise_view
-                ).count()
-            else:
-                # Если пользователь ни разу не смотрел - все сюрпризы считаются новыми
-                new_bags_count = db.query(SurpriseBag).filter(
-                    SurpriseBag.supplier_id == supplier.id,
-                    SurpriseBag.is_active == True,
-                    SurpriseBag.available_quantity > 0
-                ).count()
+            try:
+                # ✅ ПРОВЕРЯЕМ, ЕСТЬ ЛИ У ПОЛЬЗОВАТЕЛЯ ПОЛЕ
+                if user and hasattr(user, 'last_surprise_view') and user.last_surprise_view:
+                    new_bags_count = db.query(SurpriseBag).filter(
+                        SurpriseBag.supplier_id == supplier.id,
+                        SurpriseBag.is_active == True,
+                        SurpriseBag.available_quantity > 0,
+                        SurpriseBag.created_at > user.last_surprise_view
+                    ).count()
+                else:
+                    # Если поле отсутствует или NULL - считаем все активные сюрпризы новыми
+                    new_bags_count = db.query(SurpriseBag).filter(
+                        SurpriseBag.supplier_id == supplier.id,
+                        SurpriseBag.is_active == True,
+                        SurpriseBag.available_quantity > 0
+                    ).count()
+            except Exception as e:
+                print(f"⚠️ Ошибка подсчета новых сюрпризов: {e}")
+                new_bags_count = 0
             
             active_bags = db.query(SurpriseBag).filter(
                 SurpriseBag.supplier_id == supplier.id,
@@ -12256,10 +12247,9 @@ async def get_nearby_suppliers(
                     "surprise_bags_count": len(active_bags),
                     "logo": supplier.logo,
                     "business_type": supplier.business_type,
-                    "new_bags_count": new_bags_count  # ✅ КОЛИЧЕСТВО НОВЫХ СЮРПРИЗОВ
+                    "new_bags_count": new_bags_count
                 })
     
-    # Сортируем по расстоянию
     nearby.sort(key=lambda x: x["distance_km"])
     print(f"🎯 ИТОГО: {len(nearby)} поставщиков")
     
