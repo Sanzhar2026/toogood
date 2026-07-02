@@ -657,6 +657,9 @@
         // 2. ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ПОСТАВЩИКА
         // ============================================================
         async function loadSupplierDetail(supplierId) {
+               console.log('🔍 loadSupplierDetail вызван с supplierId:', supplierId);
+    console.log('🔍 Тип supplierId:', typeof supplierId);
+    
              if (!supplierId) {
         showNotification('❌ ID поставщика не указан', true);
         return;
