@@ -657,6 +657,11 @@
         // 2. ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ПОСТАВЩИКА
         // ============================================================
         async function loadSupplierDetail(supplierId) {
+            supplierId = parseInt(supplierId);
+    if (isNaN(supplierId)) {
+        showNotification('❌ Неверный ID поставщика', true);
+        return;
+    }
             try {
                 const response = await authFetch('/api/admin/suppliers/' + supplierId + '/detail');
                 const data = await response.json();
