@@ -657,25 +657,33 @@
         // 2. ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ПОСТАВЩИКА
         // ============================================================
         async function loadSupplierDetail(supplierId) {
-               console.log('🔍 loadSupplierDetail вызван с supplierId:', supplierId);
-    console.log('🔍 Тип supplierId:', typeof supplierId);
-    
-             if (!supplierId) {
-        showNotification('❌ ID поставщика не указан', true);
-        return;
-    }
-    
-    // ✅ ПРЕОБРАЗУЕМ В ЧИСЛО (если это строка)
-    const id = Number(supplierId);
-    
-    // ✅ ПРОВЕРЯЕМ, ЧТО ЭТО ЧИСЛО
-    if (isNaN(id) || id <= 0) {
-        showNotification('❌ Неверный ID поставщика: ' + supplierId, true);
-        console.log('❌ Неверный ID:', supplierId, 'тип:', typeof supplierId);
-        return;
-    }
+            // ✅ ЕСЛИ ПРИШЛА СТРОКА - ПЫТАЕМСЯ НАЙТИ ПО ID
+            if (typeof supplierId === 'string' && isNaN(Number(supplierId))) {
+                try {
+                    const response = await authFetch('/api/admin/suppliers');
+                    const data = await response.json();
+                    const supplier = data.suppliers.find(s => s.business_name === supplierId);
+                    if (supplier) {
+                        supplierId = supplier.id;
+                        console.log('🔍 Найден ID по названию:', supplierId);
+                    } else {
+                        showNotification('❌ Поставщик не найден: ' + supplierId, true);
+                        return;
+                    }
+                } catch (error) {
+                    showNotification('❌ Ошибка поиска поставщика', true);
+                    return;
+                }
+            }
+            
+            const id = Number(supplierId);
+            if (isNaN(id) || id <= 0) {
+                showNotification('❌ Неверный ID поставщика: ' + supplierId, true);
+                return;
+            }
+            
             try {
-                const response = await authFetch('/api/admin/suppliers/' + supplierId + '/detail');
+                const response = await authFetch('/api/admin/suppliers/' + id + '/detail');
                 const data = await response.json();
                 
                 if (!data.success) {
@@ -981,7 +989,39 @@
         }
         
         // ============================================================
-        // 5. ОСТАЛЬНЫЕ ФУНКЦИИ
+        // 5. АДМИН: ОБНОВЛЕНИЕ ВРЕМЕНИ РАБОТЫ ПОСТАВЩИКА
+        // ============================================================
+        async function adminUpdateSupplierTime(supplierId) {
+            const opening = prompt('Введите время открытия (например: 09:00):');
+            if (!opening) return;
+            
+            const closing = prompt('Введите время закрытия (например: 23:00):');
+            if (!closing) return;
+            
+            try {
+                const response = await authFetch('/api/admin/suppliers/' + supplierId + '/time', {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        opening_time: opening,
+                        closing_time: closing
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('✅ Время работы обновлено: ' + opening + ' - ' + closing);
+                    loadSupplierDetail(supplierId);
+                    loadSuppliers();
+                } else {
+                    showNotification('❌ Ошибка: ' + (data.error || 'Неизвестная'), true);
+                }
+            } catch (error) {
+                showNotification('❌ Ошибка при обновлении времени', true);
+            }
+        }
+        
+        // ============================================================
+        // 6. ОСТАЛЬНЫЕ ФУНКЦИИ
         // ============================================================
         
         async function cleanupCancelledOrders() {
@@ -1128,38 +1168,6 @@
                 console.error('Error loading reservations:', error); 
             }
         }
-
-        // ============================================================
-// АДМИН: ОБНОВЛЕНИЕ ВРЕМЕНИ РАБОТЫ ПОСТАВЩИКА
-// ============================================================
-async function adminUpdateSupplierTime(supplierId) {
-    const opening = prompt('Введите время открытия (например: 09:00):');
-    if (!opening) return;
-    
-    const closing = prompt('Введите время закрытия (например: 23:00):');
-    if (!closing) return;
-    
-    try {
-        const response = await authFetch('/api/admin/suppliers/' + supplierId + '/time', {
-            method: 'PUT',
-            body: JSON.stringify({
-                opening_time: opening,
-                closing_time: closing
-            })
-        });
-        const data = await response.json();
-        
-        if (data.success) {
-            showNotification('✅ Время работы обновлено: ' + opening + ' - ' + closing);
-            loadSupplierDetail(supplierId);
-            loadSuppliers();
-        } else {
-            showNotification('❌ Ошибка: ' + (data.error || 'Неизвестная'), true);
-        }
-    } catch (error) {
-        showNotification('❌ Ошибка при обновлении времени', true);
-    }
-}
         
         async function markAsPaid(reservationId) {
             if (!confirm('Подтвердить оплату и создать заказ?')) return;
