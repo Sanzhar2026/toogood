@@ -5,16 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Админ-панель Sarqyn Food</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
         
         .admin-header {
             background: #367666;
@@ -27,16 +19,8 @@
             top: 0;
             z-index: 100;
         }
-        
-        .admin-header h1 {
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
-        
-        .admin-header h1 span {
-            font-weight: 300;
-        }
-        
+        .admin-header h1 { font-size: 1.5rem; font-weight: 600; }
+        .admin-header h1 span { font-weight: 300; }
         .logout-btn {
             background: white;
             color: #367666;
@@ -48,16 +32,9 @@
             font-size: 0.9rem;
             transition: background 0.2s;
         }
+        .logout-btn:hover { background: #e8f5e9; }
         
-        .logout-btn:hover {
-            background: #e8f5e9;
-        }
-        
-        .admin-container {
-            padding: 2rem;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
+        .admin-container { padding: 2rem; max-width: 1400px; margin: 0 auto; }
         
         .stats-grid {
             display: grid;
@@ -65,7 +42,6 @@
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
-        
         .stat-card {
             background: white;
             padding: 1.5rem;
@@ -74,22 +50,9 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             border: 1px solid #e8f5e9;
         }
-        
-        .stat-card:hover {
-            box-shadow: 0 4px 12px rgba(54, 118, 102, 0.15);
-        }
-        
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #367666;
-        }
-        
-        .stat-label {
-            color: #666;
-            margin-top: 0.5rem;
-            font-size: 0.9rem;
-        }
+        .stat-card:hover { box-shadow: 0 4px 12px rgba(54, 118, 102, 0.15); }
+        .stat-number { font-size: 2rem; font-weight: bold; color: #367666; }
+        .stat-label { color: #666; margin-top: 0.5rem; font-size: 0.9rem; }
         
         .section {
             background: white;
@@ -99,7 +62,6 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             border: 1px solid #e8f5e9;
         }
-        
         .section-header {
             display: flex;
             justify-content: space-between;
@@ -108,7 +70,6 @@
             flex-wrap: wrap;
             gap: 0.5rem;
         }
-        
         .section-title {
             font-size: 1.2rem;
             font-weight: 600;
@@ -116,7 +77,6 @@
             border-left: 4px solid #367666;
             padding-left: 0.75rem;
         }
-        
         .live-badge {
             background: #367666;
             color: white;
@@ -126,11 +86,7 @@
             margin-left: 0.5rem;
             animation: pulse 2s infinite;
         }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         
         .badge-pending {
             background: #367666;
@@ -143,19 +99,16 @@
         }
         
         .refresh-btn {
-            background: #f5f5f5;
-            border: 1px solid #e0e0e0;
+            background: #367666;
+            color: white;
+            border: none;
             padding: 0.4rem 1rem;
             border-radius: 0.5rem;
             cursor: pointer;
             font-size: 0.8rem;
-            color: #367666;
             transition: background 0.2s;
         }
-        
-        .refresh-btn:hover {
-            background: #e8f5e9;
-        }
+        .refresh-btn:hover { background: #2a5a4d; }
         
         .btn-cleanup {
             background: #367666;
@@ -167,10 +120,7 @@
             font-size: 0.8rem;
             transition: background 0.2s;
         }
-        
-        .btn-cleanup:hover {
-            background: #2a5a4d;
-        }
+        .btn-cleanup:hover { background: #2a5a4d; }
         
         .btn-verify {
             background: #367666;
@@ -183,10 +133,7 @@
             font-size: 0.75rem;
             transition: background 0.2s;
         }
-        
-        .btn-verify:hover {
-            background: #2a5a4d;
-        }
+        .btn-verify:hover { background: #2a5a4d; }
         
         .btn-reject {
             background: #e74c3c;
@@ -198,10 +145,7 @@
             font-size: 0.75rem;
             transition: background 0.2s;
         }
-        
-        .btn-reject:hover {
-            background: #c0392b;
-        }
+        .btn-reject:hover { background: #c0392b; }
         
         .btn-paid {
             background: #367666;
@@ -213,10 +157,7 @@
             font-size: 0.75rem;
             transition: background 0.2s;
         }
-        
-        .btn-paid:hover {
-            background: #2a5a4d;
-        }
+        .btn-paid:hover { background: #2a5a4d; }
         
         .btn-refund {
             background: #367666;
@@ -228,10 +169,46 @@
             font-size: 0.75rem;
             transition: background 0.2s;
         }
+        .btn-refund:hover { background: #2a5a4d; }
         
-        .btn-refund:hover {
-            background: #2a5a4d;
+        .btn-view {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background 0.2s;
         }
+        .btn-view:hover { background: #2980b9; }
+        
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: background 0.2s;
+        }
+        .btn-delete:hover { background: #c0392b; }
+        
+        .btn-toggle-bag {
+            background: #367666;
+            color: white;
+            border: none;
+            padding: 0.2rem 0.6rem;
+            border-radius: 0.3rem;
+            cursor: pointer;
+            font-size: 0.65rem;
+            transition: background 0.2s;
+            margin-right: 0.2rem;
+        }
+        .btn-toggle-bag:hover { background: #2a5a4d; }
+        .btn-toggle-bag.inactive { background: #e74c3c; }
+        .btn-toggle-bag.inactive:hover { background: #c0392b; }
         
         .status-select {
             padding: 0.3rem;
@@ -242,11 +219,7 @@
             cursor: pointer;
             color: #333;
         }
-        
-        .status-select:focus {
-            outline: 2px solid #367666;
-            border-color: transparent;
-        }
+        .status-select:focus { outline: 2px solid #367666; border-color: transparent; }
         
         .status-badge {
             padding: 0.15rem 0.6rem;
@@ -254,64 +227,70 @@
             font-size: 0.7rem;
             font-weight: 600;
         }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-approved { background: #d4edda; color: #155724; }
+        .status-active { background: #d4edda; color: #155724; }
+        .status-inactive { background: #f8d7da; color: #721c24; }
         
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
+        .font-mono { font-family: 'Courier New', monospace; font-weight: bold; letter-spacing: 0.1rem; }
         
-        .status-approved {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .font-mono {
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            letter-spacing: 0.1rem;
-        }
-        
-        .table-container {
-            overflow-x: auto;
-            margin-top: 0.5rem;
-        }
-        
+        .table-container { overflow-x: auto; margin-top: 0.5rem; }
         table {
             width: 100%;
             border-collapse: collapse;
             min-width: 600px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
-        
         th {
             background: #f8faf8;
-            padding: 0.75rem;
+            padding: 0.6rem 0.5rem;
             text-align: left;
             border-bottom: 2px solid #367666;
             font-weight: 600;
             color: #367666;
+            font-size: 0.8rem;
         }
-        
         td {
-            padding: 0.75rem;
+            padding: 0.6rem 0.5rem;
             text-align: left;
             border-bottom: 1px solid #e8f5e9;
+            font-size: 0.8rem;
         }
+        tr:hover td { background: #f8faf8; }
         
-        tr:hover td {
+        .supplier-card {
             background: #f8faf8;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #367666;
         }
+        .supplier-card .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .supplier-card .name { font-weight: 700; font-size: 1.1rem; color: #367666; }
+        .supplier-card .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 0.5rem;
+        }
+        .supplier-card .stat-item {
+            background: white;
+            padding: 0.4rem 0.6rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            border: 1px solid #e8f5e9;
+        }
+        .supplier-card .stat-item .number { font-weight: bold; font-size: 1.1rem; color: #367666; }
+        .supplier-card .stat-item .label { font-size: 0.65rem; color: #666; }
         
-        .timer-warning {
-            color: #e74c3c;
-            font-weight: bold;
-            animation: blink 1s infinite;
-        }
-        
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
+        .timer-warning { color: #e74c3c; font-weight: bold; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         
         .notification {
             position: fixed;
@@ -325,22 +304,14 @@
             animation: slideIn 0.3s ease;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
-        
-        .notification.error {
-            background: #e74c3c;
-        }
-        
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
+        .notification.error { background: #e74c3c; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         
         .lang-buttons {
             display: flex;
             gap: 0.5rem;
             margin-bottom: 1.5rem;
         }
-        
         .lang-btn {
             background: white;
             border: 1px solid #e0e0e0;
@@ -351,43 +322,19 @@
             color: #367666;
             transition: all 0.2s;
         }
+        .lang-btn:hover { background: #e8f5e9; }
+        .lang-btn.active { background: #367666; color: white; border-color: #367666; }
         
-        .lang-btn:hover {
-            background: #e8f5e9;
-        }
+        .empty-row td { text-align: center; color: #999; padding: 2rem; }
         
-        .lang-btn.active {
-            background: #367666;
-            color: white;
-            border-color: #367666;
-        }
-        
-        .empty-row td {
-            text-align: center;
-            color: #999;
-            padding: 2rem;
-        }
+        .customers-list { font-size: 0.75rem; color: #555; max-width: 200px; }
         
         @media (max-width: 768px) {
-            .admin-container {
-                padding: 1rem;
-            }
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 1rem;
-            }
-            .section-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .admin-header {
-                padding: 1rem;
-                flex-direction: column;
-                gap: 0.5rem;
-            }
-            .admin-header h1 {
-                font-size: 1.2rem;
-            }
+            .admin-container { padding: 1rem; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+            .section-header { flex-direction: column; align-items: flex-start; }
+            .admin-header { padding: 1rem; flex-direction: column; gap: 0.5rem; }
+            .admin-header h1 { font-size: 1.2rem; }
         }
     </style>
 </head>
@@ -411,7 +358,7 @@
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="totalSuppliers">0</div>
-                <div class="stat-label">Ресторанов</div>
+                <div class="stat-label">Поставщиков</div>
             </div>
             <div class="stat-card">
                 <div class="stat-number" id="totalCouriers">0</div>
@@ -421,6 +368,48 @@
                 <div class="stat-number" id="totalRevenue">0 ₸</div>
                 <div class="stat-label">Общая выручка</div>
             </div>
+        </div>
+        
+        <!-- ============================================ -->
+        <!-- ПОСТАВЩИКИ С ПОЛНОЙ ИНФОРМАЦИЕЙ -->
+        <!-- ============================================ -->
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">Поставщики <span class="live-badge">live</span></h2>
+                <button class="refresh-btn" onclick="loadSuppliers()">Обновить</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Тип</th>
+                            <th>Город</th>
+                            <th>Заказов</th>
+                            <th>Доход</th>
+                            <th>Сюрпризов</th>
+                            <th>Рейтинг</th>
+                            <th>Статус</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody id="suppliersTable">
+                        <tr><td colspan="10" class="empty-row">Загрузка...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- ============================================ -->
+        <!-- ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ПОСТАВЩИКА -->
+        <!-- ============================================ -->
+        <div class="section" id="supplierDetailSection" style="display: none;">
+            <div class="section-header">
+                <h2 class="section-title" id="supplierDetailTitle">Детали поставщика</h2>
+                <button class="refresh-btn" onclick="closeSupplierDetail()">Закрыть</button>
+            </div>
+            <div id="supplierDetailContent"></div>
         </div>
         
         <div class="section">
@@ -517,6 +506,7 @@
                             <th>Клиент</th>
                             <th>Телефон</th>
                             <th>Товар</th>
+                            <th>Ресторан</th>
                             <th>Сумма</th>
                             <th>Оплата</th>
                             <th>Статус</th>
@@ -525,7 +515,7 @@
                         </tr>
                     </thead>
                     <tbody id="ordersTable">
-                        <tr><td colspan="10" class="empty-row">Загрузка...</td></tr>
+                        <tr><td colspan="11" class="empty-row">Загрузка...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -559,6 +549,9 @@
     </div>
 
     <script>
+        // ============================================================
+        // АУТЕНТИФИКАЦИЯ
+        // ============================================================
         let adminToken = sessionStorage.getItem('admin_token');
         if (!adminToken) {
             const urlParams = new URLSearchParams(window.location.search);
@@ -605,6 +598,374 @@
                 return m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;'; 
             }); 
         }
+        
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+        }
+        
+        function closeSupplierDetail() {
+            document.getElementById('supplierDetailSection').style.display = 'none';
+        }
+        
+        // ============================================================
+        // 1. ЗАГРУЗКА ПОСТАВЩИКОВ
+        // ============================================================
+        async function loadSuppliers() {
+            try {
+                const response = await authFetch('/api/admin/suppliers');
+                const data = await response.json();
+                const tbody = document.getElementById('suppliersTable');
+                
+                if (!data.suppliers || data.suppliers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="10" class="empty-row">Нет поставщиков</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = '';
+                for (const s of data.suppliers) {
+                    const statusText = s.is_active ? 'Активен' : 'Неактивен';
+                    const statusClass = s.is_active ? 'status-active' : 'status-inactive';
+                    const revenue = s.total_revenue || 0;
+                    const bagsCount = s.active_bags_count || 0;
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>#${s.id}</td>
+                            <td><strong>${escapeHtml(s.business_name)}</strong></td>
+                            <td>${escapeHtml(s.business_type || '-')}</td>
+                            <td>${escapeHtml(s.city || '-')}</td>
+                            <td>${s.orders_count || 0}</td>
+                            <td><strong>${revenue.toLocaleString()} ₸</strong></td>
+                            <td>${bagsCount}</td>
+                            <td>⭐ ${s.rating || 0}</td>
+                            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                            <td>
+                                <button class="btn-view" onclick="loadSupplierDetail(${s.id})">Детали</button>
+                                <button class="btn-delete" onclick="deleteSupplier(${s.id})">Удалить</button>
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (error) { 
+                console.error('Error loading suppliers:', error); 
+            }
+        }
+        
+        // ============================================================
+        // 2. ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ПОСТАВЩИКА
+        // ============================================================
+        async function loadSupplierDetail(supplierId) {
+            try {
+                const response = await authFetch('/api/admin/suppliers/' + supplierId + '/detail');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showNotification('Ошибка загрузки деталей', true);
+                    return;
+                }
+                
+                const s = data.supplier;
+                const orders = data.orders || [];
+                const bags = data.bags || [];
+                
+                const totalRevenue = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
+                const completedOrders = orders.filter(o => o.status === 'delivered' || o.status === 'completed').length;
+                const pendingOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed').length;
+                
+                document.getElementById('supplierDetailTitle').textContent = 'Детали: ' + s.business_name;
+                document.getElementById('supplierDetailSection').style.display = 'block';
+                
+                let html = `
+                    <div class="supplier-card">
+                        <div class="header">
+                            <span class="name">${escapeHtml(s.business_name)}</span>
+                            <span style="font-size:0.85rem; color: #666;">
+                                ID: #${s.id} | ${escapeHtml(s.business_type || '—')} | ${s.is_active ? '✅ Активен' : '❌ Неактивен'}
+                            </span>
+                        </div>
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:0.5rem; margin-bottom:0.5rem; font-size:0.85rem;">
+                            <div><strong>Телефон:</strong> ${escapeHtml(s.phone || '—')}</div>
+                            <div><strong>Email:</strong> ${escapeHtml(s.email || '—')}</div>
+                            <div><strong>Город:</strong> ${escapeHtml(s.city || '—')}</div>
+                            <div><strong>Адрес:</strong> ${escapeHtml(s.address || '—')}</div>
+                            <div><strong>Регистрация:</strong> ${formatDate(s.created_at)}</div>
+                            <div><strong>Рейтинг:</strong> ⭐ ${s.rating || 0}</div>
+                            <div><strong>Время работы:</strong> 
+        ${s.opening_time || '—'} - ${s.closing_time || '—'}
+        <button class="btn-view" onclick="adminUpdateSupplierTime(${s.id})" style="font-size:0.6rem;padding:0.2rem 0.5rem;margin-left:0.5rem;">
+            ✏️ Изменить
+        </button></div>
+                            <div><strong>Отзывов:</strong> ${s.total_reviews || 0}</div>
+                        </div>
+                        <div class="stats">
+                            <div class="stat-item">
+                                <div class="number">${orders.length}</div>
+                                <div class="label">Всего заказов</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="number">${completedOrders}</div>
+                                <div class="label">Выполнено</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="number">${pendingOrders}</div>
+                                <div class="label">В обработке</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="number">${totalRevenue.toLocaleString()} ₸</div>
+                                <div class="label">Общий доход</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="number">${bags.length}</div>
+                                <div class="label">Сюрпризов</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="number">${s.total_reviews || 0}</div>
+                                <div class="label">Отзывов</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Сюрпризы поставщика с клиентами
+                if (bags.length > 0) {
+                    html += `
+                        <h4 style="margin:1rem 0 0.5rem 0; color:#367666;">📦 Сюрпризы (${bags.length})</h4>
+                        <div class="table-container" style="max-height:300px; overflow-y:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Название</th>
+                                        <th>Цена</th>
+                                        <th>Со скидкой</th>
+                                        <th>Скидка</th>
+                                        <th>Доступно</th>
+                                        <th>Статус</th>
+                                        <th>Клиенты</th>
+                                        <th>Действие</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    bags.forEach(b => {
+                        const customers = b.customers || [];
+                        const customerNames = customers.map(c => c.name || c.phone || 'Неизвестно').join(', ');
+                        const customerCount = customers.length;
+                        const typeText = b.hide_contents ? '🔒 Скрытый' : '🔓 Открытый';
+                        
+                        html += `
+                            <tr>
+                                <td>#${b.id}</td>
+                                <td>${escapeHtml(b.name)}</td>
+                                <td>${b.original_price || 0} ₸</td>
+                                <td><strong>${b.discounted_price || 0} ₸</strong></td>
+                                <td>-${b.discount_percentage || 0}%</td>
+                                <td>${b.available_quantity || 0}</td>
+                                <td>${b.is_active ? '✅ Активен' : '❌ Неактивен'}</td>
+                                <td>
+                                    <span class="customers-list" title="${escapeHtml(customerNames)}">
+                                        ${customerCount} клиентов
+                                        ${customerCount > 0 ? `<span style="font-size:0.65rem;color:#999;"> (${escapeHtml(customerNames.substring(0, 25))}${customerNames.length > 25 ? '...' : ''})</span>` : ''}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn-toggle-bag ${b.is_active ? '' : 'inactive'}" onclick="adminToggleBagActive(${b.id})">
+                                        ${b.is_active ? '🟢' : '🔴'}
+                                    </button>
+                                    <button class="btn-toggle-bag" onclick="adminToggleBagType(${b.id})" style="background:#8b5cf6;">
+                                        ${b.hide_contents ? '🔓' : '🔒'}
+                                    </button>
+                                    <button class="btn-delete" onclick="adminDeleteBag(${b.id})" style="padding:0.2rem 0.5rem;font-size:0.65rem;">🗑️</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    html += `</tbody></table></div>`;
+                }
+                
+                // Уникальные клиенты поставщика
+                const uniqueCustomers = {};
+                orders.forEach(o => {
+                    if (o.customer_name && o.customer_name !== '—') {
+                        const key = o.customer_name + (o.customer_phone || '');
+                        if (!uniqueCustomers[key]) {
+                            uniqueCustomers[key] = {
+                                name: o.customer_name,
+                                phone: o.customer_phone,
+                                orders_count: 0,
+                                total_spent: 0
+                            };
+                        }
+                        uniqueCustomers[key].orders_count += 1;
+                        uniqueCustomers[key].total_spent += o.amount || 0;
+                    }
+                });
+                
+                const customersList = Object.values(uniqueCustomers);
+                
+                if (customersList.length > 0) {
+                    html += `
+                        <h4 style="margin:1rem 0 0.5rem 0; color:#367666;">👥 Клиенты (${customersList.length})</h4>
+                        <div class="table-container" style="max-height:200px; overflow-y:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Клиент</th>
+                                        <th>Телефон</th>
+                                        <th>Заказов</th>
+                                        <th>Потрачено</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    customersList.forEach(c => {
+                        html += `
+                            <tr>
+                                <td>${escapeHtml(c.name)}</td>
+                                <td>${escapeHtml(c.phone || '—')}</td>
+                                <td>${c.orders_count}</td>
+                                <td><strong>${c.total_spent.toLocaleString()} ₸</strong></td>
+                            </tr>
+                        `;
+                    });
+                    html += `</tbody></table></div>`;
+                }
+                
+                // Заказы поставщика
+                if (orders.length > 0) {
+                    html += `
+                        <h4 style="margin:1rem 0 0.5rem 0; color:#367666;">📋 Заказы (${orders.length})</h4>
+                        <div class="table-container" style="max-height:200px; overflow-y:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Клиент</th>
+                                        <th>Сумма</th>
+                                        <th>Статус</th>
+                                        <th>Дата</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    orders.slice(0, 20).forEach(o => {
+                        const statusMap = {
+                            'pending': 'Ожидает',
+                            'confirmed': 'Подтвержден',
+                            'preparing': 'Готовится',
+                            'ready_for_pickup': 'Готов',
+                            'out_for_delivery': 'В пути',
+                            'delivered': 'Доставлен',
+                            'cancelled': 'Отменен'
+                        };
+                        html += `
+                            <tr>
+                                <td>#${o.id}</td>
+                                <td>${escapeHtml(o.customer_name || '—')}</td>
+                                <td><strong>${(o.amount || 0).toLocaleString()} ₸</strong></td>
+                                <td><span class="status-badge status-${o.status}">${statusMap[o.status] || o.status}</span></td>
+                                <td>${formatDate(o.created_at)}</td>
+                            </tr>
+                        `;
+                    });
+                    if (orders.length > 20) {
+                        html += `<tr><td colspan="5" style="text-align:center; color:#999;">... и еще ${orders.length - 20} заказов</td></tr>`;
+                    }
+                    html += `</tbody></table></div>`;
+                }
+                
+                document.getElementById('supplierDetailContent').innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading supplier detail:', error);
+                showNotification('Ошибка загрузки деталей', true);
+            }
+        }
+        
+        // ============================================================
+        // 3. УДАЛЕНИЕ ПОСТАВЩИКА
+        // ============================================================
+        async function deleteSupplier(supplierId) {
+            if (!confirm('Удалить поставщика #' + supplierId + ' и все его данные?')) return;
+            try {
+                const response = await authFetch('/api/admin/suppliers/' + supplierId, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Поставщик удален');
+                    loadSuppliers();
+                    loadStats();
+                } else {
+                    showNotification('Ошибка: ' + (data.message || 'Неизвестная ошибка'), true);
+                }
+            } catch (error) {
+                showNotification('Ошибка при удалении', true);
+            }
+        }
+        
+        // ============================================================
+        // 4. АДМИН: УПРАВЛЕНИЕ СЮРПРИЗАМИ
+        // ============================================================
+        async function adminToggleBagActive(bagId) {
+            if (!confirm('Изменить статус сюрприза #' + bagId + '?')) return;
+            try {
+                const response = await authFetch('/api/admin/bags/' + bagId + '/toggle-active', { method: 'PUT' });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('✅ Статус сюрприза изменен');
+                    const title = document.getElementById('supplierDetailTitle').textContent;
+                    const supplierId = title.replace('Детали: ', '');
+                    loadSupplierDetail(supplierId);
+                    loadSuppliers();
+                } else {
+                    showNotification('❌ Ошибка: ' + (data.error || 'Неизвестная'), true);
+                }
+            } catch (error) {
+                showNotification('❌ Ошибка при изменении статуса', true);
+            }
+        }
+        
+        async function adminToggleBagType(bagId) {
+            if (!confirm('Изменить тип сюрприза #' + bagId + '?')) return;
+            try {
+                const response = await authFetch('/api/admin/bags/' + bagId + '/toggle-type', { method: 'PUT' });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('✅ Тип сюрприза изменен');
+                    const title = document.getElementById('supplierDetailTitle').textContent;
+                    const supplierId = title.replace('Детали: ', '');
+                    loadSupplierDetail(supplierId);
+                } else {
+                    showNotification('❌ Ошибка: ' + (data.error || 'Неизвестная'), true);
+                }
+            } catch (error) {
+                showNotification('❌ Ошибка при изменении типа', true);
+            }
+        }
+        
+        async function adminDeleteBag(bagId) {
+            if (!confirm('Удалить сюрприз #' + bagId + '? Это действие нельзя отменить!')) return;
+            try {
+                const response = await authFetch('/api/admin/bags/' + bagId, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('✅ Сюрприз удален');
+                    const title = document.getElementById('supplierDetailTitle').textContent;
+                    const supplierId = title.replace('Детали: ', '');
+                    loadSupplierDetail(supplierId);
+                    loadSuppliers();
+                } else {
+                    showNotification('❌ Ошибка: ' + (data.error || 'Неизвестная'), true);
+                }
+            } catch (error) {
+                showNotification('❌ Ошибка при удалении', true);
+            }
+        }
+        
+        // ============================================================
+        // 5. ОСТАЛЬНЫЕ ФУНКЦИИ
+        // ============================================================
         
         async function cleanupCancelledOrders() {
             if (!confirm('Очистить все отмененные заказы? Это действие нельзя отменить!')) return;
@@ -750,6 +1111,38 @@
                 console.error('Error loading reservations:', error); 
             }
         }
+
+        // ============================================================
+// АДМИН: ОБНОВЛЕНИЕ ВРЕМЕНИ РАБОТЫ ПОСТАВЩИКА
+// ============================================================
+async function adminUpdateSupplierTime(supplierId) {
+    const opening = prompt('Введите время открытия (например: 09:00):');
+    if (!opening) return;
+    
+    const closing = prompt('Введите время закрытия (например: 23:00):');
+    if (!closing) return;
+    
+    try {
+        const response = await authFetch('/api/admin/suppliers/' + supplierId + '/time', {
+            method: 'PUT',
+            body: JSON.stringify({
+                opening_time: opening,
+                closing_time: closing
+            })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ Время работы обновлено: ' + opening + ' - ' + closing);
+            loadSupplierDetail(supplierId);
+            loadSuppliers();
+        } else {
+            showNotification('❌ Ошибка: ' + (data.error || 'Неизвестная'), true);
+        }
+    } catch (error) {
+        showNotification('❌ Ошибка при обновлении времени', true);
+    }
+}
         
         async function markAsPaid(reservationId) {
             if (!confirm('Подтвердить оплату и создать заказ?')) return;
@@ -777,7 +1170,7 @@
                 const tbody = document.getElementById('ordersTable');
                 
                 if (!data.orders || data.orders.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="10" class="empty-row">Нет заказов</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="11" class="empty-row">Нет заказов</td></tr>';
                     return;
                 }
                 
@@ -790,6 +1183,7 @@
                             <td>${escapeHtml(order.customer_name)}</td>
                             <td>${escapeHtml(order.customer_phone)}</td>
                             <td>${escapeHtml(order.bag_name)}</td>
+                            <td>${escapeHtml(order.supplier_name)}</td>
                             <td><strong>${order.amount.toLocaleString()} ₸</strong></td>
                             <td>
                                 <select class="status-select" data-order-id="${order.id}" data-field="payment_status">
@@ -810,7 +1204,7 @@
                                     <option value="cancelled" ${order.status === 'cancelled' ? 'selected' : ''}>Отменен</option>
                                 </select>
                             </td>
-                            <td>${new Date(order.created_at).toLocaleString()}</td>
+                            <td>${formatDate(order.created_at)}</td>
                             <td><button class="btn-refund" onclick="processRefund(${order.id})">Возврат</button></td>
                         </tr>
                     `;
@@ -883,7 +1277,7 @@
                             <td>${escapeHtml(courier.phone)}</td>
                             <td>${courier.courier_type === 'driver' ? 'На машине' : 'Пеший'}</td>
                             <td>${escapeHtml(courier.car_model || '-')} ${escapeHtml(courier.car_number || '')}</td>
-                            <td>${courier.is_online ? 'Онлайн' : 'Офлайн'}</td>
+                            <td>${courier.is_online ? '🟢 Онлайн' : '⚪ Офлайн'}</td>
                             <td>${courier.total_deliveries || 0}</td>
                             <td>${courier.rating || 5.0}</td>
                         </tr>
@@ -985,12 +1379,15 @@
             }
         }
         
+        // ============================================================
+        // ЯЗЫКИ
+        // ============================================================
         let currentLang = 'ru';
         function setLang(lang) { 
             currentLang = lang; 
             const texts = {
                 kz: { users: 'Қолданушылар', suppliers: 'Мейрамханалар', couriers: 'Курьерлер', revenue: 'Жалпы табыс' },
-                ru: { users: 'Всего пользователей', suppliers: 'Ресторанов', couriers: 'Курьеров', revenue: 'Общая выручка' },
+                ru: { users: 'Всего пользователей', suppliers: 'Поставщиков', couriers: 'Курьеров', revenue: 'Общая выручка' },
                 en: { users: 'Total Users', suppliers: 'Restaurants', couriers: 'Couriers', revenue: 'Total Revenue' }
             };
             const t = texts[lang];
@@ -1008,8 +1405,12 @@
             });
         }
         
+        // ============================================================
+        // ИНИЦИАЛИЗАЦИЯ
+        // ============================================================
         setLang('ru');
         loadStats();
+        loadSuppliers();
         loadPendingCouriers();
         loadActiveReservations();
         loadOrders();
@@ -1018,6 +1419,7 @@
         
         setInterval(function() {
             loadStats();
+            loadSuppliers();
             loadPendingCouriers();
             loadActiveReservations();
             loadOrders();
