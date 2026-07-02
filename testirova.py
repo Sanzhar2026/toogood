@@ -1,79 +1,43 @@
-# create_templates_table.py
+# update_db.py - СКРИПТ ДЛЯ ДОБАВЛЕНИЯ ПОЛЯ
+
 import psycopg2
+from psycopg2.extras import RealDictCursor
+import os
 
 DATABASE_URL = "postgresql://postgres:YHceVkBwWMtDTXqSbqQhsGrnIxeWlcwz@thomas.proxy.rlwy.net:27717/railway"
 
-def migrate_database():
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
+def add_last_surprise_view_column():
+    """Добавить поле last_surprise_view в таблицу users"""
     
-    print("🔄 Начинаем миграцию...")
-    
-    # ============================================================
-    # 1. ПЕРЕИМЕНОВЫВАЕМ КОЛОНКИ В ТАБЛИЦЕ suppliers
-    # ============================================================
     try:
-        # Проверяем, существует ли колонка pickup_start_time
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        
+        # Проверяем, существует ли колонка
         cur.execute("""
             SELECT column_name 
             FROM information_schema.columns 
-            WHERE table_name='suppliers' AND column_name='pickup_start_time'
+            WHERE table_name='users' AND column_name='last_surprise_view'
         """)
+        
         if cur.fetchone():
-            cur.execute("ALTER TABLE suppliers RENAME COLUMN pickup_start_time TO opening_time")
-            print("✅ pickup_start_time → opening_time")
+            print("✅ Колонка last_surprise_view уже существует")
         else:
-            print("ℹ️ Колонка pickup_start_time не найдена, пропускаем")
-            
-        # Проверяем, существует ли колонка pickup_end_time
-        cur.execute("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name='suppliers' AND column_name='pickup_end_time'
-        """)
-        if cur.fetchone():
-            cur.execute("ALTER TABLE suppliers RENAME COLUMN pickup_end_time TO closing_time")
-            print("✅ pickup_end_time → closing_time")
-        else:
-            print("ℹ️ Колонка pickup_end_time не найдена, пропускаем")
-            
+            # Добавляем колонку
+            cur.execute("""
+                ALTER TABLE users 
+                ADD COLUMN last_surprise_view TIMESTAMP DEFAULT NULL
+            """)
+            conn.commit()
+            print("✅ Колонка last_surprise_view добавлена")
+        
+        cur.close()
+        conn.close()
+        
     except Exception as e:
-        print(f"⚠️ Ошибка при переименовании: {e}")
-    
-    # ============================================================
-    # 2. СОЗДАЕМ ТАБЛИЦУ supplier_templates
-    # ============================================================
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS supplier_templates (
-            id SERIAL PRIMARY KEY,
-            supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
-            name VARCHAR(255) NOT NULL,
-            description TEXT,
-            template_data TEXT NOT NULL,
-            is_active BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        )
-    """)
-    print("✅ Таблица supplier_templates создана!")
-    
-    # ============================================================
-    # 3. ПРОВЕРЯЕМ, ЧТО ВСЕ ОК
-    # ============================================================
-    cur.execute("""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='suppliers' 
-        AND column_name IN ('opening_time', 'closing_time')
-    """)
-    columns = cur.fetchall()
-    print(f"📋 Колонки в suppliers: {[c[0] for c in columns]}")
-    
-    conn.commit()
-    cur.close()
-    conn.close()
-    
-    print("✅ Миграция завершена успешно!")
+        print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    migrate_database()
+    add_last_surprise_view_column()

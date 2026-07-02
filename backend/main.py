@@ -1416,6 +1416,168 @@ async def notify_user(user_id: int, message: dict):
         except Exception as e:
             print(f"❌ Ошибка отправки пользователю {user_id}: {e}")
 
+
+# backend/main.py - ДОБАВИТЬ В КОНЕЦ ФАЙЛА
+
+# ============================================================
+# НОВЫЕ ЭНДПОИНТЫ ДЛЯ ОТСЛЕЖИВАНИЯ ПРОСМОТРОВ
+# ============================================================
+
+@app.post("/api/suppliers/mark-viewed")
+async def mark_supplier_viewed(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Отметить, что пользователь посмотрел поставщика
+    Обновляет last_surprise_view в таблице users
+    """
+    
+    # ✅ Проверяем авторизацию
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Проверяем что это клиент (customer)
+        if payload.get("role") != "customer":
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "detail": "Only customers can mark viewed"}
+            )
+            
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Authentication error: {str(e)}"}
+        )
+    
+    try:
+        data = await request.json()
+        supplier_id = data.get("supplier_id")
+        
+        if not supplier_id:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "detail": "supplier_id is required"}
+            )
+        
+        from datetime import datetime
+        
+        # ✅ Обновляем last_surprise_view у пользователя
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "User not found"}
+            )
+        
+        user.last_surprise_view = datetime.utcnow()
+        db.commit()
+        
+        print(f"✅ Пользователь {user_id} посмотрел поставщика {supplier_id}")
+        
+        return {
+            "success": True,
+            "message": "Supplier marked as viewed",
+            "last_surprise_view": user.last_surprise_view.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+
+
+@app.post("/api/suppliers/mark-all-viewed")
+async def mark_all_suppliers_viewed(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Отметить, что пользователь посмотрел ВСЕХ поставщиков
+    (используется при выходе с карты или закрытии приложения)
+    """
+    
+    # ✅ Проверяем авторизацию
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+    except:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Invalid token"}
+        )
+    
+    try:
+        from datetime import datetime
+        
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "User not found"}
+            )
+        
+        user.last_surprise_view = datetime.utcnow()
+        db.commit()
+        
+        print(f"✅ Пользователь {user_id} отметил ВСЕХ поставщиков как просмотренные")
+        
+        return {
+            "success": True,
+            "message": "All suppliers marked as viewed",
+            "last_surprise_view": user.last_surprise_view.isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        db.rollback()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+    
 app.post("/api/admin/bulk-update-status")
 async def admin_bulk_update_status(
     request: Request,
@@ -12004,16 +12166,19 @@ async def delivery_tracking(request: Request, order_id: int, db: Session = Depen
     
 from typing import Optional
 
+# backend/main.py - ОБНОВЛЕННЫЙ ЭНДПОИНТ
+
 @app.get("/api/suppliers/nearby")
 async def get_nearby_suppliers(
-    lat: Optional[str] = None,  # ← ВРЕМЕННО как строка
-    lon: Optional[str] = None, 
+    lat: Optional[str] = None,
+    lon: Optional[str] = None,
     radius: float = 10,
+    request: Request = None,
     db: Session = Depends(get_db)
 ):
-    """Получить поставщиков рядом с пользователем"""
+    """Получить поставщиков рядом с пользователем с подсчетом новых сюрпризов"""
     
-    # ✅ Проверяем и конвертируем
+    # ✅ Конвертируем координаты
     if lat is None or lon is None:
         print("⚠️ Координаты не переданы")
         return {"count": 0, "suppliers": []}
@@ -12027,7 +12192,24 @@ async def get_nearby_suppliers(
     
     print(f"🔍 Поиск поставщиков рядом с {lat_float}, {lon_float}, радиус {radius}км")
     
-    # Получаем всех активных поставщиков
+    # ✅ Получаем пользователя
+    user_id = None
+    auth_header = request.headers.get("Authorization") if request else None
+    
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            from jose import jwt
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("sub")
+        except:
+            pass
+    
+    user = None
+    if user_id:
+        user = db.query(User).filter(User.id == int(user_id)).first()
+    
+    # ✅ Получаем всех активных поставщиков
     all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
     
     nearby = []
@@ -12039,6 +12221,23 @@ async def get_nearby_suppliers(
         distance = haversine_distance(lat_float, lon_float, supplier.lat, supplier.lon)
         
         if distance <= radius:
+            # ✅ Считаем новые сюрпризы
+            new_bags_count = 0
+            if user and user.last_surprise_view:
+                new_bags_count = db.query(SurpriseBag).filter(
+                    SurpriseBag.supplier_id == supplier.id,
+                    SurpriseBag.is_active == True,
+                    SurpriseBag.available_quantity > 0,
+                    SurpriseBag.created_at > user.last_surprise_view
+                ).count()
+            else:
+                # Если пользователь ни разу не смотрел - все сюрпризы считаются новыми
+                new_bags_count = db.query(SurpriseBag).filter(
+                    SurpriseBag.supplier_id == supplier.id,
+                    SurpriseBag.is_active == True,
+                    SurpriseBag.available_quantity > 0
+                ).count()
+            
             active_bags = db.query(SurpriseBag).filter(
                 SurpriseBag.supplier_id == supplier.id,
                 SurpriseBag.is_active == True,
@@ -12055,7 +12254,9 @@ async def get_nearby_suppliers(
                     "distance_km": round(distance, 2),
                     "rating": supplier.rating or 0,
                     "surprise_bags_count": len(active_bags),
-                    "logo": supplier.logo, 
+                    "logo": supplier.logo,
+                    "business_type": supplier.business_type,
+                    "new_bags_count": new_bags_count  # ✅ КОЛИЧЕСТВО НОВЫХ СЮРПРИЗОВ
                 })
     
     # Сортируем по расстоянию
