@@ -12162,6 +12162,16 @@ from typing import Optional
 # backend/main.py - ИСПРАВЛЕННЫЙ ЭНДПОИНТ
 
 # backend/main.py - ОБНОВЛЕННЫЙ ЭНДПОИНТ
+# backend/main.py - ДОБАВЛЯЕМ КЭШИРОВАНИЕ
+
+from functools import lru_cache
+from datetime import datetime, timedelta
+import hashlib
+import json
+
+# ✅ КЭШ ДЛЯ ПОСТАВЩИКОВ
+supplier_cache = {}
+CACHE_TTL = 300  # 5 минут
 
 @app.get("/api/suppliers/nearby")
 async def get_nearby_suppliers(
@@ -12171,7 +12181,7 @@ async def get_nearby_suppliers(
     request: Request = None,
     db: Session = Depends(get_db)
 ):
-    """Получить поставщиков рядом с пользователем"""
+    """Получить поставщиков рядом с пользователем (С КЭШИРОВАНИЕМ)"""
     
     print(f"📍 GET /api/suppliers/nearby - lat={lat}, lon={lon}, radius={radius}")
     
@@ -12185,7 +12195,7 @@ async def get_nearby_suppliers(
         print(f"❌ Ошибка конвертации: {e}")
         return {"count": 0, "suppliers": [], "error": "Invalid coordinates"}
     
-    # ✅ ПОЛУЧАЕМ ПОЛЬЗОВАТЕЛЯ
+    # ✅ ПОЛУЧАЕМ ПОЛЬЗОВАТЕЛЯ (без изменений)
     user_id = None
     user = None
     viewed_supplier_ids = set()
@@ -12200,21 +12210,59 @@ async def get_nearby_suppliers(
                 user_id = payload.get("sub")
                 if user_id:
                     user = db.query(User).filter(User.id == int(user_id)).first()
-                    print(f"👤 Пользователь: {user_id}")
-                    
-                    # ✅ ПОЛУЧАЕМ СПИСОК ПРОСМОТРЕННЫХ ПОСТАВЩИКОВ
+                    # ✅ ПОЛУЧАЕМ ПРОСМОТРЕННЫХ ПОСТАВЩИКОВ
                     viewed = db.query(ViewedSupplier).filter(
                         ViewedSupplier.user_id == int(user_id)
                     ).all()
                     viewed_supplier_ids = {v.supplier_id for v in viewed}
-                    print(f"📋 Просмотрено поставщиков: {len(viewed_supplier_ids)}")
-                    
+                    print(f"👤 Пользователь: {user_id}, просмотрено: {len(viewed_supplier_ids)}")
             except Exception as e:
                 print(f"⚠️ Ошибка получения пользователя: {e}")
     
-    # ✅ ПОЛУЧАЕМ ВСЕХ АКТИВНЫХ ПОСТАВЩИКОВ
+    # ✅ СОЗДАЕМ КЛЮЧ КЭША
+    cache_key = f"suppliers_{lat_float:.6f}_{lon_float:.6f}_{radius}_{user_id}"
+    cache_hash = hashlib.md5(cache_key.encode()).hexdigest()
+    
+    # ✅ ПРОВЕРЯЕМ КЭШ
+    if cache_hash in supplier_cache:
+        cached_data, cached_time = supplier_cache[cache_hash]
+        if (datetime.utcnow() - cached_time).total_seconds() < CACHE_TTL:
+            print(f"✅ Возвращаем из кэша: {len(cached_data)} поставщиков")
+            # ✅ ОБНОВЛЯЕМ ТОЛЬКО СЧЕТЧИКИ НОВЫХ СЮРПРИЗОВ
+            # (они могут меняться часто, а остальное - нет)
+            result = []
+            for s in cached_data:
+                # Считаем новые сюрпризы для каждого поставщика
+                new_bags_count = 0
+                if user_id:
+                    viewed_record = db.query(ViewedSupplier).filter(
+                        ViewedSupplier.user_id == int(user_id),
+                        ViewedSupplier.supplier_id == s["id"]
+                    ).first()
+                    
+                    if viewed_record:
+                        new_bags_count = db.query(SurpriseBag).filter(
+                            SurpriseBag.supplier_id == s["id"],
+                            SurpriseBag.is_active == True,
+                            SurpriseBag.available_quantity > 0,
+                            SurpriseBag.created_at > viewed_record.viewed_at
+                        ).count()
+                    else:
+                        new_bags_count = s.get("surprise_bags_count", 0)
+                else:
+                    new_bags_count = s.get("surprise_bags_count", 0)
+                
+                result.append({
+                    **s,
+                    "new_bags_count": new_bags_count
+                })
+            
+            return {"count": len(result), "suppliers": result}
+    
+    print("🔄 Кэш не найден или истек, запрос в БД...")
+    
+    # ✅ ПОЛУЧАЕМ ВСЕХ ПОСТАВЩИКОВ (без изменений)
     all_suppliers = db.query(Supplier).filter(Supplier.is_active == True).all()
-    print(f"📦 Найдено поставщиков: {len(all_suppliers)}")
     
     nearby = []
     for supplier in all_suppliers:
@@ -12224,24 +12272,21 @@ async def get_nearby_suppliers(
         distance = haversine_distance(lat_float, lon_float, supplier.lat, supplier.lon)
         
         if distance <= radius:
-            # ✅ СЧИТАЕМ ВСЕ АКТИВНЫЕ СЮРПРИЗЫ
             active_bags = db.query(SurpriseBag).filter(
                 SurpriseBag.supplier_id == supplier.id,
                 SurpriseBag.is_active == True,
                 SurpriseBag.available_quantity > 0
             ).all()
             
-            # ✅ СЧИТАЕМ НОВЫЕ СЮРПРИЗЫ (которые пользователь еще не видел)
+            # ✅ СЧИТАЕМ НОВЫЕ СЮРПРИЗЫ
             new_bags_count = 0
             if user_id and viewed_supplier_ids:
-                # Если пользователь уже смотрел этого поставщика → считаем сюрпризы после просмотра
                 viewed_record = db.query(ViewedSupplier).filter(
                     ViewedSupplier.user_id == int(user_id),
                     ViewedSupplier.supplier_id == supplier.id
                 ).first()
                 
                 if viewed_record:
-                    # Считаем сюрпризы, созданные ПОСЛЕ просмотра
                     new_bags_count = db.query(SurpriseBag).filter(
                         SurpriseBag.supplier_id == supplier.id,
                         SurpriseBag.is_active == True,
@@ -12249,10 +12294,8 @@ async def get_nearby_suppliers(
                         SurpriseBag.created_at > viewed_record.viewed_at
                     ).count()
                 else:
-                    # Если пользователь НИКОГДА не смотрел этого поставщика → все сюрпризы новые
                     new_bags_count = len(active_bags)
             else:
-                # Если пользователь не авторизован → все сюрпризы новые
                 new_bags_count = len(active_bags)
             
             if active_bags:
@@ -12267,14 +12310,23 @@ async def get_nearby_suppliers(
                     "surprise_bags_count": len(active_bags),
                     "logo": supplier.logo,
                     "business_type": supplier.business_type,
-                    "new_bags_count": new_bags_count  # ✅ ТОЛЬКО НЕПРОСМОТРЕННЫЕ
+                    "new_bags_count": new_bags_count
                 })
     
     nearby.sort(key=lambda x: x["distance_km"])
     print(f"🎯 ИТОГО: {len(nearby)} поставщиков")
     
+    # ✅ СОХРАНЯЕМ В КЭШ
+    supplier_cache[cache_hash] = (nearby, datetime.utcnow())
+    
+    # ✅ ОЧИЩАЕМ СТАРЫЕ КЭШИ (если больше 100)
+    if len(supplier_cache) > 100:
+        oldest_keys = sorted(supplier_cache.keys(), key=lambda k: supplier_cache[k][1])[:50]
+        for key in oldest_keys:
+            del supplier_cache[key]
+        print(f"🧹 Очищено {len(oldest_keys)} старых кэшей")
+    
     return {"count": len(nearby), "suppliers": nearby}
-
 
 # ============ API ROUTES ============
 @app.get("/api/suppliers")
