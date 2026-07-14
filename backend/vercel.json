@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npm run build",
+  "installCommand": "npm install --legacy-peer-deps",
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://toogood-production.up.railway.app",
+    "NEXT_PUBLIC_WEBSOCKET_URL": "wss://toogood-production.up.railway.app"
+  }
+}
