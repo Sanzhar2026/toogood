@@ -38,7 +38,7 @@ except ImportError:
 
 
 
-
+""" CEVONICQW%&%y* """
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -52,7 +52,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://toogood-production.up.railway.app","https://sarqyt-go-production.up.railway.app","https://*-production.up.railway.app"],
+    allow_origins=["http://localhost:3000", "https://toogood-production.up.railway.app","sarqyt-go-t2kh.vercel.app","https://*-production.up.railway.app","*.vercel.app","https://sarqyt-go.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
