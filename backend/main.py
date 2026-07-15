@@ -65,7 +65,23 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+@app.middleware("http")
+async def add_cors_to_static(request, call_next):
+    """Добавляет CORS заголовки ко всем ответам, включая статику"""
+    response = await call_next(request)
+    
+    # Добавляем CORS заголовки
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept"
+    response.headers["Access-Control-Expose-Headers"] = "Content-Type, Content-Length"
+    
+    return response
 
+# ============ МОНТИРУЕМ СТАТИКУ ============
+app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # ============ REST OF YOUR CODE ============
 # ... остальной код
 
