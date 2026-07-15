@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, Depends, Form, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from backend.database import SessionLocal, engine, get_db
@@ -36,28 +37,37 @@ except ImportError:
     TWILIO_AVAILABLE = False
     print("⚠️ Twilio service not available. SMS verification will use demo mode.")
 
-
-
-""" CEVONICQW%&%y* """
-
 models.Base.metadata.create_all(bind=engine)
 
 # ============ FASTAPI APP ============
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+
 # ============ CACHE FOR DELIVERIES ============
 delivery_cache = {}
-from fastapi.middleware.cors import CORSMiddleware
 
+# ============ CORS CONFIGURATION ============
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://toogood-production.up.railway.app","sarqyt-go-t2kh.vercel.app","https://*-production.up.railway.app","*.vercel.app","https://sarqyt-go.vercel.app"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://localhost:3000",
+        "http://localhost:5000",
+        "https://toogood-production.up.railway.app",
+        "https://sarqyt-go-t2kh.vercel.app",
+        "https://sarqyt-go-t2kh.vercel.app",
+        "https://sarqyt-go.vercel.app",
+        "https://*.vercel.app",  # Все Vercel поддомены
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
+# ============ REST OF YOUR CODE ============
+# ... остальной код
 
 # ============ CATEGORIES ============
 categories = [
