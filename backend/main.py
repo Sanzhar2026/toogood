@@ -48,6 +48,7 @@ app.mount("/static", StaticFiles(directory="backend/static"), name="static")
 delivery_cache = {}
 
 # ============ CORS CONFIGURATION ============
+# ============ CORS CONFIGURATION ============
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -58,14 +59,133 @@ app.add_middleware(
         "https://sarqyt-go-t2kh.vercel.app",
         "https://sarqyt-go-t2kh.vercel.app",
         "https://sarqyt-go.vercel.app",
-        "https://*.vercel.app",  # Все Vercel поддомены
+        "https://*.vercel.app",
+        "https://sarqyt-go-t2kh-gabidullasanzhar-4184s-projects.vercel.app",  # Добавьте этот
+        "*"  # Для теста - разрешить все (уберите в production)
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
+# ============ USER ENDPOINTS ============
 
+@app.get("/me")
+async def get_current_user_info(request: Request, db: Session = Depends(get_db)):
+    """Получить информацию о текущем пользователе"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "detail": "User not found"}
+            )
+        
+        return {
+            "success": True,
+            "user": {
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "full_name": user.full_name,
+                "phone": user.phone,
+                "role": user.role or "customer",
+                "email": user.email
+            }
+        }
+        
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Token expired"}
+        )
+    except jwt.JWTError as e:
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": f"Invalid token: {str(e)}"}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+
+
+@app.get("/rating")
+async def get_user_rating(request: Request, db: Session = Depends(get_db)):
+    """Получить рейтинг пользователя"""
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"success": False, "detail": "Bearer token required"}
+        )
+    
+    token = auth_header.split(" ")[1]
+    
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"success": False, "detail": "Invalid token"}
+            )
+        
+        # Считаем рейтинг пользователя
+        # Например, по отзывам
+        reviews_count = db.query(SupplierReview).filter(SupplierReview.user_id == int(user_id)).count()
+        
+        # Или по заказам
+        orders_count = db.query(Order).filter(Order.user_id == int(user_id)).count()
+        
+        return {
+            "success": True,
+            "rating": 5.0,  # Пока фиктивно
+            "total_reviews": reviews_count,
+            "orders_count": orders_count
+        }
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": str(e)}
+        )
+
+
+@app.get("/api/me")
+async def api_me(request: Request, db: Session = Depends(get_db)):
+    """API для получения текущего пользователя (для мобильного приложения)"""
+    return await get_current_user_info(request, db)
+
+
+@app.get("/api/rating")
+async def api_rating(request: Request, db: Session = Depends(get_db)):
+    """API для получения рейтинга (для мобильного приложения)"""
+    return await get_user_rating(request, db)
 # ============ REST OF YOUR CODE ============
 # ... остальной код
 
